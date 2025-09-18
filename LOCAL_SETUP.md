@@ -271,7 +271,7 @@ VITE_DEBUG_MODE=false        # 本番モード
 
 問題が解決しない場合は：
 
-1. [GitHub Issues](https://github.com/your-username/ai-story-builder/issues)で報告
+1. [GitHub Issues](https://github.com/bookendless/ai-story-builder/issues)で報告
 2. ログファイルとエラーメッセージを添付
 3. 使用しているローカルLLM環境とモデルを明記
 

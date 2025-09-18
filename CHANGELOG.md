@@ -2,18 +2,8 @@
 
 このファイルは、AI Story Builderプロジェクトの重要な変更を記録します。
 
-形式は[Keep a Changelog](https://keepachangelog.com/ja/1.0.0/)に基づいており、このプロジェクトは[Semantic Versioning](https://semver.org/spec/v2.0.0.html)に従います。
 
-## [Unreleased]
-
-### 追加予定
-- 多言語対応（英語、中国語、韓国語）
-- 音声入力機能
-- リアルタイムコラボレーション
-- テンプレート機能
-- 高度なエクスポートオプション
-
-## [1.0.0] - 2024-01-XX
+## [1.0.0]
 
 ### 追加
 - 初回リリース
@@ -38,8 +28,7 @@
 - Tailwind CSS 3.4.1
 - Dexie 4.2.0（ローカルデータベース）
 
-## [0.9.0] - 2024-01-XX
-
+## [0.9.0]
 ### 追加
 - ベータ版リリース
 - 基本的なAI統合
@@ -50,7 +39,7 @@
 ### 変更
 - 初期プロトタイプから本格的なアプリケーションに進化
 
-## [0.1.0] - 2024-01-XX
+## [0.1.0]
 
 ### 追加
 - プロジェクト開始
@@ -58,27 +47,3 @@
 - 初期プロトタイプ
 
 ---
-
-## バージョン履歴の説明
-
-### バージョン番号の意味
-
-- **MAJOR** (1.0.0): 破壊的変更を含む大きな更新
-- **MINOR** (0.1.0): 新機能追加（後方互換性を保持）
-- **PATCH** (0.0.1): バグ修正（後方互換性を保持）
-
-### 変更の種類
-
-- **追加**: 新機能
-- **変更**: 既存機能の変更
-- **非推奨**: 将来のバージョンで削除予定の機能
-- **削除**: このバージョンで削除された機能
-- **修正**: バグ修正
-- **セキュリティ**: セキュリティ関連の修正
-
-### リンク
-
-- [Unreleased]: https://github.com/your-username/ai-story-builder/compare/v1.0.0...HEAD
-- [1.0.0]: https://github.com/your-username/ai-story-builder/releases/tag/v1.0.0
-- [0.9.0]: https://github.com/your-username/ai-story-builder/releases/tag/v0.9.0
-- [0.1.0]: https://github.com/your-username/ai-story-builder/releases/tag/v0.1.0

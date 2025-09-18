@@ -32,9 +32,10 @@ AI Story Builderは、AI技術を活用して小説創作を支援するアプ�
 - **リアルタイム保存**: 作業内容が自動的に保存される
 
 ### 🔒 プライバシー重視
-- **ローカル動作**: インターネット接続不要で完全オフライン動作
+- **完全オフライン動作**: インターネット接続不要で動作
 - **データ保護**: あなたの作品はすべてローカルに保存
 - **APIキー不要**: ローカルAIを使用するため外部サービスへの送信なし
+- **セキュア**: データが外部に送信されることは一切ありません
 
 ## 🚀 簡単スタート
 
@@ -74,13 +75,6 @@ npm run dev:local
 
 ブラウザで `http://localhost:5173` にアクセスして使用開始！
 
-### 方法2: クラウドAIを使用
-
-クラウドAIサービス（OpenAI、Claude、Gemini）を使用する場合：
-
-1. 上記の手順1-2を実行
-2. `.env.local` ファイルでAPIキーを設定
-3. `npm run dev` でアプリケーションを起動
 
 ## 📚 使い方
 
@@ -125,11 +119,6 @@ A: より高性能なモデル（Llama 3.1 70B等）の使用を検討してく�
 **Q: 動作が遅い**
 A: より軽量なモデル（Mistral 7B等）の使用を検討してください
 
-### サポート
-
-- **問題報告**: [GitHub Issues](https://github.com/your-username/ai-story-builder/issues)
-- **詳細な設定方法**: [LOCAL_SETUP.md](LOCAL_SETUP.md)
-- **開発者向け情報**: [DEVELOPER.md](DEVELOPER.md)
 
 ## 📄 ライセンス
 
@@ -137,11 +126,10 @@ A: より軽量なモデル（Mistral 7B等）の使用を検討してくださ�
 
 ## 🙏 謝辞
 
-- [OpenAI](https://openai.com/) - GPT API
-- [Anthropic](https://anthropic.com/) - Claude API
-- [Google](https://ai.google.dev/) - Gemini API
 - [LM Studio](https://lmstudio.ai/) - ローカルLLM環境
+- [Ollama](https://ollama.ai/) - ローカルLLM環境
 - [React](https://reactjs.org/) - UIライブラリ
+- [Vite](https://vitejs.dev/) - ビルドツール
 
 ---
 
