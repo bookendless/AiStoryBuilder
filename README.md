@@ -8,381 +8,97 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square)](https://github.com/your-username/ai-story-builder)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://reactjs.org/)
-[![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 
-[デモを見る](https://your-demo-url.com) • [ドキュメント](https://your-docs-url.com) • [問題を報告](https://github.com/your-username/ai-story-builder/issues)
+[デモを見る](https://your-demo-url.com) • [問題を報告](https://github.com/your-username/ai-story-builder/issues)
 
 </div>
 
 ## 📖 概要
 
-AI Story Builderは、AI技術を活用して小説創作を支援するWebアプリケーションです。複数のAIプロバイダーに対応し、キャラクター設定から物語の執筆まで一貫してサポートします。直感的なUIと強力なAI機能により、初心者から上級者まで、誰でも簡単に魅力的な小説を作成できます。
+AI Story Builderは、AI技術を活用して小説創作を支援するアプリケーションです。キャラクター設定から物語の執筆まで、AIが一貫してサポートします。初心者から上級者まで、誰でも簡単に魅力的な小説を作成できます。
 
 ## ✨ 主な機能
 
-### 🤖 AI統合
-- **複数プロバイダー対応**: OpenAI GPT、Anthropic Claude、Google Gemini
-- **ローカルLLM対応**: LM Studio、Ollama等のローカル環境
-- **インテリジェント生成**: 文脈を理解した高品質なコンテンツ生成
-- **リアルタイム調整**: 温度、トークン数等の細かいパラメータ調整
+### 🤖 AI支援創作
+- **キャラクター生成**: テーマに基づいた魅力的なキャラクターを自動作成
+- **プロット構築**: 起承転結から三幕構成まで、物語の骨格をAIが提案
+- **あらすじ作成**: 設定した情報を基に魅力的なあらすじを自動生成
+- **執筆支援**: 章ごとの詳細な執筆をAIがサポート
 
-### 👥 キャラクター管理
-- **詳細なキャラクター設定**: 外見、性格、背景の包括的な管理
-- **AI支援キャラクター生成**: テーマに基づいた魅力的なキャラクター自動作成
-- **キャラクター一貫性**: 物語全体を通じたキャラクターの一貫性維持
-- **視覚的キャラクターボード**: 直感的なキャラクター管理インターフェース
-
-### 📚 ストーリー構築
-- **段階的プロット作成**: 起承転結から三幕構成まで対応
-- **あらすじ自動生成**: AIによる魅力的なあらすじの提案
-- **章立て構成**: バランスの取れた章構成の自動提案
-- **執筆支援**: 章ごとの詳細な執筆アシスタント
-
-### 🎨 ユーザーエクスペリエンス
-- **ダークモード対応**: 目に優しいダークテーマ
+### 🎨 使いやすいインターフェース
+- **直感的な操作**: ステップバイステップで物語を構築
+- **ダークモード対応**: 目に優しいテーマで長時間の作業も快適
 - **レスポンシブデザイン**: デスクトップからモバイルまで完全対応
-- **PWA対応**: オフライン動作とアプリインストール
-- **リアルタイム保存**: 作業内容の自動保存
+- **リアルタイム保存**: 作業内容が自動的に保存される
 
-### 🔒 セキュリティ
-- **APIキー暗号化**: 安全なAPIキー管理
-- **入力値サニタイゼーション**: XSS、SQLインジェクション対策
-- **レート制限**: 不正使用の防止
-- **セッション管理**: 安全なセッション管理
+### 🔒 プライバシー重視
+- **ローカル動作**: インターネット接続不要で完全オフライン動作
+- **データ保護**: あなたの作品はすべてローカルに保存
+- **APIキー不要**: ローカルAIを使用するため外部サービスへの送信なし
 
-## 🚀 クイックスタート
+## 🚀 簡単スタート
 
-### 前提条件
+### 1. 必要なソフトウェアをインストール
 
-- **Node.js**: 18.0.0以上
-- **npm**: 8.0.0以上 または **yarn**: 1.22.0以上
-- **Git**: 2.0.0以上
+**Node.js**（必須）
+- [Node.js公式サイト](https://nodejs.org/)からダウンロード
+- バージョン18以上を選択
 
-### 1. リポジトリのクローン
+**LM Studio**（AI用）
+- [LM Studio公式サイト](https://lmstudio.ai/)からダウンロード
+- Windows、macOS、Linux対応
+
+### 2. アプリケーションをダウンロード・セットアップ
 
 ```bash
+# このリポジトリをダウンロード
 git clone https://github.com/your-username/ai-story-builder.git
 cd ai-story-builder
+
+# 自動セットアップ（推奨）
+npm run quick-start
 ```
 
-### 2. 依存関係のインストール
+### 3. ローカルAIを設定
+
+1. **LM Studio を起動**
+2. **モデルをダウンロード**（推奨：Llama 3.1 8B）
+3. **APIサーバーを開始**（「Local Server」タブで「Start Server」）
+
+### 4. アプリケーションを起動
 
 ```bash
-# npmを使用する場合
-npm install
-
-# yarnを使用する場合
-yarn install
-
-# pnpmを使用する場合
-pnpm install
-```
-
-## 🏠 ローカル環境での使用（推奨）
-
-ローカルLLMを使用して完全にオフラインで動作させる場合：
-
-### 1. ローカル環境のセットアップ
-
-```bash
-# ローカル環境用の設定を自動セットアップ
-npm run setup:local
-```
-
-### 2. ローカルLLMサーバーの起動
-
-#### LM Studio を使用する場合（推奨）
-
-1. **LM Studio をダウンロード・インストール**
-   - [LM Studio公式サイト](https://lmstudio.ai/)からダウンロード
-   - Windows、macOS、Linux対応
-
-2. **モデルのダウンロード**
-   - LM Studio内でモデルを検索・ダウンロード
-   - 推奨モデル：Llama 3.1、CodeLlama、Mistral等
-
-3. **APIサーバーの起動**
-   - モデルをロード後、「Local Server」タブを開く
-   - 「Start Server」をクリック
-   - デフォルトで `http://localhost:1234` でAPIが利用可能
-
-#### Ollama を使用する場合
-
-1. **Ollama をインストール**
-   ```bash
-   # macOS/Linux
-   curl -fsSL https://ollama.ai/install.sh | sh
-   
-   # Windows
-   # https://ollama.ai/download からダウンロード
-   ```
-
-2. **モデルのダウンロード**
-   ```bash
-   # 推奨モデル
-   ollama pull llama3.1
-   ollama pull codellama
-   ollama pull mistral
-   ```
-
-3. **APIサーバーの起動**
-   ```bash
-   ollama serve
-   ```
-
-### 3. 接続確認
-
-```bash
-# ローカルLLMサーバーへの接続をテスト
-npm run check:local
-```
-
-### 4. アプリケーションの起動
-
-```bash
-# ローカルモードで起動
+# アプリケーションを起動
 npm run dev:local
 ```
 
-ブラウザで `http://localhost:5173` にアクセスしてアプリケーションを確認できます。
+ブラウザで `http://localhost:5173` にアクセスして使用開始！
 
-## 🌐 クラウドAPI環境での使用
+### 方法2: クラウドAIを使用
 
-クラウドAPI（OpenAI、Claude、Gemini）を使用する場合：
+クラウドAIサービス（OpenAI、Claude、Gemini）を使用する場合：
 
-### 1. 環境変数の設定
+1. 上記の手順1-2を実行
+2. `.env.local` ファイルでAPIキーを設定
+3. `npm run dev` でアプリケーションを起動
 
-`env.local.example`ファイルをコピーして`.env.local`を作成：
+## 📚 使い方
 
-```bash
-cp env.local.example .env.local
-```
-
-`.env.local`ファイルを編集して、使用したいAIプロバイダーのAPIキーを設定：
-
-```env
-# OpenAI API設定
-VITE_OPENAI_API_KEY=your_openai_api_key_here
-
-# Anthropic Claude API設定
-VITE_CLAUDE_API_KEY=your_claude_api_key_here
-
-# Google Gemini API設定
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
-
-# アプリケーション設定
-VITE_APP_NAME=AI Story Builder
-VITE_APP_VERSION=1.0.0
-VITE_DEBUG_MODE=true
-```
-
-### 2. 開発サーバーの起動
-
-```bash
-# 通常の開発サーバーを起動
-npm run dev
-
-# または
-yarn dev
-pnpm dev
-```
-
-ブラウザで `http://localhost:5173` にアクセスしてアプリケーションを確認できます。
-
-## 🛠️ 開発
-
-### 利用可能なスクリプト
-
-```bash
-# 開発サーバーを起動
-npm run dev
-
-# 本番用ビルド
-npm run build
-
-# ビルドのプレビュー
-npm run preview
-
-# 型チェック
-npm run type-check
-
-# リント実行
-npm run lint
-
-# リント自動修正
-npm run lint:fix
-
-# ビルド分析
-npm run build:analyze
-
-# クリーンアップ
-npm run clean
-```
-
-### プロジェクト構造
-
-```
-ai-story-builder/
-├── public/                 # 静的ファイル
-│   ├── manifest.json      # PWAマニフェスト
-│   ├── sw.js             # サービスワーカー
-│   └── icons/            # アプリアイコン
-├── src/
-│   ├── components/        # Reactコンポーネント
-│   │   ├── steps/        # 各ステップのコンポーネント
-│   │   └── ...
-│   ├── contexts/         # React Context
-│   ├── services/         # APIサービス
-│   ├── utils/           # ユーティリティ関数
-│   │   ├── securityUtils.ts    # セキュリティ関連
-│   │   ├── performanceUtils.ts # パフォーマンス関連
-│   │   └── ...
-│   ├── types/           # TypeScript型定義
-│   └── main.tsx         # エントリーポイント
-├── .github/workflows/    # GitHub Actions
-├── scripts/             # デプロイスクリプト
-├── vercel.json          # Vercel設定
-├── netlify.toml         # Netlify設定
-└── package.json         # プロジェクト設定
-```
-
-## 🔑 APIキーの取得方法
-
-### OpenAI API
-1. [OpenAI Platform](https://platform.openai.com/)にアクセス
-2. アカウントを作成またはログイン
-3. 左側メニューから「API Keys」を選択
-4. 「Create new secret key」をクリック
-5. キー名を入力して「Create secret key」をクリック
-6. 生成されたキーをコピーして安全に保管
-
-**料金**: 使用量に応じた従量課金制
-**制限**: 月間使用量制限あり（アカウント設定で調整可能）
-
-### Anthropic Claude API
-1. [Anthropic Console](https://console.anthropic.com/)にアクセス
-2. アカウントを作成またはログイン
-3. 左側メニューから「API Keys」を選択
-4. 「Create Key」をクリック
-5. キー名と説明を入力して「Create Key」をクリック
-6. 生成されたキーをコピーして安全に保管
-
-**料金**: 使用量に応じた従量課金制
-**制限**: 月間使用量制限あり
-
-### Google Gemini API
-1. [Google AI Studio](https://makersuite.google.com/app/apikey)にアクセス
-2. Googleアカウントでログイン
-3. 「Create API Key」をクリック
-4. プロジェクトを選択（新規作成も可能）
-5. 「Create API Key in new project」をクリック
-6. 生成されたキーをコピーして安全に保管
-
-**料金**: 無料枠あり、その後従量課金制
-**制限**: 1分間あたりのリクエスト数制限あり
-
-### ローカルLLM設定
-ローカル環境でLLMを実行する場合：
-
-1. **LM Studio**を使用する場合:
-   ```bash
-   # LM Studioを起動してAPIサーバーを開始
-   # デフォルトポート: 1234
-   ```
-
-2. **Ollama**を使用する場合:
-   ```bash
-   # Ollamaをインストール
-   curl -fsSL https://ollama.ai/install.sh | sh
-   
-   # モデルをダウンロード
-   ollama pull llama2
-   
-   # APIサーバーを起動
-   ollama serve
-   ```
-
-## 🚀 デプロイメント
-
-### デプロイメント前の準備
-
-```bash
-# デプロイメント設定をチェック
-npm run check:deployment
-
-# 特定のプラットフォームの設定を確認
-npm run setup:vercel
-npm run setup:netlify
-npm run setup:github
-```
-
-### 推奨プラットフォーム
-
-| プラットフォーム | 難易度 | コスト | パフォーマンス | 推奨度 |
-|------------------|--------|--------|----------------|--------|
-| **Vercel** | ⭐ | 無料〜 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Netlify** | ⭐⭐ | 無料〜 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **GitHub Pages** | ⭐⭐⭐ | 無料 | ⭐⭐⭐ | ⭐⭐⭐ |
-
-### Vercel（推奨）
-
-```bash
-# 1. Vercel CLIをインストール
-npm install -g vercel
-
-# 2. デプロイ
-vercel --prod
-
-# 3. 環境変数を設定（Vercelダッシュボード）
-```
-
-**環境変数**:
-- `VITE_OPENAI_API_KEY`
-- `VITE_CLAUDE_API_KEY`
-- `VITE_GEMINI_API_KEY`
-
-### Netlify
-
-```bash
-# 1. Netlify CLIをインストール
-npm install -g netlify-cli
-
-# 2. デプロイ
-netlify deploy --prod --dir=dist
-
-# 3. 環境変数を設定（Netlifyダッシュボード）
-```
-
-### GitHub Pages
-
-1. リポジトリのSettings > Pages > Source: GitHub Actions
-2. 環境変数を設定: Settings > Secrets and variables > Actions
-3. mainブランチにプッシュで自動デプロイ
-
-### 詳細なデプロイメント手順
-
-詳細な手順については、[デプロイメントガイド](DEPLOYMENT_GUIDE.md)を参照してください。
-
-## 📚 使用方法
-
-### 基本的なワークフロー
+### 基本的な流れ
 
 1. **プロジェクト作成**
-   - ホーム画面で「新しいプロジェクト」をクリック
-   - プロジェクト名、テーマ、ジャンルを設定
+   - テーマ、ジャンル、ターゲット読者を設定
 
 2. **キャラクター設定**
-   - キャラクターステップで主要キャラクターを作成
-   - AI支援で魅力的なキャラクターを自動生成
+   - 主要キャラクターをAI支援で作成
+   - 外見、性格、背景を詳細に設定
 
 3. **プロット構築**
-   - プロットステップで物語の骨格を作成
-   - 起承転結や三幕構成を選択
+   - 物語の構造を選択（起承転結、三幕構成等）
+   - AIが魅力的なプロットを提案
 
 4. **あらすじ作成**
-   - 設定した情報を基にAIが魅力的なあらすじを生成
+   - 設定した情報を基にAIがあらすじを生成
    - 必要に応じて手動で調整
 
 5. **章立て構成**
@@ -393,32 +109,27 @@ netlify deploy --prod --dir=dist
    - 章ごとにAIが執筆をサポート
    - 文体の統一と一貫性を維持
 
-### 高度な機能
+## 🛠️ トラブルシューティング
 
-- **AI設定の調整**: 温度、トークン数、プロバイダーの切り替え
-- **プロジェクト管理**: 複数プロジェクトの並行管理
-- **データエクスポート**: 完成した作品の各種形式での出力
-- **オフライン対応**: PWA機能によるオフライン作業
+### よくある問題
 
-## 🤝 コントリビューション
+**Q: アプリケーションが起動しない**
+A: Node.jsが正しくインストールされているか確認してください
 
-プロジェクトへの貢献を歓迎します！
+**Q: AIが応答しない**
+A: LM StudioのAPIサーバーが起動しているか確認してください
 
-### 開発環境のセットアップ
+**Q: 日本語の応答が不自然**
+A: より高性能なモデル（Llama 3.1 70B等）の使用を検討してください
 
-1. リポジトリをフォーク
-2. ブランチを作成: `git checkout -b feature/amazing-feature`
-3. 変更をコミット: `git commit -m 'Add amazing feature'`
-4. ブランチにプッシュ: `git push origin feature/amazing-feature`
-5. プルリクエストを作成
+**Q: 動作が遅い**
+A: より軽量なモデル（Mistral 7B等）の使用を検討してください
 
-### コーディング規約
+### サポート
 
-- TypeScriptを使用
-- ESLintとPrettierの設定に従う
-- コンポーネントは関数コンポーネントで作成
-- 適切な型定義を追加
-- テストを書く（可能な場合）
+- **問題報告**: [GitHub Issues](https://github.com/your-username/ai-story-builder/issues)
+- **詳細な設定方法**: [LOCAL_SETUP.md](LOCAL_SETUP.md)
+- **開発者向け情報**: [DEVELOPER.md](DEVELOPER.md)
 
 ## 📄 ライセンス
 
@@ -429,15 +140,8 @@ netlify deploy --prod --dir=dist
 - [OpenAI](https://openai.com/) - GPT API
 - [Anthropic](https://anthropic.com/) - Claude API
 - [Google](https://ai.google.dev/) - Gemini API
+- [LM Studio](https://lmstudio.ai/) - ローカルLLM環境
 - [React](https://reactjs.org/) - UIライブラリ
-- [Vite](https://vitejs.dev/) - ビルドツール
-- [Tailwind CSS](https://tailwindcss.com/) - CSSフレームワーク
-
-## 📞 サポート
-
-- **問題報告**: [GitHub Issues](https://github.com/your-username/ai-story-builder/issues)
-- **機能要望**: [GitHub Discussions](https://github.com/your-username/ai-story-builder/discussions)
-- **ドキュメント**: [Wiki](https://github.com/your-username/ai-story-builder/wiki)
 
 ---
 

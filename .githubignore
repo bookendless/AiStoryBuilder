@@ -1,0 +1,71 @@
+# ===========================================
+# GitHub 無視ファイル設定
+# ===========================================
+
+# 開発者向けファイル（ユーザーには不要）
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# テスト関連
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+test-results.xml
+
+# ビルド成果物
+dist/
+build/
+out/
+
+# 依存関係
+node_modules/
+
+# 環境変数
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# キャッシュ
+.cache/
+.parcel-cache/
+.npm/
+.yarn/
+.pnpm-store/
+
+# ログファイル
+*.log
+logs/
+
+# 一時ファイル
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# バックアップファイル
+*.bak
+*.backup
+*.old
+
+# システムファイル
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# エディタ固有ファイル
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.idea/
+*.iml
+*.ipr
+*.iws

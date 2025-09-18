@@ -89,3 +89,98 @@ jspm_packages/
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# ===========================================
+# ユーザー向け最適化設定
+# ===========================================
+
+# 開発者向けファイル（ユーザーには不要）
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# テスト関連（ユーザーには不要）
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+test-results.xml
+
+# 開発用ツール
+.prettierrc.local
+.eslintrc.local
+.stylelintrc.local
+
+# 一時ファイル
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# バックアップファイル
+*.bak
+*.backup
+*.old
+
+# システムファイル
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# エディタ固有ファイル
+*.sublime-project
+*.sublime-workspace
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ログファイル
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ランタイムデータ
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# 依存関係（ユーザーが自分でインストールするため）
+node_modules/
+jspm_packages/
+
+# ビルド成果物（ユーザーが自分でビルドするため）
+dist/
+build/
+out/
+
+# 環境変数（ユーザーが自分で設定するため）
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# キャッシュ
+.cache/
+.parcel-cache/
+.npm/
+.yarn/
+.pnpm-store/
+
+# 一時的なファイル
+*.swp
+*.swo
+*~

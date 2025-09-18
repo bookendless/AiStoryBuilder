@@ -31,6 +31,8 @@
     "prebuild": "npm run type-check && npm run lint",
     "setup:local": "node scripts/setup-local.js",
     "check:local": "node scripts/check-local-llm.js",
+    "quick-start": "node scripts/quick-start.js",
+    "optimize-repo": "node scripts/optimize-repo.js",
     "deploy:vercel": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget vercel",
     "deploy:netlify": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget netlify",
     "deploy:github": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget github",
