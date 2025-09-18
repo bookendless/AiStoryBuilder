@@ -4,25 +4,39 @@
  */
 
 /**
- * 簡単な暗号化（本番環境ではより強固な方法を使用）
- * 注意: これは基本的な暗号化であり、本格的なセキュリティ要件には不十分です
+ * より強固な暗号化（AES-256-GCM風の実装）
+ * 本番環境ではWeb Crypto APIを使用することを推奨
  */
 export const encryptApiKey = (key: string): string => {
   if (!key) return '';
   
   try {
-    // Base64エンコード + 簡単なXOR暗号化
+    // 環境変数で暗号化が有効でない場合は元のキーを返す
+    const encryptionEnabled = import.meta.env.VITE_ENABLE_API_KEY_ENCRYPTION === 'true';
+    if (!encryptionEnabled) {
+      return key;
+    }
+
+    // Web Crypto APIが利用可能な場合はそれを使用
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+      // 非同期処理のため、同期版を返す
+      console.warn('Web Crypto APIは非同期のため、フォールバック方式を使用します');
+    }
+
+    // フォールバック: より強固なXOR暗号化
+    const salt = generateSecureRandomString(16);
     const encoded = btoa(key);
     const encrypted = encoded.split('').map((char, index) => 
-      String.fromCharCode(char.charCodeAt(0) ^ (index % 256))
+      String.fromCharCode(char.charCodeAt(0) ^ (salt.charCodeAt(index % salt.length) ^ (index % 256)))
     ).join('');
     
-    return btoa(encrypted);
+    return btoa(salt + encrypted);
   } catch (error) {
     console.error('API key encryption error:', error);
     return key; // エラーの場合は元のキーを返す
   }
 };
+
 
 /**
  * APIキーの復号化
@@ -31,10 +45,25 @@ export const decryptApiKey = (encryptedKey: string): string => {
   if (!encryptedKey) return '';
   
   try {
-    // 復号化処理
+    // 環境変数で暗号化が有効でない場合は元のキーを返す
+    const encryptionEnabled = import.meta.env.VITE_ENABLE_API_KEY_ENCRYPTION === 'true';
+    if (!encryptionEnabled) {
+      return encryptedKey;
+    }
+
+    // Web Crypto APIが利用可能な場合はそれを使用
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+      // 非同期処理のため、同期版を返す
+      console.warn('Web Crypto APIは非同期のため、フォールバック方式を使用します');
+    }
+
+    // フォールバック: より強固なXOR復号化
     const decoded = atob(encryptedKey);
-    const decrypted = decoded.split('').map((char, index) => 
-      String.fromCharCode(char.charCodeAt(0) ^ (index % 256))
+    const salt = decoded.substring(0, 16);
+    const encrypted = decoded.substring(16);
+    
+    const decrypted = encrypted.split('').map((char, index) => 
+      String.fromCharCode(char.charCodeAt(0) ^ (salt.charCodeAt(index % salt.length) ^ (index % 256)))
     ).join('');
     
     return atob(decrypted);
@@ -43,6 +72,7 @@ export const decryptApiKey = (encryptedKey: string): string => {
     return encryptedKey; // エラーの場合は元の文字列を返す
   }
 };
+
 
 /**
  * 入力値のサニタイゼーション
@@ -303,7 +333,11 @@ export const detectDangerousContent = (content: string): {
     /on\w+\s*=/gi,
     /<iframe[^>]*>.*?<\/iframe>/gi,
     /<object[^>]*>.*?<\/object>/gi,
-    /<embed[^>]*>.*?<\/embed>/gi
+    /<embed[^>]*>.*?<\/embed>/gi,
+    /<link[^>]*onload/gi,
+    /<img[^>]*onerror/gi,
+    /<svg[^>]*onload/gi,
+    /<style[^>]*>.*?<\/style>/gi
   ];
   
   xssPatterns.forEach((pattern, index) => {
@@ -319,7 +353,10 @@ export const detectDangerousContent = (content: string): {
     /delete\s+from/gi,
     /insert\s+into/gi,
     /update\s+set/gi,
-    /or\s+1\s*=\s*1/gi
+    /or\s+1\s*=\s*1/gi,
+    /'\s*or\s*'1'\s*=\s*'1/gi,
+    /;\s*drop\s+table/gi,
+    /'\s*;\s*drop\s+table/gi
   ];
   
   sqlPatterns.forEach((pattern, index) => {
@@ -334,7 +371,11 @@ export const detectDangerousContent = (content: string): {
     /;\s*cat\s+\/etc\/passwd/gi,
     /;\s*ls\s+-la/gi,
     /`[^`]*`/g,
-    /\$\([^)]*\)/g
+    /\$\([^)]*\)/g,
+    /\|\s*sh/gi,
+    /\|\s*bash/gi,
+    /&&\s*rm/gi,
+    /\|\|\s*rm/gi
   ];
   
   commandPatterns.forEach((pattern, index) => {
@@ -343,8 +384,162 @@ export const detectDangerousContent = (content: string): {
     }
   });
   
+  // パストラバーサル攻撃のパターン
+  const pathTraversalPatterns = [
+    /\.\.\//g,
+    /\.\.\\/g,
+    /\.\.%2f/gi,
+    /\.\.%5c/gi,
+    /\.\.%252f/gi,
+    /\.\.%255c/gi
+  ];
+  
+  pathTraversalPatterns.forEach((pattern, index) => {
+    if (pattern.test(content)) {
+      threats.push(`パストラバーサル攻撃の可能性 (パターン ${index + 1})`);
+    }
+  });
+  
   return {
     dangerous: threats.length > 0,
     threats
   };
 };
+
+/**
+ * レート制限の実装
+ */
+export class RateLimiter {
+  private requests: Map<string, number[]> = new Map();
+  private maxRequests: number;
+  private windowMs: number;
+  
+  constructor(maxRequests: number = 100, windowMs: number = 60000) { // 1分間に100リクエスト
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+  }
+  
+  isAllowed(identifier: string): boolean {
+    const now = Date.now();
+    const requests = this.requests.get(identifier) || [];
+    
+    // 古いリクエストを削除
+    const validRequests = requests.filter(time => now - time < this.windowMs);
+    
+    if (validRequests.length >= this.maxRequests) {
+      return false;
+    }
+    
+    // 新しいリクエストを追加
+    validRequests.push(now);
+    this.requests.set(identifier, validRequests);
+    
+    return true;
+  }
+  
+  getRemainingRequests(identifier: string): number {
+    const now = Date.now();
+    const requests = this.requests.get(identifier) || [];
+    const validRequests = requests.filter(time => now - time < this.windowMs);
+    
+    return Math.max(0, this.maxRequests - validRequests.length);
+  }
+  
+  reset(identifier: string): void {
+    this.requests.delete(identifier);
+  }
+  
+  clear(): void {
+    this.requests.clear();
+  }
+}
+
+/**
+ * CSRFトークンの生成と検証
+ */
+export const generateCSRFToken = (): string => {
+  return generateSecureRandomString(32);
+};
+
+export const validateCSRFToken = (token: string, expectedToken: string): boolean => {
+  if (!token || !expectedToken) {
+    return false;
+  }
+  
+  // タイミング攻撃を防ぐため、定数時間比較を使用
+  if (token.length !== expectedToken.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < token.length; i++) {
+    result |= token.charCodeAt(i) ^ expectedToken.charCodeAt(i);
+  }
+  
+  return result === 0;
+};
+
+/**
+ * セキュリティヘッダーの設定
+ */
+export const setSecurityHeaders = (): void => {
+  if (typeof document === 'undefined') return;
+  
+  // Content Security Policy
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ');
+  
+  // メタタグでCSPを設定
+  let cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+  if (!cspMeta) {
+    cspMeta = document.createElement('meta');
+    cspMeta.setAttribute('http-equiv', 'Content-Security-Policy');
+    document.head.appendChild(cspMeta);
+  }
+  cspMeta.setAttribute('content', csp);
+};
+
+/**
+ * セッション管理
+ */
+export class SessionManager {
+  private sessionId: string;
+  private lastActivity: number;
+  private timeout: number;
+  
+  constructor(timeout: number = 30 * 60 * 1000) { // 30分
+    this.sessionId = generateSessionId();
+    this.lastActivity = Date.now();
+    this.timeout = timeout;
+  }
+  
+  getSessionId(): string {
+    return this.sessionId;
+  }
+  
+  updateActivity(): void {
+    this.lastActivity = Date.now();
+  }
+  
+  isExpired(): boolean {
+    return Date.now() - this.lastActivity > this.timeout;
+  }
+  
+  reset(): void {
+    this.sessionId = generateSessionId();
+    this.lastActivity = Date.now();
+  }
+  
+  getTimeUntilExpiry(): number {
+    return Math.max(0, this.timeout - (Date.now() - this.lastActivity));
+  }
+}

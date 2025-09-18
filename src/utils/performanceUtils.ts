@@ -401,4 +401,258 @@ export const detectMemoryLeaks = (): {
   return { hasLeak, details };
 };
 
+/**
+ * 画像の遅延読み込み
+ */
+export const createLazyImageLoader = (): {
+  observe: (img: HTMLImageElement) => void;
+  unobserve: (img: HTMLImageElement) => void;
+  disconnect: () => void;
+} => {
+  const imageObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target as HTMLImageElement;
+        const src = img.dataset.src;
+        if (src) {
+          img.src = src;
+          img.removeAttribute('data-src');
+          imageObserver.unobserve(img);
+        }
+      }
+    });
+  }, {
+    rootMargin: '50px 0px',
+    threshold: 0.01
+  });
+
+  return {
+    observe: (img: HTMLImageElement) => imageObserver.observe(img),
+    unobserve: (img: HTMLImageElement) => imageObserver.unobserve(img),
+    disconnect: () => imageObserver.disconnect()
+  };
+};
+
+/**
+ * リソースの事前読み込み
+ */
+export const preloadResource = (url: string, type: 'image' | 'script' | 'style' | 'font' = 'image'): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.href = url;
+    
+    switch (type) {
+      case 'image':
+        link.as = 'image';
+        break;
+      case 'script':
+        link.as = 'script';
+        break;
+      case 'style':
+        link.as = 'style';
+        break;
+      case 'font':
+        link.as = 'font';
+        link.crossOrigin = 'anonymous';
+        break;
+    }
+    
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error(`Failed to preload ${url}`));
+    
+    document.head.appendChild(link);
+  });
+};
+
+/**
+ * バンドルサイズの分析
+ */
+export const analyzeBundleSize = (): {
+  totalSize: number;
+  largestChunks: Array<{ name: string; size: number }>;
+  recommendations: string[];
+} => {
+  const recommendations: string[] = [];
+  let totalSize = 0;
+  const largestChunks: Array<{ name: string; size: number }> = [];
+  
+  // パフォーマンスエントリからリソースサイズを取得
+  const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+  
+  resources.forEach(resource => {
+    const size = resource.transferSize || 0;
+    totalSize += size;
+    
+    if (size > 100000) { // 100KB以上
+      largestChunks.push({
+        name: resource.name,
+        size: size
+      });
+    }
+  });
+  
+  // 推奨事項を生成
+  if (totalSize > 1000000) { // 1MB以上
+    recommendations.push('バンドルサイズが大きすぎます。コード分割を検討してください。');
+  }
+  
+  if (largestChunks.length > 5) {
+    recommendations.push('大きなチャンクが多すぎます。チャンク分割を最適化してください。');
+  }
+  
+  const jsChunks = largestChunks.filter(chunk => chunk.name.endsWith('.js'));
+  if (jsChunks.length > 3) {
+    recommendations.push('JavaScriptチャンクが多すぎます。バンドルを統合することを検討してください。');
+  }
+  
+  return {
+    totalSize,
+    largestChunks: largestChunks.sort((a, b) => b.size - a.size).slice(0, 10),
+    recommendations
+  };
+};
+
+/**
+ * パフォーマンス監視
+ */
+export class PerformanceMonitor {
+  private metrics: Map<string, number[]> = new Map();
+  private observers: PerformanceObserver[] = [];
+  
+  constructor() {
+    this.setupObservers();
+  }
+  
+  private setupObservers(): void {
+    // ロングタスクの監視
+    if ('PerformanceObserver' in window) {
+      const longTaskObserver = new PerformanceObserver((list) => {
+        list.getEntries().forEach(entry => {
+          this.recordMetric('longTasks', entry.duration);
+        });
+      });
+      
+      try {
+        longTaskObserver.observe({ entryTypes: ['longtask'] });
+        this.observers.push(longTaskObserver);
+      } catch (e) {
+        console.warn('Long task observer not supported');
+      }
+      
+      // レイアウトシフトの監視
+      const clsObserver = new PerformanceObserver((list) => {
+        list.getEntries().forEach(entry => {
+          if ('value' in entry) {
+            this.recordMetric('layoutShifts', entry.value as number);
+          }
+        });
+      });
+      
+      try {
+        clsObserver.observe({ entryTypes: ['layout-shift'] });
+        this.observers.push(clsObserver);
+      } catch (e) {
+        console.warn('Layout shift observer not supported');
+      }
+    }
+  }
+  
+  recordMetric(name: string, value: number): void {
+    if (!this.metrics.has(name)) {
+      this.metrics.set(name, []);
+    }
+    
+    const values = this.metrics.get(name)!;
+    values.push(value);
+    
+    // 最新の100個の値のみ保持
+    if (values.length > 100) {
+      values.shift();
+    }
+  }
+  
+  getMetricStats(name: string): { avg: number; min: number; max: number; count: number } | null {
+    const values = this.metrics.get(name);
+    if (!values || values.length === 0) {
+      return null;
+    }
+    
+    const sum = values.reduce((a, b) => a + b, 0);
+    return {
+      avg: sum / values.length,
+      min: Math.min(...values),
+      max: Math.max(...values),
+      count: values.length
+    };
+  }
+  
+  getPerformanceScore(): number {
+    const scores: number[] = [];
+    
+    // ロングタスクスコア
+    const longTaskStats = this.getMetricStats('longTasks');
+    if (longTaskStats) {
+      const longTaskScore = Math.max(0, 100 - (longTaskStats.avg / 50) * 100);
+      scores.push(longTaskScore);
+    }
+    
+    // レイアウトシフトスコア
+    const clsStats = this.getMetricStats('layoutShifts');
+    if (clsStats) {
+      const clsScore = Math.max(0, 100 - clsStats.avg * 1000);
+      scores.push(clsScore);
+    }
+    
+    // メモリ使用量スコア
+    const memory = getMemoryUsage();
+    const memoryScore = Math.max(0, 100 - memory.percentage);
+    scores.push(memoryScore);
+    
+    return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 100;
+  }
+  
+  disconnect(): void {
+    this.observers.forEach(observer => observer.disconnect());
+    this.observers = [];
+  }
+}
+
+/**
+ * サービスワーカーの登録
+ */
+export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {
+  if ('serviceWorker' in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      console.log('Service Worker registered:', registration);
+      return registration;
+    } catch (error) {
+      console.error('Service Worker registration failed:', error);
+      return null;
+    }
+  }
+  return null;
+};
+
+/**
+ * オフライン対応の検出
+ */
+export const isOnline = (): boolean => {
+  return navigator.onLine;
+};
+
+export const onOnlineStatusChange = (callback: (isOnline: boolean) => void): () => void => {
+  const handleOnline = () => callback(true);
+  const handleOffline = () => callback(false);
+  
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+  
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+  };
+};
+
 

@@ -11,6 +11,8 @@ import { DraftStep } from './components/steps/DraftStep';
 import { ExportStep } from './components/steps/ExportStep';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
+import { setSecurityHeaders, SessionManager, RateLimiter } from './utils/securityUtils';
+import { PerformanceMonitor, registerServiceWorker, onOnlineStatusChange } from './utils/performanceUtils';
 
 export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
@@ -21,17 +23,53 @@ function App() {
   const [error] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme === 'dark') {
-        setIsDarkMode(true);
-        document.documentElement.classList.add('dark');
+    const initializeApp = async () => {
+      try {
+        // セキュリティヘッダーの設定
+        setSecurityHeaders();
+        
+        // セッション管理の初期化
+        const sessionManager = new SessionManager();
+        sessionManager.updateActivity();
+        
+        // レート制限の初期化
+        const rateLimiter = new RateLimiter(100, 60000); // 1分間に100リクエスト
+        
+        // パフォーマンス監視の開始
+        const performanceMonitor = new PerformanceMonitor();
+        
+        // サービスワーカーの登録
+        if (import.meta.env.PROD) {
+          await registerServiceWorker();
+        }
+        
+        // オフライン状態の監視
+        const unsubscribeOnlineStatus = onOnlineStatusChange((isOnline) => {
+          if (!isOnline) {
+            console.warn('オフライン状態です。一部の機能が制限される可能性があります。');
+          }
+        });
+        
+        // テーマの初期化
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+          setIsDarkMode(true);
+          document.documentElement.classList.add('dark');
+        }
+        
+        // クリーンアップ関数
+        return () => {
+          performanceMonitor.disconnect();
+          unsubscribeOnlineStatus();
+        };
+      } catch (err) {
+        console.error('アプリ初期化エラー:', err);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    } catch (err) {
-      console.error('テーマ初期化エラー:', err);
-      setIsLoading(false);
-    }
+    };
+    
+    initializeApp();
   }, []);
 
   const toggleTheme = () => {
