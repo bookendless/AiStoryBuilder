@@ -6,7 +6,10 @@
 
 **AIを活用した小説創作支援アプリケーション**
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square)](https://github.com/your-username/ai-story-builder)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
+
+[デモを見る](https://your-demo-url.com) • [問題を報告](https://github.com/your-username/ai-story-builder/issues)
 
 </div>
 
