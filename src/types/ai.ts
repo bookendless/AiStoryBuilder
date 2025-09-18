@@ -1,0 +1,40 @@
+export interface AIProvider {
+  id: string;
+  name: string;
+  models: AIModel[];
+  requiresApiKey: boolean;
+  isLocal?: boolean;
+}
+
+export interface AIModel {
+  id: string;
+  name: string;
+  description: string;
+  maxTokens: number;
+}
+
+export interface AISettings {
+  provider: string;
+  model: string;
+  apiKey?: string;
+  localEndpoint?: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+export interface AIRequest {
+  prompt: string;
+  context?: string;
+  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft';
+  settings: AISettings;
+}
+
+export interface AIResponse {
+  content: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  error?: string;
+}

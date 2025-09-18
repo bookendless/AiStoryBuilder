@@ -1,0 +1,139 @@
+import { useState, useEffect } from 'react';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { HomePage } from './components/HomePage';
+import { CharacterStep } from './components/steps/CharacterStep';
+import { PlotStep1 } from './components/steps/PlotStep1';
+import { PlotStep2 } from './components/steps/PlotStep2';
+import { SynopsisStep } from './components/steps/SynopsisStep';
+import { ChapterStep } from './components/steps/ChapterStep';
+import { DraftStep } from './components/steps/DraftStep';
+import { ExportStep } from './components/steps/ExportStep';
+import { ProjectProvider } from './contexts/ProjectContext';
+import { AIProvider } from './contexts/AIContext';
+
+export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
+
+function App() {
+  const [currentStep, setCurrentStep] = useState<Step>('home');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        setIsDarkMode(true);
+        document.documentElement.classList.add('dark');
+      }
+      setIsLoading(false);
+    } catch (err) {
+      console.error('テーマ初期化エラー:', err);
+      setIsLoading(false);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    try {
+      setIsDarkMode(!isDarkMode);
+      if (!isDarkMode) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    } catch (err) {
+      console.error('テーマ切り替えエラー:', err);
+    }
+  };
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 'home':
+        return <HomePage onNavigateToStep={setCurrentStep} />;
+      case 'character':
+        return <CharacterStep />;
+      case 'plot1':
+        return <PlotStep1 onNavigateToStep={setCurrentStep} />;
+      case 'plot2':
+        return <PlotStep2 onNavigateToStep={setCurrentStep} />;
+      case 'synopsis':
+        return <SynopsisStep />;
+      case 'chapter':
+        return <ChapterStep />;
+      case 'draft':
+        return <DraftStep />;
+      case 'export':
+        return <ExportStep />;
+      default:
+        return <HomePage onNavigateToStep={setCurrentStep} />;
+    }
+  };
+
+  // ローディング状態
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-300 font-['Noto_Sans_JP']">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // エラー状態
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="bg-red-100 dark:bg-red-900 p-4 rounded-lg mb-4">
+            <p className="text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">{error}</p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
+          >
+            ページを再読み込み
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AIProvider>
+      <ProjectProvider>
+        <div className={`min-h-screen transition-colors duration-300 ${
+          isDarkMode ? 'dark bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+        }`}>
+          <div className="flex">
+            <Sidebar 
+              currentStep={currentStep} 
+              onStepChange={setCurrentStep}
+              className={currentStep === 'home' ? 'hidden' : ''}
+            />
+            
+            <div className={`flex-1 transition-all duration-300 ${
+              currentStep === 'home' ? 'ml-0' : 'ml-64'
+            }`}>
+              <Header 
+                isDarkMode={isDarkMode} 
+                onToggleTheme={toggleTheme}
+                onHomeClick={() => setCurrentStep('home')}
+              />
+              
+              <main className="p-6">
+                {renderStep()}
+              </main>
+            </div>
+          </div>
+        </div>
+      </ProjectProvider>
+    </AIProvider>
+  );
+}
+
+export default App;
