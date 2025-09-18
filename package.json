@@ -1,13 +1,34 @@
 {
-  "name": "vite-react-typescript-starter",
-  "private": true,
-  "version": "0.0.0",
+  "name": "ai-story-builder",
+  "private": false,
+  "version": "1.0.0",
   "type": "module",
+  "description": "AIを活用した小説創作支援アプリケーション",
+  "keywords": ["ai", "story", "writing", "novel", "creative", "assistant"],
+  "author": "AI Story Builder Team",
+  "homepage": "https://github.com/your-username/ai-story-builder#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/ai-story-builder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/ai-story-builder/issues"
+  },
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:analyze": "vite build --mode analyze",
+    "build:preview": "vite build && vite preview",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run type-check && npm run lint",
+    "deploy:vercel": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget vercel",
+    "deploy:netlify": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget netlify",
+    "deploy:github": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget github"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
