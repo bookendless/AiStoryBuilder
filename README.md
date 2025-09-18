@@ -80,12 +80,84 @@ yarn install
 pnpm install
 ```
 
-### 3. 環境変数の設定
+## 🏠 ローカル環境での使用（推奨）
 
-`.env.example`ファイルをコピーして`.env.local`を作成：
+ローカルLLMを使用して完全にオフラインで動作させる場合：
+
+### 1. ローカル環境のセットアップ
 
 ```bash
-cp .env.example .env.local
+# ローカル環境用の設定を自動セットアップ
+npm run setup:local
+```
+
+### 2. ローカルLLMサーバーの起動
+
+#### LM Studio を使用する場合（推奨）
+
+1. **LM Studio をダウンロード・インストール**
+   - [LM Studio公式サイト](https://lmstudio.ai/)からダウンロード
+   - Windows、macOS、Linux対応
+
+2. **モデルのダウンロード**
+   - LM Studio内でモデルを検索・ダウンロード
+   - 推奨モデル：Llama 3.1、CodeLlama、Mistral等
+
+3. **APIサーバーの起動**
+   - モデルをロード後、「Local Server」タブを開く
+   - 「Start Server」をクリック
+   - デフォルトで `http://localhost:1234` でAPIが利用可能
+
+#### Ollama を使用する場合
+
+1. **Ollama をインストール**
+   ```bash
+   # macOS/Linux
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Windows
+   # https://ollama.ai/download からダウンロード
+   ```
+
+2. **モデルのダウンロード**
+   ```bash
+   # 推奨モデル
+   ollama pull llama3.1
+   ollama pull codellama
+   ollama pull mistral
+   ```
+
+3. **APIサーバーの起動**
+   ```bash
+   ollama serve
+   ```
+
+### 3. 接続確認
+
+```bash
+# ローカルLLMサーバーへの接続をテスト
+npm run check:local
+```
+
+### 4. アプリケーションの起動
+
+```bash
+# ローカルモードで起動
+npm run dev:local
+```
+
+ブラウザで `http://localhost:5173` にアクセスしてアプリケーションを確認できます。
+
+## 🌐 クラウドAPI環境での使用
+
+クラウドAPI（OpenAI、Claude、Gemini）を使用する場合：
+
+### 1. 環境変数の設定
+
+`env.local.example`ファイルをコピーして`.env.local`を作成：
+
+```bash
+cp env.local.example .env.local
 ```
 
 `.env.local`ファイルを編集して、使用したいAIプロバイダーのAPIキーを設定：
@@ -100,19 +172,16 @@ VITE_CLAUDE_API_KEY=your_claude_api_key_here
 # Google Gemini API設定
 VITE_GEMINI_API_KEY=your_gemini_api_key_here
 
-# ローカルLLM設定（オプション）
-VITE_LOCAL_LLM_ENDPOINT=http://localhost:1234/v1/chat/completions
-
 # アプリケーション設定
 VITE_APP_NAME=AI Story Builder
 VITE_APP_VERSION=1.0.0
 VITE_DEBUG_MODE=true
 ```
 
-### 4. 開発サーバーの起動
+### 2. 開発サーバーの起動
 
 ```bash
-# 開発サーバーを起動
+# 通常の開発サーバーを起動
 npm run dev
 
 # または

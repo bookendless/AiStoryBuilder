@@ -13,6 +13,17 @@ export default defineConfig(({ mode }) => ({
     open: true,
     // CORS設定を追加
     cors: true,
+    // ローカルモード用の設定
+    ...(mode === 'local' && {
+      // ローカルLLM用のプロキシ設定
+      proxy: {
+        '/api/local': {
+          target: 'http://localhost:1234',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/local/, '/v1/chat/completions'),
+        },
+      },
+    }),
   },
   build: {
     // 本番環境ではソースマップを無効化
