@@ -15,6 +15,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string>('');
 
+  // 環境変数の状態をチェック
+  const hasEnvApiKey = Boolean(
+    import.meta.env.VITE_OPENAI_API_KEY ||
+    import.meta.env.VITE_CLAUDE_API_KEY ||
+    import.meta.env.VITE_GEMINI_API_KEY ||
+    import.meta.env.VITE_LOCAL_LLM_ENDPOINT
+  );
+
   if (!isOpen) return null;
 
   const validateApiKey = (provider: string, apiKey: string): string => {
@@ -284,16 +292,35 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 <Key className="h-4 w-4 inline mr-1" />
                 APIキー
               </label>
+              
+              {/* 環境変数の状態表示 */}
+              {hasEnvApiKey && (
+                <div className="mb-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <p className="text-sm text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
+                      環境変数からAPIキーが設定されています
+                    </p>
+                  </div>
+                  <p className="mt-1 text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">
+                    本番環境では環境変数が優先されます
+                  </p>
+                </div>
+              )}
+              
               <input
                 type="password"
                 value={formData.apiKey || ''}
                 onChange={(e) => handleApiKeyChange(e.target.value)}
-                placeholder="APIキーを入力してください"
+                placeholder={hasEnvApiKey ? "環境変数が設定済み（オプション）" : "APIキーを入力してください"}
+                disabled={hasEnvApiKey}
                 className={`w-full px-4 py-3 rounded-lg border ${
                   apiKeyError 
                     ? 'border-red-500 dark:border-red-400' 
                     : 'border-gray-300 dark:border-gray-600'
-                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']`}
+                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] ${
+                  hasEnvApiKey ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               />
               {apiKeyError && (
                 <p className="mt-2 text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
@@ -301,7 +328,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 </p>
               )}
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                APIキーは安全に保存され、外部に送信されることはありません
+                {hasEnvApiKey 
+                  ? '環境変数が設定されているため、手動入力は無効です'
+                  : 'APIキーは安全に保存され、外部に送信されることはありません'
+                }
               </p>
             </div>
           )}

@@ -9,12 +9,43 @@ interface AIContextType {
   isConfigured: boolean;
 }
 
-const defaultSettings: AISettings = {
-  provider: 'openai',
-  model: 'gpt-3.5-turbo',
-  temperature: 0.7,
-  maxTokens: 1000,
+// 環境変数からデフォルト設定を取得
+const getDefaultSettings = (): AISettings => {
+  // 環境変数からAPIキーを取得
+  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+  const claudeKey = import.meta.env.VITE_CLAUDE_API_KEY;
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const localEndpoint = import.meta.env.VITE_LOCAL_LLM_ENDPOINT;
+
+  // 利用可能なAPIキーに基づいてデフォルトプロバイダーを決定
+  let defaultProvider = 'openai';
+  let defaultModel = 'gpt-3.5-turbo';
+
+  if (openaiKey) {
+    defaultProvider = 'openai';
+    defaultModel = 'gpt-4o-mini';
+  } else if (claudeKey) {
+    defaultProvider = 'claude';
+    defaultModel = 'claude-3-5-haiku-20241022';
+  } else if (geminiKey) {
+    defaultProvider = 'gemini';
+    defaultModel = 'gemini-2.5-flash';
+  } else if (localEndpoint) {
+    defaultProvider = 'local';
+    defaultModel = 'local-model';
+  }
+
+  return {
+    provider: defaultProvider,
+    model: defaultModel,
+    temperature: 0.7,
+    maxTokens: 1000,
+    apiKey: openaiKey || claudeKey || geminiKey,
+    localEndpoint: localEndpoint,
+  };
 };
+
+const defaultSettings: AISettings = getDefaultSettings();
 
 const AIContext = createContext<AIContextType | undefined>(undefined);
 
@@ -29,6 +60,13 @@ export const useAI = () => {
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AISettings>(() => {
     try {
+      // 環境変数が設定されている場合はそれを優先
+      const envSettings = getDefaultSettings();
+      if (envSettings.apiKey || envSettings.localEndpoint) {
+        return envSettings;
+      }
+
+      // 環境変数が設定されていない場合はlocalStorageから読み込み
       const saved = localStorage.getItem('ai-settings');
       if (saved) {
         const parsed = JSON.parse(saved);
