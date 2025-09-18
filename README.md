@@ -56,8 +56,8 @@ AI Story Builderは、AI技術を活用して小説創作を支援するアプ�
 git clone https://github.com/bookendless/aistorybuilder.git
 cd ai-story-builder
 
-# 自動セットアップ（推奨）
-npm run quick-start
+# 依存環境のセットアップ
+npm install
 ```
 
 ### 3. ローカルAIを設定
@@ -70,7 +70,7 @@ npm run quick-start
 
 ```bash
 # アプリケーションを起動
-npm run dev:local
+npm run dev
 ```
 
 ブラウザで `http://localhost:5173` にアクセスして使用開始！
