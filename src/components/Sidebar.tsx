@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, BookOpen, FileText, List, Film, PenTool, Download, Check } from 'lucide-react';
+import { Users, BookOpen, FileText, List, PenTool, Download, Check } from 'lucide-react';
 import { Step } from '../App';
 
 interface SidebarProps {

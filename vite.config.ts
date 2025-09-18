@@ -37,8 +37,9 @@ export default defineConfig(({ mode }) => ({
         },
         // アセットファイル名の最適化
         assetFileNames: (assetInfo) => {
-          const info = assetInfo.name.split('.');
-          const ext = info[info.length - 1];
+          if (!assetInfo.name) {
+            return `assets/[name]-[hash][extname]`;
+          }
           if (/\.(css)$/.test(assetInfo.name)) {
             return `assets/css/[name]-[hash][extname]`;
           }
@@ -53,19 +54,14 @@ export default defineConfig(({ mode }) => ({
       },
     },
     // 本番環境での最適化
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        // 本番環境でconsole.logを削除
-        drop_console: mode === 'production',
-        drop_debugger: mode === 'production',
-      },
-    },
+    minify: 'esbuild',
   },
   // 開発時の設定
   define: {
-    // React DevToolsの競合を回避
-    __REACT_DEVTOOLS_GLOBAL_HOOK__: 'undefined',
+    // 開発環境ではReact DevToolsの警告を抑制しない
+    ...(mode === 'production' && {
+      __REACT_DEVTOOLS_GLOBAL_HOOK__: 'undefined',
+    }),
   },
   // パフォーマンス最適化
   esbuild: {

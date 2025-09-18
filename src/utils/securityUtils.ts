@@ -485,15 +485,28 @@ export const validateCSRFToken = (token: string, expectedToken: string): boolean
 export const setSecurityHeaders = (): void => {
   if (typeof document === 'undefined') return;
   
+  // 開発環境ではCSPを緩和
+  const isDevelopment = import.meta.env.DEV;
+  
   // Content Security Policy
-  const csp = [
+  const csp = isDevelopment ? [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+    "worker-src 'self' blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
+    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com ws://localhost:* wss://localhost:*",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ') : [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+    "worker-src 'self' blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
     "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com",
-    "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ');
