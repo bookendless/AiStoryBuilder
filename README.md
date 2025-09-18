@@ -237,74 +237,64 @@ ai-story-builder/
 
 ## 🚀 デプロイメント
 
-### 前提条件
-- 本番環境では環境変数が優先され、手動でのAPIキー入力は無効になります
-- デプロイ先のプラットフォームで環境変数を設定してください
+### デプロイメント前の準備
+
+```bash
+# デプロイメント設定をチェック
+npm run check:deployment
+
+# 特定のプラットフォームの設定を確認
+npm run setup:vercel
+npm run setup:netlify
+npm run setup:github
+```
+
+### 推奨プラットフォーム
+
+| プラットフォーム | 難易度 | コスト | パフォーマンス | 推奨度 |
+|------------------|--------|--------|----------------|--------|
+| **Vercel** | ⭐ | 無料〜 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Netlify** | ⭐⭐ | 無料〜 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| **GitHub Pages** | ⭐⭐⭐ | 無料 | ⭐⭐⭐ | ⭐⭐⭐ |
 
 ### Vercel（推奨）
 
-1. **Vercelアカウントの作成**
-   - [Vercel](https://vercel.com/)にアクセス
-   - GitHubアカウントでサインアップ
+```bash
+# 1. Vercel CLIをインストール
+npm install -g vercel
 
-2. **プロジェクトのインポート**
-   ```bash
-   # Vercel CLIをインストール
-   npm install -g vercel
-   
-   # プロジェクトをデプロイ
-   vercel --prod
-   ```
+# 2. デプロイ
+vercel --prod
 
-3. **環境変数の設定**
-   - Vercelダッシュボードでプロジェクトを選択
-   - Settings > Environment Variables に移動
-   - 必要な環境変数を追加
+# 3. 環境変数を設定（Vercelダッシュボード）
+```
+
+**環境変数**:
+- `VITE_OPENAI_API_KEY`
+- `VITE_CLAUDE_API_KEY`
+- `VITE_GEMINI_API_KEY`
 
 ### Netlify
 
-1. **Netlifyアカウントの作成**
-   - [Netlify](https://netlify.com/)にアクセス
-   - GitHubアカウントでサインアップ
+```bash
+# 1. Netlify CLIをインストール
+npm install -g netlify-cli
 
-2. **プロジェクトのデプロイ**
-   ```bash
-   # Netlify CLIをインストール
-   npm install -g netlify-cli
-   
-   # プロジェクトをデプロイ
-   netlify deploy --prod --dir=dist
-   ```
+# 2. デプロイ
+netlify deploy --prod --dir=dist
 
-3. **環境変数の設定**
-   - Netlifyダッシュボードでプロジェクトを選択
-   - Site settings > Environment variables に移動
-   - 必要な環境変数を追加
+# 3. 環境変数を設定（Netlifyダッシュボード）
+```
 
 ### GitHub Pages
 
-1. **GitHubリポジトリの設定**
-   - リポジトリのSettings > Pages に移動
-   - Source を「GitHub Actions」に設定
+1. リポジトリのSettings > Pages > Source: GitHub Actions
+2. 環境変数を設定: Settings > Secrets and variables > Actions
+3. mainブランチにプッシュで自動デプロイ
 
-2. **環境変数の設定**
-   - リポジトリのSettings > Secrets and variables > Actions に移動
-   - 必要なシークレットを追加
+### 詳細なデプロイメント手順
 
-3. **自動デプロイ**
-   - mainブランチにプッシュすると自動的にデプロイされます
-
-### 手動デプロイ
-
-```bash
-# ビルド
-npm run build
-
-# デプロイ（プラットフォームに応じて）
-npm run deploy:vercel    # Vercel
-npm run deploy:netlify   # Netlify
-npm run deploy:github    # GitHub Pages
-```
+詳細な手順については、[デプロイメントガイド](DEPLOYMENT_GUIDE.md)を参照してください。
 
 ## 📚 使用方法
 

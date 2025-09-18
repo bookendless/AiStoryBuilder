@@ -28,7 +28,12 @@
     "prebuild": "npm run type-check && npm run lint",
     "deploy:vercel": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget vercel",
     "deploy:netlify": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget netlify",
-    "deploy:github": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget github"
+    "deploy:github": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -DeployTarget github",
+    "setup:deployment": "node scripts/setup-deployment.js",
+    "setup:vercel": "node scripts/setup-deployment.js vercel production",
+    "setup:netlify": "node scripts/setup-deployment.js netlify production",
+    "setup:github": "node scripts/setup-deployment.js github production",
+    "check:deployment": "node scripts/setup-deployment.js vercel production"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

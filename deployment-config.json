@@ -1,0 +1,76 @@
+{
+  "production": {
+    "environment": {
+      "VITE_APP_NAME": "AI Story Builder",
+      "VITE_APP_VERSION": "1.0.0",
+      "VITE_APP_DESCRIPTION": "AIを活用した小説創作支援アプリケーション",
+      "VITE_DEBUG_MODE": "false",
+      "VITE_LOG_LEVEL": "info",
+      "VITE_ENABLE_API_KEY_ENCRYPTION": "true",
+      "VITE_MAX_PROMPT_LENGTH": "10000",
+      "VITE_ENABLE_SERVICE_WORKER": "true",
+      "VITE_ENABLE_ANALYTICS": "false",
+      "VITE_ENABLE_PWA": "true",
+      "VITE_ENABLE_OFFLINE_MODE": "true",
+      "VITE_ENABLE_DEBUG_TOOLS": "false",
+      "NODE_ENV": "production"
+    },
+    "requiredSecrets": [
+      "VITE_OPENAI_API_KEY",
+      "VITE_CLAUDE_API_KEY", 
+      "VITE_GEMINI_API_KEY"
+    ],
+    "optionalSecrets": [
+      "VITE_LOCAL_LLM_ENDPOINT"
+    ]
+  },
+  "staging": {
+    "environment": {
+      "VITE_APP_NAME": "AI Story Builder (Staging)",
+      "VITE_APP_VERSION": "1.0.0-staging",
+      "VITE_APP_DESCRIPTION": "AIを活用した小説創作支援アプリケーション (Staging)",
+      "VITE_DEBUG_MODE": "true",
+      "VITE_LOG_LEVEL": "debug",
+      "VITE_ENABLE_API_KEY_ENCRYPTION": "true",
+      "VITE_MAX_PROMPT_LENGTH": "10000",
+      "VITE_ENABLE_SERVICE_WORKER": "true",
+      "VITE_ENABLE_ANALYTICS": "false",
+      "VITE_ENABLE_PWA": "true",
+      "VITE_ENABLE_OFFLINE_MODE": "true",
+      "VITE_ENABLE_DEBUG_TOOLS": "true",
+      "NODE_ENV": "staging"
+    },
+    "requiredSecrets": [
+      "VITE_OPENAI_API_KEY",
+      "VITE_CLAUDE_API_KEY",
+      "VITE_GEMINI_API_KEY"
+    ],
+    "optionalSecrets": [
+      "VITE_LOCAL_LLM_ENDPOINT"
+    ]
+  },
+  "development": {
+    "environment": {
+      "VITE_APP_NAME": "AI Story Builder (Dev)",
+      "VITE_APP_VERSION": "1.0.0-dev",
+      "VITE_APP_DESCRIPTION": "AIを活用した小説創作支援アプリケーション (Development)",
+      "VITE_DEBUG_MODE": "true",
+      "VITE_LOG_LEVEL": "debug",
+      "VITE_ENABLE_API_KEY_ENCRYPTION": "false",
+      "VITE_MAX_PROMPT_LENGTH": "10000",
+      "VITE_ENABLE_SERVICE_WORKER": "false",
+      "VITE_ENABLE_ANALYTICS": "false",
+      "VITE_ENABLE_PWA": "false",
+      "VITE_ENABLE_OFFLINE_MODE": "false",
+      "VITE_ENABLE_DEBUG_TOOLS": "true",
+      "NODE_ENV": "development"
+    },
+    "requiredSecrets": [],
+    "optionalSecrets": [
+      "VITE_OPENAI_API_KEY",
+      "VITE_CLAUDE_API_KEY",
+      "VITE_GEMINI_API_KEY",
+      "VITE_LOCAL_LLM_ENDPOINT"
+    ]
+  }
+}
