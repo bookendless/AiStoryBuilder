@@ -32,10 +32,10 @@ AI Story Builderは、AI技術を活用して小説創作を支援するアプ�
 - **リアルタイム保存**: 作業内容が自動的に保存される
 
 ### 🔒 プライバシー重視
-- **完全オフライン動作**: インターネット接続不要で動作
+- **ローカル基盤**: 基本機能はローカル環境で動作
 - **データ保護**: あなたの作品はすべてローカルに保存
-- **APIキー不要**: ローカルAIを使用するため外部サービスへの送信なし
-- **セキュア**: データが外部に送信されることは一切ありません
+- **柔軟なAI選択**: ローカルLLMとクラウドAIを用途に応じて使い分け
+- **セキュア**: データの管理を完全にコントロール
 
 ## 🚀 簡単スタート
 
@@ -75,6 +75,19 @@ npm run dev:local
 
 ブラウザで `http://localhost:5173` にアクセスして使用開始！
 
+### クラウドAIの設定（推奨）
+
+高度な処理（草案執筆等）にはクラウドAIの使用を推奨します：
+
+1. 上記の手順1-2を実行
+2. `.env.local` ファイルでAPIキーを設定：
+   ```env
+   # クラウドAI APIキー（任意）
+   VITE_OPENAI_API_KEY=your_openai_api_key_here
+   VITE_CLAUDE_API_KEY=your_claude_api_key_here
+   VITE_GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+3. `npm run dev` でアプリケーションを起動
 
 ## 📚 使い方
 
@@ -101,6 +114,8 @@ npm run dev:local
 
 6. **執筆支援**
    - 章ごとにAIが執筆をサポート
+   - ローカルLLM：基本的な執筆支援
+   - クラウドAI：高度な草案生成（推奨）
    - 文体の統一と一貫性を維持
 
 ## 🛠️ トラブルシューティング
@@ -111,13 +126,16 @@ npm run dev:local
 A: Node.jsが正しくインストールされているか確認してください
 
 **Q: AIが応答しない**
-A: LM StudioのAPIサーバーが起動しているか確認してください
+A: ローカルLLMの場合はLM StudioのAPIサーバーが起動しているか確認してください。クラウドAIの場合はAPIキーが正しく設定されているか確認してください
 
 **Q: 日本語の応答が不自然**
-A: より高性能なモデル（Llama 3.1 70B等）の使用を検討してください
+A: ローカルLLMの場合はより高性能なモデル（Llama 3.1 70B等）の使用を検討してください。クラウドAIの場合はGPT-4やClaude 3.5 Sonnet等の高性能モデルを推奨します
 
 **Q: 動作が遅い**
-A: より軽量なモデル（Mistral 7B等）の使用を検討してください
+A: ローカルLLMの場合はより軽量なモデル（Mistral 7B等）の使用を検討してください。クラウドAIの場合はネットワーク状況を確認してください
+
+**Q: どのAIを使えばいいですか？**
+A: 基本的な機能（キャラクター生成、プロット構築等）はローカルLLMで十分です。高度な処理（草案執筆等）にはクラウドAIの使用を推奨します
 
 
 ## 📄 ライセンス
@@ -126,6 +144,9 @@ A: より軽量なモデル（Mistral 7B等）の使用を検討してくださ�
 
 ## 🙏 謝辞
 
+- [OpenAI](https://openai.com/) - GPT API
+- [Anthropic](https://anthropic.com/) - Claude API
+- [Google](https://ai.google.dev/) - Gemini API
 - [LM Studio](https://lmstudio.ai/) - ローカルLLM環境
 - [Ollama](https://ollama.ai/) - ローカルLLM環境
 - [React](https://reactjs.org/) - UIライブラリ
