@@ -53,7 +53,7 @@ AI Story Builderは、AI技術を活用して小説創作を支援するアプ�
 
 ```bash
 # このリポジトリをダウンロード
-git clone https://github.com/your-username/ai-story-builder.git
+git clone https://github.com/bookendless/aistorybuilder.git
 cd ai-story-builder
 
 # 自動セットアップ（推奨）
