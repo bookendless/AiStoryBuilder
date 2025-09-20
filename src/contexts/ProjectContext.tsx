@@ -98,6 +98,7 @@ interface ProjectContextType {
   deleteProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<void>;
   loadAllProjects: () => Promise<void>;
+  deleteChapter: (chapterId: string) => void;
   isLoading: boolean;
   lastSaved: Date | null;
 }
@@ -364,6 +365,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoading(false);
     }
   };
+
+  // 章削除関数（草案データも含めて削除）
+  const deleteChapter = (chapterId: string): void => {
+    if (!currentProject) return;
+    
+    // 章を削除
+    const updatedChapters = currentProject.chapters.filter(c => c.id !== chapterId);
+    
+    updateProject({
+      chapters: updatedChapters,
+    });
+  };
   return (
     <ProjectContext.Provider value={{
       currentProject,
@@ -378,6 +391,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       deleteProject,
       duplicateProject,
       loadAllProjects,
+      deleteChapter,
       isLoading,
       lastSaved,
     }}>

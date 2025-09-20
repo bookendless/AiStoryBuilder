@@ -421,7 +421,7 @@ ${synopsis}
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Save className="h-4 w-4" />
-                  <span>{isSaving ? '保存中...' : '手動保存'}</span>
+                  <span>{isSaving ? '保存中...' : '保存する'}</span>
                 </button>
               </div>
             </div>

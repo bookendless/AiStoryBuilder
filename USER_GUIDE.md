@@ -236,4 +236,4 @@ A: ローカルLLMを使用する場合、基本機能は完全にオフライ�
 
 ---
 
-**サポートが必要な場合は、[GitHub Issues](https://github.com/bookendless/ai-story-builder/issues)でお気軽にお問い合わせください。**
+**サポートが必要な場合は、[GitHub Issues](https://github.com/bookendless/aistorybuilder/issues)でお気軽にお問い合わせください。**

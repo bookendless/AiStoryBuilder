@@ -3,9 +3,10 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { PenTool, Sparkles, BookOpen, Save, Download, FileText } from 'lucide-react';
 import { aiService } from '../../services/aiService';
+import { databaseService } from '../../services/databaseService';
 
 export const DraftStep: React.FC = () => {
-  const { currentProject, updateProject } = useProject();
+  const { currentProject, updateProject, createManualBackup } = useProject();
   const { isConfigured, settings } = useAI();
   
   // State variables
@@ -21,6 +22,34 @@ export const DraftStep: React.FC = () => {
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [generationStatus, setGenerationStatus] = useState<string>('');
   
+  // カスタムプロンプト用の状態
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [useCustomPrompt, setUseCustomPrompt] = useState(false);
+  const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
+
+  // カスタムプロンプトの保存・読み込み
+  useEffect(() => {
+    if (currentProject) {
+      const savedCustomPrompt = localStorage.getItem(`customPrompt_${currentProject.id}`);
+      const savedUseCustomPrompt = localStorage.getItem(`useCustomPrompt_${currentProject.id}`);
+      
+      if (savedCustomPrompt) {
+        setCustomPrompt(savedCustomPrompt);
+      }
+      if (savedUseCustomPrompt === 'true') {
+        setUseCustomPrompt(true);
+      }
+    }
+  }, [currentProject]);
+
+  // カスタムプロンプトの保存
+  useEffect(() => {
+    if (currentProject) {
+      localStorage.setItem(`customPrompt_${currentProject.id}`, customPrompt);
+      localStorage.setItem(`useCustomPrompt_${currentProject.id}`, useCustomPrompt.toString());
+    }
+  }, [customPrompt, useCustomPrompt, currentProject]);
+  
   // 現在の値を保持するためのref
   const currentDraftRef = useRef(draft);
   const currentSelectedChapterRef = useRef(selectedChapter);
@@ -34,28 +63,23 @@ export const DraftStep: React.FC = () => {
     currentSelectedChapterRef.current = selectedChapter;
   }, [selectedChapter]);
 
-  // 手動バックアップ作成
+  // データ管理側のバックアップ機能を利用
   const handleCreateManualBackup = async () => {
     if (!currentProject) return;
     
+    // 現在の草案状態を保存してからバックアップを作成
+    if (selectedChapter) {
+      await handleSaveChapterDraft(selectedChapter, draft);
+    }
+    
     try {
-      const backupData = {
-        ...currentProject,
-        draft,
-        chapterDrafts,
-        timestamp: new Date().toISOString()
-      };
+      const description = prompt('手動バックアップの説明を入力してください:', '草案作業時のバックアップ');
+      if (!description) return;
       
-      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `backup_${currentProject.title}_${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await createManualBackup(description);
     } catch (error) {
       console.error('バックアップ作成エラー:', error);
-      alert('バックアップの作成に失敗しました');
+      // createManualBackup関数内でエラーハンドリングが行われるため、ここでは追加のalertは不要
     }
   };
 
@@ -63,31 +87,47 @@ export const DraftStep: React.FC = () => {
   useEffect(() => {
     if (!currentProject) return;
     
-    // 既存の章草案を初期化
-    const initialChapterDrafts: Record<string, string> = {};
-    currentProject.chapters.forEach(chapter => {
-      if (chapter.draft) {
-        initialChapterDrafts[chapter.id] = chapter.draft;
-      }
+    // 既存の章草案を初期化（空の草案も含む、既存のchapterDraftsは保持）
+    setChapterDrafts(prevChapterDrafts => {
+      const initialChapterDrafts: Record<string, string> = { ...prevChapterDrafts };
+      currentProject.chapters.forEach(chapter => {
+        // 既にchapterDraftsに存在する場合は保持、存在しない場合は初期化
+        if (!(chapter.id in initialChapterDrafts)) {
+          initialChapterDrafts[chapter.id] = chapter.draft || '';
+        }
+      });
+      return initialChapterDrafts;
     });
-    setChapterDrafts(initialChapterDrafts);
   }, [currentProject]);
+
+  // 章が変更されたときの処理（クリーンアップは停止）
+  // useEffect(() => {
+  //   if (currentProject) {
+  //     cleanupDeletedChapterDrafts(currentProject);
+  //   }
+  // }, [currentProject?.chapters]);
 
   // 選択された章の草案を読み込み
   useEffect(() => {
-    if (selectedChapter && chapterDrafts[selectedChapter] !== undefined) {
-      const chapterDraft = chapterDrafts[selectedChapter] || '';
-      setDraft(chapterDraft);
+    if (selectedChapter) {
+      // 選択された章に既存の草案があるかチェック
+      if (chapterDrafts[selectedChapter]) {
+        setDraft(chapterDrafts[selectedChapter]);
+      } else {
+        // 新規章の場合は空の草案を設定
+        setDraft('');
+      }
     }
   }, [selectedChapter, chapterDrafts]);
 
   // 章選択ハンドラー
   const handleChapterSelect = async (chapterId: string) => {
     // 現在の章の内容を保存（章が選択されている場合）
-    if (selectedChapter && draft.trim()) {
+    if (selectedChapter) {
       await handleSaveChapterDraft(selectedChapter, draft);
     }
     
+    // 選択された章を設定（草案はuseEffectで適切に初期化される）
     setSelectedChapter(chapterId);
   };
 
@@ -106,7 +146,7 @@ export const DraftStep: React.FC = () => {
     try {
       const contentToSave = content || draft;
       
-      // chapterDraftsを更新
+      // chapterDraftsを更新（空の草案も含む）
       const updatedChapterDrafts = { ...chapterDrafts, [chapterId]: contentToSave };
       setChapterDrafts(updatedChapterDrafts);
       
@@ -118,15 +158,41 @@ export const DraftStep: React.FC = () => {
         return chapter;
       });
       
+      const updatedProject = {
+        ...currentProject,
+        chapters: updatedChapters,
+        draft: contentToSave,
+        updatedAt: new Date(),
+      };
+      
       updateProject({ 
         chapters: updatedChapters,
         draft: contentToSave // メインの草案も更新
       });
+      
+      // 即座にデータベースに保存（デバウンスを待たない）
+      await databaseService.saveProject(updatedProject);
     } catch (error) {
       console.error('章草案保存エラー:', error);
       // エラーが発生してもUIの状態は更新済みなので、ユーザーには通知しない
     }
   };
+
+  // 削除された章の草案データをクリーンアップ（機能停止）
+  // const cleanupDeletedChapterDrafts = (project: typeof currentProject) => {
+  //   if (!project) return;
+  //   
+  //   const existingChapterIds = new Set(project.chapters.map(chapter => chapter.id));
+  //   const cleanedChapterDrafts = Object.keys(chapterDrafts).reduce((acc, chapterId) => {
+  //     // 章が存在する場合のみ保持（空の草案も含む）
+  //     if (existingChapterIds.has(chapterId)) {
+  //       acc[chapterId] = chapterDrafts[chapterId];
+  //     }
+  //     return acc;
+  //   }, {} as Record<string, string>);
+  //   
+  //   setChapterDrafts(cleanedChapterDrafts);
+  // };
 
   // 章詳細情報を取得
   const getChapterDetails = (chapter: any) => {
@@ -156,6 +222,70 @@ export const DraftStep: React.FC = () => {
 
   // 文字数カウント
   const wordCount = draft.length;
+
+  // カスタムプロンプトの構築
+  const buildCustomPrompt = (currentChapter: any, chapterDetails: any, projectCharacters: string) => {
+    const basePrompt = `以下の章の情報を基に、会話を重視し、読者に臨場感のある魅力的な小説の章を執筆してください。
+
+【最重要：章情報】
+章タイトル: ${currentChapter.title}
+章の概要: ${currentChapter.summary}
+
+【章の詳細設定】
+設定・場所: ${chapterDetails.setting}
+雰囲気・ムード: ${chapterDetails.mood}
+重要な出来事: ${chapterDetails.keyEvents}
+登場キャラクター: ${chapterDetails.characters}
+
+【プロジェクト基本情報】
+作品タイトル: ${currentProject?.title}
+メインジャンル: ${currentProject?.mainGenre || '未設定'}
+サブジャンル: ${currentProject?.subGenre || '未設定'}
+ターゲット読者: ${currentProject?.targetReader || '未設定'}
+プロジェクトテーマ: ${currentProject?.projectTheme || '未設定'}
+
+【プロット基本設定】
+テーマ: ${currentProject?.plot?.theme || '未設定'}
+舞台設定: ${currentProject?.plot?.setting || '未設定'}
+フック: ${currentProject?.plot?.hook || '未設定'}
+主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
+主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
+
+【キャラクター情報】
+${projectCharacters}
+
+【執筆指示】
+1. **文字数**: 3000-4000文字程度で執筆してください
+2. **会話重視**: キャラクター同士の会話を豊富に含め、自然で生き生きとした対話を心がけてください
+3. **臨場感**: 読者がその場にいるような感覚を与える詳細な情景描写を入れてください
+4. **感情表現**: キャラクターの心理状態や感情を丁寧に描写してください
+5. **五感の活用**: 視覚、聴覚、触覚、嗅覚、味覚を意識した描写を入れてください
+6. **章の目的**: 章の概要に沿った内容で、物語を前進させてください
+7. **一貫性**: キャラクターの性格や設定を一貫して保ってください
+
+【文体の特徴】
+- 現代的な日本語小説の文体
+- 読み手が感情移入しやすい表現
+- 適度な改行と段落分け（会話の前後、場面転換時など）
+- 会話は「」で囲み、自然な話し方で
+- 情景描写は詩的で美しい表現を
+- 改行は自然な文章の流れに従って適切に行う
+
+【改行の指示】
+- 会話の前後で改行する
+- 場面転換時に改行する
+- 段落の区切りで改行する
+- 長い文章は読みやすく適度に改行する
+- 改行は通常の改行文字（\n）で表現する
+
+章の内容を執筆してください。`;
+
+    if (useCustomPrompt && customPrompt.trim()) {
+      return `${basePrompt}\n\n【カスタム執筆指示】\n${customPrompt}`;
+    }
+    
+    return basePrompt;
+  };
 
   // AI生成ハンドラー
   const handleAIGenerate = async () => {
@@ -190,61 +320,8 @@ export const DraftStep: React.FC = () => {
         `${char.name}: ${char.bio || char.description || '説明なし'}`
       ).join('\n');
 
-      // 詳細なプロンプトを構築
-      const prompt = `以下の章の情報を基に、会話を重視し、読者に臨場感のある魅力的な小説の章を執筆してください。
-
-【最重要：章情報】
-章タイトル: ${currentChapter.title}
-章の概要: ${currentChapter.summary}
-
-【章の詳細設定】
-設定・場所: ${chapterDetails.setting}
-雰囲気・ムード: ${chapterDetails.mood}
-重要な出来事: ${chapterDetails.keyEvents}
-登場キャラクター: ${chapterDetails.characters}
-
-【プロジェクト基本情報】
-作品タイトル: ${currentProject.title}
-メインジャンル: ${currentProject.mainGenre || '未設定'}
-サブジャンル: ${currentProject.subGenre || '未設定'}
-ターゲット読者: ${currentProject.targetReader || '未設定'}
-プロジェクトテーマ: ${currentProject.projectTheme || '未設定'}
-
-【プロット基本設定】
-テーマ: ${currentProject.plot?.theme || '未設定'}
-舞台設定: ${currentProject.plot?.setting || '未設定'}
-フック: ${currentProject.plot?.hook || '未設定'}
-主人公の目標: ${currentProject.plot?.protagonistGoal || '未設定'}
-主要な障害: ${currentProject.plot?.mainObstacle || '未設定'}
-
-【キャラクター情報】
-${projectCharacters}
-
-【執筆指示】
-1. **文字数**: 3000-4000文字程度で執筆してください
-2. **会話重視**: キャラクター同士の会話を豊富に含め、自然で生き生きとした対話を心がけてください
-3. **臨場感**: 読者がその場にいるような感覚を与える詳細な情景描写を入れてください
-4. **感情表現**: キャラクターの心理状態や感情を丁寧に描写してください
-5. **五感の活用**: 視覚、聴覚、触覚、嗅覚、味覚を意識した描写を入れてください
-6. **章の目的**: 章の概要に沿った内容で、物語を前進させてください
-7. **一貫性**: キャラクターの性格や設定を一貫して保ってください
-
-【文体の特徴】
-- 現代的な日本語小説の文体
-- 読み手が感情移入しやすい表現
-- 適度な改行と段落分け（会話の前後、場面転換時など）
-- 会話は「」で囲み、自然な話し方で
-- 情景描写は詩的で美しい表現を
-- 改行は自然な文章の流れに従って適切に行う
-
-【改行の指示】
-- 会話の前後で改行する
-- 場面転換時に改行する
-- 段落の区切りで改行する
-- 長い文章は読みやすく適度に改行する
-- 改行は通常の改行文字（\n）で表現する
-
-章の内容を執筆してください。`;
+      // プロンプトを構築
+      const prompt = buildCustomPrompt(currentChapter, chapterDetails, projectCharacters);
 
       const response = await aiService.generateContent({
         prompt,
@@ -464,8 +541,7 @@ ${draft}
         mainGenre: currentProject.mainGenre || '未設定',
         subGenre: currentProject.subGenre || '未設定',
         targetReader: currentProject.targetReader || '未設定',
-        projectTheme: currentProject.projectTheme || '未設定',
-        synopsis: currentProject.synopsis || '未設定'
+        projectTheme: currentProject.projectTheme || '未設定'
       };
 
       // キャラクター情報を整理
@@ -513,7 +589,6 @@ ${draft}
 サブジャンル: ${projectInfo.subGenre}
 ターゲット読者: ${projectInfo.targetReader}
 プロジェクトテーマ: ${projectInfo.projectTheme}
-あらすじ: ${projectInfo.synopsis}
 
 【プロット基本設定】
 テーマ: ${plotInfo.theme}
@@ -661,6 +736,9 @@ ${chaptersInfo}
     URL.revokeObjectURL(url);
   };
 
+  // 自動保存用のタイマー
+  const autoSaveTimeoutRef = useRef<number | null>(null);
+
   // テキストエリアの変更ハンドラー
   const handleDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
@@ -672,23 +750,60 @@ ${chaptersInfo}
         ...prev,
         [selectedChapter]: newContent
       }));
+      
+      // 自動保存のタイマーを設定（2秒後に保存）
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        if (selectedChapter && newContent.trim()) {
+          handleSaveChapterDraft(selectedChapter, newContent);
+        }
+      }, 2000);
     }
   };
 
   // コンポーネントのアンマウント時に現在の章の内容を保存
   useEffect(() => {
     return () => {
+      // 自動保存タイマーをクリア
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      
       const currentChapter = currentSelectedChapterRef.current;
       const currentDraft = currentDraftRef.current;
       
-      if (currentChapter && currentDraft.trim()) {
-        // 同期的に保存を試行
-        handleSaveChapterDraft(currentChapter, currentDraft).catch(error => {
-          console.error('アンマウント時の保存エラー:', error);
-        });
+      if (currentChapter && currentProject) {
+        // 即座にデータベースに保存（非同期処理を同期的に実行）
+        const saveToDatabase = async () => {
+          try {
+            const updatedChapters = currentProject.chapters.map(chapter => {
+              if (chapter.id === currentChapter) {
+                return { ...chapter, draft: currentDraft };
+              }
+              return chapter;
+            });
+            
+            const updatedProject = {
+              ...currentProject,
+              chapters: updatedChapters,
+              draft: currentDraft,
+              updatedAt: new Date(),
+            };
+            
+            await databaseService.saveProject(updatedProject);
+          } catch (error) {
+            console.error('アンマウント時の保存エラー:', error);
+          }
+        };
+        
+        // 保存を実行（エラーハンドリング付き）
+        saveToDatabase();
       }
     };
-  }, []); // 依存関係を空にして、アンマウント時のみ実行
+  }, [currentProject]); // currentProjectを依存関係に追加
 
   // モーダル用テキストエリアの変更ハンドラー
   const handleModalDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -809,7 +924,7 @@ ${modalDraft}
             <div className="flex items-center space-x-3">
               <button
                 onClick={handleCreateManualBackup}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm font-['Noto_Sans_JP']"
               >
                 <Save className="h-4 w-4" />
                 <span>バックアップ</span>
@@ -880,6 +995,13 @@ ${modalDraft}
                             <span>執筆開始</span>
                           </button>
                         )}
+                        <button
+                          onClick={() => setShowCustomPromptModal(true)}
+                          className="flex items-center space-x-1 px-3 py-1.5 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors text-sm"
+                        >
+                          <PenTool className="h-4 w-4" />
+                          <span>カスタムプロンプト</span>
+                        </button>
                         <button
                           onClick={handleAIGenerate}
                           disabled={isGenerating || !selectedChapter}
@@ -1253,6 +1375,141 @@ ${modalDraft}
           </div>
         </div>
       </div>
+
+      {/* カスタムプロンプトモーダル */}
+      {showCustomPromptModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            {/* オーバーレイ */}
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+              onClick={() => setShowCustomPromptModal(false)}
+            />
+            
+            {/* モーダルコンテンツ */}
+            <div className="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
+              {/* モーダルヘッダー */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-gradient-to-br from-purple-500 to-pink-600 w-8 h-8 rounded-full flex items-center justify-center">
+                    <PenTool className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                      カスタムプロンプト設定
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                      執筆スタイルをカスタマイズできます
+                    </p>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => setShowCustomPromptModal(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* モーダルボディ */}
+              <div className="p-6">
+                <div className="space-y-6">
+                  {/* カスタムプロンプト使用の切り替え */}
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="useCustomPrompt"
+                      checked={useCustomPrompt}
+                      onChange={(e) => setUseCustomPrompt(e.target.checked)}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="useCustomPrompt" className="text-sm font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                      カスタムプロンプトを使用する
+                    </label>
+                  </div>
+
+                  {/* カスタムプロンプト入力エリア */}
+                  {useCustomPrompt && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                          カスタム執筆指示
+                        </label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
+                          基本的なプロンプトに追加する執筆指示を記述してください。例：「詩的な表現を多用する」「一人称視点で執筆する」「短編小説風の文体にする」など
+                        </p>
+                        <textarea
+                          value={customPrompt}
+                          onChange={(e) => setCustomPrompt(e.target.value)}
+                          placeholder="例：
+• 詩的な表現を多用し、美しい情景描写を心がける
+• 一人称視点で主人公の内面を深く描写する
+• 短編小説風の簡潔で印象的な文体にする
+• 会話は最小限に抑え、心理描写を重視する
+• ミステリー要素を織り交ぜ、読者の興味を引く展開にする"
+                          className="w-full h-40 p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-['Noto_Sans_JP'] leading-relaxed"
+                          style={{ lineHeight: '1.6' }}
+                        />
+                      </div>
+                      
+                      <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        文字数: {customPrompt.length.toLocaleString()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* プレビューエリア */}
+                  {useCustomPrompt && customPrompt.trim() && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                        プロンプトプレビュー
+                      </h4>
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <div className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] whitespace-pre-wrap">
+                          【基本プロンプト】<br/>
+                          以下の章の情報を基に、会話を重視し、読者に臨場感のある魅力的な小説の章を執筆してください。<br/><br/>
+                          【章情報・プロジェクト情報・キャラクター情報・執筆指示】<br/>
+                          （省略）<br/><br/>
+                          【カスタム執筆指示】<br/>
+                          {customPrompt}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* モーダルフッター */}
+              <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                  {useCustomPrompt ? 'カスタムプロンプトが有効です' : 'デフォルトプロンプトを使用します'}
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => {
+                      setCustomPrompt('');
+                      setUseCustomPrompt(false);
+                    }}
+                    className="px-4 py-2 text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-['Noto_Sans_JP']"
+                  >
+                    リセット
+                  </button>
+                  <button
+                    onClick={() => setShowCustomPromptModal(false)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP']"
+                  >
+                    保存して閉じる
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* モーダル */}
       {isModalOpen && (

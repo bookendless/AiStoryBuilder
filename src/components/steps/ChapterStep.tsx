@@ -14,7 +14,7 @@ interface StructureProgress {
 }
 
 export const ChapterStep: React.FC = () => {
-  const { currentProject, updateProject } = useProject();
+  const { currentProject, updateProject, deleteChapter } = useProject();
   const { settings, isConfigured } = useAI();
   
   // 状態管理
@@ -336,9 +336,7 @@ export const ChapterStep: React.FC = () => {
 
   const handleDeleteChapter = (id: string) => {
     if (!currentProject) return;
-    updateProject({
-      chapters: currentProject.chapters.filter(c => c.id !== id),
-    });
+    deleteChapter(id);
   };
 
   const handleEditChapter = (chapter: {id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}) => {
