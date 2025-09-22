@@ -536,7 +536,7 @@ export class PerformanceMonitor {
       try {
         longTaskObserver.observe({ entryTypes: ['longtask'] });
         this.observers.push(longTaskObserver);
-      } catch (e) {
+      } catch (_e) {
         console.warn('Long task observer not supported');
       }
       
@@ -552,7 +552,7 @@ export class PerformanceMonitor {
       try {
         clsObserver.observe({ entryTypes: ['layout-shift'] });
         this.observers.push(clsObserver);
-      } catch (e) {
+      } catch (_e) {
         console.warn('Layout shift observer not supported');
       }
     }

@@ -710,7 +710,7 @@ ${context.existingChapters.map((c: any) => {
         alert('章立ての解析に失敗しました。手動で追加してください。');
       }
       
-    } catch (error) {
+    } catch (_error) {
       alert('AI生成中にエラーが発生しました');
     } finally {
       setIsGenerating(false);
@@ -1226,8 +1226,8 @@ ${context.existingChapters.map((c: any) => {
                   {Object.values(structureProgress).some(Boolean) && !Object.values(structureProgress).every(Boolean) && (
                     <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 font-['Noto_Sans_JP']">
                       未完了: {Object.entries(structureProgress)
-                        .filter(([_, completed]) => !completed)
-                        .map(([key, _]) => {
+                        .filter(([_key, completed]) => !completed)
+                        .map(([key, _value]) => {
                           const labels = {
                             introduction: '導入部',
                             development: '展開部',

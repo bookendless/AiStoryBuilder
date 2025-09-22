@@ -10,7 +10,7 @@ interface PlotStep2Props {
   onNavigateToStep?: (step: Step) => void;
 }
 
-export const PlotStep2: React.FC<PlotStep2Props> = ({ }) => {
+export const PlotStep2: React.FC<PlotStep2Props> = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const [isGenerating, setIsGenerating] = useState<string | null>(null);

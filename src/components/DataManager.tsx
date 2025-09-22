@@ -66,7 +66,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       await createManualBackup(description);
       await loadBackups();
       await loadStats();
-    } catch (error) {
+    } catch (_error) {
       alert('手動バックアップの作成に失敗しました');
     } finally {
       setIsLoading(false);
@@ -90,7 +90,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       
       alert('バックアップから復元しました。ホーム画面に戻ります。');
       onClose();
-    } catch (error) {
+    } catch (_error) {
       alert('復元に失敗しました');
     } finally {
       setIsLoading(false);
@@ -111,7 +111,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       alert('データをエクスポートしました');
-    } catch (error) {
+    } catch (_error) {
       alert('エクスポートに失敗しました');
     } finally {
       setIsLoading(false);
@@ -157,7 +157,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       await loadStats();
       alert('すべてのデータを削除しました');
       onClose();
-    } catch (error) {
+    } catch (_error) {
       alert('データ削除に失敗しました');
     } finally {
       setIsLoading(false);

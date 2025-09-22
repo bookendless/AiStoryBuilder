@@ -10,7 +10,7 @@ interface PlotStep1Props {
   onNavigateToStep?: (step: Step) => void;
 }
 
-export const PlotStep1: React.FC<PlotStep1Props> = ({ }) => {
+export const PlotStep1: React.FC<PlotStep1Props> = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -327,7 +327,7 @@ ${charactersInfo}
               
               // 基本設定のキーが存在するかチェック
               const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害'];
-              const validKeys = basicKeys.filter(key => parsed.hasOwnProperty(key));
+              const validKeys = basicKeys.filter(key => Object.prototype.hasOwnProperty.call(parsed, key));
               
               if (validKeys.length >= 2) { // 最低2つのキーがあれば有効
                 console.log('基本設定JSON解析成功:', {

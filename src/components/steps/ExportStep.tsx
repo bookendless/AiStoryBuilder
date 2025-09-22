@@ -40,7 +40,7 @@ export const ExportStep: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-    } catch (error) {
+    } catch (_error) {
       alert('エクスポートに失敗しました');
     } finally {
       setIsExporting(false);

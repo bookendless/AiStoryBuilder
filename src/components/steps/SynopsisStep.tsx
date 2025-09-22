@@ -180,7 +180,7 @@ export const SynopsisStep: React.FC = () => {
         performSave();
       }, 500);
       
-    } catch (error) {
+    } catch (_error) {
       alert('AI生成中にエラーが発生しました');
     } finally {
       setIsGenerating(false);

@@ -699,7 +699,7 @@ export const CharacterStep: React.FC = () => {
 
       updateProject({ characters: updatedCharacters });
       
-    } catch (error) {
+    } catch (_error) {
       alert('AI生成中にエラーが発生しました');
     } finally {
       setEnhancingId(null);

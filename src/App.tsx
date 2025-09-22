@@ -11,7 +11,7 @@ import { DraftStep } from './components/steps/DraftStep';
 import { ExportStep } from './components/steps/ExportStep';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
-import { setSecurityHeaders, SessionManager, RateLimiter } from './utils/securityUtils';
+import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
 import { PerformanceMonitor, registerServiceWorker, onOnlineStatusChange } from './utils/performanceUtils';
 
 export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
@@ -32,8 +32,8 @@ function App() {
         const sessionManager = new SessionManager();
         sessionManager.updateActivity();
         
-        // レート制限の初期化
-        const rateLimiter = new RateLimiter(100, 60000); // 1分間に100リクエスト
+        // レート制限の初期化（将来の使用のためにコメントアウト）
+        // const rateLimiter = new RateLimiter(100, 60000); // 1分間に100リクエスト
         
         // パフォーマンス監視の開始
         const performanceMonitor = new PerformanceMonitor();

@@ -128,7 +128,7 @@ class DatabaseService {
       // キャッシュから取得を試行
       const cachedProject = this.projectCache.get(id);
       if (cachedProject) {
-        const { version, lastSaved, ...project } = cachedProject;
+        const { version: _version, lastSaved: _lastSaved, ...project } = cachedProject;
         return project;
       }
 
@@ -140,7 +140,7 @@ class DatabaseService {
       this.projectCache.set(id, storedProject);
 
       // StoredProject から Project に変換
-      const { version, lastSaved, ...project } = storedProject;
+      const { version: _version, lastSaved: _lastSaved, ...project } = storedProject;
       return project;
     } catch (error) {
       console.error('プロジェクト読み込みエラー:', error);
@@ -152,7 +152,7 @@ class DatabaseService {
   async getAllProjects(): Promise<Project[]> {
     try {
       const storedProjects = await db.projects.orderBy('updatedAt').reverse().toArray();
-      return storedProjects.map(({ version, lastSaved, ...project }) => project);
+      return storedProjects.map(({ version: _version, lastSaved: _lastSaved, ...project }) => project);
     } catch (error) {
       console.error('全プロジェクト取得エラー:', error);
       return [];
