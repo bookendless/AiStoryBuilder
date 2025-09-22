@@ -527,7 +527,7 @@ ${draft}
     }
 
     // 確認ダイアログ
-    const confirmMessage = `全${currentProject.chapters.length}章の草案を一括生成します。\n\n既存の章草案は上書きされます。\n\n実行しますか？`;
+    const confirmMessage = `全${currentProject.chapters.length}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`;
     if (!confirm(confirmMessage)) return;
 
     setIsGeneratingAllChapters(true);
@@ -629,7 +629,7 @@ ${chaptersInfo}
 
 各章の草案を執筆してください。`;
 
-      setGenerationStatus('AI生成中...');
+      setGenerationStatus('AI生成中...（全章の一貫性を保ちながら執筆中）');
       const response = await aiService.generateContent({
         prompt: fullPrompt,
         type: 'draft',
@@ -673,7 +673,7 @@ ${chaptersInfo}
 
         updateProject({ chapters: updatedChapters });
 
-        setGenerationStatus(`完了！${chapterIndex}章の草案を生成しました。`);
+        setGenerationStatus(`完了！${chapterIndex}章の草案を生成しました。各章の内容を確認してください。`);
         
         // 成功メッセージ
         alert(`全章生成が完了しました！\n\n生成された章数: ${chapterIndex}/${currentProject.chapters.length}\n\n各章の草案が保存されました。`);
@@ -684,7 +684,30 @@ ${chaptersInfo}
 
     } catch (error) {
       console.error('全章生成エラー:', error);
-      alert(`全章生成中にエラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      
+      let errorMessage = '不明なエラーが発生しました';
+      let errorDetails = '';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // エラーの種類に応じた詳細メッセージ
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorDetails = '\n\nネットワークエラーが発生しました。インターネット接続を確認してください。';
+        } else if (error.message.includes('timeout')) {
+          errorDetails = '\n\nタイムアウトエラーが発生しました。時間をおいて再度お試しください。';
+        } else if (error.message.includes('quota') || error.message.includes('limit')) {
+          errorDetails = '\n\nAPIの利用制限に達しました。しばらく時間をおいてから再度お試しください。';
+        } else if (error.message.includes('unauthorized') || error.message.includes('401')) {
+          errorDetails = '\n\nAPIキーが無効です。AI設定でAPIキーを確認してください。';
+        } else if (error.message.includes('rate limit')) {
+          errorDetails = '\n\nリクエスト制限に達しました。しばらく時間をおいてから再度お試しください。';
+        }
+      }
+      
+      const fullErrorMessage = `全章生成中にエラーが発生しました: ${errorMessage}${errorDetails}\n\n対処方法：\n• ネットワーク接続を確認してください\n• AI設定でAPIキーが正しく設定されているか確認してください\n• しばらく時間をおいてから再度お試しください\n• 問題が続く場合は、個別に章を生成してください`;
+      
+      alert(fullErrorMessage);
       setGenerationStatus('エラーが発生しました');
     } finally {
       setIsGeneratingAllChapters(false);
@@ -1245,7 +1268,12 @@ ${modalDraft}
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-semibold text-purple-900 dark:text-purple-100 text-sm font-['Noto_Sans_JP']">全章生成</div>
-                        <div className="text-xs text-purple-600 dark:text-purple-300 font-['Noto_Sans_JP']">全章を一括生成</div>
+                        <div className="text-xs text-purple-600 dark:text-purple-300 font-['Noto_Sans_JP']">
+                          {currentProject.chapters.length}章を一括生成
+                        </div>
+                        <div className="text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mt-1">
+                          ⚠️ 時間がかかります（5-15分）
+                        </div>
                       </div>
                       {isGeneratingAllChapters && (
                         <Sparkles className="h-4 w-4 text-purple-500 animate-spin" />
@@ -1282,19 +1310,34 @@ ${modalDraft}
                             {generationProgress.current} / {generationProgress.total}
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                           <div 
-                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500" 
+                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500" 
                             style={{ 
                               width: `${(generationProgress.current / generationProgress.total) * 100}%` 
                             }}
                           />
                         </div>
+                        <div className="text-center text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                          {Math.round((generationProgress.current / generationProgress.total) * 100)}% 完了
+                        </div>
                       </div>
                     )}
                     
-                    <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      全章の一貫性を保ちながら生成中です。しばらくお待ちください...
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                      <div className="flex items-start space-x-2">
+                        <div className="text-amber-500 mt-0.5">
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
+                          <div className="font-semibold mb-1">生成中です</div>
+                          <div>• 全章の一貫性を保ちながら生成中です</div>
+                          <div>• 生成には時間がかかる場合があります</div>
+                          <div>• このページを閉じないでください</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
