@@ -41,7 +41,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
   useEffect(() => {
     if (!currentProject) return;
     
-    const timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(async () => {
       // フォームデータが変更されている場合のみ保存
       const hasChanges = 
         formData.theme !== (currentProject.plot?.theme || '') ||
@@ -51,12 +51,49 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         formData.mainObstacle !== (currentProject.plot?.mainObstacle || '');
       
       if (hasChanges) {
-        handleSave();
+        // 直接保存処理を実行
+        setIsSaving(true);
+        setSaveStatus('saving');
+        
+        try {
+          // 既存のplotデータを保持しつつ、基本設定のみを更新
+          const updatedPlot = {
+            ...currentProject.plot,
+            theme: formData.theme,
+            setting: formData.setting,
+            hook: formData.hook,
+            protagonistGoal: formData.protagonistGoal,
+            mainObstacle: formData.mainObstacle,
+          };
+
+          await updateProject({
+            plot: updatedPlot,
+          });
+          
+          setSaveStatus('saved');
+          console.log('Plot basic data auto-saved successfully:', formData);
+          
+          // 3秒後にステータスをリセット
+          setTimeout(() => {
+            setSaveStatus('idle');
+          }, 3000);
+          
+        } catch (error) {
+          console.error('Auto-save error:', error);
+          setSaveStatus('error');
+          
+          // 5秒後にステータスをリセット
+          setTimeout(() => {
+            setSaveStatus('idle');
+          }, 5000);
+        } finally {
+          setIsSaving(false);
+        }
       }
     }, 2000); // 2秒後に自動保存
 
     return () => clearTimeout(timeoutId);
-  }, [formData, currentProject, handleSave]);
+  }, [formData, currentProject, updateProject]);
 
   const handleSave = useCallback(async () => {
     if (!currentProject) return;
@@ -356,7 +393,7 @@ ${charactersInfo}
       const extractBasicField = (label: string) => {
         // JSON形式から抽出
         if (parsedData && parsedData[label]) {
-          return parsedData[label].trim();
+          return String(parsedData[label]).trim();
         }
 
         // テキスト形式から抽出

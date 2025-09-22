@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { databaseService } from '../services/databaseService';
+import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
 
 export interface Character {
   id: string;
@@ -118,10 +119,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [saveTimeout, setSaveTimeout] = useState<number | null>(null);
+  const { setTimer } = useTimer();
 
   // 初期化時にプロジェクト一覧を読み込み
-  React.useEffect(() => {
+  useSafeEffect(() => {
     const initializeProjects = async () => {
       try {
         await loadAllProjects();
@@ -136,7 +137,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, []);
 
   // 現在のプロジェクトが変更されたら自動保存を開始
-  React.useEffect(() => {
+  useSafeEffect(() => {
     if (currentProject) {
       const startAutoSave = async () => {
         try {
@@ -178,15 +179,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
     
     // デバウンス付きで保存（500ms後に実行）
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
-    }
-    
-    const timeout = setTimeout(() => {
+    setTimer(() => {
       saveProject();
     }, 500);
-    
-    setSaveTimeout(timeout);
   };
 
   const createNewProject = (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string): Project => {

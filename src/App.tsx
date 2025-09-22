@@ -113,9 +113,17 @@ function App() {
   // ローディング状態
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+      <div 
+        className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center"
+        role="status"
+        aria-live="polite"
+        aria-label="アプリケーションを読み込み中"
+      >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <div 
+            className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"
+            aria-hidden="true"
+          ></div>
           <p className="text-gray-600 dark:text-gray-300 font-['Noto_Sans_JP']">読み込み中...</p>
         </div>
       </div>
@@ -125,14 +133,19 @@ function App() {
   // エラー状態
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+      <div 
+        className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center"
+        role="alert"
+        aria-live="assertive"
+      >
         <div className="text-center max-w-md mx-auto p-6">
           <div className="bg-red-100 dark:bg-red-900 p-4 rounded-lg mb-4">
             <p className="text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">{error}</p>
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP'] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            aria-label="ページを再読み込みしてエラーを解決"
           >
             ページを再読み込み
           </button>
@@ -144,9 +157,22 @@ function App() {
   return (
     <AIProvider>
       <ProjectProvider>
-        <div className={`min-h-screen transition-colors duration-300 ${
-          isDarkMode ? 'dark bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-        }`}>
+        {/* スキップリンク */}
+        <a 
+          href="#main-content" 
+          className="skip-link"
+          aria-label="メインコンテンツにスキップ"
+        >
+          メインコンテンツにスキップ
+        </a>
+        
+        <div 
+          className={`min-h-screen transition-colors duration-300 ${
+            isDarkMode ? 'dark bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+          }`}
+          role="application"
+          aria-label="AI小説創作支援アプリケーション"
+        >
           <div className="flex">
             <Sidebar 
               currentStep={currentStep} 
@@ -163,7 +189,13 @@ function App() {
                 onHomeClick={() => setCurrentStep('home')}
               />
               
-              <main className="p-6">
+              <main 
+                id="main-content"
+                className="p-6"
+                role="main"
+                aria-label="メインコンテンツ"
+                tabIndex={-1}
+              >
                 {renderStep()}
               </main>
             </div>

@@ -58,7 +58,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
   useEffect(() => {
     if (!currentProject) return;
     
-    const timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(async () => {
       // フォームデータが変更されている場合のみ保存
       const hasChanges = 
         formData.ki !== (currentProject.plot?.ki || '') ||
@@ -74,12 +74,61 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
         formData.fourAct4 !== (currentProject.plot?.fourAct4 || '');
       
       if (hasChanges) {
-        handleSave();
+        // 直接保存処理を実行
+        setIsSaving(true);
+        setSaveStatus('saving');
+        
+        try {
+          // 既存のplotデータを保持しつつ、構成詳細のみを更新
+          const updatedPlot = {
+            ...currentProject.plot,
+            structure: plotStructure,
+          };
+
+          if (plotStructure === 'kishotenketsu') {
+            updatedPlot.ki = formData.ki;
+            updatedPlot.sho = formData.sho;
+            updatedPlot.ten = formData.ten;
+            updatedPlot.ketsu = formData.ketsu;
+          } else if (plotStructure === 'three-act') {
+            updatedPlot.act1 = formData.act1;
+            updatedPlot.act2 = formData.act2;
+            updatedPlot.act3 = formData.act3;
+          } else if (plotStructure === 'four-act') {
+            updatedPlot.fourAct1 = formData.fourAct1;
+            updatedPlot.fourAct2 = formData.fourAct2;
+            updatedPlot.fourAct3 = formData.fourAct3;
+            updatedPlot.fourAct4 = formData.fourAct4;
+          }
+
+          await updateProject({
+            plot: updatedPlot,
+          });
+          
+          setSaveStatus('saved');
+          console.log('Plot structure data auto-saved successfully:', formData);
+          
+          // 3秒後にステータスをリセット
+          setTimeout(() => {
+            setSaveStatus('idle');
+          }, 3000);
+          
+        } catch (error) {
+          console.error('Auto-save error:', error);
+          setSaveStatus('error');
+          
+          // 5秒後にステータスをリセット
+          setTimeout(() => {
+            setSaveStatus('idle');
+          }, 5000);
+        } finally {
+          setIsSaving(false);
+        }
       }
     }, 2000); // 2秒後に自動保存
 
     return () => clearTimeout(timeoutId);
-  }, [formData, currentProject, handleSave]);
+  }, [formData, currentProject, plotStructure, updateProject]);
 
   const handleSave = useCallback(async () => {
     if (!currentProject) return;

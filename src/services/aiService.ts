@@ -731,8 +731,9 @@ class AIService {
         const parsedResponse = parseAIResponse(response.content, 'auto');
         
         if (parsedResponse.success && validateResponse(parsedResponse)) {
+          const data = parsedResponse.data as Record<string, unknown>;
           return {
-            content: parsedResponse.data.type === 'text' ? parsedResponse.data.content : response.content,
+            content: data.type === 'text' ? (data.content as string) : response.content,
             error: response.error
           };
         } else {

@@ -48,7 +48,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleProjectSelect = (project: Record<string, unknown>) => {
+  const handleProjectSelect = (project: Project) => {
     setCurrentProject(project);
     onNavigateToStep('plot1');
   };
@@ -109,7 +109,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   };
 
   // 編集開始
-  const handleEditProject = (e: React.MouseEvent, project: { id: string; mainGenre?: string; genre?: string; subGenre?: string; targetReader?: string; projectTheme?: string; customTheme?: string }) => {
+  const handleEditProject = (e: React.MouseEvent, project: Project) => {
     e.stopPropagation();
     setEditingProject(project.id);
     
@@ -326,7 +326,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                   {project.coverImage && (
                     <div className="mb-4">
                       <div 
-                        onClick={() => handleProjectSelect(project)}
+                        onClick={() => handleProjectSelect(project as Project)}
                         className="cursor-pointer"
                       >
                         <img 
@@ -340,7 +340,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
                   <div className="mb-4">
                     <div 
-                      onClick={() => handleProjectSelect(project)}
+                      onClick={() => handleProjectSelect(project as Project)}
                       className="cursor-pointer"
                     >
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">

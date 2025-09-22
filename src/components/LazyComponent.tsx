@@ -18,7 +18,7 @@ const DefaultFallback = () => (
 );
 
 // 遅延読み込み用のHOC
-export function createLazyComponent<T extends ComponentType<unknown>>(
+export function createLazyComponent<T extends ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
   fallback?: React.ReactNode
 ) {
@@ -29,7 +29,7 @@ export function createLazyComponent<T extends ComponentType<unknown>>(
     
     return (
       <Suspense fallback={propFallback || fallback || <DefaultFallback />}>
-        <LazyComponent {...(restProps as React.ComponentProps<T>)} />
+        <LazyComponent {...(restProps as any)} />
       </Suspense>
     );
   };
@@ -37,7 +37,7 @@ export function createLazyComponent<T extends ComponentType<unknown>>(
 
 // よく使用されるコンポーネントの遅延読み込み版
 export const LazyImageBoard = createLazyComponent(
-  () => import('./ImageBoard'),
+  () => import('./ImageBoard').then(module => ({ default: module.ImageBoard as any })),
   <div className="flex items-center justify-center p-8">
     <div className="text-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
@@ -47,7 +47,7 @@ export const LazyImageBoard = createLazyComponent(
 );
 
 export const LazyDataManager = createLazyComponent(
-  () => import('./DataManager'),
+  () => import('./DataManager').then(module => ({ default: module.DataManager as any })),
   <div className="flex items-center justify-center p-8">
     <div className="text-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
@@ -57,7 +57,7 @@ export const LazyDataManager = createLazyComponent(
 );
 
 export const LazyAISettings = createLazyComponent(
-  () => import('./AISettings'),
+  () => import('./AISettings').then(module => ({ default: module.AISettings as any })),
   <div className="flex items-center justify-center p-8">
     <div className="text-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>

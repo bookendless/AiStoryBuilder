@@ -340,55 +340,116 @@ class DatabaseService {
     return JSON.stringify(exportData, null, 2);
   }
 
+  // 型安全な日付変換ヘルパー関数
+  private safeDateConversion(value: unknown): Date {
+    if (value instanceof Date) {
+      return value;
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+      return new Date(value);
+    }
+    console.warn('無効な日付値:', value);
+    return new Date();
+  }
+
+  // 型安全な配列チェック
+  private isArray(value: unknown): value is unknown[] {
+    return Array.isArray(value);
+  }
+
+  // 型安全なオブジェクトチェック
+  private isObject(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
   // データインポート
   async importData(jsonData: string): Promise<void> {
     try {
       const data = JSON.parse(jsonData);
       
-      if (data.projects) {
+      if (data.projects && this.isArray(data.projects)) {
         // プロジェクトの日付フィールドを変換
-        const processedProjects = data.projects.map((project: Record<string, unknown>) => ({
-          ...project,
-          createdAt: new Date(project.createdAt),
-          updatedAt: new Date(project.updatedAt),
-          // imageBoardのaddedAtも変換
-          imageBoard: (project.imageBoard as Record<string, unknown>[])?.map((img: Record<string, unknown>) => ({
-            ...img,
-            addedAt: new Date(img.addedAt)
-          })) || [],
-          // chaptersの日付も変換（もしあれば）
-          chapters: (project.chapters as Record<string, unknown>[])?.map((chapter: Record<string, unknown>) => ({
-            ...chapter,
-            // 章に日付フィールドがある場合
-            ...(chapter.createdAt && { createdAt: new Date(chapter.createdAt) }),
-            ...(chapter.updatedAt && { updatedAt: new Date(chapter.updatedAt) })
-          })) || [],
-        }));
+        const processedProjects = data.projects.map((project: unknown) => {
+          if (!this.isObject(project)) {
+            console.warn('無効なプロジェクトデータ:', project);
+            return null;
+          }
+
+          return {
+            ...project,
+            createdAt: this.safeDateConversion(project.createdAt),
+            updatedAt: this.safeDateConversion(project.updatedAt),
+            // imageBoardのaddedAtも変換
+            imageBoard: this.isArray(project.imageBoard) 
+              ? project.imageBoard.map((img: unknown) => {
+                  if (!this.isObject(img)) return img;
+                  return {
+                    ...img,
+                    addedAt: this.safeDateConversion(img.addedAt)
+                  };
+                })
+              : [],
+            // chaptersの日付も変換（もしあれば）
+            chapters: this.isArray(project.chapters)
+              ? project.chapters.map((chapter: unknown) => {
+                  if (!this.isObject(chapter)) return chapter;
+                  const result: Record<string, unknown> = { ...chapter };
+                  
+                  if (chapter.createdAt) {
+                    result.createdAt = this.safeDateConversion(chapter.createdAt);
+                  }
+                  if (chapter.updatedAt) {
+                    result.updatedAt = this.safeDateConversion(chapter.updatedAt);
+                  }
+                  
+                  return result;
+                })
+              : [],
+          };
+        }).filter((project: unknown): project is StoredProject => project !== null);
         
         await db.projects.bulkPut(processedProjects);
       }
       
-      if (data.backups) {
+      if (data.backups && this.isArray(data.backups)) {
         // バックアップの日付フィールドを変換
-        const processedBackups = data.backups.map((backup: Record<string, unknown>) => ({
-          ...backup,
-          createdAt: new Date(backup.createdAt),
-          // バックアップ内のプロジェクトデータも変換
-          data: {
-            ...backup.data,
-            createdAt: new Date(backup.data.createdAt),
-            updatedAt: new Date(backup.data.updatedAt),
-            imageBoard: (backup.data as Record<string, unknown>).imageBoard?.map((img: Record<string, unknown>) => ({
-              ...img,
-              addedAt: new Date(img.addedAt)
-            })) || []
+        const processedBackups = data.backups.map((backup: unknown) => {
+          if (!this.isObject(backup)) {
+            console.warn('無効なバックアップデータ:', backup);
+            return null;
           }
-        }));
+
+          const backupData = backup.data;
+          if (!this.isObject(backupData)) {
+            console.warn('無効なバックアップデータのdataフィールド:', backupData);
+            return null;
+          }
+
+          return {
+            ...backup,
+            createdAt: this.safeDateConversion(backup.createdAt),
+            // バックアップ内のプロジェクトデータも変換
+            data: {
+              ...backupData,
+              createdAt: this.safeDateConversion(backupData.createdAt),
+              updatedAt: this.safeDateConversion(backupData.updatedAt),
+              imageBoard: this.isArray(backupData.imageBoard)
+                ? backupData.imageBoard.map((img: unknown) => {
+                    if (!this.isObject(img)) return img;
+                    return {
+                      ...img,
+                      addedAt: this.safeDateConversion(img.addedAt)
+                    };
+                  })
+                : []
+            }
+          };
+        }).filter((backup: unknown): backup is ProjectBackup => backup !== null);
         
         await db.backups.bulkPut(processedBackups);
       }
       
-      if (data.settings) {
+      if (data.settings && this.isArray(data.settings)) {
         await db.settings.bulkPut(data.settings);
       }
 
