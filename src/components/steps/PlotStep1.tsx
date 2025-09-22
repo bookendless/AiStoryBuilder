@@ -298,7 +298,7 @@ ${charactersInfo}
       console.log('Basic AI生の出力:', content);
 
       // JSON形式の解析（強化版）
-      let parsedData: any = null;
+      let parsedData: Record<string, unknown> | null = null;
       try {
         // 複数のJSON抽出パターンを試行
         const jsonPatterns = [

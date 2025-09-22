@@ -48,7 +48,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleProjectSelect = (project: any) => {
+  const handleProjectSelect = (project: Record<string, unknown>) => {
     setCurrentProject(project);
     onNavigateToStep('plot1');
   };
@@ -109,7 +109,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   };
 
   // 編集開始
-  const handleEditProject = (e: React.MouseEvent, project: any) => {
+  const handleEditProject = (e: React.MouseEvent, project: { id: string; mainGenre?: string; genre?: string; subGenre?: string; targetReader?: string; projectTheme?: string; customTheme?: string }) => {
     e.stopPropagation();
     setEditingProject(project.id);
     

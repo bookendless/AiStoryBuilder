@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// ローカル環境専用のVite設定
+// 最適化されたVite設定
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
+    include: ['react', 'react-dom', 'dexie', 'axios']
   },
   server: {
     port: 5173,
@@ -22,19 +23,34 @@ export default defineConfig({
     },
   },
   build: {
-    // ローカル環境用のビルド設定
-    sourcemap: true, // デバッグ用にソースマップを有効
+    // 本番環境用の最適化設定
+    sourcemap: false, // 本番ではソースマップを無効化
     outDir: 'dist',
     assetsDir: 'assets',
-    // ローカル環境では最適化を控えめに
-    minify: false,
+    minify: 'terser', // より強力な圧縮
+    terserOptions: {
+      compress: {
+        drop_console: true, // console.logを削除
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug']
+      }
+    },
     rollupOptions: {
       output: {
-        // シンプルな出力設定
+        // チャンク分割による最適化
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['lucide-react'],
+          editor: ['@tiptap/react', '@tiptap/starter-kit'],
+          ai: ['openai', '@google/generative-ai'],
+          storage: ['dexie']
+        },
         assetFileNames: 'assets/[name]-[hash][extname]',
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
       },
     },
+    // バンドルサイズの警告閾値を設定
+    chunkSizeWarningLimit: 1000,
   },
 });

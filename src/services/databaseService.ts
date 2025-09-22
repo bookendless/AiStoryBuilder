@@ -347,17 +347,17 @@ class DatabaseService {
       
       if (data.projects) {
         // プロジェクトの日付フィールドを変換
-        const processedProjects = data.projects.map((project: any) => ({
+        const processedProjects = data.projects.map((project: Record<string, unknown>) => ({
           ...project,
           createdAt: new Date(project.createdAt),
           updatedAt: new Date(project.updatedAt),
           // imageBoardのaddedAtも変換
-          imageBoard: project.imageBoard?.map((img: any) => ({
+          imageBoard: (project.imageBoard as Record<string, unknown>[])?.map((img: Record<string, unknown>) => ({
             ...img,
             addedAt: new Date(img.addedAt)
           })) || [],
           // chaptersの日付も変換（もしあれば）
-          chapters: project.chapters?.map((chapter: any) => ({
+          chapters: (project.chapters as Record<string, unknown>[])?.map((chapter: Record<string, unknown>) => ({
             ...chapter,
             // 章に日付フィールドがある場合
             ...(chapter.createdAt && { createdAt: new Date(chapter.createdAt) }),
@@ -370,7 +370,7 @@ class DatabaseService {
       
       if (data.backups) {
         // バックアップの日付フィールドを変換
-        const processedBackups = data.backups.map((backup: any) => ({
+        const processedBackups = data.backups.map((backup: Record<string, unknown>) => ({
           ...backup,
           createdAt: new Date(backup.createdAt),
           // バックアップ内のプロジェクトデータも変換
@@ -378,7 +378,7 @@ class DatabaseService {
             ...backup.data,
             createdAt: new Date(backup.data.createdAt),
             updatedAt: new Date(backup.data.updatedAt),
-            imageBoard: backup.data.imageBoard?.map((img: any) => ({
+            imageBoard: (backup.data as Record<string, unknown>).imageBoard?.map((img: Record<string, unknown>) => ({
               ...img,
               addedAt: new Date(img.addedAt)
             })) || []

@@ -5,7 +5,7 @@
 
 export interface ParsedResponse {
   success: boolean;
-  data: any;
+  data: unknown;
   rawContent: string;
   error?: string;
 }
@@ -158,10 +158,21 @@ const parseTextResponse = (content: string): ParsedResponse => {
 /**
  * 章立て構造を解析
  */
+interface Chapter {
+  id: string;
+  number: number;
+  title: string;
+  summary: string;
+  setting: string;
+  mood: string;
+  keyEvents: string[];
+  characters: string[];
+}
+
 const parseChapterStructure = (content: string): ParsedResponse => {
-  const chapters: any[] = [];
+  const chapters: Chapter[] = [];
   const lines = content.split('\n');
-  let currentChapter: any = null;
+  let currentChapter: Chapter | null = null;
 
   for (const line of lines) {
     const trimmedLine = line.trim();
@@ -227,10 +238,19 @@ const parseChapterStructure = (content: string): ParsedResponse => {
 /**
  * キャラクター情報を解析
  */
+interface Character {
+  id: string;
+  name: string;
+  role: string;
+  appearance: string;
+  personality: string;
+  background: string;
+}
+
 const parseCharacterInfo = (content: string): ParsedResponse => {
-  const characters: any[] = [];
+  const characters: Character[] = [];
   const lines = content.split('\n');
-  let currentCharacter: any = null;
+  let currentCharacter: Character | null = null;
 
   for (const line of lines) {
     const trimmedLine = line.trim();
@@ -283,8 +303,16 @@ const parseCharacterInfo = (content: string): ParsedResponse => {
 /**
  * プロット情報を解析
  */
+interface PlotData {
+  theme?: string;
+  setting?: string;
+  hook?: string;
+  protagonistGoal?: string;
+  mainObstacle?: string;
+}
+
 const parsePlotInfo = (content: string): ParsedResponse => {
-  const plotData: any = {};
+  const plotData: PlotData = {};
   const lines = content.split('\n');
 
   for (const line of lines) {
@@ -316,7 +344,7 @@ const parsePlotInfo = (content: string): ParsedResponse => {
 /**
  * エラーメッセージを生成
  */
-export const generateErrorMessage = (error: any, context: string = ''): string => {
+export const generateErrorMessage = (error: unknown, context: string = ''): string => {
   if (typeof error === 'string') {
     return error;
   }
@@ -325,8 +353,8 @@ export const generateErrorMessage = (error: any, context: string = ''): string =
     return `${context}${context ? ': ' : ''}${error.message}`;
   }
   
-  if (error?.message) {
-    return `${context}${context ? ': ' : ''}${error.message}`;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return `${context}${context ? ': ' : ''}${(error as Error).message}`;
   }
   
   return `${context}${context ? ': ' : ''}不明なエラーが発生しました`;
@@ -345,16 +373,18 @@ export const validateResponse = (response: ParsedResponse): boolean => {
   }
   
   // データの型に応じた検証
-  if (response.data.type === 'chapters') {
-    return Array.isArray(response.data.chapters) && response.data.chapters.length > 0;
+  const data = response.data as Record<string, unknown>;
+  
+  if (data.type === 'chapters') {
+    return Array.isArray(data.chapters) && data.chapters.length > 0;
   }
   
-  if (response.data.type === 'characters') {
-    return Array.isArray(response.data.characters) && response.data.characters.length > 0;
+  if (data.type === 'characters') {
+    return Array.isArray(data.characters) && data.characters.length > 0;
   }
   
-  if (response.data.type === 'plot') {
-    return response.data.plot && Object.keys(response.data.plot).length > 0;
+  if (data.type === 'plot') {
+    return !!(data.plot && typeof data.plot === 'object' && data.plot !== null && Object.keys(data.plot as Record<string, unknown>).length > 0);
   }
   
   return true;

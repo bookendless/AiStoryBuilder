@@ -6,18 +6,30 @@
 /**
  * メモリ使用量の監視
  */
+interface PerformanceMemory {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+}
+
+interface PerformanceWithMemory extends Performance {
+  memory?: PerformanceMemory;
+}
+
 export const getMemoryUsage = (): {
   used: number;
   total: number;
   percentage: number;
 } => {
   if ('memory' in performance) {
-    const memory = (performance as any).memory;
-    return {
-      used: memory.usedJSHeapSize,
-      total: memory.totalJSHeapSize,
-      percentage: (memory.usedJSHeapSize / memory.totalJSHeapSize) * 100
-    };
+    const perf = performance as PerformanceWithMemory;
+    const memory = perf.memory;
+    if (memory) {
+      return {
+        used: memory.usedJSHeapSize,
+        total: memory.totalJSHeapSize,
+        percentage: (memory.usedJSHeapSize / memory.totalJSHeapSize) * 100
+      };
+    }
   }
   
   return {
@@ -392,7 +404,7 @@ export const detectMemoryLeaks = (): {
   }
   
   // イベントリスナーの数チェック（概算）
-  const eventListeners = (performance as any).getEntriesByType?.('measure') || [];
+  const eventListeners = performance.getEntriesByType?.('measure') || [];
   if (eventListeners.length > 1000) {
     hasLeak = true;
     details.push(`イベントリスナーが多すぎる可能性: ${eventListeners.length}個`);

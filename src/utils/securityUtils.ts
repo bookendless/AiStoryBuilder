@@ -174,7 +174,7 @@ export const validateImageFile = (file: File): { valid: boolean; error?: string 
 /**
  * JSONの検証とサニタイゼーション
  */
-export const sanitizeJson = (jsonString: string): { valid: boolean; data?: any; error?: string } => {
+export const sanitizeJson = (jsonString: string): { valid: boolean; data?: unknown; error?: string } => {
   if (typeof jsonString !== 'string') {
     return { valid: false, error: '無効な入力です' };
   }
@@ -197,7 +197,7 @@ export const sanitizeJson = (jsonString: string): { valid: boolean; data?: any; 
 /**
  * オブジェクトの再帰的サニタイゼーション
  */
-const sanitizeObject = (obj: any): any => {
+const sanitizeObject = (obj: unknown): unknown => {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -211,7 +211,7 @@ const sanitizeObject = (obj: any): any => {
   }
   
   if (typeof obj === 'object') {
-    const sanitized: any = {};
+    const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
       const sanitizedKey = sanitizeInput(key);
       sanitized[sanitizedKey] = sanitizeObject(value);

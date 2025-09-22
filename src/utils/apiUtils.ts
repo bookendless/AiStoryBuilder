@@ -13,9 +13,9 @@ export interface RetryConfig {
 export interface ApiCallOptions {
   timeout?: number;
   retryConfig?: RetryConfig;
-  onRetry?: (attempt: number, error: any) => void;
-  onSuccess?: (response: any) => void;
-  onError?: (error: any) => void;
+  onRetry?: (attempt: number, error: unknown) => void;
+  onSuccess?: (response: unknown) => void;
+  onError?: (error: unknown) => void;
 }
 
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
@@ -43,7 +43,7 @@ export const retryApiCall = async <T>(
     onError
   } = options;
 
-  let lastError: any;
+  let lastError: unknown;
   
   for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
     try {
@@ -96,7 +96,7 @@ export const retryApiCall = async <T>(
 /**
  * ネットワークエラーかどうかを判定
  */
-export const isNetworkError = (error: any): boolean => {
+export const isNetworkError = (error: unknown): boolean => {
   if (!error) return false;
   
   // ネットワークエラーのパターン
@@ -110,7 +110,7 @@ export const isNetworkError = (error: any): boolean => {
     'ECONNRESET'
   ];
   
-  const errorMessage = error.message || error.toString();
+  const errorMessage = (error as Error).message || String(error);
   return networkErrorPatterns.some(pattern => 
     errorMessage.toLowerCase().includes(pattern.toLowerCase())
   );
@@ -119,11 +119,11 @@ export const isNetworkError = (error: any): boolean => {
 /**
  * APIエラーの種類を判定
  */
-export const getApiErrorType = (error: any): 'network' | 'auth' | 'rate_limit' | 'server' | 'client' | 'unknown' => {
+export const getApiErrorType = (error: unknown): 'network' | 'auth' | 'rate_limit' | 'server' | 'client' | 'unknown' => {
   if (!error) return 'unknown';
   
-  const errorMessage = error.message || error.toString();
-  const statusCode = error.status || error.statusCode;
+  const errorMessage = (error as Error).message || String(error);
+  const statusCode = (error as { status?: number; statusCode?: number }).status || (error as { status?: number; statusCode?: number }).statusCode;
   
   // ネットワークエラー
   if (isNetworkError(error)) {
@@ -141,12 +141,12 @@ export const getApiErrorType = (error: any): 'network' | 'auth' | 'rate_limit' |
   }
   
   // サーバーエラー
-  if (statusCode >= 500) {
+  if (statusCode && statusCode >= 500) {
     return 'server';
   }
   
   // クライアントエラー
-  if (statusCode >= 400) {
+  if (statusCode && statusCode >= 400) {
     return 'client';
   }
   
@@ -156,7 +156,7 @@ export const getApiErrorType = (error: any): 'network' | 'auth' | 'rate_limit' |
 /**
  * エラーメッセージを生成
  */
-export const generateApiErrorMessage = (error: any, context: string = ''): string => {
+export const generateApiErrorMessage = (error: unknown, context: string = ''): string => {
   const errorType = getApiErrorType(error);
   const baseMessage = context ? `${context}: ` : '';
   
@@ -172,14 +172,14 @@ export const generateApiErrorMessage = (error: any, context: string = ''): strin
     case 'client':
       return `${baseMessage}リクエストに問題があります。入力内容を確認してください。`;
     default:
-      return `${baseMessage}${error.message || '不明なエラーが発生しました'}`;
+      return `${baseMessage}${(error as Error).message || '不明なエラーが発生しました'}`;
   }
 };
 
 /**
  * ユーザーフレンドリーなエラーメッセージを生成
  */
-export const getUserFriendlyErrorMessage = (error: any, context: string = ''): string => {
+export const getUserFriendlyErrorMessage = (error: unknown, context: string = ''): string => {
   const errorType = getApiErrorType(error);
   const baseMessage = context ? `${context}: ` : '';
   
@@ -202,7 +202,7 @@ export const getUserFriendlyErrorMessage = (error: any, context: string = ''): s
 /**
  * エラーが再試行可能かどうかを判定
  */
-export const isRetryableError = (error: any): boolean => {
+export const isRetryableError = (error: unknown): boolean => {
   const errorType = getApiErrorType(error);
   
   // 再試行可能なエラー
@@ -214,7 +214,7 @@ export const isRetryableError = (error: any): boolean => {
 /**
  * デバウンス機能付きの関数実行
  */
-export const debounce = <T extends (...args: any[]) => any>(
+export const debounce = <T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): ((...args: Parameters<T>) => void) => {
@@ -229,7 +229,7 @@ export const debounce = <T extends (...args: any[]) => any>(
 /**
  * スロットル機能付きの関数実行
  */
-export const throttle = <T extends (...args: any[]) => any>(
+export const throttle = <T extends (...args: unknown[]) => unknown>(
   func: T,
   limit: number
 ): ((...args: Parameters<T>) => void) => {

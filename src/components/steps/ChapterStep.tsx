@@ -453,7 +453,7 @@ ${context.plot?.structureDetails || '構成詳細が設定されていません'
 ${incompleteStructures.join('、')}
 
 【キャラクター】
-${context.characters.slice(0, 3).map((c: any) => `${c.name}(${c.role})`).join(', ')}
+${context.characters.slice(0, 3).map((c: { name: string; role: string }) => `${c.name}(${c.role})`).join(', ')}
 
 【出力形式】
 第1章: [章タイトル]
@@ -490,7 +490,7 @@ ${context.characters.slice(0, 3).map((c: any) => `${c.name}(${c.role})`).join(',
 ${context.plot?.structureDetails || '構成詳細が設定されていません'}
 
 【キャラクター情報】
-${context.characters.map((c: any) => 
+${context.characters.map((c: { name: string; role: string; appearance: string; personality: string; background: string }) => 
   `・${c.name} (${c.role})
   外見: ${c.appearance}
   性格: ${c.personality}
@@ -498,7 +498,7 @@ ${context.characters.map((c: any) =>
 ).join('\n')}
 
 【既存章構成】
-${context.existingChapters.map((ch: any, index: number) => {
+${context.existingChapters.map((ch: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }, index: number) => {
   let chapterInfo = `${index + 1}. ${ch.title}: ${ch.summary}`;
   if (ch.setting) chapterInfo += `\n   設定・場所: ${ch.setting}`;
   if (ch.mood) chapterInfo += `\n   雰囲気・ムード: ${ch.mood}`;
@@ -565,7 +565,7 @@ ${incompleteStructures.join('、')}
 【最重要】構成詳細（必ず従う）:
 ${context.plot.structureDetails || '構成詳細が設定されていません'}
 
-主要キャラクター: ${context.characters.length > 0 ? context.characters.slice(0, 3).map((c: any) => `${c.name}(${c.role})`).join(', ') : 'キャラクターが設定されていません'}
+主要キャラクター: ${context.characters.length > 0 ? context.characters.slice(0, 3).map((c: { name: string; role: string }) => `${c.name}(${c.role})`).join(', ') : 'キャラクターが設定されていません'}
 
 【出力形式】
 第1章: [章タイトル]
@@ -609,7 +609,7 @@ ${context.characters.map(c => `・${c.name} (${c.role})
   背景: ${c.background}`).join('\n') || 'キャラクターが設定されていません'}
 
 【既存の章】
-${context.existingChapters.map((c: any) => {
+${context.existingChapters.map((c: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }) => {
   let chapterInfo = `・${c.title}: ${c.summary}`;
   if (c.setting) chapterInfo += `\n  設定・場所: ${c.setting}`;
   if (c.mood) chapterInfo += `\n  雰囲気・ムード: ${c.mood}`;

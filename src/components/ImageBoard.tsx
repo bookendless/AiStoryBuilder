@@ -119,7 +119,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   // 自動保存機能
-  const autoSaveImage = async (imageData: any) => {
+  const autoSaveImage = async (imageData: { url: string; title: string }) => {
     if (!imageData.url.trim() || !imageData.title.trim()) return;
 
     setIsAutoSaving(true);
@@ -189,7 +189,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   // 画像ビューアー関連の関数
-  const handleViewImage = (image: any) => {
+  const handleViewImage = (image: Record<string, unknown>) => {
     setSelectedImage(image);
     setShowImageViewer(true);
     setZoomLevel(1);
@@ -234,7 +234,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   // 画像編集関連の関数
-  const handleEditImage = (image: any) => {
+  const handleEditImage = (image: { title: string; description: string; category: string }) => {
     setEditingImage(image);
     setEditFormData({
       title: image.title,

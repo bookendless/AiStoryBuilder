@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { PenTool, Sparkles, BookOpen, Save, Download, FileText } from 'lucide-react';
@@ -131,13 +131,11 @@ export const DraftStep: React.FC = () => {
     setSelectedChapter(chapterId);
   };
 
-  // 現在の章を取得
-  const getCurrentChapter = () => {
+  // 現在の章を取得（メモ化）
+  const currentChapter = useMemo(() => {
     if (!selectedChapter || !currentProject) return null;
     return currentProject.chapters.find(c => c.id === selectedChapter) || null;
-  };
-
-  const currentChapter = getCurrentChapter();
+  }, [selectedChapter, currentProject]);
 
   // 章草案保存ハンドラー
   const handleSaveChapterDraft = async (chapterId: string, content?: string) => {
@@ -194,8 +192,8 @@ export const DraftStep: React.FC = () => {
   //   setChapterDrafts(cleanedChapterDrafts);
   // };
 
-  // 章詳細情報を取得
-  const getChapterDetails = (chapter: any) => {
+  // 章詳細情報を取得（メモ化）
+  const getChapterDetails = useCallback((chapter: { characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
     if (!chapter || !currentProject) {
       return {
         characters: '未設定',
@@ -218,13 +216,13 @@ export const DraftStep: React.FC = () => {
       : '未設定';
 
     return { characters, setting, mood, keyEvents };
-  };
+  }, [currentProject]);
 
-  // 文字数カウント
-  const wordCount = draft.length;
+  // 文字数カウント（メモ化）
+  const wordCount = useMemo(() => draft.length, [draft]);
 
-  // カスタムプロンプトの構築
-  const buildCustomPrompt = (currentChapter: any, chapterDetails: any, projectCharacters: string) => {
+  // カスタムプロンプトの構築（メモ化）
+  const buildCustomPrompt = useCallback((currentChapter: { title: string; summary: string }, chapterDetails: { characters: string; setting: string; mood: string; keyEvents: string }, projectCharacters: string) => {
     const basePrompt = `以下の章の情報を基に、会話を重視し、読者に臨場感のある魅力的な小説の章を執筆してください。
 
 【最重要：章情報】
@@ -285,7 +283,7 @@ ${projectCharacters}
     }
     
     return basePrompt;
-  };
+  }, [currentProject, useCustomPrompt, customPrompt]);
 
   // AI生成ハンドラー
   const handleAIGenerate = async () => {
@@ -305,8 +303,6 @@ ${projectCharacters}
     setIsGenerating(true);
     
     try {
-      const currentChapter = getCurrentChapter();
-      
       if (!currentChapter) {
         alert('章を選択してください。');
         return;
@@ -316,7 +312,7 @@ ${projectCharacters}
       const chapterDetails = getChapterDetails(currentChapter);
       
       // プロジェクトのキャラクター情報を整理
-      const projectCharacters = currentProject.characters.map((char: any) => 
+      const projectCharacters = currentProject.characters.map((char: { name: string; bio?: string; description?: string }) => 
         `${char.name}: ${char.bio || char.description || '説明なし'}`
       ).join('\n');
 
@@ -348,7 +344,6 @@ ${projectCharacters}
     
     setIsGenerating(true);
     try {
-      const currentChapter = getCurrentChapter();
       // const chapterDetails = getChapterDetails(currentChapter);
       
       const prompt = `以下の章の続きを執筆してください。
@@ -545,7 +540,7 @@ ${draft}
       };
 
       // キャラクター情報を整理
-      const charactersInfo = currentProject.characters.map((char: any) => 
+      const charactersInfo = currentProject.characters.map((char: { name: string; role: string; appearance: string; personality: string; background: string }) => 
         `【${char.name}】\n役割: ${char.role}\n外見: ${char.appearance}\n性格: ${char.personality}\n背景: ${char.background}`
       ).join('\n\n');
 
@@ -857,8 +852,6 @@ ${chaptersInfo}
     
     setIsGenerating(true);
     try {
-      const currentChapter = getCurrentChapter();
-      
       const prompt = `以下の章の草案を改善してください。
 
 【章情報】
