@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { getMemoryUsage, isMemoryUsageHigh, measurePerformance } from '../utils/performanceUtils';
+import { getMemoryUsage, isMemoryUsageHigh } from '../utils/performanceUtils';
 
 interface PerformanceMetrics {
   memoryUsage: number;
@@ -159,19 +159,17 @@ export function withPerformanceMonitor<P extends Record<string, unknown>>(
     const warnings = getPerformanceWarning();
     const score = getPerformanceScore();
 
-    return (
-      <React.Fragment>
-        <Component {...(props as P)} />
-        {warnings && (
-          <div className="fixed bottom-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-2 rounded shadow-lg text-sm z-50">
-            <div className="font-semibold">パフォーマンス警告 ({componentName})</div>
-            {warnings.map((warning, index) => (
-              <div key={index}>• {warning}</div>
-            ))}
-            <div className="mt-1 text-xs">スコア: {score.toFixed(0)}/100</div>
-          </div>
-        )}
-      </React.Fragment>
+    return React.createElement(React.Fragment, null,
+      React.createElement(Component, props),
+      warnings && React.createElement('div', {
+        className: 'fixed bottom-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-2 rounded shadow-lg text-sm z-50'
+      },
+        React.createElement('div', { className: 'font-semibold' }, `パフォーマンス警告 (${componentName})`),
+        warnings.map((warning, index) => 
+          React.createElement('div', { key: index }, `• ${warning}`)
+        ),
+        React.createElement('div', { className: 'mt-1 text-xs' }, `スコア: ${score.toFixed(0)}/100`)
+      )
     );
   };
 }

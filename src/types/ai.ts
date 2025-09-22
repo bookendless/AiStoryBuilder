@@ -38,3 +38,12 @@ export interface AIResponse {
   };
   error?: string;
 }
+
+export interface ImageItem {
+  id: string;
+  url: string;
+  title: string;
+  description?: string;
+  category: 'reference' | 'character' | 'setting' | 'mood' | 'other';
+  addedAt: Date;
+}

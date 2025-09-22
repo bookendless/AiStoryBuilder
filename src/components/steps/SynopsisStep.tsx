@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, Sparkles, RotateCcw, Save, CheckCircle, AlertCircle } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -27,31 +27,8 @@ export const SynopsisStep: React.FC = () => {
     }
   }, [currentProject]);
 
-  // 自動保存機能
-  useEffect(() => {
-    // 前回の保存内容と異なる場合のみ保存
-    if (synopsis !== lastSynopsisRef.current && currentProject) {
-      // 既存のタイムアウトをクリア
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      // 2秒後に自動保存を実行
-      saveTimeoutRef.current = setTimeout(async () => {
-        await performSave();
-      }, 2000);
-    }
-
-    // クリーンアップ
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [synopsis, currentProject]);
-
   // 保存処理
-  const performSave = async () => {
+  const performSave = useCallback(async () => {
     if (!currentProject || synopsis === lastSynopsisRef.current) return;
 
     setIsSaving(true);
@@ -78,7 +55,30 @@ export const SynopsisStep: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [currentProject, synopsis, updateProject]);
+
+  // 自動保存機能
+  useEffect(() => {
+    // 前回の保存内容と異なる場合のみ保存
+    if (synopsis !== lastSynopsisRef.current && currentProject) {
+      // 既存のタイムアウトをクリア
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      // 2秒後に自動保存を実行
+      saveTimeoutRef.current = setTimeout(async () => {
+        await performSave();
+      }, 2000);
+    }
+
+    // クリーンアップ
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [synopsis, currentProject, performSave]);
 
   const handleSave = async () => {
     await performSave();

@@ -41,7 +41,6 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           ui: ['lucide-react'],
-          editor: ['@tiptap/react', '@tiptap/starter-kit'],
           ai: ['openai', '@google/generative-ai'],
           storage: ['dexie']
         },

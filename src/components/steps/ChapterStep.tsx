@@ -50,12 +50,11 @@ export const ChapterStep: React.FC = () => {
   // プロジェクトが変更されたときに構成バランスの状態を初期化
   useEffect(() => {
     if (currentProject) {
-      const project = currentProject as any;
       setStructureProgress({
-        introduction: project.structureProgress?.introduction || false,
-        development: project.structureProgress?.development || false,
-        climax: project.structureProgress?.climax || false,
-        conclusion: project.structureProgress?.conclusion || false,
+        introduction: currentProject.structureProgress?.introduction || false,
+        development: currentProject.structureProgress?.development || false,
+        climax: currentProject.structureProgress?.climax || false,
+        conclusion: currentProject.structureProgress?.conclusion || false,
       });
     }
   }, [currentProject]);
@@ -202,9 +201,9 @@ export const ChapterStep: React.FC = () => {
       existingChapters: currentProject.chapters.map(c => ({
         title: c.title,
         summary: c.summary,
-        setting: (c as any).setting || '',
-        mood: (c as any).mood || '',
-        keyEvents: (c as any).keyEvents || []
+        setting: c.setting || '',
+        mood: c.mood || '',
+        keyEvents: c.keyEvents || []
       })),
       
       // イメージボード情報
@@ -273,7 +272,7 @@ export const ChapterStep: React.FC = () => {
     if (currentProject) {
       updateProject({
         structureProgress: newProgress,
-      } as any);
+      });
     }
   };
 
@@ -866,37 +865,37 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                             </p>
                             
                             {/* 設定・場所 */}
-                            {(chapter as any).setting && (
+                            {chapter.setting && (
                               <div className="mb-2">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
                                   設定・場所:
                                 </span>
                                 <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
-                                  {(chapter as any).setting}
+                                  {chapter.setting}
                                 </p>
                               </div>
                             )}
                             
                             {/* 雰囲気・ムード */}
-                            {(chapter as any).mood && (
+                            {chapter.mood && (
                               <div className="mb-2">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
                                   雰囲気・ムード:
                                 </span>
                                 <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
-                                  {(chapter as any).mood}
+                                  {chapter.mood}
                                 </p>
                               </div>
                             )}
                             
                             {/* 重要な出来事 */}
-                            {(chapter as any).keyEvents && (chapter as any).keyEvents.length > 0 && (
+                            {chapter.keyEvents && chapter.keyEvents.length > 0 && (
                               <div className="mb-2">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
                                   重要な出来事:
                                 </span>
                                 <div className="mt-1 space-y-1">
-                                  {(chapter as any).keyEvents.map((event: string, index: number) => (
+                                  {chapter.keyEvents.map((event: string, index: number) => (
                                     <div key={index} className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                                       • {event}
                                     </div>

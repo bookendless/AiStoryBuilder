@@ -145,7 +145,13 @@ export const AI_PROVIDERS: AIProvider[] = [
 ];
 
 // プロンプトテンプレート
-const PROMPTS = {
+interface PromptTemplates {
+  [key: string]: {
+    [subType: string]: string;
+  };
+}
+
+const PROMPTS: PromptTemplates = {
   character: {
     enhance: `以下のキャラクター情報を簡潔に補完してください。
 
@@ -757,7 +763,7 @@ class AIService {
       throw new Error(`Prompt type not found: ${type}`);
     }
     
-    const template = (promptType as any)[subType];
+    const template = promptType[subType];
     if (!template) {
       throw new Error(`Prompt template not found: ${type}.${subType}`);
     }

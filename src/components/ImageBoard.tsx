@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, Image, X, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { ImageItem } from '../types/ai';
 
 interface ImageBoardProps {
   isOpen: boolean;
@@ -23,7 +24,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     url: '',
     title: '',
     description: '',
-    category: 'reference' as const,
+    category: 'reference' as ImageItem['category'],
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -31,21 +32,51 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 画像ビューアー関連の状態
-  const [selectedImage, setSelectedImage] = useState<any>(null);
+  const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [showImageInfo, setShowImageInfo] = useState(false);
   
   // 編集関連の状態
-  const [editingImage, setEditingImage] = useState<any>(null);
+  const [editingImage, setEditingImage] = useState<ImageItem | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editFormData, setEditFormData] = useState({
     title: '',
     description: '',
-    category: 'reference' as const,
+    category: 'reference' as ImageItem['category'],
   });
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+
+  // 自動保存機能
+  const autoSaveImage = useCallback(async (imageData: { url: string; title: string; description: string; category: ImageItem['category'] }) => {
+    if (!imageData.url.trim() || !imageData.title.trim()) return;
+
+    setIsAutoSaving(true);
+    
+    const newImage = {
+      id: Date.now().toString(),
+      url: imageData.url.trim(),
+      title: imageData.title.trim(),
+      description: imageData.description || '',
+      category: imageData.category,
+      addedAt: new Date(),
+    };
+
+    try {
+      await updateProject({
+        imageBoard: [...(currentProject?.imageBoard || []), newImage]
+      });
+      
+      // 成功メッセージを短時間表示
+      setTimeout(() => {
+        setIsAutoSaving(false);
+      }, 1000);
+    } catch (error) {
+      console.error('自動保存エラー:', error);
+      setIsAutoSaving(false);
+    }
+  }, [currentProject, updateProject]);
 
   // 自動保存のトリガー（フォームデータが変更された時）
   useEffect(() => {
@@ -56,7 +87,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [formData, selectedFile, isOpen, currentProject]);
+  }, [formData, selectedFile, isOpen, currentProject, autoSaveImage]);
 
   if (!isOpen || !currentProject) return null;
 
@@ -118,35 +149,6 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  // 自動保存機能
-  const autoSaveImage = async (imageData: { url: string; title: string }) => {
-    if (!imageData.url.trim() || !imageData.title.trim()) return;
-
-    setIsAutoSaving(true);
-    
-    const newImage = {
-      id: Date.now().toString(),
-      url: imageData.url.trim(),
-      title: imageData.title.trim(),
-      description: imageData.description.trim(),
-      category: imageData.category,
-      addedAt: new Date(),
-    };
-
-    try {
-      updateProject({
-        imageBoard: [...currentProject.imageBoard, newImage],
-      });
-      
-      // 成功メッセージを短時間表示
-      setTimeout(() => {
-        setIsAutoSaving(false);
-      }, 1000);
-    } catch (error) {
-      console.error('自動保存エラー:', error);
-      setIsAutoSaving(false);
-    }
-  };
 
   const handleAddImage = () => {
     if (!formData.url.trim() || !formData.title.trim()) return;
@@ -189,7 +191,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   // 画像ビューアー関連の関数
-  const handleViewImage = (image: Record<string, unknown>) => {
+  const handleViewImage = (image: ImageItem) => {
     setSelectedImage(image);
     setShowImageViewer(true);
     setZoomLevel(1);
@@ -234,11 +236,11 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   // 画像編集関連の関数
-  const handleEditImage = (image: { title: string; description: string; category: string }) => {
+  const handleEditImage = (image: ImageItem) => {
     setEditingImage(image);
     setEditFormData({
       title: image.title,
-      description: image.description,
+      description: image.description || '',
       category: image.category,
     });
     setShowEditForm(true);
@@ -434,7 +436,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                     </label>
                     <select
                       value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value as ImageItem['category'] })}
                       className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
                     >
                       {categories.map((category) => (
@@ -670,7 +672,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                   </label>
                   <select
                     value={editFormData.category}
-                    onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value as any })}
+                    onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value as ImageItem['category'] })}
                     className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP']"
                   >
                     {categories.map((category) => (

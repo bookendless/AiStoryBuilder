@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Database, Download, Upload, Trash2, Copy, RotateCcw, HardDrive, Save, Clock } from 'lucide-react';
 import { databaseService } from '../services/databaseService';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject, Project } from '../contexts/ProjectContext';
 
 interface DataManagerProps {
   isOpen: boolean;
@@ -14,22 +14,22 @@ interface DatabaseStats {
   totalSize: string;
 }
 
+interface BackupItem {
+  id: string;
+  projectId: string;
+  type: 'manual' | 'auto';
+  description: string;
+  createdAt: Date;
+  data: Project;
+}
+
 export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, loadAllProjects, createManualBackup, setCurrentProject } = useProject();
   const [stats, setStats] = useState<DatabaseStats | null>(null);
-  const [manualBackups, setManualBackups] = useState<any[]>([]);
-  const [autoBackups, setAutoBackups] = useState<any[]>([]);
+  const [manualBackups, setManualBackups] = useState<BackupItem[]>([]);
+  const [autoBackups, setAutoBackups] = useState<BackupItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'backups' | 'import-export'>('overview');
-
-  useEffect(() => {
-    if (isOpen) {
-      loadStats();
-      if (currentProject) {
-        loadBackups();
-      }
-    }
-  }, [isOpen, currentProject]);
 
   const loadStats = async () => {
     try {
@@ -40,7 +40,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  const loadBackups = async () => {
+  const loadBackups = useCallback(async () => {
     if (!currentProject) return;
     
     try {
@@ -53,7 +53,16 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     } catch (error) {
       console.error('バックアップ読み込みエラー:', error);
     }
-  };
+  }, [currentProject]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadStats();
+      if (currentProject) {
+        loadBackups();
+      }
+    }
+  }, [isOpen, currentProject, loadBackups]);
 
   const handleCreateManualBackup = async () => {
     if (!currentProject) return;
@@ -199,7 +208,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as 'overview' | 'backups' | 'import-export')}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors font-['Noto_Sans_JP'] ${
                     activeTab === tab.id
                       ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'

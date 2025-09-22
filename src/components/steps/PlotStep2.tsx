@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sparkles, Check, Play, Zap, Target, Heart, RotateCcw, Loader2 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -79,9 +79,9 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     }, 2000); // 2秒後に自動保存
 
     return () => clearTimeout(timeoutId);
-  }, [formData, currentProject]);
+  }, [formData, currentProject, handleSave]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!currentProject) return;
     
     setIsSaving(true);
@@ -159,7 +159,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [currentProject, updateProject, formData, plotStructure]);
 
   // プロット構成部分のみをリセット
   const handleResetPlotStructure = () => {

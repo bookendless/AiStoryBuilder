@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sparkles, Check, Loader2 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -56,9 +56,9 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     }, 2000); // 2秒後に自動保存
 
     return () => clearTimeout(timeoutId);
-  }, [formData, currentProject]);
+  }, [formData, currentProject, handleSave]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!currentProject) return;
     
     setIsSaving(true);
@@ -99,7 +99,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [currentProject, updateProject, formData]);
 
   // フォームデータをリセットする関数
   const handleReset = () => {

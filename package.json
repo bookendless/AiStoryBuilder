@@ -25,7 +25,7 @@
   "scripts": {
     "dev": "vite",
     "dev:local": "vite --mode local",
-    "build": "vite build --mode local",
+    "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview --mode local",
@@ -39,19 +39,10 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@tiptap/extension-bullet-list": "^3.4.2",
-    "@tiptap/extension-color": "^3.4.2",
-    "@tiptap/extension-list-item": "^3.4.2",
-    "@tiptap/extension-ordered-list": "^3.4.2",
-    "@tiptap/extension-text-align": "^3.4.2",
-    "@tiptap/extension-text-style": "^3.4.2",
-    "@tiptap/react": "^3.4.2",
-    "@tiptap/starter-kit": "^3.4.2",
     "axios": "^1.11.0",
     "dexie": "^4.2.0",
     "lucide-react": "^0.344.0",
     "openai": "^5.12.2",
-    "pnpm": "^10.15.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
