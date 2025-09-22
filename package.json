@@ -14,7 +14,7 @@
   "bugs": {
     "url": "https://github.com/your-username/ai-story-builder/issues"
   },
-  "license": "MIT",
+  "license": "CC-BY-NC-ND-4.0",
   "scripts": {
     "dev": "vite",
     "dev:local": "vite --mode local",
