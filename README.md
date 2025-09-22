@@ -7,7 +7,7 @@
 **AIを活用した小説創作支援アプリケーション**
 
 
-[![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-CC%20BY--NC--ND%204.0-blue.svg?style=flat-square)](LICENSE)
 
 
 
