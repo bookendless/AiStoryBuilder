@@ -1253,6 +1253,22 @@ ${modalDraft}
                     </div>
                   </button>
                   
+                  {/* 全章生成説明 */}
+                  <div className="mb-4 p-3 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
+                    <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-2 font-['Noto_Sans_JP']">
+                      全章執筆について
+                    </h4>
+                    <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-2">
+                      プロジェクトの設定（キャラクター、プロット、章立て）に基づいて、一貫性のある物語の全章を自動執筆します。
+                    </p>
+                    <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP']">
+                      <li>• キャラクターの性格と関係性を維持した一貫した物語</li>
+                      <li>• 各章3000-4000文字の詳細な執筆</li>
+                      <li>• 会話重視の生き生きとした表現</li>
+                      <li>• 五感を活用した臨場感のある描写</li>
+                    </ul>
+                  </div>
+
                   <button 
                     onClick={handleGenerateAllChapters}
                     disabled={isGeneratingAllChapters || currentProject.chapters.length === 0}
@@ -1581,13 +1597,16 @@ ${modalDraft}
                 </div>
                 
                 <div className="flex items-center space-x-2">
+                  <div className="hidden sm:block text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    AIが章の内容を改善・拡張します
+                  </div>
                   <button
                     onClick={handleModalAIGenerate}
                     disabled={isGenerating || !selectedChapter}
                     className="flex items-center space-x-1 px-3 py-1.5 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors text-sm disabled:opacity-50"
                   >
                     <Sparkles className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                    <span>{isGenerating ? '生成中...' : 'AI執筆支援'}</span>
+                    <span>{isGenerating ? '生成中...' : 'AIが内容を支援'}</span>
                   </button>
                   
                   <button

@@ -1020,28 +1020,42 @@ export const CharacterStep: React.FC = () => {
               AIがお手伝いします
             </p>
             
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
               <li>• 性格の詳細な設定</li>
               <li>• 背景設定の補完</li>
               <li>• 行動パターンの提案</li>
             </ul>
 
-            <button 
-              onClick={handleAIGenerateCharacters}
-              disabled={!isConfigured || isGenerating}
-              className="w-full mt-4 px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              {isGenerating ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <Loader className="h-4 w-4 animate-spin" />
-                  <span>生成中...</span>
-                </div>
-              ) : !isConfigured ? (
-                'AI設定が必要'
-              ) : (
-                'AIキャラクター提案'
-              )}
-            </button>
+            <div className="mb-4 p-4 bg-white dark:bg-gray-700 rounded-lg border border-pink-200 dark:border-pink-700">
+              <h4 className="font-semibold text-pink-700 dark:text-pink-300 mb-3 font-['Noto_Sans_JP']">
+                AIキャラクター提案について
+              </h4>
+              <p className="text-sm text-pink-600 dark:text-pink-400 font-['Noto_Sans_JP'] mb-3">
+                プロジェクトの設定（ジャンル、テーマ、ターゲット読者など）に基づいて、物語に適した3人のキャラクターを自動生成します。
+              </p>
+              <ul className="space-y-1 text-xs text-pink-500 dark:text-pink-400 font-['Noto_Sans_JP'] mb-4">
+                <li>• 各キャラクターの名前、役割、外見、性格、背景を設定</li>
+                <li>• プロジェクトの世界観に合ったキャラクター関係性を考慮</li>
+                <li>• 物語の展開に必要な多様なキャラクタータイプを提案</li>
+              </ul>
+              
+              <button 
+                onClick={handleAIGenerateCharacters}
+                disabled={!isConfigured || isGenerating}
+                className="w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                {isGenerating ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <Loader className="h-4 w-4 animate-spin" />
+                    <span>生成中...</span>
+                  </div>
+                ) : !isConfigured ? (
+                  'AI設定が必要'
+                ) : (
+                  'AIキャラクター提案'
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">

@@ -724,24 +724,38 @@ ${charactersInfo}
               <li>• ジャンルに適した設定パターン</li>
               <li>• 文字数制限による適切なボックスサイズ対応</li>
             </ul>
-            
-            <button
-              onClick={handleBasicAIGenerate}
-              disabled={isGenerating}
-              className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>生成中...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-5 w-5" />
-                  <span>基本設定をAI提案</span>
-                </>
-              )}
-            </button>
+
+            <div className="mb-4 p-4 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
+              <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-3 font-['Noto_Sans_JP']">
+                AI基本設定提案について
+              </h4>
+              <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-3">
+                プロジェクトの設定（ジャンル、テーマ、キャラクターなど）に基づいて、一貫性のある物語の基本設定を自動生成します。
+              </p>
+              <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mb-4">
+                <li>• メインテーマ、舞台設定、フック要素、主人公の目標、主要な障害を設定</li>
+                <li>• キャラクター設定と連携した一貫性のある物語基盤を構築</li>
+                <li>• ジャンルに適した設定パターンと文字数制限を考慮</li>
+              </ul>
+              
+              <button
+                onClick={handleBasicAIGenerate}
+                disabled={isGenerating}
+                className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>生成中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5" />
+                    <span>基本設定をAI提案</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">

@@ -320,21 +320,6 @@ ${synopsis}
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={handleReset}
-                    className="flex items-center space-x-1 px-3 py-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-sm"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    <span>リセット</span>
-                  </button>
-                  <button
-                    onClick={handleAIGenerate}
-                    disabled={isGenerating}
-                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                  >
-                    <Sparkles className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                    <span>{isGenerating ? '生成中...' : 'あらすじをAI提案'}</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -372,6 +357,50 @@ ${synopsis}
                     }`}
                     style={{ width: `${Math.min((wordCount / targetWordCount) * 100, 100)}%` }}
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* AI Proposal Section */}
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="mb-4 p-4 bg-white dark:bg-gray-700 rounded-lg border border-indigo-200 dark:border-indigo-700">
+                <h4 className="font-semibold text-indigo-700 dark:text-indigo-300 mb-3 font-['Noto_Sans_JP']">
+                  AIあらすじ提案について
+                </h4>
+                <p className="text-sm text-indigo-600 dark:text-indigo-400 font-['Noto_Sans_JP'] mb-3">
+                  プロジェクトの基本設定、キャラクター情報、プロット構成に基づいて、一貫性のある物語のあらすじを自動生成します。
+                </p>
+                <ul className="space-y-1 text-xs text-indigo-500 dark:text-indigo-400 font-['Noto_Sans_JP'] mb-4">
+                  <li>• キャラクターの関係性と成長を反映した物語の流れ</li>
+                  <li>• プロット構成（起承転結/三幕構成/四幕構成）に沿った展開</li>
+                  <li>• ジャンルとテーマに適した文体と表現</li>
+                </ul>
+                
+                <div className="flex space-x-3">
+                  <button
+                    onClick={handleReset}
+                    className="flex-1 px-4 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 hover:scale-105 text-white flex items-center justify-center space-x-2"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    <span>リセット</span>
+                  </button>
+                  <button
+                    onClick={handleAIGenerate}
+                    disabled={isGenerating}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Sparkles className="h-5 w-5 animate-spin" />
+                        <span>生成中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-5 w-5" />
+                        <span>あらすじをAI提案</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>

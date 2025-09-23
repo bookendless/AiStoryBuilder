@@ -1105,24 +1105,38 @@ ${charactersInfo}
               <li>• ジャンルに適した展開パターン</li>
               <li>• 文字数制限による適切なボックスサイズ対応</li>
             </ul>
-            
-            <button
-              onClick={handleStructureAIGenerate}
-              disabled={isGenerating === 'structure'}
-              className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
-            >
-              {isGenerating === 'structure' ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>生成中...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-5 w-5" />
-                  <span>{plotStructure === 'kishotenketsu' ? '起承転結をAI提案' : plotStructure === 'three-act' ? '三幕構成をAI提案' : '四幕構成をAI提案'}</span>
-                </>
-              )}
-            </button>
+
+            <div className="mb-4 p-4 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
+              <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-3 font-['Noto_Sans_JP']">
+                AI構成詳細提案について
+              </h4>
+              <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-3">
+                プロジェクトの基本設定とキャラクター情報に基づいて、選択した構成（{plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}）の詳細な内容を自動生成します。
+              </p>
+              <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mb-4">
+                <li>• 基本設定（テーマ、舞台、フック要素など）を反映した一貫性のある構成</li>
+                <li>• キャラクターの関係性と成長を考慮した展開パターン</li>
+                <li>• ジャンルに適した物語の流れと各段階の詳細設定</li>
+              </ul>
+              
+              <button
+                onClick={handleStructureAIGenerate}
+                disabled={isGenerating === 'structure'}
+                className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
+              >
+                {isGenerating === 'structure' ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>生成中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5" />
+                    <span>{plotStructure === 'kishotenketsu' ? '起承転結をAI提案' : plotStructure === 'three-act' ? '三幕構成をAI提案' : '四幕構成をAI提案'}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
