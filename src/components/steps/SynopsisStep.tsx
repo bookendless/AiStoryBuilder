@@ -291,9 +291,14 @@ ${synopsis}
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          あらすじ作成
-        </h1>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-indigo-400 to-blue-500">
+            <FileText className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            あらすじ作成
+          </h1>
+        </div>
         <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
           物語全体の概要をまとめましょう。AIが文体調整と要約生成をサポートします。
         </p>
@@ -305,18 +310,13 @@ ${synopsis}
             {/* Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
-                    <FileText className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                      物語のあらすじ
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      {wordCount} / {targetWordCount} 文字
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                    物語のあらすじ
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    {wordCount} / {targetWordCount} 文字
+                  </p>
                 </div>
 
                 <div className="flex items-center space-x-2">

@@ -930,9 +930,14 @@ ${modalDraft}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                草案作成
-              </h1>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-emerald-500">
+                  <PenTool className="h-5 w-5 text-white" />
+                </div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  草案作成
+                </h1>
+              </div>
               <p className="mt-2 text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                 章ごとに詳細な草案を作成し、物語を完成させましょう
               </p>
@@ -1149,7 +1154,7 @@ ${modalDraft}
                       <button
                         onClick={handleGenerateAllChapters}
                         disabled={isGeneratingAllChapters || currentProject.chapters.length === 0}
-                        className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-sm font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-900 dark:text-blue-100 rounded-lg hover:from-blue-200 hover:to-indigo-200 dark:hover:from-blue-900/50 dark:hover:to-indigo-900/50 transition-all duration-200 shadow-sm font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed border border-blue-200 dark:border-blue-700"
                       >
                         <Sparkles className={`h-4 w-4 ${isGeneratingAllChapters ? 'animate-spin' : ''}`} />
                         <span>{isGeneratingAllChapters ? '全章生成中...' : '全章生成'}</span>
@@ -1254,14 +1259,14 @@ ${modalDraft}
                   </button>
                   
                   {/* 全章生成説明 */}
-                  <div className="mb-4 p-3 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
-                    <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-2 font-['Noto_Sans_JP']">
+                  <div className="mb-4 p-3 bg-white dark:bg-gray-700 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2 font-['Noto_Sans_JP']">
                       全章執筆について
                     </h4>
-                    <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-2">
+                    <p className="text-sm text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP'] mb-2">
                       プロジェクトの設定（キャラクター、プロット、章立て）に基づいて、一貫性のある物語の全章を自動執筆します。
                     </p>
-                    <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP']">
+                    <ul className="space-y-1 text-xs text-blue-500 dark:text-blue-400 font-['Noto_Sans_JP']">
                       <li>• キャラクターの性格と関係性を維持した一貫した物語</li>
                       <li>• 各章3000-4000文字の詳細な執筆</li>
                       <li>• 会話重視の生き生きとした表現</li>
@@ -1272,20 +1277,20 @@ ${modalDraft}
                   <button 
                     onClick={handleGenerateAllChapters}
                     disabled={isGeneratingAllChapters || currentProject.chapters.length === 0}
-                    className="w-full p-3 text-left bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 rounded-lg hover:from-purple-200 hover:to-pink-200 dark:hover:from-purple-900/50 dark:hover:to-pink-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-purple-200 dark:border-purple-700"
+                    className="w-full p-3 text-left bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-lg hover:from-blue-200 hover:to-indigo-200 dark:hover:from-blue-900/50 dark:hover:to-indigo-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-200 dark:border-blue-700"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-semibold text-purple-900 dark:text-purple-100 text-sm font-['Noto_Sans_JP']">全章生成</div>
-                        <div className="text-xs text-purple-600 dark:text-purple-300 font-['Noto_Sans_JP']">
+                        <div className="font-semibold text-blue-900 dark:text-blue-100 text-sm font-['Noto_Sans_JP']">全章生成</div>
+                        <div className="text-xs text-blue-600 dark:text-blue-300 font-['Noto_Sans_JP']">
                           {currentProject.chapters.length}章を一括生成
                         </div>
-                        <div className="text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mt-1">
+                        <div className="text-xs text-blue-500 dark:text-blue-400 font-['Noto_Sans_JP'] mt-1">
                           ⚠️ 時間がかかります（5-15分）
                         </div>
                       </div>
                       {isGeneratingAllChapters && (
-                        <Sparkles className="h-4 w-4 text-purple-500 animate-spin" />
+                        <Sparkles className="h-4 w-4 text-blue-500 animate-spin" />
                       )}
                     </div>
                   </button>
@@ -1294,9 +1299,9 @@ ${modalDraft}
 
               {/* 全章生成パネル */}
               {isGeneratingAllChapters && (
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-6 rounded-2xl border border-purple-200 dark:border-purple-800">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-2xl border border-blue-200 dark:border-blue-800">
                   <div className="flex items-center space-x-3 mb-4">
-                    <div className="bg-gradient-to-br from-purple-500 to-pink-600 w-10 h-10 rounded-full flex items-center justify-center">
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-10 h-10 rounded-full flex items-center justify-center">
                       <Sparkles className="h-5 w-5 text-white animate-spin" />
                     </div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
@@ -1321,7 +1326,7 @@ ${modalDraft}
                         </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                           <div 
-                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500" 
+                            className="bg-gradient-to-r from-blue-500 to-indigo-500 h-3 rounded-full transition-all duration-500" 
                             style={{ 
                               width: `${(generationProgress.current / generationProgress.total) * 100}%` 
                             }}

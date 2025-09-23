@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, BookOpen, FileText, List, PenTool, Download, Check } from 'lucide-react';
+import { Users, BookOpen, FileText, List, PenTool, Download, Check, Layers } from 'lucide-react';
 import { Step } from '../App';
 
 interface SidebarProps {
@@ -9,13 +9,13 @@ interface SidebarProps {
 }
 
 const steps = [
-  { key: 'character' as Step, label: 'キャラクター', icon: Users, color: 'bg-pink-500' },
-  { key: 'plot1' as Step, label: 'プロット基本設定', icon: BookOpen, color: 'bg-purple-500' },
-  { key: 'plot2' as Step, label: 'プロット構成詳細', icon: BookOpen, color: 'bg-purple-900' },
-  { key: 'synopsis' as Step, label: 'あらすじ', icon: FileText, color: 'bg-indigo-500' },
-  { key: 'chapter' as Step, label: '章立て', icon: List, color: 'bg-blue-500' },
-  { key: 'draft' as Step, label: '草案', icon: PenTool, color: 'bg-green-500' },
-  { key: 'export' as Step, label: 'エクスポート', icon: Download, color: 'bg-orange-500' },
+  { key: 'character' as Step, label: 'キャラクター', icon: Users, color: 'bg-gradient-to-r from-pink-400 to-rose-500' },
+  { key: 'plot1' as Step, label: 'プロット基本設定', icon: BookOpen, color: 'bg-gradient-to-r from-purple-400 to-purple-600' },
+  { key: 'plot2' as Step, label: 'プロット構成詳細', icon: Layers, color: 'bg-gradient-to-r from-purple-500 to-indigo-500' },
+  { key: 'synopsis' as Step, label: 'あらすじ', icon: FileText, color: 'bg-gradient-to-r from-indigo-400 to-blue-500' },
+  { key: 'chapter' as Step, label: '章立て', icon: List, color: 'bg-gradient-to-r from-blue-400 to-cyan-500' },
+  { key: 'draft' as Step, label: '草案', icon: PenTool, color: 'bg-gradient-to-r from-green-400 to-emerald-500' },
+  { key: 'export' as Step, label: 'エクスポート', icon: Download, color: 'bg-gradient-to-r from-orange-400 to-amber-500' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, className }) => {

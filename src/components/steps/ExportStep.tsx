@@ -485,9 +485,14 @@ export const ExportStep: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          エクスポート
-        </h1>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-amber-500">
+            <Download className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            エクスポート
+          </h1>
+        </div>
         <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
           作成した物語をさまざまな形式でエクスポートできます。
         </p>
@@ -496,10 +501,7 @@ export const ExportStep: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Export Options */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="bg-gradient-to-br from-orange-500 to-red-600 w-10 h-10 rounded-full flex items-center justify-center">
-              <Download className="h-5 w-5 text-white" />
-            </div>
+          <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
               エクスポート形式
             </h3>

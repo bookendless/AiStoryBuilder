@@ -858,9 +858,14 @@ export const CharacterStep: React.FC = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-              キャラクター設計
-            </h1>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-pink-400 to-rose-500">
+                <User className="h-5 w-5 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                キャラクター設計
+              </h1>
+            </div>
             <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-2">
               物語の核となるキャラクターを作成しましょう。AIが背景や関係性を補完します。
             </p>

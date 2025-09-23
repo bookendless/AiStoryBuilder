@@ -775,9 +775,14 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          章立て構成
-        </h1>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-cyan-500">
+            <List className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            章立て構成
+          </h1>
+        </div>
         <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
           物語の章構成を設計しましょう。AIが自動的な構成展開案を作成します。
         </p>
@@ -789,18 +794,13 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
             {/* Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-br from-blue-500 to-teal-600 w-10 h-10 rounded-full flex items-center justify-center">
-                    <List className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                      章構成一覧
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      {currentProject.chapters.length} 章設定済み
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                    章構成一覧
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    {currentProject.chapters.length} 章設定済み
+                  </p>
                 </div>
 
                 <div className="flex items-center space-x-2">

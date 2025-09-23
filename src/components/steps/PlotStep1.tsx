@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sparkles, Check, Loader2 } from 'lucide-react';
+import { Sparkles, Check, Loader2, BookOpen } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -515,9 +515,14 @@ ${charactersInfo}
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          プロット基本設定
-        </h1>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-600">
+            <BookOpen className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            プロット基本設定
+          </h1>
+        </div>
         <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
           物語の骨格となる基本設定を設計しましょう。AIが一貫性のある物語の基盤を提案します。
         </p>
