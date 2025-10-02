@@ -266,20 +266,19 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
         ? context.characters.map(c => `・${c.name} (${c.role})\n  性格: ${c.personality}\n  背景: ${c.background}`).join('\n')
         : 'キャラクター未設定';
 
-      const structureInfo = plotStructure === 'kishotenketsu' 
-        ? '起承転結構成（起・承・転・結）'
-        : plotStructure === 'three-act' 
-        ? '三幕構成（第1幕・第2幕・第3幕）'
-        : '四幕構成（第1幕・第2幕・第3幕・第4幕）';
 
-      const prompt = `以下の情報に基づいて物語プロット構成の詳細を提案してください。
+      // 構成スタイルに応じたプロンプト生成
+      let prompt = '';
+      
+      if (plotStructure === 'kishotenketsu') {
+        prompt = `以下の情報に基づいて物語プロット構成の詳細を提案してください。
 
 【プロジェクト情報】
 作品タイトル: ${context.title}
 メインジャンル: ${context.mainGenre || context.genre}
 サブジャンル: ${context.subGenre || '未設定'}
 テーマ: ${context.projectTheme}
-構成: ${structureInfo}
+構成: 起承転結構成（起・承・転・結）
 
 【キャラクター情報】
 ${charactersInfo}
@@ -292,22 +291,92 @@ ${charactersInfo}
 主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
 
 【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。
-基礎設定の内容を活かしながら、各構成段階でどのように展開するかを具体的に記述してください。
+基礎設定の内容を活かしながら、起承転結の各段階でどのように展開するかを具体的に記述してください。
+
+起承転結の構成について：
+- 起：物語の始まり、登場人物の紹介、日常の描写、事件の発端
+- 承：事件の発展、状況の変化、新たな登場人物、問題の詳細化
+- 転：大きな転換点、予想外の展開、クライマックス、物語の核心
+- 結：問題の解決、物語の終結、キャラクターの成長、新たな始まり
 
 以下のJSON形式で出力してください：
-{${plotStructure === 'kishotenketsu' ? `
+{
   "起（導入）": "起（導入）を500文字以内で記述",
   "承（展開）": "承（展開）を500文字以内で記述",
   "転（転換）": "転（転換）を500文字以内で記述",
-  "結（結末）": "結（結末）を500文字以内で記述"` : plotStructure === 'three-act' ? `
+  "結（結末）": "結（結末）を500文字以内で記述"
+}`;
+      } else if (plotStructure === 'three-act') {
+        prompt = `以下の情報に基づいて物語プロット構成の詳細を提案してください。
+
+【プロジェクト情報】
+作品タイトル: ${context.title}
+メインジャンル: ${context.mainGenre || context.genre}
+サブジャンル: ${context.subGenre || '未設定'}
+テーマ: ${context.projectTheme}
+構成: 三幕構成（第1幕・第2幕・第3幕）
+
+【キャラクター情報】
+${charactersInfo}
+
+【プロット基礎設定（重要）】
+メインテーマ: ${currentProject?.plot?.theme || '未設定'}
+舞台設定: ${currentProject?.plot?.setting || '未設定'}
+フック要素: ${currentProject?.plot?.hook || '未設定'}
+主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
+主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
+
+【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。
+基礎設定の内容を活かしながら、三幕構成の各段階でどのように展開するかを具体的に記述してください。
+
+三幕構成について：
+- 第1幕：導入、設定、事件の発端、登場人物の紹介、世界観の設定
+- 第2幕：展開、対立の激化、主人公の試練、クライマックスへの準備、物語の核心部分
+- 第3幕：クライマックス、問題の解決、物語の結末、キャラクターの成長、最終的な解決
+
+以下のJSON形式で出力してください：
+{
   "第1幕（導入）": "第1幕を500文字以内で記述",
   "第2幕（展開）": "第2幕を500文字以内で記述",
-  "第3幕（結末）": "第3幕を500文字以内で記述"` : `
+  "第3幕（結末）": "第3幕を500文字以内で記述"
+}`;
+      } else if (plotStructure === 'four-act') {
+        prompt = `以下の情報に基づいて物語プロット構成の詳細を提案してください。
+
+【プロジェクト情報】
+作品タイトル: ${context.title}
+メインジャンル: ${context.mainGenre || context.genre}
+サブジャンル: ${context.subGenre || '未設定'}
+テーマ: ${context.projectTheme}
+構成: 四幕構成（第1幕・第2幕・第3幕・第4幕）
+
+【キャラクター情報】
+${charactersInfo}
+
+【プロット基礎設定（重要）】
+メインテーマ: ${currentProject?.plot?.theme || '未設定'}
+舞台設定: ${currentProject?.plot?.setting || '未設定'}
+フック要素: ${currentProject?.plot?.hook || '未設定'}
+主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
+主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
+
+【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。
+基礎設定の内容を活かしながら、四幕構成の各段階でどのように展開するかを具体的に記述してください。
+
+四幕構成（ダン・ハーモンの秩序と混沌の対比）について：
+- 第1幕（秩序）：日常の確立、キャラクター紹介、世界観の設定、平穏な状態
+- 第2幕（混沌）：問題の発生、状況の悪化、困難の増大、秩序の崩壊
+- 第3幕（秩序）：解決への取り組み、希望の光、状況の改善、秩序の回復への努力
+- 第4幕（混沌）：最終的な試練、真の解決、物語の結末、新しい秩序の確立
+
+以下のJSON形式で出力してください：
+{
   "第1幕（秩序）": "第1幕（秩序）を500文字以内で記述",
   "第2幕（混沌）": "第2幕（混沌）を500文字以内で記述",
   "第3幕（秩序）": "第3幕（秩序）を500文字以内で記述",
-  "第4幕（混沌）": "第4幕（混沌）を500文字以内で記述"`}
+  "第4幕（混沌）": "第4幕（混沌）を500文字以内で記述"
 }`;
+      }
 
       const response = await aiService.generateContent({
         prompt,
@@ -327,25 +396,31 @@ ${charactersInfo}
         try {
           const parsed = JSON.parse(jsonMatch[0]);
           
-          // フォームデータを更新（構成詳細のみ）
-          setFormData(prev => ({
-            ...prev,
-            ...(plotStructure === 'kishotenketsu' ? {
+          // フォームデータを更新（構成スタイルに応じて）
+          if (plotStructure === 'kishotenketsu') {
+            setFormData(prev => ({
+              ...prev,
               ki: parsed['起（導入）'] || prev.ki,
               sho: parsed['承（展開）'] || prev.sho,
               ten: parsed['転（転換）'] || prev.ten,
               ketsu: parsed['結（結末）'] || prev.ketsu,
-            } : plotStructure === 'three-act' ? {
+            }));
+          } else if (plotStructure === 'three-act') {
+            setFormData(prev => ({
+              ...prev,
               act1: parsed['第1幕（導入）'] || prev.act1,
               act2: parsed['第2幕（展開）'] || prev.act2,
               act3: parsed['第3幕（結末）'] || prev.act3,
-            } : {
+            }));
+          } else if (plotStructure === 'four-act') {
+            setFormData(prev => ({
+              ...prev,
               fourAct1: parsed['第1幕（秩序）'] || prev.fourAct1,
               fourAct2: parsed['第2幕（混沌）'] || prev.fourAct2,
               fourAct3: parsed['第3幕（秩序）'] || prev.fourAct3,
               fourAct4: parsed['第4幕（混沌）'] || prev.fourAct4,
-            })
-          }));
+            }));
+          }
         } catch (error) {
           console.error('JSON解析エラー:', error);
           alert('AI出力の解析に失敗しました。');

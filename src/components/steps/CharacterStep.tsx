@@ -1,8 +1,19 @@
 import React, { useState, useRef } from 'react';
-import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn } from 'lucide-react';
+import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn, FileText, Copy, Download } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+
+interface AILogEntry {
+  id: string;
+  timestamp: Date;
+  type: 'enhance' | 'generate';
+  prompt: string;
+  response: string;
+  error?: string;
+  characterName?: string;
+  parsedCharacters?: Character[];
+}
 
 // 画像拡大表示モーダルコンポーネント
 interface ImageViewerModalProps {
@@ -516,6 +527,8 @@ export const CharacterStep: React.FC = () => {
   const [enhancingId, setEnhancingId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
   const [imageViewerState, setImageViewerState] = useState<{
     isOpen: boolean;
     imageUrl: string;
@@ -656,8 +669,20 @@ export const CharacterStep: React.FC = () => {
         usage: response.usage,
       });
 
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'enhance',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+        characterName: character.name,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
+
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}\n\n詳細はブラウザのコンソールを確認してください。`);
+        alert(`AI生成エラー: ${response.error}\n\n詳細はAIログを確認してください。`);
         return;
       }
 
@@ -756,8 +781,19 @@ export const CharacterStep: React.FC = () => {
         error: response.error,
       });
 
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'generate',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
+
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}\n\n詳細はブラウザのコンソールを確認してください。`);
+        alert(`AI生成エラー: ${response.error}\n\n詳細はAIログを確認してください。`);
         return;
       }
 
@@ -835,10 +871,17 @@ export const CharacterStep: React.FC = () => {
           characters: [...currentProject.characters, ...newCharacters],
         });
 
+        // ログエントリに生成されたキャラクター情報を追加
+        const updatedLogEntry = {
+          ...logEntry,
+          parsedCharacters: newCharacters,
+        };
+        setAiLogs(prev => [updatedLogEntry, ...prev.slice(1)]); // 最新のログを更新
+
         const characterNames = newCharacters.map(c => c.name).join('、');
         alert(`${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`);
       } else {
-        alert('キャラクターの生成に失敗しました。もう一度お試しください。');
+        alert('キャラクターの生成に失敗しました。AIログを確認して詳細を確認してください。');
       }
       
     } catch (error) {
@@ -847,6 +890,54 @@ export const CharacterStep: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // AIログをコピー
+  const handleCopyLog = (log: AILogEntry) => {
+    const logText = `【AIログ - ${log.type === 'enhance' ? 'キャラクター詳細化' : 'キャラクター生成'}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.characterName ? `キャラクター: ${log.characterName}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}`;
+    
+    navigator.clipboard.writeText(logText);
+  };
+
+  // AIログをダウンロード
+  const handleDownloadLogs = () => {
+    const logsText = aiLogs.map(log => 
+      `【AIログ - ${log.type === 'enhance' ? 'キャラクター詳細化' : 'キャラクター生成'}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.characterName ? `キャラクター: ${log.characterName}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${'='.repeat(80)}`
+    ).join('\n\n');
+
+    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `character_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   if (!currentProject) {
@@ -1010,6 +1101,104 @@ export const CharacterStep: React.FC = () => {
 
         {/* AI Assistant Panel */}
         <div className="space-y-6">
+          {/* AIログ表示ボタン */}
+          {aiLogs.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  AIログ
+                </h3>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleDownloadLogs}
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    title="ログをダウンロード"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setShowLogs(!showLogs)}
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    title="ログを表示/非表示"
+                  >
+                    <FileText className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              
+              {showLogs && (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {aiLogs.map((log) => (
+                    <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            log.type === 'enhance' 
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                              : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          }`}>
+                            {log.type === 'enhance' ? '詳細化' : '生成'}
+                          </span>
+                          {log.characterName && (
+                            <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                              {log.characterName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {log.timestamp.toLocaleString('ja-JP', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </span>
+                          <button
+                            onClick={() => handleCopyLog(log)}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            title="ログをコピー"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {log.error ? (
+                        <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                          <strong>エラー:</strong> {log.error}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                          <div className="mb-2">
+                            <strong>プロンプト:</strong>
+                            <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                              {log.prompt.substring(0, 200)}...
+                            </div>
+                          </div>
+                          <div>
+                            <strong>応答:</strong>
+                            <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                              {log.response.substring(0, 300)}...
+                            </div>
+                          </div>
+                          {log.parsedCharacters && log.parsedCharacters.length > 0 && (
+                            <div className="mt-2">
+                              <strong>生成されたキャラクター:</strong>
+                              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                {log.parsedCharacters.map(c => c.name).join(', ')}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-6 rounded-2xl border border-pink-200 dark:border-pink-800">
             <div className="flex items-center space-x-3 mb-4">
               <div className="bg-gradient-to-br from-pink-500 to-pink-600 w-10 h-10 rounded-full flex items-center justify-center">
@@ -1043,6 +1232,20 @@ export const CharacterStep: React.FC = () => {
                 <li>• プロジェクトの世界観に合ったキャラクター関係性を考慮</li>
                 <li>• 物語の展開に必要な多様なキャラクタータイプを提案</li>
               </ul>
+              
+              {settings.provider === 'local' && (
+                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <h5 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 font-['Noto_Sans_JP']">
+                    ⚠️ ローカルLLM使用時の注意
+                  </h5>
+                  <ul className="space-y-1 text-xs text-yellow-700 dark:text-yellow-300 font-['Noto_Sans_JP']">
+                    <li>• ローカルLLMは解析に失敗する場合があります</li>
+                    <li>• 失敗時はAIログで詳細な応答内容を確認できます</li>
+                    <li>• プロンプトを調整して再試行してください</li>
+                    <li>• より安定した結果には非ローカルLLMの使用を推奨します</li>
+                  </ul>
+                </div>
+              )}
               
               <button 
                 onClick={handleAIGenerateCharacters}
