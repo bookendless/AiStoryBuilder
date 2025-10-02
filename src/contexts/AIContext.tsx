@@ -39,7 +39,7 @@ const getDefaultSettings = (): AISettings => {
     provider: defaultProvider,
     model: defaultModel,
     temperature: 0.7,
-    maxTokens: 3000,
+    maxTokens: 1000,
     apiKey: openaiKey || claudeKey || geminiKey,
     localEndpoint: localEndpoint,
   };
@@ -60,7 +60,13 @@ export const useAI = () => {
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AISettings>(() => {
     try {
-      // まずlocalStorageから読み込み
+      // 環境変数が設定されている場合はそれを優先
+      const envSettings = getDefaultSettings();
+      if (envSettings.apiKey || envSettings.localEndpoint) {
+        return envSettings;
+      }
+
+      // 環境変数が設定されていない場合はlocalStorageから読み込み
       const saved = localStorage.getItem('ai-settings');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -76,19 +82,11 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           ...defaultSettings,
           ...parsed,
           temperature: Math.max(0, Math.min(1, parsed.temperature || defaultSettings.temperature)),
-          maxTokens: Math.max(3000, Math.min(modelMaxTokens, parsed.maxTokens || defaultSettings.maxTokens)),
+          maxTokens: Math.max(100, Math.min(modelMaxTokens, parsed.maxTokens || defaultSettings.maxTokens)),
         };
         console.log('Validated settings:', JSON.stringify(validated, null, 2));
         return validated;
       }
-
-      // localStorageに設定がない場合のみ環境変数を使用
-      const envSettings = getDefaultSettings();
-      if (envSettings.apiKey || envSettings.localEndpoint) {
-        console.log('Using environment variables as fallback:', JSON.stringify(envSettings, null, 2));
-        return envSettings;
-      }
-      
       return defaultSettings;
     } catch (error) {
       console.error('AI設定の読み込みエラー:', error);

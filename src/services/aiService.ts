@@ -593,12 +593,6 @@ class AIService {
       // Viteのプロキシを使用する場合は、相対パスに変更
       const isLocalhost = endpoint.includes('localhost:1234');
       const apiEndpoint = isLocalhost ? '/api/local' : endpoint;
-      
-      console.log('Local LLM endpoint resolution:', {
-        originalEndpoint: endpoint,
-        isLocalhost,
-        resolvedEndpoint: apiEndpoint
-      });
 
       // プロンプトの長さを制限（Local LLMでは短めに）
       const maxPromptLength = 3000;
@@ -648,16 +642,9 @@ class AIService {
           status: response.status,
           statusText: response.statusText,
           errorData,
-          endpoint: apiEndpoint,
-          originalEndpoint: endpoint
+          endpoint: apiEndpoint
         });
-        
-        // より具体的なエラーメッセージを提供
-        if (response.status === 0 || response.status === 500) {
-          throw new Error(`ローカルLLMサーバーに接続できません。サーバーが起動しているか確認してください。エンドポイント: ${endpoint}`);
-        } else {
-          throw new Error(`ローカルLLM エラー (${response.status}): ${errorMessage}`);
-        }
+        throw new Error(`ローカルLLM エラー: ${errorMessage}`);
       }
 
       const data = await response.json();
@@ -690,15 +677,6 @@ class AIService {
       }
     } catch (error) {
       console.error('Local LLM Error:', error);
-      
-      // 接続エラーの場合の特別な処理
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        return {
-          content: '',
-          error: `ローカルLLMサーバーに接続できません。サーバーが起動しているか確認してください。エンドポイント: ${endpoint}`
-        };
-      }
-      
       return {
         content: '',
         error: error instanceof Error ? error.message : 'Unknown error',
