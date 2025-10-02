@@ -1,11 +1,10 @@
 import React from 'react';
-import { Moon, Sun, Home, BookOpen, Image, Settings, Save, Database, Accessibility } from 'lucide-react';
+import { Moon, Sun, Home, BookOpen, Image, Settings, Save, Database } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAI } from '../contexts/AIContext';
 import { ImageBoard } from './ImageBoard';
 import { AISettings } from './AISettings';
 import { DataManager } from './DataManager';
-import { AccessibilityTest } from './AccessibilityTest';
 
 interface HeaderProps {
   isDarkMode: boolean;
@@ -19,7 +18,6 @@ export const Header: React.FC<HeaderProps> = ({ isDarkMode, onToggleTheme, onHom
   const [showImageBoard, setShowImageBoard] = React.useState(false);
   const [showAISettings, setShowAISettings] = React.useState(false);
   const [showDataManager, setShowDataManager] = React.useState(false);
-  const [showAccessibilityTest, setShowAccessibilityTest] = React.useState(false);
 
   const handleManualSave = async () => {
     await saveProject();
@@ -93,14 +91,6 @@ export const Header: React.FC<HeaderProps> = ({ isDarkMode, onToggleTheme, onHom
               <span className="hidden sm:inline">データ管理</span>
             </button>
             
-            <button
-              onClick={() => setShowAccessibilityTest(true)}
-              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 rounded-md"
-              aria-label="アクセシビリティテストを開く"
-            >
-              <Accessibility className="h-5 w-5" aria-hidden="true" />
-              <span className="hidden sm:inline">アクセシビリティテスト</span>
-            </button>
             
             <button
               onClick={() => setShowAISettings(true)}
@@ -153,10 +143,6 @@ export const Header: React.FC<HeaderProps> = ({ isDarkMode, onToggleTheme, onHom
       onClose={() => setShowDataManager(false)} 
     />
     
-    <AccessibilityTest 
-      isOpen={showAccessibilityTest} 
-      onClose={() => setShowAccessibilityTest(false)} 
-    />
     </>
   );
 };

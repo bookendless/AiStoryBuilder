@@ -24,11 +24,11 @@
   "license": "CC-BY-NC-ND-4.0",
   "scripts": {
     "dev": "vite",
-    "dev:local": "vite --mode local",
+    "dev:local": "vite --mode development",
     "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "preview": "vite preview --mode local",
+    "preview": "vite preview --mode development",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",
     "prebuild": "npm run type-check && npm run lint",
