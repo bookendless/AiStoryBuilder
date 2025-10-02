@@ -756,6 +756,7 @@ export const CharacterStep: React.FC = () => {
       const prompt = aiService.buildPrompt('character', 'create', {
         title: projectInfo.title,
         theme: projectInfo.theme,
+        description: projectInfo.description,
         mainGenre: projectInfo.mainGenre,
         subGenre: projectInfo.subGenre,
         targetReader: projectInfo.targetReader,
@@ -845,7 +846,7 @@ export const CharacterStep: React.FC = () => {
       }
 
       // キャラクター3を抽出
-      const character3Match = content.match(/【キャラクター3】\s*([\s\S]*?)$/);
+      const character3Match = content.match(/【キャラクター3】\s*([\s\S]*?)(?=【キャラクター4】|$)/);
       if (character3Match) {
         const char3Content = character3Match[1];
         const name3 = char3Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター3';
@@ -861,6 +862,48 @@ export const CharacterStep: React.FC = () => {
           appearance: appearance3.substring(0, 200),
           personality: personality3.substring(0, 200),
           background: background3.substring(0, 200),
+          image: '',
+        });
+      }
+
+      // キャラクター4を抽出
+      const character4Match = content.match(/【キャラクター4】\s*([\s\S]*?)(?=【キャラクター5】|$)/);
+      if (character4Match) {
+        const char4Content = character4Match[1];
+        const name4 = char4Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター4';
+        const basic4 = char4Content.match(/基本設定:\s*([^\n]+)/)?.[1]?.trim() || '';
+        const appearance4 = char4Content.match(/外見:\s*([\s\S]*?)(?=性格:|$)/)?.[1]?.trim() || '';
+        const personality4 = char4Content.match(/性格:\s*([\s\S]*?)(?=背景:|$)/)?.[1]?.trim() || '';
+        const background4 = char4Content.match(/背景:\s*([\s\S]*?)$/)?.[1]?.trim() || '';
+
+        newCharacters.push({
+          id: (Date.now() + 3).toString(),
+          name: name4,
+          role: basic4 || '主要キャラクター',
+          appearance: appearance4.substring(0, 200),
+          personality: personality4.substring(0, 200),
+          background: background4.substring(0, 200),
+          image: '',
+        });
+      }
+
+      // キャラクター5を抽出
+      const character5Match = content.match(/【キャラクター5】\s*([\s\S]*?)$/);
+      if (character5Match) {
+        const char5Content = character5Match[1];
+        const name5 = char5Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター5';
+        const basic5 = char5Content.match(/基本設定:\s*([^\n]+)/)?.[1]?.trim() || '';
+        const appearance5 = char5Content.match(/外見:\s*([\s\S]*?)(?=性格:|$)/)?.[1]?.trim() || '';
+        const personality5 = char5Content.match(/性格:\s*([\s\S]*?)(?=背景:|$)/)?.[1]?.trim() || '';
+        const background5 = char5Content.match(/背景:\s*([\s\S]*?)$/)?.[1]?.trim() || '';
+
+        newCharacters.push({
+          id: (Date.now() + 4).toString(),
+          name: name5,
+          role: basic5 || '主要キャラクター',
+          appearance: appearance5.substring(0, 200),
+          personality: personality5.substring(0, 200),
+          background: background5.substring(0, 200),
           image: '',
         });
       }
@@ -1225,7 +1268,7 @@ ${'='.repeat(80)}`
                 AIキャラクター提案について
               </h4>
               <p className="text-sm text-pink-600 dark:text-pink-400 font-['Noto_Sans_JP'] mb-3">
-                プロジェクトの設定（ジャンル、テーマ、ターゲット読者など）に基づいて、物語に適した3人のキャラクターを自動生成します。
+                プロジェクトの設定（ジャンル、テーマ、ターゲット読者など）に基づいて、物語に適した3〜5人のキャラクターを自動生成します。
               </p>
               <ul className="space-y-1 text-xs text-pink-500 dark:text-pink-400 font-['Noto_Sans_JP'] mb-4">
                 <li>• 各キャラクターの名前、役割、外見、性格、背景を設定</li>
@@ -1281,11 +1324,11 @@ ${'='.repeat(80)}`
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
                   className="bg-gradient-to-r from-pink-500 to-purple-500 h-2 rounded-full transition-all duration-500" 
-                  style={{ width: `${Math.min((currentProject.characters.length / 10) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((currentProject.characters.length / 5) * 100, 100)}%` }}
                 />
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                推奨: 3-10人程度
+                推奨: 3-5人程度
               </p>
             </div>
           </div>
