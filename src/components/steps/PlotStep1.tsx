@@ -112,9 +112,10 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         mainObstacle: formData.mainObstacle,
       };
 
+      // 即座に保存
       await updateProject({
         plot: updatedPlot,
-      });
+      }, true);
       
       setSaveStatus('saved');
       console.log('Plot basic data saved successfully:', formData);

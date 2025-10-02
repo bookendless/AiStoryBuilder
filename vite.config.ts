@@ -19,6 +19,17 @@ export default defineConfig({
         target: 'http://localhost:1234',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/local/, '/v1/chat/completions'),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('プロキシエラー:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('プロキシリクエスト:', req.method, req.url, '->', proxyReq.path);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('プロキシレスポンス:', req.url, '->', proxyRes.statusCode);
+          });
+        },
       },
     },
   },

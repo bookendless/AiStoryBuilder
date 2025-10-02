@@ -10,7 +10,14 @@ interface AISettingsProps {
 
 export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings } = useAI();
-  const [formData, setFormData] = useState(settings);
+  const [formData, setFormData] = useState(() => {
+    const initialData = { ...settings };
+    // ローカルLLMの場合はlocalEndpointを確実に設定
+    if (initialData.provider === 'local' && !initialData.localEndpoint) {
+      initialData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
+    }
+    return initialData;
+  });
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string>('');
@@ -21,6 +28,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     import.meta.env.VITE_CLAUDE_API_KEY ||
     import.meta.env.VITE_GEMINI_API_KEY ||
     import.meta.env.VITE_LOCAL_LLM_ENDPOINT
+  );
+
+  // 現在のプロバイダーに対応する環境変数があるかチェック
+  const hasEnvApiKeyForCurrentProvider = Boolean(
+    (formData.provider === 'openai' && import.meta.env.VITE_OPENAI_API_KEY) ||
+    (formData.provider === 'claude' && import.meta.env.VITE_CLAUDE_API_KEY) ||
+    (formData.provider === 'gemini' && import.meta.env.VITE_GEMINI_API_KEY) ||
+    (formData.provider === 'local' && import.meta.env.VITE_LOCAL_LLM_ENDPOINT)
   );
 
   if (!isOpen) return null;
@@ -65,7 +80,15 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       alert(`APIキーエラー: ${apiKeyError}`);
       return;
     }
-    updateSettings(formData);
+    
+    // ローカルLLMの場合はlocalEndpointを確実に設定
+    const saveData = { ...formData };
+    if (saveData.provider === 'local' && !saveData.localEndpoint) {
+      saveData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
+    }
+    
+    console.log('Saving AI settings:', JSON.stringify(saveData, null, 2));
+    updateSettings(saveData);
     onClose();
   };
 
@@ -77,13 +100,22 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       // テスト用の簡単なプロンプト
       const testPrompt = "こんにちは。これは接続テストです。";
       
+      // テスト用のAPIキーを決定（手動入力 > 環境変数）
+      const testApiKey = formData.apiKey || 
+        (formData.provider === 'openai' && import.meta.env.VITE_OPENAI_API_KEY) ||
+        (formData.provider === 'claude' && import.meta.env.VITE_CLAUDE_API_KEY) ||
+        (formData.provider === 'gemini' && import.meta.env.VITE_GEMINI_API_KEY);
+
       let response;
       if (formData.provider === 'openai') {
+        if (!testApiKey) {
+          throw new Error('OpenAI APIキーが設定されていません');
+        }
         response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${formData.apiKey}`,
+            'Authorization': `Bearer ${testApiKey}`,
           },
           body: JSON.stringify({
             model: formData.model,
@@ -97,14 +129,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           }),
         });
       } else if (formData.provider === 'claude') {
-        if (!formData.apiKey) {
+        if (!testApiKey) {
           throw new Error('Claude APIキーが設定されていません');
         }
         response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': formData.apiKey,
+            'x-api-key': testApiKey,
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
@@ -119,7 +151,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           }),
         });
       } else if (formData.provider === 'gemini') {
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${formData.model}:generateContent?key=${formData.apiKey}`, {
+        if (!testApiKey) {
+          throw new Error('Gemini APIキーが設定されていません');
+        }
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${formData.model}:generateContent?key=${testApiKey}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -137,12 +172,25 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         });
       } else if (formData.provider === 'local') {
         const endpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
-        response = await fetch(endpoint, {
+        
+        // Viteのプロキシを使用する場合は、相対パスに変更
+        const isLocalhost = endpoint.includes('localhost:1234');
+        const apiEndpoint = isLocalhost ? '/api/local' : endpoint;
+        
+        console.log('Testing local LLM connection:', {
+          originalEndpoint: endpoint,
+          apiEndpoint,
+          isLocalhost,
+          testPrompt
+        });
+        
+        response = await fetch(apiEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            model: formData.model || 'local-model',
             messages: [
               {
                 role: 'user',
@@ -151,6 +199,12 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             ],
             max_tokens: 50,
           }),
+        });
+        
+        console.log('Local LLM test response:', {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText
         });
       } else {
         throw new Error('サポートされていないプロバイダーです');
@@ -215,12 +269,19 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   onClick={() => {
                     const newModel = provider.models[0].id;
                     const newModelData = provider.models[0];
-                    setFormData({ 
+                    const updateData: any = { 
                       ...formData, 
                       provider: provider.id,
                       model: newModel,
                       maxTokens: Math.min(formData.maxTokens, newModelData.maxTokens)
-                    });
+                    };
+                    
+                    // ローカルLLMの場合はlocalEndpointを設定
+                    if (provider.isLocal) {
+                      updateData.localEndpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
+                    }
+                    
+                    setFormData(updateData);
                   }}
                   className={`p-4 rounded-lg border-2 transition-all text-left ${
                     formData.provider === provider.id
@@ -294,16 +355,16 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               </label>
               
               {/* 環境変数の状態表示 */}
-              {hasEnvApiKey && (
-                <div className="mb-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              {hasEnvApiKeyForCurrentProvider && (
+                <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                    <p className="text-sm text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    <p className="text-sm text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">
                       環境変数からAPIキーが設定されています
                     </p>
                   </div>
-                  <p className="mt-1 text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">
-                    本番環境では環境変数が優先されます
+                  <p className="mt-1 text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">
+                    手動入力で上書きできます（開発・テスト用）
                   </p>
                 </div>
               )}
@@ -312,15 +373,12 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 type="password"
                 value={formData.apiKey || ''}
                 onChange={(e) => handleApiKeyChange(e.target.value)}
-                placeholder={hasEnvApiKey ? "環境変数が設定済み（オプション）" : "APIキーを入力してください"}
-                disabled={hasEnvApiKey}
+                placeholder={hasEnvApiKeyForCurrentProvider ? "環境変数が設定済み（手動入力で上書き可能）" : "APIキーを入力してください"}
                 className={`w-full px-4 py-3 rounded-lg border ${
                   apiKeyError 
                     ? 'border-red-500 dark:border-red-400' 
                     : 'border-gray-300 dark:border-gray-600'
-                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] ${
-                  hasEnvApiKey ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']`}
               />
               {apiKeyError && (
                 <p className="mt-2 text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
@@ -328,8 +386,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 </p>
               )}
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                {hasEnvApiKey 
-                  ? '環境変数が設定されているため、手動入力は無効です'
+                {hasEnvApiKeyForCurrentProvider 
+                  ? '環境変数が設定されていますが、手動入力で上書きできます。APIキーは安全に保存され、外部に送信されることはありません。'
                   : 'APIキーは安全に保存され、外部に送信されることはありません'
                 }
               </p>
@@ -397,7 +455,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               </label>
               <input
                 type="number"
-                min="100"
+                min="3000"
                 max={selectedModel?.maxTokens || 2000000}
                 value={formData.maxTokens}
                 onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
@@ -417,7 +475,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             
             <button 
               onClick={handleTestConnection}
-              disabled={isTesting || !formData.apiKey && formData.provider !== 'local'}
+              disabled={isTesting || (!formData.apiKey && formData.provider !== 'local' && !hasEnvApiKeyForCurrentProvider)}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isTesting ? 'テスト中...' : '接続をテスト'}

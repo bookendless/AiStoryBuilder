@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { List, Plus, Sparkles, Edit3, Trash2, ChevronUp, ChevronDown, Check, X } from 'lucide-react';
+import { List, Plus, Sparkles, Edit3, Trash2, ChevronUp, ChevronDown, Check, X, FileText, Copy, Download } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -13,6 +13,16 @@ interface StructureProgress {
   conclusion: boolean;
 }
 
+interface AILogEntry {
+  id: string;
+  timestamp: Date;
+  type: 'basic' | 'structure';
+  prompt: string;
+  response: string;
+  error?: string;
+  parsedChapters?: Array<{id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}>;
+}
+
 export const ChapterStep: React.FC = () => {
   const { currentProject, updateProject, deleteChapter } = useProject();
   const { settings, isConfigured } = useAI();
@@ -24,6 +34,8 @@ export const ChapterStep: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     summary: '',
@@ -212,6 +224,51 @@ export const ChapterStep: React.FC = () => {
         url: img.url
       })) || []
     };
+  };
+
+  // AIログ関連のユーティリティ関数
+  const addAILog = (logEntry: Omit<AILogEntry, 'id' | 'timestamp'>) => {
+    const newLog: AILogEntry = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      timestamp: new Date(),
+      ...logEntry
+    };
+    setAiLogs(prev => [newLog, ...prev].slice(0, 10)); // 最新10件まで保持
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('クリップボードにコピーしました');
+    } catch (err) {
+      console.error('コピーに失敗しました:', err);
+      alert('コピーに失敗しました');
+    }
+  };
+
+  const downloadLog = (log: AILogEntry) => {
+    const content = `AI生成ログ - ${log.timestamp.toLocaleString()}
+タイプ: ${log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】\n${log.error}` : ''}
+
+${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章数】\n${log.parsedChapters.length}章\n\n【解析された章の詳細】\n${log.parsedChapters.map((ch, i) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ai-log-${log.timestamp.toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const parseAIResponse = (content: string) => {
@@ -693,12 +750,32 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         settings,
       });
 
+      // ログを保存
+      addAILog({
+        type: 'basic',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+        parsedChapters: []
+      });
+
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}`);
+        alert(`AI生成エラー: ${response.error}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
+        setShowLogs(true);
         return;
       }
 
       const newChapters = parseAIResponse(response.content);
+      
+      // 解析結果をログに追加
+      if (aiLogs.length > 0) {
+        const latestLog = aiLogs[0];
+        setAiLogs(prev => prev.map(log => 
+          log.id === latestLog.id 
+            ? { ...log, parsedChapters: newChapters }
+            : log
+        ));
+      }
       
       if (newChapters.length > 0) {
         updateProject({
@@ -706,11 +783,20 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         });
         alert(`AI構成提案で${newChapters.length}章を追加しました。`);
       } else {
-        alert('章立ての解析に失敗しました。手動で追加してください。');
+        alert('章立ての解析に失敗しました。手動で追加してください。\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
+        setShowLogs(true);
       }
       
-    } catch (_error) {
-      alert('AI生成中にエラーが発生しました');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '不明なエラー';
+      addAILog({
+        type: 'basic',
+        prompt: buildAIPrompt('basic'),
+        response: '',
+        error: errorMessage
+      });
+      alert(`AI生成中にエラーが発生しました: ${errorMessage}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
+      setShowLogs(true);
     } finally {
       setIsGenerating(false);
     }
@@ -744,8 +830,27 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         settings: settings,
       });
 
+      // ログを保存
+      addAILog({
+        type: 'structure',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+        parsedChapters: []
+      });
+
       if (response.content && !response.error) {
         const newChapters = parseAIResponse(response.content);
+
+        // 解析結果をログに追加
+        if (aiLogs.length > 0) {
+          const latestLog = aiLogs[0];
+          setAiLogs(prev => prev.map(log => 
+            log.id === latestLog.id 
+              ? { ...log, parsedChapters: newChapters }
+              : log
+          ));
+        }
 
         if (newChapters.length > 0) {
           updateProject({
@@ -753,14 +858,24 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
           });
           alert(`構成バランスAI提案で${newChapters.length}章を追加しました。\n対象: ${incompleteStructures.join('、')}`);
         } else {
-          alert('章立ての解析に失敗しました。手動で追加してください。');
+          alert('章立ての解析に失敗しました。手動で追加してください。\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
+          setShowLogs(true);
         }
       } else {
-        alert(`AI生成に失敗しました: ${response.error || '不明なエラー'}`);
+        alert(`AI生成に失敗しました: ${response.error || '不明なエラー'}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
+        setShowLogs(true);
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '不明なエラー';
+      addAILog({
+        type: 'structure',
+        prompt: buildAIPrompt('structure'),
+        response: '',
+        error: errorMessage
+      });
       console.error('Structure-based AI generation error:', error);
-      alert('AI生成中にエラーが発生しました。ブラウザのコンソールを確認してください。');
+      alert(`AI生成中にエラーが発生しました: ${errorMessage}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
+      setShowLogs(true);
     } finally {
       setIsGeneratingStructure(false);
     }
@@ -804,6 +919,18 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                 </div>
 
                 <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setShowLogs(true)}
+                    className="flex items-center space-x-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>AIログ</span>
+                    {aiLogs.length > 0 && (
+                      <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] h-[18px] flex items-center justify-center">
+                        {aiLogs.length}
+                      </span>
+                    )}
+                  </button>
                   <button
                     onClick={() => setShowAddForm(true)}
                     className="flex items-center space-x-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors text-sm"
@@ -1719,6 +1846,157 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                   更新
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Logs Modal */}
+      {showLogs && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowLogs(false);
+            }
+          }}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  AI生成ログ
+                </h3>
+                <button
+                  onClick={() => setShowLogs(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {aiLogs.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                  <p className="text-xl text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
+                    AIログがありません
+                  </p>
+                  <p className="text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                    AI章立て提案を実行すると、ここにログが表示されます
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {aiLogs.map((log) => (
+                    <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            log.type === 'basic' 
+                              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                              : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+                          }`}>
+                            {log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}
+                          </div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                            {log.timestamp.toLocaleString()}
+                          </span>
+                          {log.error && (
+                            <span className="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-full text-xs font-medium">
+                              エラー
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => copyToClipboard(log.response)}
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                            title="応答をコピー"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => downloadLog(log)}
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                            title="ログをダウンロード"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* エラー表示 */}
+                      {log.error && (
+                        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                          <h4 className="font-semibold text-red-800 dark:text-red-300 mb-2 font-['Noto_Sans_JP']">
+                            エラー内容
+                          </h4>
+                          <p className="text-red-700 dark:text-red-300 font-['Noto_Sans_JP'] text-sm">
+                            {log.error}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* プロンプト表示 */}
+                      <div className="mb-4">
+                        <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 font-['Noto_Sans_JP']">
+                          プロンプト
+                        </h4>
+                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP'] overflow-x-auto">
+                            {log.prompt}
+                          </pre>
+                        </div>
+                      </div>
+
+                      {/* AI応答表示 */}
+                      <div className="mb-4">
+                        <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 font-['Noto_Sans_JP']">
+                          AI応答
+                        </h4>
+                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP'] overflow-x-auto">
+                            {log.response || '応答なし'}
+                          </pre>
+                        </div>
+                      </div>
+
+                      {/* 解析結果表示 */}
+                      {log.parsedChapters && log.parsedChapters.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 font-['Noto_Sans_JP']">
+                            解析された章 ({log.parsedChapters.length}章)
+                          </h4>
+                          <div className="space-y-2">
+                            {log.parsedChapters.map((chapter, index) => (
+                              <div key={index} className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <div className="font-medium text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                  {index + 1}. {chapter.title}
+                                </div>
+                                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
+                                  {chapter.summary}
+                                </div>
+                                {chapter.setting && (
+                                  <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP'] mt-1">
+                                    設定: {chapter.setting}
+                                  </div>
+                                )}
+                                {chapter.mood && (
+                                  <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                                    ムード: {chapter.mood}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

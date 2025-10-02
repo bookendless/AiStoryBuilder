@@ -590,6 +590,16 @@ class AIService {
         }
       }
 
+      // Viteのプロキシを使用する場合は、相対パスに変更
+      const isLocalhost = endpoint.includes('localhost:1234');
+      const apiEndpoint = isLocalhost ? '/api/local' : endpoint;
+      
+      console.log('Local LLM endpoint resolution:', {
+        originalEndpoint: endpoint,
+        isLocalhost,
+        resolvedEndpoint: apiEndpoint
+      });
+
       // プロンプトの長さを制限（Local LLMでは短めに）
       const maxPromptLength = 3000;
       const truncatedPrompt = request.prompt.length > maxPromptLength 
@@ -600,7 +610,8 @@ class AIService {
       const maxTokens = Math.min(request.settings.maxTokens, 8192);
 
       console.log('Local LLM Request:', {
-        endpoint,
+        endpoint: apiEndpoint,
+        originalEndpoint: endpoint,
         model: request.settings.model,
         promptLength: truncatedPrompt.length,
         originalPromptLength: request.prompt.length,
@@ -608,12 +619,13 @@ class AIService {
         maxTokens: maxTokens,
       });
 
-      const response = await fetch(endpoint, {
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          model: request.settings.model || 'local-model',
           messages: [
             {
               role: 'system',
@@ -632,7 +644,20 @@ class AIService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
-        throw new Error(`ローカルLLM エラー: ${errorMessage}`);
+        console.error('Local LLM HTTP Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          endpoint: apiEndpoint,
+          originalEndpoint: endpoint
+        });
+        
+        // より具体的なエラーメッセージを提供
+        if (response.status === 0 || response.status === 500) {
+          throw new Error(`ローカルLLMサーバーに接続できません。サーバーが起動しているか確認してください。エンドポイント: ${endpoint}`);
+        } else {
+          throw new Error(`ローカルLLM エラー (${response.status}): ${errorMessage}`);
+        }
       }
 
       const data = await response.json();
@@ -665,6 +690,15 @@ class AIService {
       }
     } catch (error) {
       console.error('Local LLM Error:', error);
+      
+      // 接続エラーの場合の特別な処理
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        return {
+          content: '',
+          error: `ローカルLLMサーバーに接続できません。サーバーが起動しているか確認してください。エンドポイント: ${endpoint}`
+        };
+      }
+      
       return {
         content: '',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -695,6 +729,7 @@ class AIService {
       }
 
       // 再試行機能付きでAPI呼び出しを実行
+      const isLocalProvider = settings.provider === 'local';
       const response = await retryApiCall(
         async () => {
           switch (settings.provider) {
@@ -711,10 +746,11 @@ class AIService {
           }
         },
         {
+          timeout: isLocalProvider ? 120000 : 30000, // ローカルLLMは2分、その他は30秒
           retryConfig: {
-            maxRetries: 3,
-            baseDelay: 1000,
-            maxDelay: 10000,
+            maxRetries: isLocalProvider ? 2 : 3, // ローカルLLMは再試行回数を減らす
+            baseDelay: isLocalProvider ? 2000 : 1000, // ローカルLLMは待機時間を長く
+            maxDelay: isLocalProvider ? 15000 : 10000,
             backoffMultiplier: 2
           },
           onRetry: (attempt, error) => {

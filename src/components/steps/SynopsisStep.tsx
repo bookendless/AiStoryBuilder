@@ -28,14 +28,14 @@ export const SynopsisStep: React.FC = () => {
   }, [currentProject]);
 
   // 保存処理
-  const performSave = useCallback(async () => {
+  const performSave = useCallback(async (immediate: boolean = false) => {
     if (!currentProject || synopsis === lastSynopsisRef.current) return;
 
     setIsSaving(true);
     setSaveStatus('saving');
 
     try {
-      await updateProject({ synopsis });
+      await updateProject({ synopsis }, immediate);
       lastSynopsisRef.current = synopsis;
       setLastSaved(new Date());
       setSaveStatus('saved');
@@ -81,7 +81,7 @@ export const SynopsisStep: React.FC = () => {
   }, [synopsis, currentProject, performSave]);
 
   const handleSave = async () => {
-    await performSave();
+    await performSave(true); // 即座に保存
   };
 
   const handleAIGenerate = async () => {

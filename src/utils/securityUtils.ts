@@ -496,7 +496,7 @@ export const setSecurityHeaders = (): void => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com ws://localhost:* wss://localhost:*",
+    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ') : [
@@ -506,7 +506,7 @@ export const setSecurityHeaders = (): void => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com",
+    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:*",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ');

@@ -58,7 +58,7 @@ try {
 
 class DatabaseService {
   private autoSaveTimer: number | null = null;
-  private autoSaveInterval = 60000; // 1分
+  private autoSaveInterval = 180000; // 3分
   
   // パフォーマンス最適化のためのキャッシュ
   private projectCache = new DataCache<StoredProject>(50, 5 * 60 * 1000); // 50件、5分
@@ -72,7 +72,7 @@ class DatabaseService {
     }, 5 * 60 * 1000); // 5分ごと
   }
 
-  // プロジェクト保存
+  // プロジェクト保存（強化版）
   async saveProject(project: Project): Promise<void> {
     try {
       const storedProject: StoredProject = {
@@ -99,7 +99,13 @@ class DatabaseService {
       // キャッシュを更新
       this.projectCache.set(project.id, storedProject);
       
-      console.log(`プロジェクト "${project.title}" を保存しました`);
+      // 保存の確実性を高めるため、即座に読み込み確認
+      const savedProject = await db.projects.get(project.id);
+      if (!savedProject) {
+        throw new Error('保存後の確認でプロジェクトが見つかりません');
+      }
+      
+      console.log(`プロジェクト "${project.title}" を確実に保存しました`);
     } catch (error) {
       console.error('プロジェクト保存エラー:', error);
       // ConstraintErrorの場合は再試行
@@ -267,7 +273,7 @@ class DatabaseService {
     const settings = await db.settings.get('main');
     return settings || {
       id: 'main',
-      autoSaveInterval: 60000, // 1分
+      autoSaveInterval: 180000, // 3分
       maxAutoBackups: 10,
       maxManualBackups: 5,
       theme: 'light',
@@ -283,10 +289,14 @@ class DatabaseService {
     
     this.autoSaveTimer = setInterval(async () => {
       try {
-        // プロジェクトの保存のみ実行（バックアップは別途）
+        // プロジェクトの保存
         await this.saveProject(project);
+        
+        // 自動バックアップも作成
+        await this.createBackup(project, '自動バックアップ', 'auto');
+        
         callback();
-        console.log('自動保存完了');
+        console.log('自動保存・自動バックアップ完了');
       } catch (error) {
         console.error('自動保存エラー:', error);
         // エラーが発生してもアプリケーションは継続

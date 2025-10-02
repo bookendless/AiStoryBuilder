@@ -91,7 +91,7 @@ interface ProjectContextType {
   setCurrentProject: (project: Project | null) => void;
   projects: Project[];
   setProjects: (projects: Project[]) => void;
-  updateProject: (updates: Partial<Project>) => void;
+  updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
   createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string) => Project;
   saveProject: () => Promise<void>;
   createManualBackup: (description?: string) => Promise<void>;
@@ -166,7 +166,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     };
   }, [currentProject]);
 
-  const updateProject = (updates: Partial<Project>) => {
+  const updateProject = async (updates: Partial<Project>, immediate: boolean = false) => {
     if (!currentProject) return;
     
     const updatedProject = {
@@ -178,10 +178,21 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setCurrentProject(updatedProject);
     setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
     
-    // デバウンス付きで保存（500ms後に実行）
-    setTimer(() => {
-      saveProject();
-    }, 500);
+    if (immediate) {
+      // 即座に保存（手動保存時など）
+      try {
+        await databaseService.saveProject(updatedProject);
+        setLastSaved(new Date());
+        console.log('プロジェクトを即座に保存しました');
+      } catch (error) {
+        console.error('即座保存エラー:', error);
+      }
+    } else {
+      // デバウンス付きで保存（自動保存時）
+      setTimer(() => {
+        saveProject();
+      }, 500);
+    }
   };
 
   const createNewProject = (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string): Project => {

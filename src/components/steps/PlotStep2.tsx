@@ -184,9 +184,10 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
         updatedPlot.act3 = '';
       }
 
+      // 即座に保存
       await updateProject({
         plot: updatedPlot,
-      });
+      }, true);
       
       setSaveStatus('saved');
       console.log('Plot structure data saved successfully:', formData);
@@ -501,8 +502,8 @@ ${charactersInfo}
                       value={formData.ki}
                       onChange={(e) => setFormData({ ...formData, ki: e.target.value })}
                       placeholder="登場人物の紹介、日常の描写、事件の発端..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">
@@ -539,8 +540,8 @@ ${charactersInfo}
                       value={formData.sho}
                       onChange={(e) => setFormData({ ...formData, sho: e.target.value })}
                       placeholder="問題の詳細化、新たな登場人物、状況の発展..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-green-300 dark:border-green-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-green-300 dark:border-green-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">
@@ -577,8 +578,8 @@ ${charactersInfo}
                       value={formData.ten}
                       onChange={(e) => setFormData({ ...formData, ten: e.target.value })}
                       placeholder="予想外の展開、大きな転換点、クライマックス..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-orange-600 dark:text-orange-400 font-['Noto_Sans_JP']">
@@ -615,8 +616,8 @@ ${charactersInfo}
                       value={formData.ketsu}
                       onChange={(e) => setFormData({ ...formData, ketsu: e.target.value })}
                       placeholder="問題の解決、キャラクターの成長、新たな始まり..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">
@@ -655,8 +656,8 @@ ${charactersInfo}
                       value={formData.act1}
                       onChange={(e) => setFormData({ ...formData, act1: e.target.value })}
                       placeholder="登場人物の紹介、世界観の設定、事件の発端..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">
@@ -693,8 +694,8 @@ ${charactersInfo}
                       value={formData.act2}
                       onChange={(e) => setFormData({ ...formData, act2: e.target.value })}
                       placeholder="主人公の試練、対立の激化、クライマックスへの準備..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-green-300 dark:border-green-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-green-300 dark:border-green-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">
@@ -731,8 +732,8 @@ ${charactersInfo}
                       value={formData.act3}
                       onChange={(e) => setFormData({ ...formData, act3: e.target.value })}
                       placeholder="クライマックス、問題の解決、物語の結末、キャラクターの成長..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">
@@ -771,8 +772,8 @@ ${charactersInfo}
                       value={formData.fourAct1}
                       onChange={(e) => setFormData({ ...formData, fourAct1: e.target.value })}
                       placeholder="キャラクター紹介、世界観の設定、日常の確立..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">
@@ -809,8 +810,8 @@ ${charactersInfo}
                       value={formData.fourAct2}
                       onChange={(e) => setFormData({ ...formData, fourAct2: e.target.value })}
                       placeholder="問題の発生、状況の悪化、困難の増大..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-red-300 dark:border-red-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-red-300 dark:border-red-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
@@ -847,8 +848,8 @@ ${charactersInfo}
                       value={formData.fourAct3}
                       onChange={(e) => setFormData({ ...formData, fourAct3: e.target.value })}
                       placeholder="解決への取り組み、希望の光、状況の改善..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-green-300 dark:border-green-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-green-300 dark:border-green-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">
@@ -885,8 +886,8 @@ ${charactersInfo}
                       value={formData.fourAct4}
                       onChange={(e) => setFormData({ ...formData, fourAct4: e.target.value })}
                       placeholder="最終的な試練、真の解決、物語の結末..."
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-lg border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[100px]"
+                      rows={8}
+                      className="w-full px-4 py-3 rounded-lg border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]"
                     />
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">
