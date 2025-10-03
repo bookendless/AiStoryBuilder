@@ -147,6 +147,11 @@ desktop.ini
 src-tauri/target/
 src-tauri/Cargo.lock
 
+# Tauri generated files and icons
+src-tauri/app-icon.png
+src-tauri/icons/
+src-tauri/gen/
+
 # ログファイル
 *.log
 logs/

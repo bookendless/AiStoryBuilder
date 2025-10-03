@@ -4,10 +4,13 @@
 
 ![AI Story Builder Logo](https://img.shields.io/badge/AI-Story%20Builder-6366f1?style=for-the-badge&logo=openai&logoColor=white)
 
-**AIを活用した小説創作支援アプリケーション**
+**AIを活用した小説創作支援デスクトップアプリケーション**
 
 
 [![License](https://img.shields.io/badge/license-CC%20BY--NC--ND%204.0-blue.svg?style=flat-square)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows&logoColor=white)](https://github.com/bookendless/aistorybuilder/releases)
+[![macOS](https://img.shields.io/badge/macOS-開発中-orange?style=flat-square&logo=apple&logoColor=white)](https://github.com/bookendless/aistorybuilder/releases)
+[![Linux](https://img.shields.io/badge/Linux-開発中-orange?style=flat-square&logo=linux&logoColor=black)](https://github.com/bookendless/aistorybuilder/releases)
 
 
 
@@ -15,7 +18,14 @@
 
 ## 📖 概要
 
-AI Story Builderは、AI技術を活用して小説創作を支援するアプリケーションです。キャラクター設定から物語の執筆まで、AIが一貫してサポートします。初心者から上級者まで、誰でも簡単に魅力的な小説を作成できます。
+AI Story Builderは、AI技術を活用して小説創作を支援するデスクトップアプリケーションです。キャラクター設定から物語の執筆まで、AIが一貫してサポートします。初心者から上級者まで、誰でも簡単に魅力的な小説を作成できます。
+
+**🎯 デスクトップアプリとしての利点**
+- **依存関係のインストール不要**: ダウンロードしてすぐに使用可能
+- **高性能**: ネイティブアプリとして高速動作
+- **プライバシー**: データはローカルに保存
+- **オフライン対応**: ローカルLLMで完全オフライン利用可能
+- **使いやすさ**: ブラウザ不要、直感的な操作
 
 > **⚠️ 重要なご注意**
 > 
@@ -43,55 +53,33 @@ AI Story Builderは、AI技術を活用して小説創作を支援するアプ�
 
 ## 🚀 簡単スタート
 
-### 1. 必要なソフトウェアをインストール
+### 📱 デスクトップアプリの使用（推奨）
 
-**Node.js**（必須）
-- [Node.js公式サイト](https://nodejs.org/)からダウンロード
-- バージョン18以上を選択
+**1. アプリケーションのダウンロード**
+1. [リリースページ](https://github.com/bookendless/aistorybuilder/releases)から最新版をダウンロード
+2. **Windows**での利用が可能です：
+   - `ai-story-builder_*.exe`
+   - その他のプラットフォームは開発中
 
-**LM Studio**（AI用）
-- [LM Studio公式サイト](https://lmstudio.ai/)からダウンロード
-- Windows、macOS、Linux対応
+**2. アプリケーションの起動**
+- ダウンロードしたファイルを実行
+- 初回起動時にセキュリティ警告が表示される場合がありますが、問題ありません
 
-### 2. アプリケーションをダウンロード・セットアップ
+**3. ローカルAIの設定（オプション）**
+高度な機能を使用する場合は、ローカルAIを設定してください：
 
-```bash
-# このリポジトリをダウンロード
-git clone https://github.com/bookendless/aistorybuilder.git
-cd ai-story-builder
+**LM Studio を使用する場合:**
+1. [LM Studio](https://lmstudio.ai/)をダウンロード・インストール
+2. モデルをダウンロード（推奨：Llama 3.1 8B）
+3. 「Local Server」タブで「Start Server」をクリック
 
-# 自動セットアップ（推奨）
-npm run quick-start
-```
-
-### 3. ローカルAIを設定
-
-1. **LM Studio を起動**
-2. **モデルをダウンロード**（推奨：Llama 3.1 8B）
-3. **APIサーバーを開始**（「Local Server」タブで「Start Server」）
-
-### 4. アプリケーションを起動
-
-```bash
-# アプリケーションを起動
-npm run dev:local
-```
-
-ブラウザで `http://localhost:5173` にアクセスして使用開始！
-
-### クラウドAIの設定（推奨）
-
+**4. クラウドAIの設定（オプション）**
 高度な処理（草案執筆等）にはクラウドAIの使用を推奨します：
-
-1. 上記の手順1-2を実行
-2. `.env.local` ファイルでAPIキーを設定：
-   ```env
-   # クラウドAI APIキー（任意）
-   VITE_OPENAI_API_KEY=your_openai_api_key_here
-   VITE_CLAUDE_API_KEY=your_claude_api_key_here
-   VITE_GEMINI_API_KEY=your_gemini_api_key_here
-   ```
-3. `npm run dev` でアプリケーションを起動
+1. アプリケーションの「設定」メニューを開く
+2. APIキーを入力：
+   - OpenAI API Key
+   - Claude API Key
+   - Gemini API Key
 
 ## 📚 使い方
 
@@ -126,20 +114,40 @@ npm run dev:local
 
 ### よくある問題
 
-**Q: アプリケーションが起動しない**
-A: Node.jsが正しくインストールされているか確認してください
+**Q: デスクトップアプリが起動しない**
+A: 以下の点を確認してください：
+- セキュリティソフトがブロックしていないか確認
+- Windows Defenderで許可設定を行う
+- 管理者権限で実行してみる
+- 再ダウンロード・再インストールを試す
 
 **Q: AIが応答しない**
-A: ローカルLLMの場合はLM StudioのAPIサーバーが起動しているか確認してください。クラウドAIの場合はAPIキーが正しく設定されているか確認してください
+A: 設定を確認してください：
+- ローカルLLMの場合はLM StudioのAPIサーバーが起動しているか
+- クラウドAIの場合はAPIキーが正しく設定されているか
+- インターネット接続があるか（クラウドAI使用時）
+
+**Q: データが保存されない**
+A: 以下の点を確認してください：
+- アプリケーションのデータ保存先に書き込み権限があるか
+- ディスク容量が十分あるか
+- アプリケーションを正常に終了しているか
 
 **Q: 日本語の応答が不自然**
-A: ローカルLLMの場合はより高性能なモデル（Llama 3.1 70B等）の使用を検討してください。クラウドAIの場合はGPT-4やClaude 3.5 Sonnet等の高性能モデルを推奨します
+A: より高性能なモデルの使用を検討してください：
+- ローカルLLM: Llama 3.1 70B等の高品質モデル
+- クラウドAI: GPT-4、Claude 3.5 Sonnet等
 
 **Q: 動作が遅い**
-A: ローカルLLMの場合はより軽量なモデル（Mistral 7B等）の使用を検討してください。クラウドAIの場合はネットワーク状況を確認してください
+A: 以下の方法を試してください：
+- ローカルLLM: より軽量なモデル（Mistral 7B等）を使用
+- クラウドAI: ネットワーク状況を確認
+- システムリソース: 他のアプリケーションを終了
 
 **Q: どのAIを使えばいいですか？**
-A: 基本的な機能（キャラクター生成、プロット構築等）はローカルLLMで十分です。高度な処理（草案執筆等）にはクラウドAIの使用を推奨します
+A: 用途に応じて使い分けてください：
+- **基本機能**: ローカルLLM（キャラクター生成、プロット構築等）
+- **高度な処理**: クラウドAI（草案執筆、詳細な文章作成等）
 
 
 ## 📄 ライセンス
