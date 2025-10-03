@@ -261,19 +261,62 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
   };
 
   const parseAIResponse = (content: string) => {
+    // フォールバック: 基本的な解析処理（強化版）
     const newChapters: Array<{id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}> = [];
     const lines = content.split('\n').filter(line => line.trim());
-    let currentChapter = null;
+    let currentChapter: {
+      id: string;
+      title: string;
+      summary: string;
+      setting: string;
+      mood: string;
+      keyEvents: string[];
+      characters: string[];
+    } | null = null;
+
+    // 拡張された章検出パターン
+    const chapterPatterns = [
+      /第(\d+)章[：:]\s*(.+)/,           // 標準形式: 第1章: タイトル
+      /(\d+)\.\s*(.+)/,                  // 番号付き形式: 1. タイトル
+      /【第(\d+)章】\s*(.+)/,            // 括弧形式: 【第1章】 タイトル
+      /Chapter\s*(\d+)[：:]\s*(.+)/i,    // 英語形式: Chapter 1: タイトル
+      /章(\d+)[：:]\s*(.+)/,             // 簡略形式: 章1: タイトル
+      /^(\d+)\s*[．.]\s*(.+)/,           // 数字+句点形式: 1．タイトル
+      /^(\d+)\s*[-－]\s*(.+)/,           // 数字+ハイフン形式: 1-タイトル
+    ];
+
+    // 詳細情報検出パターン（より柔軟）
+    const detailPatterns = {
+      summary: [/概要[：:]\s*(.+)/, /あらすじ[：:]\s*(.+)/, /内容[：:]\s*(.+)/, /要約[：:]\s*(.+)/],
+      setting: [/設定[・・]場所[：:]\s*(.+)/, /舞台[：:]\s*(.+)/, /場所[：:]\s*(.+)/, /設定[：:]\s*(.+)/],
+      mood: [/雰囲気[・・]ムード[：:]\s*(.+)/, /ムード[：:]\s*(.+)/, /雰囲気[：:]\s*(.+)/, /トーン[：:]\s*(.+)/],
+      keyEvents: [/重要な出来事[：:]\s*(.+)/, /キーイベント[：:]\s*(.+)/, /出来事[：:]\s*(.+)/, /イベント[：:]\s*(.+)/],
+      characters: [/登場キャラクター[：:]\s*(.+)/, /登場人物[：:]\s*(.+)/, /キャラクター[：:]\s*(.+)/, /人物[：:]\s*(.+)/]
+    };
 
     for (const line of lines) {
-      const chapterMatch = line.match(/第(\d+)章:\s*(.+)/) || line.match(/(\d+)\.\s*(.+)/);
+      const trimmedLine = line.trim();
+      
+      // 章の開始を検出（複数パターンを試行）
+      let chapterMatch: RegExpMatchArray | null = null;
+      let chapterTitle = '';
+
+      for (const pattern of chapterPatterns) {
+        const match = trimmedLine.match(pattern);
+        if (match) {
+          chapterMatch = match;
+          chapterTitle = match[2].trim();
+          break;
+        }
+      }
+      
       if (chapterMatch) {
         if (currentChapter) {
           newChapters.push(currentChapter);
         }
         currentChapter = {
           id: Date.now().toString() + Math.random(),
-          title: chapterMatch[2].trim(),
+          title: chapterTitle,
           summary: '',
           setting: '',
           mood: '',
@@ -281,20 +324,77 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
           characters: [] as string[],
         };
       } else if (currentChapter) {
-        if (line.includes('概要:') || line.includes('概要：')) {
-          currentChapter.summary = line.replace(/概要[：:]\s*/, '').trim();
-        } else if (line.includes('設定・場所:') || line.includes('設定・場所：')) {
-          currentChapter.setting = line.replace(/設定・場所[：:]\s*/, '').trim();
-        } else if (line.includes('雰囲気・ムード:') || line.includes('雰囲気・ムード：')) {
-          currentChapter.mood = line.replace(/雰囲気・ムード[：:]\s*/, '').trim();
-        } else if (line.includes('重要な出来事:') || line.includes('重要な出来事：')) {
-          const eventsText = line.replace(/重要な出来事[：:]\s*/, '').trim();
-          currentChapter.keyEvents = eventsText.split(/[,、]/).map(event => event.trim()).filter(event => event) as string[];
-        } else if (line.includes('登場キャラクター:') || line.includes('登場キャラクター：')) {
-          const charactersText = line.replace(/登場キャラクター[：:]\s*/, '').trim();
-          currentChapter.characters = charactersText.split(/[,、]/).map(char => char.trim()).filter(char => char) as string[];
-        } else if (currentChapter.summary === '' && !line.startsWith('役割:') && !line.startsWith('ペース:') && !line.includes('設定・場所') && !line.includes('雰囲気・ムード') && !line.includes('重要な出来事') && !line.includes('登場')) {
-          currentChapter.summary = line.trim();
+        // 章の詳細情報を解析（複数パターンを試行）
+        let detailFound = false;
+
+        // 概要の検出
+        for (const pattern of detailPatterns.summary) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            currentChapter.summary = match[1].trim();
+            detailFound = true;
+            break;
+          }
+        }
+
+        // 設定・場所の検出
+        if (!detailFound) {
+          for (const pattern of detailPatterns.setting) {
+            const match = trimmedLine.match(pattern);
+            if (match) {
+              currentChapter.setting = match[1].trim();
+              detailFound = true;
+              break;
+            }
+          }
+        }
+
+        // 雰囲気・ムードの検出
+        if (!detailFound) {
+          for (const pattern of detailPatterns.mood) {
+            const match = trimmedLine.match(pattern);
+            if (match) {
+              currentChapter.mood = match[1].trim();
+              detailFound = true;
+              break;
+            }
+          }
+        }
+
+        // 重要な出来事の検出
+        if (!detailFound) {
+          for (const pattern of detailPatterns.keyEvents) {
+            const match = trimmedLine.match(pattern);
+            if (match) {
+              const eventsText = match[1].trim();
+              currentChapter.keyEvents = eventsText.split(/[,、;；]/).map(event => event.trim()).filter(event => event) as string[];
+              detailFound = true;
+              break;
+            }
+          }
+        }
+
+        // 登場キャラクターの検出
+        if (!detailFound) {
+          for (const pattern of detailPatterns.characters) {
+            const match = trimmedLine.match(pattern);
+            if (match) {
+              const charactersText = match[1].trim();
+              currentChapter.characters = charactersText.split(/[,、;；]/).map(char => char.trim()).filter(char => char) as string[];
+              detailFound = true;
+              break;
+            }
+          }
+        }
+
+        // 詳細情報が見つからず、概要も空の場合は最初の説明文を概要として使用
+        if (!detailFound && !currentChapter.summary && 
+            !trimmedLine.startsWith('役割:') && 
+            !trimmedLine.startsWith('ペース:') &&
+            !trimmedLine.includes('【') &&
+            !trimmedLine.includes('】') &&
+            trimmedLine.length > 10) {
+          currentChapter.summary = trimmedLine;
         }
       }
     }
@@ -511,22 +611,31 @@ ${context.existingChapters.map((ch: { title: string; summary: string; setting?: 
 【未完了構成要素】
 ${incompleteStructures.join('、')}
 
-【出力形式】（必ずこの形式で出力してください）
+【必須出力形式】（この形式を厳密に守ってください）
 第1章: [章タイトル]
-概要: [章の概要（200文字程度）]
+概要: [章の概要（200文字以内）]
 設定・場所: [章の舞台となる場所や設定]
 雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, ...]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
+
+第2章: [章タイトル]
+概要: [章の概要（200文字以内）]
+設定・場所: [章の舞台となる場所や設定]
+雰囲気・ムード: [章の雰囲気やムード]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
 
 （以下同様に続く）
 
 【出力制約】
 - 最低4章以上作成すること
-- 各章の概要は200文字程度に収めること
-- 設定・場所、雰囲気・ムード、重要な出来事、登場キャラクターも含めること
+- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
+- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
+- 章番号は「第X章:」の形式を使用すること
+- 各章の概要は200文字以内に収めること
 - 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 必ず指定された形式で出力すること
+- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
 
 【最重要指示】
 1. 構成詳細の情報を最優先で従い、逸脱しない
@@ -569,22 +678,31 @@ ${context.existingChapters.map((ch: { title: string; summary: string; setting?: 
 【未完了構成要素】
 ${incompleteStructures.join('、')}
 
-【出力形式】（必ずこの形式で出力してください）
+【必須出力形式】（この形式を厳密に守ってください）
 第1章: [章タイトル]
-概要: [章の概要（200文字程度）]
+概要: [章の概要（200文字以内）]
 設定・場所: [章の舞台となる場所や設定]
 雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, ...]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
+
+第2章: [章タイトル]
+概要: [章の概要（200文字以内）]
+設定・場所: [章の舞台となる場所や設定]
+雰囲気・ムード: [章の雰囲気やムード]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
 
 （以下同様に続く）
 
 【出力制約】
 - 最低4章以上作成すること
-- 各章の概要は200文字程度に収めること
-- 設定・場所、雰囲気・ムード、重要な出来事、登場キャラクターも含めること
+- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
+- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
+- 章番号は「第X章:」の形式を使用すること
+- 各章の概要は200文字以内に収めること
 - 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 必ず指定された形式で出力すること
+- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
 
 【最重要指示】
 1. **構成詳細の情報を最優先で従い、逸脱しない**
@@ -638,22 +756,31 @@ ${context.existingChapters.map((ch: { title: string; summary: string; setting?: 
   return chapterInfo;
 }).join('\n') || '既存の章はありません'}
 
-【出力形式】（必ずこの形式で出力してください）
+【必須出力形式】（この形式を厳密に守ってください）
 第1章: [章タイトル]
-概要: [章の概要（200文字程度）]
+概要: [章の概要（200文字以内）]
 設定・場所: [章の舞台となる場所や設定]
 雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, ...]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
+
+第2章: [章タイトル]
+概要: [章の概要（200文字以内）]
+設定・場所: [章の舞台となる場所や設定]
+雰囲気・ムード: [章の雰囲気やムード]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
 
 （以下同様に続く）
 
 【出力制約】
 - 最低4章以上作成すること
-- 各章の概要は200文字程度に収めること
-- 設定・場所、雰囲気・ムード、重要な出来事、登場キャラクターも含めること
+- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
+- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
+- 章番号は「第X章:」の形式を使用すること
+- 各章の概要は200文字以内に収めること
 - 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 必ず指定された形式で出力すること
+- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
 
 【最重要指示】
 1. 構成詳細の情報を最優先で従い、逸脱しない
@@ -692,25 +819,31 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
   return chapterInfo;
 }).join('\n\n') || '既存の章はありません'}
 
-【出力形式】
-以下の形式で必ず出力してください。各章は番号付きで、タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクターを含めてください。
-
+【必須出力形式】（この形式を厳密に守ってください）
 第1章: [章タイトル]
-概要: [章の概要（200文字程度）]
+概要: [章の概要（200文字以内）]
 設定・場所: [章の舞台となる場所や設定]
 雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, ...]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
 
+第2章: [章タイトル]
+概要: [章の概要（200文字以内）]
+設定・場所: [章の舞台となる場所や設定]
+雰囲気・ムード: [章の雰囲気やムード]
+重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
+登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
 
 （以下同様に続く）
 
 【出力制約】
 - 最低4章以上作成すること
-- 各章の概要は200文字程度に収めること
-- 設定・場所、雰囲気・ムード、重要な出来事、登場キャラクターも含めること
+- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
+- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
+- 章番号は「第X章:」の形式を使用すること
+- 各章の概要は200文字以内に収めること
 - 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 必ず指定された形式で出力すること
+- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
 
 【最重要指示】
 1. **構成詳細の情報を最優先で従い、逸脱しない**
@@ -792,9 +925,27 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         updateProject({
           chapters: [...currentProject!.chapters, ...newChapters],
         });
-        alert(`AI構成提案で${newChapters.length}章を追加しました。`);
+        
+        // 不完全な章があるかチェック
+        const incompleteChapters = newChapters.filter((ch: {
+          id: string;
+          title: string;
+          summary: string;
+          characters?: string[];
+          setting?: string;
+          mood?: string;
+          keyEvents?: string[];
+        }) => 
+          !ch.summary || !ch.setting || !ch.mood || !ch.keyEvents?.length || !ch.characters?.length
+        );
+        
+        if (incompleteChapters.length > 0) {
+          alert(`AI構成提案で${newChapters.length}章を追加しました。\n\n注意: ${incompleteChapters.length}章で情報が不完全です。必要に応じて手動で編集してください。`);
+        } else {
+          alert(`AI構成提案で${newChapters.length}章を追加しました。`);
+        }
       } else {
-        alert('章立ての解析に失敗しました。手動で追加してください。\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
+        alert('章立ての解析に失敗しました。\n\n考えられる原因:\n1. AI出力の形式が期待と異なる\n2. 章の開始パターンが見つからない\n3. 必要な情報が不足している\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
         setShowLogs(true);
       }
       
@@ -867,9 +1018,27 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
           updateProject({
             chapters: [...currentProject.chapters, ...newChapters],
           });
-          alert(`構成バランスAI提案で${newChapters.length}章を追加しました。\n対象: ${incompleteStructures.join('、')}`);
+          
+          // 不完全な章があるかチェック
+          const incompleteChapters = newChapters.filter((ch: {
+            id: string;
+            title: string;
+            summary: string;
+            characters?: string[];
+            setting?: string;
+            mood?: string;
+            keyEvents?: string[];
+          }) => 
+            !ch.summary || !ch.setting || !ch.mood || !ch.keyEvents?.length || !ch.characters?.length
+          );
+          
+          if (incompleteChapters.length > 0) {
+            alert(`構成バランスAI提案で${newChapters.length}章を追加しました。\n対象: ${incompleteStructures.join('、')}\n\n注意: ${incompleteChapters.length}章で情報が不完全です。必要に応じて手動で編集してください。`);
+          } else {
+            alert(`構成バランスAI提案で${newChapters.length}章を追加しました。\n対象: ${incompleteStructures.join('、')}`);
+          }
         } else {
-          alert('章立ての解析に失敗しました。手動で追加してください。\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
+          alert('章立ての解析に失敗しました。\n\n考えられる原因:\n1. AI出力の形式が期待と異なる\n2. 章の開始パターンが見つからない\n3. 必要な情報が不足している\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
           setShowLogs(true);
         }
       } else {

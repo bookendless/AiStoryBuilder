@@ -8,6 +8,7 @@ export interface ParsedResponse {
   data: unknown;
   rawContent: string;
   error?: string;
+  warnings?: string[];
 }
 
 /**
@@ -156,7 +157,7 @@ const parseTextResponse = (content: string): ParsedResponse => {
 };
 
 /**
- * 章立て構造を解析
+ * 章立て構造を解析（強化版）
  */
 interface Chapter {
   id: string;
@@ -173,13 +174,71 @@ const parseChapterStructure = (content: string): ParsedResponse => {
   const chapters: Chapter[] = [];
   const lines = content.split('\n');
   let currentChapter: Chapter | null = null;
+  const warnings: string[] = [];
 
-  for (const line of lines) {
+  // 拡張された章検出パターン
+  const chapterPatterns = [
+    /第(\d+)章[：:]\s*(.+)/,           // 標準形式: 第1章: タイトル
+    /(\d+)\.\s*(.+)/,                  // 番号付き形式: 1. タイトル
+    /【第(\d+)章】\s*(.+)/,            // 括弧形式: 【第1章】 タイトル
+    /Chapter\s*(\d+)[：:]\s*(.+)/i,    // 英語形式: Chapter 1: タイトル
+    /章(\d+)[：:]\s*(.+)/,             // 簡略形式: 章1: タイトル
+    /^(\d+)\s*[．.]\s*(.+)/,           // 数字+句点形式: 1．タイトル
+    /^(\d+)\s*[-－]\s*(.+)/,           // 数字+ハイフン形式: 1-タイトル
+  ];
+
+  // 詳細情報検出パターン（より柔軟）
+  const detailPatterns = {
+    summary: [
+      /概要[：:]\s*(.+)/,
+      /あらすじ[：:]\s*(.+)/,
+      /内容[：:]\s*(.+)/,
+      /要約[：:]\s*(.+)/
+    ],
+    setting: [
+      /設定[・・]場所[：:]\s*(.+)/,
+      /舞台[：:]\s*(.+)/,
+      /場所[：:]\s*(.+)/,
+      /設定[：:]\s*(.+)/
+    ],
+    mood: [
+      /雰囲気[・・]ムード[：:]\s*(.+)/,
+      /ムード[：:]\s*(.+)/,
+      /雰囲気[：:]\s*(.+)/,
+      /トーン[：:]\s*(.+)/
+    ],
+    keyEvents: [
+      /重要な出来事[：:]\s*(.+)/,
+      /キーイベント[：:]\s*(.+)/,
+      /出来事[：:]\s*(.+)/,
+      /イベント[：:]\s*(.+)/
+    ],
+    characters: [
+      /登場キャラクター[：:]\s*(.+)/,
+      /登場人物[：:]\s*(.+)/,
+      /キャラクター[：:]\s*(.+)/,
+      /人物[：:]\s*(.+)/
+    ]
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmedLine = line.trim();
     
-    // 章の開始を検出
-    const chapterMatch = trimmedLine.match(/第(\d+)章[：:]\s*(.+)/) || 
-                       trimmedLine.match(/(\d+)\.\s*(.+)/);
+    // 章の開始を検出（複数パターンを試行）
+    let chapterMatch: RegExpMatchArray | null = null;
+    let chapterNumber = 0;
+    let chapterTitle = '';
+
+    for (const pattern of chapterPatterns) {
+      const match = trimmedLine.match(pattern);
+      if (match) {
+        chapterMatch = match;
+        chapterNumber = parseInt(match[1]);
+        chapterTitle = match[2].trim();
+        break;
+      }
+    }
     
     if (chapterMatch) {
       // 前の章を保存
@@ -189,9 +248,9 @@ const parseChapterStructure = (content: string): ParsedResponse => {
       
       // 新しい章を開始
       currentChapter = {
-        id: `chapter_${chapterMatch[1]}`,
-        number: parseInt(chapterMatch[1]),
-        title: chapterMatch[2].trim(),
+        id: `chapter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        number: chapterNumber,
+        title: chapterTitle,
         summary: '',
         setting: '',
         mood: '',
@@ -199,21 +258,76 @@ const parseChapterStructure = (content: string): ParsedResponse => {
         characters: []
       };
     } else if (currentChapter) {
-      // 章の詳細情報を解析
-      if (trimmedLine.includes('概要') || trimmedLine.includes('概要：')) {
-        currentChapter.summary = trimmedLine.replace(/概要[：:]\s*/, '').trim();
-      } else if (trimmedLine.includes('設定・場所') || trimmedLine.includes('設定・場所：')) {
-        currentChapter.setting = trimmedLine.replace(/設定・場所[：:]\s*/, '').trim();
-      } else if (trimmedLine.includes('雰囲気・ムード') || trimmedLine.includes('雰囲気・ムード：')) {
-        currentChapter.mood = trimmedLine.replace(/雰囲気・ムード[：:]\s*/, '').trim();
-      } else if (trimmedLine.includes('重要な出来事') || trimmedLine.includes('重要な出来事：')) {
-        const eventsText = trimmedLine.replace(/重要な出来事[：:]\s*/, '').trim();
-        currentChapter.keyEvents = eventsText.split(/[,、]/).map(event => event.trim()).filter(event => event);
-      } else if (trimmedLine.includes('登場キャラクター') || trimmedLine.includes('登場人物')) {
-        const charactersText = trimmedLine.replace(/登場(キャラクター|人物)[：:]\s*/, '').trim();
-        currentChapter.characters = charactersText.split(/[,、]/).map(char => char.trim()).filter(char => char);
-      } else if (!currentChapter.summary && !trimmedLine.startsWith('役割:') && !trimmedLine.startsWith('ペース:')) {
-        // 最初の説明文を概要として使用
+      // 章の詳細情報を解析（複数パターンを試行）
+      let detailFound = false;
+
+      // 概要の検出
+      for (const pattern of detailPatterns.summary) {
+        const match = trimmedLine.match(pattern);
+        if (match) {
+          currentChapter.summary = match[1].trim();
+          detailFound = true;
+          break;
+        }
+      }
+
+      // 設定・場所の検出
+      if (!detailFound) {
+        for (const pattern of detailPatterns.setting) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            currentChapter.setting = match[1].trim();
+            detailFound = true;
+            break;
+          }
+        }
+      }
+
+      // 雰囲気・ムードの検出
+      if (!detailFound) {
+        for (const pattern of detailPatterns.mood) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            currentChapter.mood = match[1].trim();
+            detailFound = true;
+            break;
+          }
+        }
+      }
+
+      // 重要な出来事の検出
+      if (!detailFound) {
+        for (const pattern of detailPatterns.keyEvents) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            const eventsText = match[1].trim();
+            currentChapter.keyEvents = eventsText.split(/[,、;；]/).map(event => event.trim()).filter(event => event);
+            detailFound = true;
+            break;
+          }
+        }
+      }
+
+      // 登場キャラクターの検出
+      if (!detailFound) {
+        for (const pattern of detailPatterns.characters) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            const charactersText = match[1].trim();
+            currentChapter.characters = charactersText.split(/[,、;；]/).map(char => char.trim()).filter(char => char);
+            detailFound = true;
+            break;
+          }
+        }
+      }
+
+      // 詳細情報が見つからず、概要も空の場合は最初の説明文を概要として使用
+      if (!detailFound && !currentChapter.summary && 
+          !trimmedLine.startsWith('役割:') && 
+          !trimmedLine.startsWith('ペース:') &&
+          !trimmedLine.includes('【') &&
+          !trimmedLine.includes('】') &&
+          trimmedLine.length > 10) {
         currentChapter.summary = trimmedLine;
       }
     }
@@ -224,12 +338,32 @@ const parseChapterStructure = (content: string): ParsedResponse => {
     chapters.push(currentChapter);
   }
 
+  // 解析結果の検証と警告生成
+  const incompleteChapters = chapters.filter(ch => 
+    !ch.summary || !ch.setting || !ch.mood || ch.keyEvents.length === 0 || ch.characters.length === 0
+  );
+
+  if (incompleteChapters.length > 0) {
+    warnings.push(`${incompleteChapters.length}章で情報が不完全です。手動で編集することをお勧めします。`);
+  }
+
+  if (chapters.length === 0) {
+    return {
+      success: false,
+      data: null,
+      rawContent: content,
+      error: '章立ての解析に失敗しました。AI応答の形式を確認してください。',
+      warnings: ['章の開始パターンが見つかりませんでした。']
+    };
+  }
+
   return {
     success: true,
     data: {
       type: 'chapters',
       chapters: chapters,
-      count: chapters.length
+      count: chapters.length,
+      warnings: warnings
     },
     rawContent: content
   };
