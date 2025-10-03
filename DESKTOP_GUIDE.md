@@ -174,11 +174,10 @@ ollama serve
 ### 1. プロジェクトデータ
 
 #### 保存場所
-- **Windows**: `%USERPROFILE%\AppData\Roaming\AI Story Builder\projects\`
+- **Windows**: `%USERPROFILE%\AppData\Local\com.aistorybuilder.app\EBWebView\Default\IndexedDB`
 
 #### データ形式
 - **プロジェクトファイル**: `.json` (JSON形式)
-- **バックアップファイル**: `.asb.bak`
 - **エクスポートファイル**: `.txt`, `.md`, `.html`
 
 ### 2. データのエクスポート
