@@ -4,6 +4,8 @@ import { useAI } from '../../contexts/AIContext';
 import { PenTool, Sparkles, BookOpen, Save, Download, FileText } from 'lucide-react';
 import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { save } from '@tauri-apps/plugin-dialog';
 
 export const DraftStep: React.FC = () => {
   const { currentProject, updateProject, createManualBackup } = useProject();
@@ -711,23 +713,39 @@ ${chaptersInfo}
   };
 
   // エクスポート機能
-  const handleExportChapter = () => {
+  const handleExportChapter = async () => {
     if (!currentChapter || !draft.trim()) {
       alert('エクスポートする章の内容がありません');
       return;
     }
     
-    const content = `# ${currentChapter.title}\n\n${draft}`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentChapter.title}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const content = `# ${currentChapter.title}\n\n${draft}`;
+      
+      // Tauriのダイアログを使用してファイル保存場所を選択
+      const filePath = await save({
+        title: 'ファイルを保存',
+        defaultPath: `${currentChapter.title}.txt`,
+        filters: [
+          {
+            name: 'Text Files',
+            extensions: ['txt']
+          }
+        ]
+      });
+      
+      if (filePath) {
+        // TauriのファイルシステムAPIを使用してファイルを保存
+        await writeTextFile(filePath, content);
+        alert('エクスポートが完了しました');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('エクスポートに失敗しました: ' + (error as Error).message);
+    }
   };
 
-  const handleExportFull = () => {
+  const handleExportFull = async () => {
     if (!currentProject) return;
     
     let content = `# ${currentProject.title}\n\n`;
@@ -745,13 +763,28 @@ ${chaptersInfo}
       return;
     }
     
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentProject.title}_完全版.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      // Tauriのダイアログを使用してファイル保存場所を選択
+      const filePath = await save({
+        title: 'ファイルを保存',
+        defaultPath: `${currentProject.title}_完全版.txt`,
+        filters: [
+          {
+            name: 'Text Files',
+            extensions: ['txt']
+          }
+        ]
+      });
+      
+      if (filePath) {
+        // TauriのファイルシステムAPIを使用してファイルを保存
+        await writeTextFile(filePath, content);
+        alert('エクスポートが完了しました');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('エクスポートに失敗しました: ' + (error as Error).message);
+    }
   };
 
   // 自動保存用のタイマー

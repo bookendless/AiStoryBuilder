@@ -2,6 +2,7 @@ import { AIRequest, AIResponse, AIProvider } from '../types/ai';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
 import { decryptApiKey, sanitizeInput } from '../utils/securityUtils';
+import { httpService } from './httpService';
 
 // AI プロバイダーの定義
 export const AI_PROVIDERS: AIProvider[] = [
@@ -414,36 +415,31 @@ class AIService {
       // APIキーの復号化
       const apiKey = decryptApiKey(request.settings.apiKey);
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: request.settings.model,
-          messages: [
-            {
-              role: 'system',
-              content: '日本語の小説創作を支援するAIアシスタントです。自然で読みやすい日本語で回答してください。',
-            },
-            {
-              role: 'user',
-              content: request.prompt,
-            },
-          ],
-          temperature: request.settings.temperature,
-          max_tokens: request.settings.maxTokens,
-        }),
+      const response = await httpService.post('https://api.openai.com/v1/chat/completions', {
+        model: request.settings.model,
+        messages: [
+          {
+            role: 'system',
+            content: '日本語の小説創作を支援するAIアシスタントです。自然で読みやすい日本語で回答してください。',
+          },
+          {
+            role: 'user',
+            content: request.prompt,
+          },
+        ],
+        temperature: request.settings.temperature,
+        max_tokens: request.settings.maxTokens,
+      }, {
+        'Authorization': `Bearer ${apiKey}`,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+      if (response.status >= 400) {
+        const errorData = response.data as { error?: { message?: string } };
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
         throw new Error(`OpenAI API エラー: ${errorMessage}`);
       }
 
-      const data = await response.json();
+      const data = response.data as { choices: Array<{ message: { content: string } }>; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } };
       
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('OpenAI API からの応答が無効です');
@@ -482,33 +478,28 @@ class AIService {
         maxTokens: request.settings.maxTokens,
       });
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: request.settings.model,
-          max_tokens: request.settings.maxTokens,
-          temperature: request.settings.temperature,
-          messages: [
-            {
-              role: 'user',
-              content: request.prompt,
-            },
-          ],
-        }),
+      const response = await httpService.post('https://api.anthropic.com/v1/messages', {
+        model: request.settings.model,
+        max_tokens: request.settings.maxTokens,
+        temperature: request.settings.temperature,
+        messages: [
+          {
+            role: 'user',
+            content: request.prompt,
+          },
+        ],
+      }, {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+      if (response.status >= 400) {
+        const errorData = response.data as { error?: { message?: string } };
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
         throw new Error(`Claude API エラー: ${errorMessage}`);
       }
 
-      const data = await response.json();
+      const data = response.data as { content: Array<{ text: string }>; usage?: { input_tokens: number; output_tokens: number } };
       
       console.log('Claude API Response:', data);
       
@@ -550,31 +541,25 @@ class AIService {
         maxTokens: request.settings.maxTokens,
       });
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: request.prompt,
-            }],
+      const response = await httpService.post(`https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`, {
+        contents: [{
+          parts: [{
+            text: request.prompt,
           }],
-          generationConfig: {
-            temperature: request.settings.temperature,
-            maxOutputTokens: request.settings.maxTokens,
-          },
-        }),
+        }],
+        generationConfig: {
+          temperature: request.settings.temperature,
+          maxOutputTokens: request.settings.maxTokens,
+        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+      if (response.status >= 400) {
+        const errorData = response.data as { error?: { message?: string } };
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
         throw new Error(`Gemini API エラー: ${errorMessage}`);
       }
 
-      const data = await response.json();
+      const data = response.data as { candidates: Array<{ content: { parts: Array<{ text: string }> } }> };
       
       console.log('Gemini API Response:', data);
       
@@ -612,9 +597,8 @@ class AIService {
         }
       }
 
-      // Viteのプロキシを使用する場合は、相対パスに変更
-      const isLocalhost = endpoint.includes('localhost:1234');
-      const apiEndpoint = isLocalhost ? '/api/local' : endpoint;
+      // Tauriアプリケーションでは直接エンドポイントを使用
+      const apiEndpoint = endpoint;
 
       // プロンプトの長さを制限（Local LLMでは短めに）
       const maxPromptLength = 3000;
@@ -635,30 +619,24 @@ class AIService {
         maxTokens: maxTokens,
       });
 
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: request.settings.model || 'local-model',
-          messages: [
-            {
-              role: 'system',
-              content: '日本語の小説創作を支援するAIアシスタントです。自然で読みやすい日本語で回答してください。',
-            },
-            {
-              role: 'user',
-              content: truncatedPrompt,
-            },
-          ],
-          temperature: request.settings.temperature,
-          max_tokens: maxTokens,
-        }),
+      const response = await httpService.post(apiEndpoint, {
+        model: request.settings.model || 'local-model',
+        messages: [
+          {
+            role: 'system',
+            content: '日本語の小説創作を支援するAIアシスタントです。自然で読みやすい日本語で回答してください。',
+          },
+          {
+            role: 'user',
+            content: truncatedPrompt,
+          },
+        ],
+        temperature: request.settings.temperature,
+        max_tokens: maxTokens,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+      if (response.status >= 400) {
+        const errorData = response.data as { error?: { message?: string } };
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
         console.error('Local LLM HTTP Error:', {
           status: response.status,
@@ -669,7 +647,7 @@ class AIService {
         throw new Error(`ローカルLLM エラー: ${errorMessage}`);
       }
 
-      const data = await response.json();
+      const data = response.data as { choices?: Array<{ message: { content: string } }>; content?: string; response?: string; error?: string };
       
       console.log('Local LLM Response:', data);
       
@@ -698,10 +676,26 @@ class AIService {
         throw new Error(`ローカルLLM からの応答が無効です。応答形式: ${JSON.stringify(data)}`);
       }
     } catch (error) {
-      console.error('Local LLM Error:', error);
+      console.error('Local LLM Error:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        endpoint: request.settings.localEndpoint
+      });
+      
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        if (error.message.includes('ネットワークエラー')) {
+          errorMessage = `ローカルLLMサーバーに接続できません。サーバーが起動しているか確認してください。\nエンドポイント: ${request.settings.localEndpoint || 'http://localhost:1234'}`;
+        } else if (error.message.includes('タイムアウト')) {
+          errorMessage = `ローカルLLMサーバーからの応答がタイムアウトしました。サーバーが正常に動作しているか確認してください。`;
+        } else {
+          errorMessage = `ローカルLLM エラー: ${error.message}`;
+        }
+      }
+      
       return {
         content: '',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       };
     }
   }

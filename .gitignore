@@ -143,6 +143,10 @@ desktop.ini
 *.ipr
 *.iws
 
+# Tauri build files
+src-tauri/target/
+src-tauri/Cargo.lock
+
 # ログファイル
 *.log
 logs/

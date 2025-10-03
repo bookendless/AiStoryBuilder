@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Download, FileText, File, Globe, Check } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { save } from '@tauri-apps/plugin-dialog';
 
 export const ExportStep: React.FC = () => {
   const { currentProject } = useProject();
@@ -29,19 +31,27 @@ export const ExportStep: React.FC = () => {
         content = generateHtmlContent();
       }
       
-      const mimeType = selectedFormat === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8';
-      const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${currentProject.title}.${selectedFormat}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Tauriのダイアログを使用してファイル保存場所を選択
+      const filePath = await save({
+        title: 'ファイルを保存',
+        defaultPath: `${currentProject.title}.${selectedFormat}`,
+        filters: [
+          {
+            name: 'Text Files',
+            extensions: [selectedFormat]
+          }
+        ]
+      });
       
-    } catch (_error) {
-      alert('エクスポートに失敗しました');
+      if (filePath) {
+        // TauriのファイルシステムAPIを使用してファイルを保存
+        await writeTextFile(filePath, content);
+        alert('エクスポートが完了しました');
+      }
+      
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('エクスポートに失敗しました: ' + (error as Error).message);
     } finally {
       setIsExporting(false);
     }

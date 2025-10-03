@@ -35,10 +35,19 @@
     "setup:local": "node scripts/setup-local.js",
     "check:local": "node scripts/check-local-llm.js",
     "quick-start": "node scripts/quick-start.js",
-    "optimize-repo": "node scripts/optimize-repo.js"
+    "optimize-repo": "node scripts/optimize-repo.js",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:info": "tauri info"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/cli": "^2.8.4",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@tauri-apps/plugin-fs": "^2.4.2",
+    "@tauri-apps/plugin-http": "^2.5.2",
     "axios": "^1.11.0",
     "dexie": "^4.2.0",
     "lucide-react": "^0.344.0",

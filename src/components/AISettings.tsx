@@ -153,33 +153,35 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       } else if (formData.provider === 'local') {
         const endpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
         
-        // Viteのプロキシを使用する場合は、相対パスに変更
-        const isLocalhost = endpoint.includes('localhost:1234');
-        const apiEndpoint = isLocalhost ? '/api/local' : endpoint;
+        // Tauriアプリケーションでは直接エンドポイントを使用
+        const apiEndpoint = endpoint;
         
         console.log('Testing local LLM connection:', {
-          originalEndpoint: endpoint,
+          endpoint,
           apiEndpoint,
-          isLocalhost,
           testPrompt
         });
         
-        response = await fetch(apiEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: formData.model || 'local-model',
-            messages: [
-              {
-                role: 'user',
-                content: testPrompt,
-              },
-            ],
-            max_tokens: 50,
-          }),
+        // Tauri HTTP APIを使用
+        const { httpService } = await import('../services/httpService');
+        const httpResponse = await httpService.post(apiEndpoint, {
+          model: formData.model || 'local-model',
+          messages: [
+            {
+              role: 'user',
+              content: testPrompt,
+            },
+          ],
+          max_tokens: 50,
         });
+        
+        // fetch形式のレスポンスオブジェクトを作成
+        response = {
+          ok: httpResponse.status >= 200 && httpResponse.status < 300,
+          status: httpResponse.status,
+          statusText: httpResponse.statusText,
+          json: async () => httpResponse.data
+        };
         
         console.log('Local LLM test response:', {
           ok: response.ok,
@@ -249,7 +251,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   onClick={() => {
                     const newModel = provider.models[0].id;
                     const newModelData = provider.models[0];
-                    const updateData: any = { 
+                    const updateData: Record<string, unknown> = { 
                       ...formData, 
                       provider: provider.id,
                       model: newModel,

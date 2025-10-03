@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { X, Database, Download, Upload, Trash2, Copy, RotateCcw, HardDrive, Save, Clock } from 'lucide-react';
 import { databaseService } from '../services/databaseService';
 import { useProject, Project } from '../contexts/ProjectContext';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { save } from '@tauri-apps/plugin-dialog';
 
 interface DataManagerProps {
   isOpen: boolean;
@@ -110,18 +112,27 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     setIsLoading(true);
     try {
       const exportData = await databaseService.exportData();
-      const blob = new Blob([exportData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `story-builder-backup-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      alert('データをエクスポートしました');
-    } catch (_error) {
-      alert('エクスポートに失敗しました');
+      
+      // Tauriのダイアログを使用してファイル保存場所を選択
+      const filePath = await save({
+        title: 'バックアップファイルを保存',
+        defaultPath: `story-builder-backup-${new Date().toISOString().split('T')[0]}.json`,
+        filters: [
+          {
+            name: 'JSON Files',
+            extensions: ['json']
+          }
+        ]
+      });
+      
+      if (filePath) {
+        // TauriのファイルシステムAPIを使用してファイルを保存
+        await writeTextFile(filePath, exportData);
+        alert('データをエクスポートしました');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('エクスポートに失敗しました: ' + (error as Error).message);
     } finally {
       setIsLoading(false);
     }

@@ -1,18 +1,25 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// 最適化されたVite設定
+// Tauri 2.0ではViteの設定を調整する必要があります
 export default defineConfig({
   plugins: [react()],
+  
+  // Tauri用の設定
+  clearScreen: false,
   optimizeDeps: {
     exclude: ['lucide-react'],
     include: ['react', 'react-dom', 'dexie', 'axios']
   },
   server: {
     port: 5173,
+    strictPort: true,
     host: true,
-    open: true,
+    open: false, // Tauriでは自動で開かない
     cors: true,
+    watch: {
+      ignored: ["**/src-tauri/**"],
+    },
     // ローカルLLM用のプロキシ設定
     proxy: {
       '/api/local': {
