@@ -39,8 +39,8 @@ const getDefaultSettings = (): AISettings => {
     provider: defaultProvider,
     model: defaultModel,
     temperature: 0.7,
-    maxTokens: 1000,
-    apiKey: openaiKey || claudeKey || geminiKey,
+    maxTokens: 3000,
+    apiKey: openaiKey || claudeKey || geminiKey || '', // 空文字列をデフォルトに
     localEndpoint: localEndpoint,
   };
 };
@@ -60,13 +60,10 @@ export const useAI = () => {
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AISettings>(() => {
     try {
-      // 環境変数が設定されている場合はそれを優先
+      // 環境変数からデフォルト設定を取得
       const envSettings = getDefaultSettings();
-      if (envSettings.apiKey || envSettings.localEndpoint) {
-        return envSettings;
-      }
-
-      // 環境変数が設定されていない場合はlocalStorageから読み込み
+      
+      // localStorageから読み込み
       const saved = localStorage.getItem('ai-settings');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -77,17 +74,19 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         const selectedModel = selectedProvider?.models.find(m => m.id === parsed.model);
         const modelMaxTokens = selectedModel?.maxTokens || 8192;
         
-        // 設定のバリデーション
+        // 設定のバリデーション（手動入力のAPIキーが優先）
         const validated = {
-          ...defaultSettings,
+          ...envSettings,
           ...parsed,
-          temperature: Math.max(0, Math.min(1, parsed.temperature || defaultSettings.temperature)),
-          maxTokens: Math.max(100, Math.min(modelMaxTokens, parsed.maxTokens || defaultSettings.maxTokens)),
+          // 手動入力されたAPIキーがある場合はそれを優先、なければ環境変数を使用
+          apiKey: parsed.apiKey || envSettings.apiKey || '',
+          temperature: Math.max(0, Math.min(1, parsed.temperature || envSettings.temperature)),
+          maxTokens: Math.max(100, Math.min(modelMaxTokens, parsed.maxTokens || envSettings.maxTokens)),
         };
         console.log('Validated settings:', JSON.stringify(validated, null, 2));
         return validated;
       }
-      return defaultSettings;
+      return envSettings;
     } catch (error) {
       console.error('AI設定の読み込みエラー:', error);
       return defaultSettings;

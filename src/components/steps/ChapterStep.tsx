@@ -137,7 +137,6 @@ export const ChapterStep: React.FC = () => {
       return {
         title: '無題',
         description: '一般小説',
-        synopsis: '',
         plot: {
           theme: '',
           setting: '',
@@ -147,7 +146,6 @@ export const ChapterStep: React.FC = () => {
         },
         characters: [],
         existingChapters: [],
-        imageBoard: []
       };
     }
 
@@ -187,9 +185,6 @@ export const ChapterStep: React.FC = () => {
       title: currentProject.title || '無題',
       description: currentProject.description || '一般小説',
       
-      // あらすじ（最重要）
-      synopsis: currentProject.synopsis || '',
-      
       // プロット情報
       plot: {
         theme: currentProject.plot?.theme || '',
@@ -216,13 +211,7 @@ export const ChapterStep: React.FC = () => {
         setting: c.setting || '',
         mood: c.mood || '',
         keyEvents: c.keyEvents || []
-      })),
-      
-      // イメージボード情報
-      imageBoard: currentProject.imageBoard?.map(img => ({
-        description: img.description,
-        url: img.url
-      })) || []
+      }))
     };
   };
 
@@ -301,8 +290,8 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
         } else if (line.includes('重要な出来事:') || line.includes('重要な出来事：')) {
           const eventsText = line.replace(/重要な出来事[：:]\s*/, '').trim();
           currentChapter.keyEvents = eventsText.split(/[,、]/).map(event => event.trim()).filter(event => event) as string[];
-        } else if (line.includes('登場キャラクター:') || line.includes('登場キャラクター：') || line.includes('登場人物:') || line.includes('登場人物：')) {
-          const charactersText = line.replace(/登場(キャラクター|人物)[：:]\s*/, '').trim();
+        } else if (line.includes('登場キャラクター:') || line.includes('登場キャラクター：')) {
+          const charactersText = line.replace(/登場キャラクター[：:]\s*/, '').trim();
           currentChapter.characters = charactersText.split(/[,、]/).map(char => char.trim()).filter(char => char) as string[];
         } else if (currentChapter.summary === '' && !line.startsWith('役割:') && !line.startsWith('ペース:') && !line.includes('設定・場所') && !line.includes('雰囲気・ムード') && !line.includes('重要な出来事') && !line.includes('登場')) {
           currentChapter.summary = line.trim();
@@ -502,22 +491,35 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 作品タイトル: ${context.title}
 メインジャンル: ${currentProject?.mainGenre || '未設定'}
 
-【最重要】構成詳細（必ず従う）
+【最重要】構成詳細
 ${context.plot?.structureDetails || '構成詳細が設定されていません'}
-
-【未完了構成要素】
-${incompleteStructures.join('、')}
 
 【キャラクター】
 ${context.characters.slice(0, 3).map((c: { name: string; role: string }) => `${c.name}(${c.role})`).join(', ')}
 
-【出力形式】
+【既存章構成】
+${context.existingChapters.map((ch: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }, index: number) => {
+  let chapterInfo = `${index + 1}. ${ch.title}: ${ch.summary}`;
+  if (ch.setting) chapterInfo += `\n   設定・場所: ${ch.setting}`;
+  if (ch.mood) chapterInfo += `\n   雰囲気・ムード: ${ch.mood}`;
+  if (ch.keyEvents && ch.keyEvents.length > 0) {
+    chapterInfo += `\n   重要な出来事: ${ch.keyEvents.join(', ')}`;
+  }
+  return chapterInfo;
+}).join('\n')}
+
+【未完了構成要素】
+${incompleteStructures.join('、')}
+
+【出力形式】（必ずこの形式で出力してください）
 第1章: [章タイトル]
 概要: [章の概要（200文字程度）]
 設定・場所: [章の舞台となる場所や設定]
 雰囲気・ムード: [章の雰囲気やムード]
 重要な出来事: [重要な出来事1, 重要な出来事2, ...]
 登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
+
+（以下同様に続く）
 
 【出力制約】
 - 最低4章以上作成すること
@@ -542,7 +544,7 @@ ${context.characters.slice(0, 3).map((c: { name: string; role: string }) => `${c
 作品タイトル: ${context.title}
 メインジャンル: ${currentProject?.mainGenre || '未設定'}
 
-【最重要】構成詳細（必ず従う）
+【最重要】構成詳細
 ${context.plot?.structureDetails || '構成詳細が設定されていません'}
 
 【キャラクター情報】
@@ -567,13 +569,15 @@ ${context.existingChapters.map((ch: { title: string; summary: string; setting?: 
 【未完了構成要素】
 ${incompleteStructures.join('、')}
 
-【出力形式】
+【出力形式】（必ずこの形式で出力してください）
 第1章: [章タイトル]
 概要: [章の概要（200文字程度）]
 設定・場所: [章の舞台となる場所や設定]
 雰囲気・ムード: [章の雰囲気やムード]
 重要な出来事: [重要な出来事1, 重要な出来事2, ...]
 登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
+
+（以下同様に続く）
 
 【出力制約】
 - 最低4章以上作成すること
@@ -623,13 +627,26 @@ ${context.plot.structureDetails || '構成詳細が設定されていません'}
 
 主要キャラクター: ${context.characters.length > 0 ? context.characters.slice(0, 3).map((c: { name: string; role: string }) => `${c.name}(${c.role})`).join(', ') : 'キャラクターが設定されていません'}
 
-【出力形式】
+【既存章構成】
+${context.existingChapters.map((ch: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }, index: number) => {
+  let chapterInfo = `${index + 1}. ${ch.title}: ${ch.summary}`;
+  if (ch.setting) chapterInfo += `\n   設定・場所: ${ch.setting}`;
+  if (ch.mood) chapterInfo += `\n   雰囲気・ムード: ${ch.mood}`;
+  if (ch.keyEvents && ch.keyEvents.length > 0) {
+    chapterInfo += `\n   重要な出来事: ${ch.keyEvents.join(', ')}`;
+  }
+  return chapterInfo;
+}).join('\n') || '既存の章はありません'}
+
+【出力形式】（必ずこの形式で出力してください）
 第1章: [章タイトル]
 概要: [章の概要（200文字程度）]
 設定・場所: [章の舞台となる場所や設定]
 雰囲気・ムード: [章の雰囲気やムード]
 重要な出来事: [重要な出来事1, 重要な出来事2, ...]
 登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
+
+（以下同様に続く）
 
 【出力制約】
 - 最低4章以上作成すること
@@ -655,7 +672,7 @@ ${context.plot.structureDetails || '構成詳細が設定されていません'}
 作品タイトル: ${context.title}
 メインジャンル: ${currentProject?.mainGenre || '未設定'}
 
-【最重要】構成詳細（必ず従う）
+【最重要】構成詳細
 ${context.plot.structureDetails || '構成詳細が設定されていません'}
 
 【主要キャラクター】
@@ -685,12 +702,6 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
 重要な出来事: [重要な出来事1, 重要な出来事2, ...]
 登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
 
-第2章: [章タイトル]
-概要: [章の概要（200文字程度）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, ...]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2, ...]
 
 （以下同様に続く）
 
