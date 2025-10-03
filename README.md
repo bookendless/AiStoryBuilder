@@ -7,10 +7,8 @@
 **AIを活用した小説創作支援デスクトップアプリケーション**
 
 
-[![License](https://img.shields.io/badge/license-CC%20BY--NC--ND%204.0-blue.svg?style=flat-square)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Windows](https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows&logoColor=white)](https://github.com/bookendless/aistorybuilder/releases)
-[![macOS](https://img.shields.io/badge/macOS-開発中-orange?style=flat-square&logo=apple&logoColor=white)](https://github.com/bookendless/aistorybuilder/releases)
-[![Linux](https://img.shields.io/badge/Linux-開発中-orange?style=flat-square&logo=linux&logoColor=black)](https://github.com/bookendless/aistorybuilder/releases)
 
 
 
@@ -66,12 +64,12 @@ AI Story Builderは、AI技術を活用して小説創作を支援するデス�
 - 初回起動時にセキュリティ警告が表示される場合がありますが、問題ありません
 
 **3. ローカルAIの設定（オプション）**
-高度な機能を使用する場合は、ローカルAIを設定してください：
+AI補助機能を使用する場合は、ローカルAIを設定してください：
 
 **LM Studio を使用する場合:**
 1. [LM Studio](https://lmstudio.ai/)をダウンロード・インストール
 2. モデルをダウンロード（推奨：Llama 3.1 8B）
-3. 「Local Server」タブで「Start Server」をクリック
+3. 「Developer」タブで「Start Server(Status:Running)」をクリック
 
 **4. クラウドAIの設定（オプション）**
 高度な処理（草案執筆等）にはクラウドAIの使用を推奨します：
@@ -89,7 +87,8 @@ AI Story Builderは、AI技術を活用して小説創作を支援するデス�
    - テーマ、ジャンル、ターゲット読者を設定
 
 2. **キャラクター設定**
-   - 主要キャラクターをAI支援で作成
+   - 主要キャラクターを作成
+   - AIにキャラクターを提案してもらう
    - 外見、性格、背景を詳細に設定
 
 3. **プロット構築**
@@ -98,7 +97,6 @@ AI Story Builderは、AI技術を活用して小説創作を支援するデス�
 
 4. **あらすじ作成**
    - 設定した情報を基にAIがあらすじを生成
-   - 必要に応じて手動で調整
 
 5. **章立て構成**
    - 物語の長さに応じた章構成を提案
@@ -152,7 +150,17 @@ A: 用途に応じて使い分けてください：
 
 ## 📄 ライセンス
 
-このプロジェクトはクリエイティブ・コモンズ 表示 - 非営利 - 改変禁止 4.0 国際ライセンスの下で公開されています。**商用利用は禁止されています**。詳細は[LICENSE](LICENSE)ファイルを参照してください。
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author's Intention / 作者の意図
+本ソフトウェアは MITライセンスの下で公開しています。  
+ただし作者の意図としては、教育・研究・趣味などの **非営利利用** を主な目的としています。  
+**再配布は歓迎しますが、有料での販売はご遠慮ください。**
+
+This software is released under the MIT License.  
+However, the author intends this project to be used mainly for **non-commercial purposes** such as education, research, and personal hobbies.  
+**Redistribution is welcome, but please refrain from selling it for a fee.**
 
 ## 🙏 謝辞
 
