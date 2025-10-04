@@ -251,7 +251,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   onClick={() => {
                     const newModel = provider.models[0].id;
                     const newModelData = provider.models[0];
-                    const updateData: Record<string, unknown> = { 
+                    const updateData = { 
                       ...formData, 
                       provider: provider.id,
                       model: newModel,

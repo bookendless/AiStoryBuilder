@@ -29,7 +29,6 @@ export class HttpService {
         headers,
         body,
         connectTimeout: timeout,
-        readTimeout: timeout,
       });
 
       const responseText = await response.text();
@@ -45,7 +44,7 @@ export class HttpService {
         data,
         status: response.status,
         statusText: response.statusText || '',
-        headers: response.headers,
+        headers: Object.fromEntries(response.headers.entries()),
       };
     } catch (error) {
       console.error('HTTP Request Error:', {
