@@ -119,7 +119,7 @@ AI Story Builderのデスクトップアプリケーションの使い方を詳�
 1. [LM Studio](https://lmstudio.ai/)をダウンロード・インストール
 2. 推奨モデルをダウンロード：
    - **Llama 3.1 8B**: バランス型、8GB RAM
-   - **Mistral 7B**: 軽量で高性能
+   - **Gemma 3 4B**: 軽量で高性能
    - **Qwen2 7B**: 多言語対応
 3. LM StudioでAPIサーバーを起動
 4. AI Story Builderの設定で接続確認

@@ -68,7 +68,7 @@ AI補助機能を使用する場合は、ローカルAIを設定してくださ�
 
 **LM Studio を使用する場合:**
 1. [LM Studio](https://lmstudio.ai/)をダウンロード・インストール
-2. モデルをダウンロード（推奨：Llama 3.1 8B）
+2. モデルをダウンロード（推奨：Gemma 3）
 3. 「Developer」タブで「Start Server(Status:Running)」をクリック
 
 **4. クラウドAIの設定（オプション）**
