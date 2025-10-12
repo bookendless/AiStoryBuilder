@@ -92,79 +92,99 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       // テスト用の簡単なプロンプト
       const testPrompt = "こんにちは。これは接続テストです。";
       
-      let response;
+      // httpServiceを使用してテストを実行
+      const { httpService } = await import('../services/httpService');
+      
       if (formData.provider === 'openai') {
-        response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${formData.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: formData.model,
-            messages: [
-              {
-                role: 'user',
-                content: testPrompt,
-              },
-            ],
-            max_tokens: 50,
-          }),
+        const response = await httpService.post('https://api.openai.com/v1/chat/completions', {
+          model: formData.model,
+          messages: [
+            {
+              role: 'user',
+              content: testPrompt,
+            },
+          ],
+          max_tokens: 50,
+        }, {
+          'Authorization': `Bearer ${formData.apiKey}`,
         });
+
+        if (response.status >= 400) {
+          const errorData = response.data as { error?: { message?: string } };
+          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
+        }
       } else if (formData.provider === 'claude') {
         if (!formData.apiKey) {
           throw new Error('Claude APIキーが設定されていません');
         }
-        response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': formData.apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: formData.model,
-            max_tokens: 50,
-            messages: [
-              {
-                role: 'user',
-                content: testPrompt,
-              },
-            ],
-          }),
-        });
-      } else if (formData.provider === 'gemini') {
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${formData.model}:generateContent?key=${formData.apiKey}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: testPrompt,
-              }],
-            }],
-            generationConfig: {
-              maxOutputTokens: 50,
+        const response = await httpService.post('https://api.anthropic.com/v1/messages', {
+          model: formData.model,
+          max_tokens: 50,
+          messages: [
+            {
+              role: 'user',
+              content: testPrompt,
             },
-          }),
+          ],
+        }, {
+          'x-api-key': formData.apiKey,
+          'anthropic-version': '2023-06-01',
         });
+
+        if (response.status >= 400) {
+          const errorData = response.data as { error?: { message?: string } };
+          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
+        }
+      } else if (formData.provider === 'gemini') {
+        const response = await httpService.post(`https://generativelanguage.googleapis.com/v1beta/models/${formData.model}:generateContent?key=${formData.apiKey}`, {
+          contents: [{
+            parts: [{
+              text: testPrompt,
+            }],
+          }],
+          generationConfig: {
+            maxOutputTokens: 50,
+          },
+        });
+
+        if (response.status >= 400) {
+          const errorData = response.data as { error?: { message?: string } };
+          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
+        }
       } else if (formData.provider === 'local') {
-        const endpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
+        let endpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
         
-        // Tauriアプリケーションでは直接エンドポイントを使用
-        const apiEndpoint = endpoint;
+        // エンドポイントにパスが含まれていない場合は追加
+        if (!endpoint.includes('/v1/chat/completions') && !endpoint.includes('/api/') && !endpoint.includes('/chat')) {
+          if (endpoint.endsWith('/')) {
+            endpoint = endpoint + 'v1/chat/completions';
+          } else {
+            endpoint = endpoint + '/v1/chat/completions';
+          }
+        }
+        
+        // Tauri環境チェック
+        const isTauriEnv = typeof window !== 'undefined' && '__TAURI__' in window;
+        
+        // 開発環境でTauriでない場合はプロキシ経由（CORS回避）
+        let apiEndpoint = endpoint;
+        if (!isTauriEnv && import.meta.env.DEV) {
+          // 開発環境ではViteのプロキシを使用
+          if (endpoint.includes('localhost:1234')) {
+            apiEndpoint = '/api/local';
+          } else if (endpoint.includes('localhost:11434')) {
+            apiEndpoint = '/api/ollama';
+          }
+        }
         
         console.log('Testing local LLM connection:', {
-          endpoint,
+          originalEndpoint: endpoint,
           apiEndpoint,
-          testPrompt
+          isTauriEnv,
+          isDev: import.meta.env.DEV
         });
         
-        // Tauri HTTP APIを使用
-        const { httpService } = await import('../services/httpService');
-        const httpResponse = await httpService.post(apiEndpoint, {
+        const response = await httpService.post(apiEndpoint, {
           model: formData.model || 'local-model',
           messages: [
             {
@@ -175,26 +195,17 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           max_tokens: 50,
         });
         
-        // fetch形式のレスポンスオブジェクトを作成
-        response = {
-          ok: httpResponse.status >= 200 && httpResponse.status < 300,
-          status: httpResponse.status,
-          statusText: httpResponse.statusText,
-          json: async () => httpResponse.data
-        };
-        
         console.log('Local LLM test response:', {
-          ok: response.ok,
           status: response.status,
           statusText: response.statusText
         });
+
+        if (response.status >= 400) {
+          const errorData = response.data as { error?: { message?: string } };
+          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
+        }
       } else {
         throw new Error('サポートされていないプロバイダーです');
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
       }
 
       setTestResult({

@@ -1,4 +1,32 @@
-import { fetch } from '@tauri-apps/plugin-http';
+// Tauri環境を検出
+const isTauri = (): boolean => {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+};
+
+// Tauri fetchのキャッシュ
+let tauriFetchCache: typeof fetch | null = null;
+let tauriFetchInitialized = false;
+
+// Tauri fetchを取得（非同期）
+const getTauriFetch = async (): Promise<typeof fetch | null> => {
+  if (tauriFetchInitialized) {
+    return tauriFetchCache;
+  }
+
+  if (isTauri()) {
+    try {
+      const httpPlugin = await import('@tauri-apps/plugin-http');
+      tauriFetchCache = httpPlugin.fetch;
+      console.log('Tauri HTTP plugin loaded successfully');
+    } catch (error) {
+      console.warn('Tauri HTTP plugin not available, falling back to browser fetch:', error);
+      tauriFetchCache = null;
+    }
+  }
+  
+  tauriFetchInitialized = true;
+  return tauriFetchCache;
+};
 
 export interface HttpRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -24,12 +52,61 @@ export class HttpService {
     } = options;
 
     try {
-      const response = await fetch(url, {
+      // Tauri環境かブラウザ環境かで適切なfetchを使用
+      const tauriFetch = await getTauriFetch();
+      const fetchToUse = tauriFetch || window.fetch.bind(window);
+      const isUsingTauri = tauriFetch !== null;
+      
+      console.log('HTTP Request:', {
+        url,
+        method,
+        isTauriEnv: isTauri(),
+        isUsingTauriFetch: isUsingTauri
+      });
+      
+      // Tauri環境用のオプション
+      const fetchOptions: RequestInit & { connectTimeout?: number } = {
         method,
         headers,
         body,
-        connectTimeout: timeout,
-      });
+      };
+      
+      // Tauri環境ではconnectTimeoutを設定
+      if (isUsingTauri) {
+        fetchOptions.connectTimeout = timeout;
+      } else {
+        // ブラウザ環境ではAbortControllerでタイムアウトを実装
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        fetchOptions.signal = controller.signal;
+        
+        try {
+          const response = await fetchToUse(url, fetchOptions);
+          clearTimeout(timeoutId);
+          
+          const responseText = await response.text();
+          let data: T;
+          
+          try {
+            data = JSON.parse(responseText) as T;
+          } catch {
+            data = responseText as T;
+          }
+
+          return {
+            data,
+            status: response.status,
+            statusText: response.statusText || '',
+            headers: Object.fromEntries(response.headers.entries()),
+          };
+        } catch (error) {
+          clearTimeout(timeoutId);
+          throw error;
+        }
+      }
+      
+      // Tauri環境での実行
+      const response = await fetchToUse(url, fetchOptions);
 
       const responseText = await response.text();
       let data: T;
@@ -51,12 +128,15 @@ export class HttpService {
         url,
         method,
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
+        isTauriEnv: isTauri()
       });
       
       // より詳細なエラー情報を提供
       if (error instanceof Error) {
-        if (error.message.includes('fetch')) {
+        if (error.name === 'AbortError') {
+          throw new Error(`タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`);
+        } else if (error.message.includes('fetch')) {
           throw new Error(`ネットワークエラー: ${error.message}`);
         } else if (error.message.includes('timeout')) {
           throw new Error(`タイムアウトエラー: ${error.message}`);

@@ -597,8 +597,22 @@ class AIService {
         }
       }
 
-      // Tauriアプリケーションでは直接エンドポイントを使用
-      const apiEndpoint = endpoint;
+      // Tauri環境チェック
+      const isTauriEnv = typeof window !== 'undefined' && '__TAURI__' in window;
+      
+      // 開発環境でTauriでない場合はプロキシ経由（CORS回避）
+      let apiEndpoint = endpoint;
+      if (!isTauriEnv && import.meta.env.DEV) {
+        // 開発環境ではViteのプロキシを使用
+        // http://localhost:1234 -> /api/local
+        if (endpoint.includes('localhost:1234')) {
+          apiEndpoint = '/api/local';
+        } else if (endpoint.includes('localhost:11434')) {
+          // Ollama用のプロキシも追加
+          apiEndpoint = '/api/ollama';
+        }
+        // それ以外のローカルエンドポイントの場合は直接接続を試みる
+      }
 
       // プロンプトの長さを制限（Local LLMでは短めに）
       const maxPromptLength = 3000;

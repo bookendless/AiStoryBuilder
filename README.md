@@ -79,6 +79,26 @@ AI補助機能を使用する場合は、ローカルAIを設定してくださ�
    - Claude API Key
    - Gemini API Key
 
+## 👨‍💻 開発者向け情報
+
+### 📚 ドキュメント
+
+- **[🚀 クイックスタート (QUICKSTART.md)](QUICKSTART.md)** - すぐに開発を始めたい方向け
+- **[開発環境ガイド (DEV_GUIDE.md)](DEV_GUIDE.md)** - 開発環境でのセットアップと動作について
+- **[Rustインストールガイド (RUST_INSTALL_GUIDE.md)](RUST_INSTALL_GUIDE.md)** - Tauri開発に必要なRustのインストール
+- **[Tauriセットアップガイド (TAURI_SETUP.md)](TAURI_SETUP.md)** - Tauriアプリケーションのビルドとデプロイ
+
+**開発モードの起動:**
+```bash
+# ブラウザ環境での開発（推奨 - Rust不要）
+npm run dev
+
+# Tauri環境での開発（Rustインストール必要）
+npm run tauri:dev
+```
+
+> **💡 ヒント**: AI機能のテストや一般的な開発作業には `npm run dev` を使用することを推奨します。Rustのインストールが不要で、すぐに開発を始められます。
+
 ## 📚 使い方
 
 ### 基本的な流れ
