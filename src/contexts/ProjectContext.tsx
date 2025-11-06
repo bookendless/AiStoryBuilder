@@ -12,6 +12,37 @@ export interface Character {
   image?: string;
 }
 
+export interface GlossaryTerm {
+  id: string;
+  term: string;
+  reading?: string;
+  definition: string;
+  category: 'character' | 'location' | 'concept' | 'item' | 'other';
+  notes?: string;
+  createdAt: Date;
+}
+
+export interface CharacterRelationship {
+  id: string;
+  from: string;
+  to: string;
+  type: 'friend' | 'enemy' | 'family' | 'romantic' | 'mentor' | 'rival' | 'other';
+  strength: number;
+  description?: string;
+  notes?: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  title: string;
+  description: string;
+  date?: string;
+  order: number;
+  chapterId?: string;
+  characterIds?: string[];
+  category: 'plot' | 'character' | 'world' | 'other';
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -84,6 +115,10 @@ export interface Project {
   draft: string;
   createdAt: Date;
   updatedAt: Date;
+  lastAccessed?: Date; // 最後にアクセスした日時
+  glossary?: GlossaryTerm[];
+  relationships?: CharacterRelationship[];
+  timeline?: TimelineEvent[];
 }
 
 interface ProjectContextType {
@@ -115,11 +150,33 @@ export const useProject = () => {
 };
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [currentProject, setCurrentProjectState] = useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const { setTimer } = useTimer();
+
+  // setCurrentProjectをラップしてlastAccessedを更新
+  const setCurrentProject = (project: Project | null) => {
+    if (project) {
+      const now = new Date();
+      const updatedProject = {
+        ...project,
+        lastAccessed: now,
+      };
+      setCurrentProjectState(updatedProject);
+      // プロジェクト一覧も更新
+      setProjects(prev => prev.map(p => 
+        p.id === updatedProject.id ? updatedProject : p
+      ));
+      // データベースにも保存（非同期だがエラーは無視）
+      databaseService.saveProject(updatedProject).catch(err => {
+        console.error('lastAccessed更新エラー:', err);
+      });
+    } else {
+      setCurrentProjectState(null);
+    }
+  };
 
   // 初期化時にプロジェクト一覧を読み込み
   useSafeEffect(() => {
@@ -244,6 +301,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       draft: '',
       createdAt: new Date(),
       updatedAt: new Date(),
+      lastAccessed: new Date(),
+      glossary: [],
+      relationships: [],
+      timeline: [],
     };
     
     setProjects(prev => [...prev, newProject]);
@@ -293,16 +354,24 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       const project = await databaseService.loadProject(id);
       if (project) {
         // 日付フィールドの整合性を確保
+        const now = new Date();
         const normalizedProject = {
           ...project,
           createdAt: project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt),
           updatedAt: project.updatedAt instanceof Date ? project.updatedAt : new Date(project.updatedAt),
+          lastAccessed: now,
           imageBoard: project.imageBoard?.map(img => ({
             ...img,
             addedAt: img.addedAt instanceof Date ? img.addedAt : new Date(img.addedAt)
           })) || []
         };
         setCurrentProject(normalizedProject);
+        // プロジェクト一覧のlastAccessedも更新
+        setProjects(prev => prev.map(p => 
+          p.id === normalizedProject.id ? normalizedProject : p
+        ));
+        // データベースにも保存
+        await databaseService.saveProject(normalizedProject);
       } else {
         alert('プロジェクトが見つかりません');
       }
@@ -359,6 +428,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         ...project,
         createdAt: project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt),
         updatedAt: project.updatedAt instanceof Date ? project.updatedAt : new Date(project.updatedAt),
+        lastAccessed: project.lastAccessed instanceof Date ? project.lastAccessed : (project.lastAccessed ? new Date(project.lastAccessed) : undefined),
         imageBoard: project.imageBoard?.map(img => ({
           ...img,
           addedAt: img.addedAt instanceof Date ? img.addedAt : new Date(img.addedAt)

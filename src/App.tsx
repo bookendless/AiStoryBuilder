@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { ToolsSidebar } from './components/ToolsSidebar';
 import { HomePage } from './components/HomePage';
 import { CharacterStep } from './components/steps/CharacterStep';
 import { PlotStep1 } from './components/steps/PlotStep1';
@@ -21,6 +22,8 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isToolsSidebarCollapsed, setIsToolsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -178,15 +181,29 @@ function App() {
               currentStep={currentStep} 
               onStepChange={setCurrentStep}
               className={currentStep === 'home' ? 'hidden' : ''}
+              isCollapsed={isSidebarCollapsed}
+              onCollapseChange={setIsSidebarCollapsed}
             />
             
             <div className={`flex-1 transition-all duration-300 ${
-              currentStep === 'home' ? 'ml-0' : 'ml-64'
-            }`}>
+              currentStep === 'home' 
+                ? 'ml-0' 
+                : isSidebarCollapsed 
+                  ? 'ml-16' 
+                  : 'ml-64'
+            } ${currentStep === 'home' ? 'mr-0' : isToolsSidebarCollapsed ? 'mr-16' : 'mr-64'}`}>
               <Header 
                 isDarkMode={isDarkMode} 
                 onToggleTheme={toggleTheme}
                 onHomeClick={() => setCurrentStep('home')}
+                isSidebarCollapsed={isSidebarCollapsed}
+                isToolsSidebarCollapsed={isToolsSidebarCollapsed}
+                onToggleBothSidebars={() => {
+                  const newState = !(isSidebarCollapsed && isToolsSidebarCollapsed);
+                  setIsSidebarCollapsed(newState);
+                  setIsToolsSidebarCollapsed(newState);
+                }}
+                showSidebarControls={currentStep !== 'home'}
               />
               
               <main 
@@ -199,6 +216,12 @@ function App() {
                 {renderStep()}
               </main>
             </div>
+            
+            <ToolsSidebar 
+              className={currentStep === 'home' ? 'hidden' : ''}
+              isCollapsed={isToolsSidebarCollapsed}
+              onCollapseChange={setIsToolsSidebarCollapsed}
+            />
           </div>
         </div>
       </ProjectProvider>

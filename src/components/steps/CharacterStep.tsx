@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn, FileText, Copy, Download } from 'lucide-react';
+import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn, FileText, Copy, Download, Network } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { RelationshipDiagram } from '../tools/RelationshipDiagram';
 
 interface AILogEntry {
   id: string;
@@ -529,6 +530,7 @@ export const CharacterStep: React.FC = () => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [showRelationships, setShowRelationships] = useState(false);
   const [imageViewerState, setImageViewerState] = useState<{
     isOpen: boolean;
     imageUrl: string;
@@ -1007,13 +1009,22 @@ ${'='.repeat(80)}`
               💡 キャラクターカードをドラッグ&ドロップで並び順を変更できます
             </p>
           </div>
-          <button
-            onClick={handleOpenAddModal}
-            className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg"
-          >
-            <Plus className="h-5 w-5" />
-            <span>新しいキャラクターを追加</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowRelationships(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg"
+            >
+              <Network className="h-5 w-5" />
+              <span>人物相関図</span>
+            </button>
+            <button
+              onClick={handleOpenAddModal}
+              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg"
+            >
+              <Plus className="h-5 w-5" />
+              <span>新しいキャラクターを追加</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1350,6 +1361,12 @@ ${'='.repeat(80)}`
         onClose={() => setImageViewerState({ isOpen: false, imageUrl: '', characterName: '' })}
         imageUrl={imageViewerState.imageUrl}
         characterName={imageViewerState.characterName}
+      />
+
+      {/* 人物相関図 */}
+      <RelationshipDiagram
+        isOpen={showRelationships}
+        onClose={() => setShowRelationships(false)}
       />
     </div>
   );

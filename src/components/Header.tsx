@@ -1,27 +1,43 @@
-import React from 'react';
-import { Moon, Sun, Home, BookOpen, Image, Settings, Save, Database } from 'lucide-react';
+import React, { useState } from 'react';
+import { Moon, Sun, Home, BookOpen, Save, PanelLeftClose, PanelLeftOpen, Database, Settings } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAI } from '../contexts/AIContext';
-import { ImageBoard } from './ImageBoard';
-import { AISettings } from './AISettings';
 import { DataManager } from './DataManager';
+import { AISettings } from './AISettings';
 
 interface HeaderProps {
   isDarkMode: boolean;
   onToggleTheme: () => void;
   onHomeClick: () => void;
+  isSidebarCollapsed?: boolean;
+  isToolsSidebarCollapsed?: boolean;
+  onToggleBothSidebars?: () => void;
+  showSidebarControls?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ isDarkMode, onToggleTheme, onHomeClick }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  isDarkMode, 
+  onToggleTheme, 
+  onHomeClick,
+  isSidebarCollapsed = false,
+  isToolsSidebarCollapsed = false,
+  onToggleBothSidebars,
+  showSidebarControls = false,
+}) => {
   const { currentProject, saveProject, isLoading, lastSaved } = useProject();
   const { isConfigured } = useAI();
-  const [showImageBoard, setShowImageBoard] = React.useState(false);
-  const [showAISettings, setShowAISettings] = React.useState(false);
-  const [showDataManager, setShowDataManager] = React.useState(false);
+  const [showDataManager, setShowDataManager] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
 
   const handleManualSave = async () => {
     await saveProject();
   };
+
+  // 両方のサイドバーが折りたたまれているかどうか
+  const areBothCollapsed = isSidebarCollapsed && isToolsSidebarCollapsed;
+  
+  // ホーム画面かどうか（サイドバーコントロールが表示されていない場合）
+  const isHomePage = !showSidebarControls;
 
   return (
     <>
@@ -47,12 +63,25 @@ export const Header: React.FC<HeaderProps> = ({ isDarkMode, onToggleTheme, onHom
               <h1 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                 AIと共創するストーリービルダー
               </h1>
+              {showSidebarControls && onToggleBothSidebars && (
+                <button
+                  onClick={onToggleBothSidebars}
+                  className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  aria-label={areBothCollapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
+                  title={areBothCollapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
+                >
+                  {areBothCollapsed ? (
+                    <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </button>
+              )}
             </div>
           </div>
           
           <nav className="flex items-center space-x-4" role="navigation" aria-label="メインナビゲーション">
             {currentProject && (
-              <>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={handleManualSave}
@@ -70,46 +99,40 @@ export const Header: React.FC<HeaderProps> = ({ isDarkMode, onToggleTheme, onHom
                   {isLoading ? 'プロジェクトを保存中です' : lastSaved ? `最後の保存: ${lastSaved.toLocaleTimeString('ja-JP')}` : 'まだ保存されていません'}
                 </span>
               </div>
-              
-              <button
-                onClick={() => setShowImageBoard(true)}
-                className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-md"
-                aria-label="イメージボードを開く"
-              >
-                <Image className="h-5 w-5" aria-hidden="true" />
-                <span className="hidden sm:inline">イメージボード</span>
-              </button>
-              </>
             )}
             
-            <button
-              onClick={() => setShowDataManager(true)}
-              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 rounded-md"
-              aria-label="データ管理を開く"
-            >
-              <Database className="h-5 w-5" aria-hidden="true" />
-              <span className="hidden sm:inline">データ管理</span>
-            </button>
-            
-            
-            <button
-              onClick={() => setShowAISettings(true)}
-              className={`flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 rounded-md ${
-                !isConfigured ? 'animate-pulse' : ''
-              }`}
-              aria-label={isConfigured ? 'AI設定を開く' : 'AI設定が必要です'}
-              aria-describedby={!isConfigured ? 'ai-config-required' : undefined}
-            >
-              <Settings className="h-5 w-5" aria-hidden="true" />
-              <span className="hidden sm:inline">AI設定</span>
-              {!isConfigured && (
-                <span className="w-2 h-2 bg-red-500 rounded-full" aria-hidden="true"></span>
-              )}
-            </button>
-            {!isConfigured && (
-              <span id="ai-config-required" className="sr-only">
-                AI設定が必要です。設定を完了してください。
-              </span>
+            {/* ホーム画面でのみ表示されるボタン */}
+            {isHomePage && (
+              <>
+                <button
+                  onClick={() => setShowDataManager(true)}
+                  className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 rounded-md"
+                  aria-label="データ管理を開く"
+                >
+                  <Database className="h-5 w-5" aria-hidden="true" />
+                  <span className="hidden sm:inline">データ管理</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowAISettings(true)}
+                  className={`flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 rounded-md ${
+                    !isConfigured ? 'animate-pulse' : ''
+                  }`}
+                  aria-label={isConfigured ? 'AI設定を開く' : 'AI設定が必要です'}
+                  aria-describedby={!isConfigured ? 'ai-config-required' : undefined}
+                >
+                  <Settings className="h-5 w-5" aria-hidden="true" />
+                  <span className="hidden sm:inline">AI設定</span>
+                  {!isConfigured && (
+                    <span className="w-2 h-2 bg-red-500 rounded-full" aria-hidden="true"></span>
+                  )}
+                </button>
+                {!isConfigured && (
+                  <span id="ai-config-required" className="sr-only">
+                    AI設定が必要です。設定を完了してください。
+                  </span>
+                )}
+              </>
             )}
             
             <button
@@ -128,21 +151,16 @@ export const Header: React.FC<HeaderProps> = ({ isDarkMode, onToggleTheme, onHom
       </div>
     </header>
     
-    <ImageBoard 
-      isOpen={showImageBoard} 
-      onClose={() => setShowImageBoard(false)} 
+    {/* モーダル */}
+    <DataManager 
+      isOpen={showDataManager} 
+      onClose={() => setShowDataManager(false)} 
     />
     
     <AISettings 
       isOpen={showAISettings} 
       onClose={() => setShowAISettings(false)} 
     />
-    
-    <DataManager 
-      isOpen={showDataManager} 
-      onClose={() => setShowDataManager(false)} 
-    />
-    
     </>
   );
 };

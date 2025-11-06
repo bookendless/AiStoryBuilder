@@ -1,19 +1,59 @@
-import React, { useState } from 'react';
-import { Download, FileText, File, Globe, Check } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Download, FileText, File, Globe, Check, Copy, Search, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
-import { writeTextFile } from '@tauri-apps/plugin-fs';
-import { save } from '@tauri-apps/plugin-dialog';
 
 export const ExportStep: React.FC = () => {
   const { currentProject } = useProject();
   const [selectedFormat, setSelectedFormat] = useState('txt');
   const [isExporting, setIsExporting] = useState(false);
+  
+  // エクスポート内容の選択
+  const [exportOptions, setExportOptions] = useState({
+    basicInfo: true,
+    characters: true,
+    plot: true,
+    synopsis: true,
+    chapters: true,
+    imageBoard: true,
+    draft: true,
+  });
+  
+  // ファイル名のカスタマイズ
+  const [customFileName, setCustomFileName] = useState('');
+  const [addTimestamp, setAddTimestamp] = useState(false);
+  const [addVersion, setAddVersion] = useState(false);
+  const [versionNumber, setVersionNumber] = useState(1);
+  
+  const [lastExportPath, setLastExportPath] = useState<string | null>(null);
+  
+  // プレビュー機能の強化
+  const [previewHeight, setPreviewHeight] = useState(384); // max-h-96 = 384px
+  const [previewSearch, setPreviewSearch] = useState('');
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const exportFormats = [
     { id: 'txt', name: 'テキスト (.txt)', icon: FileText, description: 'シンプルなテキスト形式' },
     { id: 'md', name: 'マークダウン (.md)', icon: File, description: '構造化されたマークダウン形式' },
     { id: 'html', name: 'HTML (.html)', icon: Globe, description: 'Webブラウザで表示可能なHTML形式' },
   ];
+
+  // ファイル名を生成する関数
+  const generateFileName = (): string => {
+    let fileName = customFileName || currentProject?.title || 'export';
+    
+    if (addVersion) {
+      fileName += `_v${versionNumber}`;
+    }
+    
+    if (addTimestamp) {
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      fileName += `_${timestamp}`;
+    }
+    
+    return fileName;
+  };
 
   const handleExport = async () => {
     if (!currentProject) return;
@@ -31,22 +71,100 @@ export const ExportStep: React.FC = () => {
         content = generateHtmlContent();
       }
       
-      // Tauriのダイアログを使用してファイル保存場所を選択
-      const filePath = await save({
-        title: 'ファイルを保存',
-        defaultPath: `${currentProject.title}.${selectedFormat}`,
-        filters: [
-          {
-            name: 'Text Files',
-            extensions: [selectedFormat]
-          }
-        ]
-      });
+      const fileName = generateFileName();
       
-      if (filePath) {
-        // TauriのファイルシステムAPIを使用してファイルを保存
-        await writeTextFile(filePath, content);
+      // Tauri環境かどうかを確認
+      const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+      
+      if (!isTauri) {
+        // ブラウザ環境の場合、ダウンロードリンクを作成
+        const blob = new Blob([content], { 
+          type: selectedFormat === 'html' ? 'text/html' : selectedFormat === 'md' ? 'text/markdown' : 'text/plain' 
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileName}.${selectedFormat}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        // クリップボードにコピー
+        try {
+          await navigator.clipboard.writeText(content);
+        } catch (e) {
+          console.warn('クリップボードへのコピーに失敗しました', e);
+        }
+        
         alert('エクスポートが完了しました');
+        setIsExporting(false);
+        return;
+      }
+      
+      // Tauri環境の場合、プラグインを動的にインポート
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+        
+        // 最近保存したフォルダがある場合はそれを使用、なければダイアログを表示
+        let filePath: string | null = null;
+        
+        if (lastExportPath) {
+          // 最後に保存したパスからディレクトリを取得
+          const dirPath = lastExportPath.substring(0, Math.max(lastExportPath.lastIndexOf('/'), lastExportPath.lastIndexOf('\\')));
+          filePath = await save({
+            title: 'ファイルを保存',
+            defaultPath: `${dirPath}/${fileName}.${selectedFormat}`,
+            filters: [
+              {
+                name: 'Text Files',
+                extensions: [selectedFormat]
+              }
+            ]
+          });
+        } else {
+          filePath = await save({
+            title: 'ファイルを保存',
+            defaultPath: `${fileName}.${selectedFormat}`,
+            filters: [
+              {
+                name: 'Text Files',
+                extensions: [selectedFormat]
+              }
+            ]
+          });
+        }
+        
+        if (filePath) {
+          // TauriのファイルシステムAPIを使用してファイルを保存
+          await writeTextFile(filePath, content);
+          setLastExportPath(filePath);
+          
+          // クリップボードにコピー
+          try {
+            await navigator.clipboard.writeText(content);
+          } catch (e) {
+            console.warn('クリップボードへのコピーに失敗しました', e);
+          }
+          
+          alert('エクスポートが完了しました');
+        }
+      } catch (pluginError) {
+        console.error('Tauri plugin error:', pluginError);
+        // プラグインが利用できない場合、ブラウザのダウンロード機能にフォールバック
+        const blob = new Blob([content], { 
+          type: selectedFormat === 'html' ? 'text/html' : selectedFormat === 'md' ? 'text/markdown' : 'text/plain' 
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileName}.${selectedFormat}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert('エクスポートが完了しました（ブラウザダウンロード）');
       }
       
     } catch (error) {
@@ -56,6 +174,28 @@ export const ExportStep: React.FC = () => {
       setIsExporting(false);
     }
   };
+  
+  // クリップボードにコピーする関数
+  const handleCopyToClipboard = async () => {
+    if (!currentProject) return;
+    
+    let content = '';
+    if (selectedFormat === 'txt') {
+      content = generateTxtContent();
+    } else if (selectedFormat === 'md') {
+      content = generateMarkdownContent();
+    } else if (selectedFormat === 'html') {
+      content = generateHtmlContent();
+    }
+    
+    try {
+      await navigator.clipboard.writeText(content);
+      alert('クリップボードにコピーしました');
+    } catch (error) {
+      console.error('Copy error:', error);
+      alert('クリップボードへのコピーに失敗しました');
+    }
+  };
 
   const generateTxtContent = () => {
     if (!currentProject) return '';
@@ -63,22 +203,24 @@ export const ExportStep: React.FC = () => {
     let content = `${currentProject.title}\n`;
     content += '='.repeat(currentProject.title.length) + '\n\n';
     
-    if (currentProject.description) {
-      content += `概要: ${currentProject.description}\n\n`;
+    if (exportOptions.basicInfo) {
+      if (currentProject.description) {
+        content += `概要: ${currentProject.description}\n\n`;
+      }
+      
+      // ジャンル・読者層・テーマ情報の追加
+      if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
+        content += '基本情報\n';
+        content += '-'.repeat(20) + '\n';
+        if (currentProject.mainGenre) content += `メインジャンル: ${currentProject.mainGenre}\n`;
+        if (currentProject.subGenre) content += `サブジャンル: ${currentProject.subGenre}\n`;
+        if (currentProject.targetReader) content += `読者層: ${currentProject.targetReader}\n`;
+        if (currentProject.projectTheme) content += `プロジェクトテーマ: ${currentProject.projectTheme}\n`;
+        content += '\n';
+      }
     }
     
-    // ジャンル・読者層・テーマ情報の追加
-    if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
-      content += '基本情報\n';
-      content += '-'.repeat(20) + '\n';
-      if (currentProject.mainGenre) content += `メインジャンル: ${currentProject.mainGenre}\n`;
-      if (currentProject.subGenre) content += `サブジャンル: ${currentProject.subGenre}\n`;
-      if (currentProject.targetReader) content += `読者層: ${currentProject.targetReader}\n`;
-      if (currentProject.projectTheme) content += `プロジェクトテーマ: ${currentProject.projectTheme}\n`;
-      content += '\n';
-    }
-    
-    if (currentProject.characters.length > 0) {
+    if (exportOptions.characters && currentProject.characters.length > 0) {
       content += 'キャラクター一覧\n';
       content += '-'.repeat(20) + '\n';
       currentProject.characters.forEach(char => {
@@ -90,7 +232,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle) {
+    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
       content += 'プロット\n';
       content += '-'.repeat(20) + '\n';
       if (currentProject.plot.theme) content += `テーマ: ${currentProject.plot.theme}\n\n`;
@@ -117,13 +259,13 @@ export const ExportStep: React.FC = () => {
       }
     }
     
-    if (currentProject.synopsis) {
+    if (exportOptions.synopsis && currentProject.synopsis) {
       content += 'あらすじ\n';
       content += '-'.repeat(20) + '\n';
       content += `${currentProject.synopsis}\n\n`;
     }
     
-    if (currentProject.chapters.length > 0) {
+    if (exportOptions.chapters && currentProject.chapters.length > 0) {
       content += '章立て\n';
       content += '-'.repeat(20) + '\n';
       currentProject.chapters.forEach((chapter, index) => {
@@ -134,7 +276,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.imageBoard.length > 0) {
+    if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) {
       content += 'イメージボード\n';
       content += '-'.repeat(20) + '\n';
       currentProject.imageBoard.forEach((image, index) => {
@@ -144,7 +286,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.draft) {
+    if (exportOptions.draft && currentProject.draft) {
       content += '草案\n';
       content += '-'.repeat(20) + '\n';
       content += `${currentProject.draft}\n`;
@@ -158,20 +300,22 @@ export const ExportStep: React.FC = () => {
     
     let content = `# ${currentProject.title}\n\n`;
     
-    if (currentProject.description) {
-      content += `## 概要\n\n${currentProject.description}\n\n`;
+    if (exportOptions.basicInfo) {
+      if (currentProject.description) {
+        content += `## 概要\n\n${currentProject.description}\n\n`;
+      }
+      
+      // ジャンル・読者層・テーマ情報の追加
+      if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
+        content += '## 基本情報\n\n';
+        if (currentProject.mainGenre) content += `**メインジャンル**: ${currentProject.mainGenre}\n\n`;
+        if (currentProject.subGenre) content += `**サブジャンル**: ${currentProject.subGenre}\n\n`;
+        if (currentProject.targetReader) content += `**読者層**: ${currentProject.targetReader}\n\n`;
+        if (currentProject.projectTheme) content += `**プロジェクトテーマ**: ${currentProject.projectTheme}\n\n`;
+      }
     }
     
-    // ジャンル・読者層・テーマ情報の追加
-    if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
-      content += '## 基本情報\n\n';
-      if (currentProject.mainGenre) content += `**メインジャンル**: ${currentProject.mainGenre}\n\n`;
-      if (currentProject.subGenre) content += `**サブジャンル**: ${currentProject.subGenre}\n\n`;
-      if (currentProject.targetReader) content += `**読者層**: ${currentProject.targetReader}\n\n`;
-      if (currentProject.projectTheme) content += `**プロジェクトテーマ**: ${currentProject.projectTheme}\n\n`;
-    }
-    
-    if (currentProject.characters.length > 0) {
+    if (exportOptions.characters && currentProject.characters.length > 0) {
       content += '## キャラクター一覧\n\n';
       currentProject.characters.forEach(char => {
         content += `### ${char.name} (${char.role})\n\n`;
@@ -181,7 +325,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle) {
+    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
       content += '## プロット\n\n';
       if (currentProject.plot.theme) content += `**テーマ**: ${currentProject.plot.theme}\n\n`;
       if (currentProject.plot.setting) content += `**舞台**: ${currentProject.plot.setting}\n\n`;
@@ -207,12 +351,12 @@ export const ExportStep: React.FC = () => {
       }
     }
     
-    if (currentProject.synopsis) {
+    if (exportOptions.synopsis && currentProject.synopsis) {
       content += '## あらすじ\n\n';
       content += `${currentProject.synopsis}\n\n`;
     }
     
-    if (currentProject.chapters.length > 0) {
+    if (exportOptions.chapters && currentProject.chapters.length > 0) {
       content += '## 章立て\n\n';
       currentProject.chapters.forEach((chapter, index) => {
         content += `### 第${index + 1}章: ${chapter.title}\n\n`;
@@ -221,7 +365,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.imageBoard.length > 0) {
+    if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) {
       content += '## イメージボード\n\n';
       currentProject.imageBoard.forEach((image, index) => {
         content += `### ${index + 1}. ${image.title} (${image.category})\n\n`;
@@ -230,7 +374,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.draft) {
+    if (exportOptions.draft && currentProject.draft) {
       content += '## 草案\n\n';
       content += `${currentProject.draft}\n`;
     }
@@ -318,31 +462,33 @@ export const ExportStep: React.FC = () => {
 <body>
     <h1>${currentProject.title}</h1>`;
     
-    if (currentProject.description) {
-      content += `
+    if (exportOptions.basicInfo) {
+      if (currentProject.description) {
+        content += `
     <div class="summary">
         <strong>概要:</strong> ${currentProject.description}
     </div>`;
-    }
-    
-    // ジャンル・読者層・テーマ情報の追加
-    if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
-      content += `
+      }
+      
+      // ジャンル・読者層・テーマ情報の追加
+      if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
+        content += `
     <h2>基本情報</h2>
     <div class="metadata">`;
-      if (currentProject.mainGenre) content += `
+        if (currentProject.mainGenre) content += `
         <p><strong>メインジャンル:</strong> ${currentProject.mainGenre}</p>`;
-      if (currentProject.subGenre) content += `
+        if (currentProject.subGenre) content += `
         <p><strong>サブジャンル:</strong> ${currentProject.subGenre}</p>`;
-      if (currentProject.targetReader) content += `
+        if (currentProject.targetReader) content += `
         <p><strong>読者層:</strong> ${currentProject.targetReader}</p>`;
-      if (currentProject.projectTheme) content += `
+        if (currentProject.projectTheme) content += `
         <p><strong>プロジェクトテーマ:</strong> ${currentProject.projectTheme}</p>`;
-      content += `
+        content += `
     </div>`;
+      }
     }
     
-    if (currentProject.characters.length > 0) {
+    if (exportOptions.characters && currentProject.characters.length > 0) {
       content += `
     <h2>キャラクター一覧</h2>`;
       currentProject.characters.forEach(char => {
@@ -360,7 +506,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle) {
+    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
       content += `
     <h2>プロット</h2>`;
       if (currentProject.plot.theme) content += `
@@ -435,13 +581,13 @@ export const ExportStep: React.FC = () => {
       }
     }
     
-    if (currentProject.synopsis) {
+    if (exportOptions.synopsis && currentProject.synopsis) {
       content += `
     <h2>あらすじ</h2>
     <div class="draft-content">${currentProject.synopsis}</div>`;
     }
     
-    if (currentProject.chapters.length > 0) {
+    if (exportOptions.chapters && currentProject.chapters.length > 0) {
       content += `
     <h2>章立て</h2>`;
       currentProject.chapters.forEach((chapter, index) => {
@@ -456,7 +602,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.imageBoard.length > 0) {
+    if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) {
       content += `
     <h2>イメージボード</h2>`;
       currentProject.imageBoard.forEach((image, index) => {
@@ -471,7 +617,7 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (currentProject.draft) {
+    if (exportOptions.draft && currentProject.draft) {
       content += `
     <h2>草案</h2>
     <div class="draft-content">${currentProject.draft}</div>`;
@@ -553,7 +699,59 @@ export const ExportStep: React.FC = () => {
             })}
           </div>
 
+          {/* ファイル名のカスタマイズ */}
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+              ファイル名設定
+            </h4>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={customFileName}
+                onChange={(e) => setCustomFileName(e.target.value)}
+                placeholder={currentProject.title}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP']"
+              />
+              <div className="space-y-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={addTimestamp}
+                    onChange={(e) => setAddTimestamp(e.target.checked)}
+                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                    日時を追加
+                  </span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={addVersion}
+                    onChange={(e) => setAddVersion(e.target.checked)}
+                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                    バージョン番号を追加
+                  </span>
+                </label>
+                {addVersion && (
+                  <input
+                    type="number"
+                    value={versionNumber}
+                    onChange={(e) => setVersionNumber(parseInt(e.target.value) || 1)}
+                    min="1"
+                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP']"
+                  />
+                )}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                ファイル名: {generateFileName()}.{selectedFormat}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2">
             <button
               onClick={handleExport}
               disabled={isExporting}
@@ -561,6 +759,13 @@ export const ExportStep: React.FC = () => {
             >
               <Download className="h-5 w-5" />
               <span>{isExporting ? 'エクスポート中...' : 'エクスポート開始'}</span>
+            </button>
+            <button
+              onClick={handleCopyToClipboard}
+              className="w-full flex items-center justify-center space-x-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200 font-semibold font-['Noto_Sans_JP']"
+            >
+              <Copy className="h-5 w-5" />
+              <span>クリップボードにコピー</span>
             </button>
           </div>
         </div>
@@ -619,6 +824,41 @@ export const ExportStep: React.FC = () => {
               </div>
             </div>
 
+            {/* エクスポートする内容の選択 */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+                エクスポートする内容
+              </h4>
+              <div className="space-y-2">
+                {[
+                  { key: 'basicInfo', label: '基本情報' },
+                  { key: 'characters', label: 'キャラクター' },
+                  { key: 'plot', label: 'プロット' },
+                  { key: 'synopsis', label: 'あらすじ' },
+                  { key: 'chapters', label: '章立て' },
+                  { key: 'imageBoard', label: 'イメージボード' },
+                  { key: 'draft', label: '草案' },
+                ].map((option) => (
+                  <label key={option.key} className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={exportOptions[option.key as keyof typeof exportOptions]}
+                      onChange={(e) =>
+                        setExportOptions({
+                          ...exportOptions,
+                          [option.key]: e.target.checked,
+                        })
+                      }
+                      className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                      {option.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
               <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
                 <div>作成日: {currentProject.createdAt.toLocaleDateString('ja-JP')}</div>
@@ -629,24 +869,95 @@ export const ExportStep: React.FC = () => {
         </div>
       </div>
 
-      {/* Export Preview */}
+      {/* エクスポートプレビュー */}
       <div className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          エクスポートプレビュー
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            エクスポートプレビュー
+          </h3>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setPreviewHeight(Math.max(200, previewHeight - 100))}
+              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              title="高さを減らす"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setPreviewHeight(Math.min(800, previewHeight + 100))}
+              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              title="高さを増やす"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* 検索機能 */}
+        <div className="mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={previewSearch}
+              onChange={(e) => setPreviewSearch(e.target.value)}
+              placeholder="プレビュー内を検索..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP']"
+            />
+            {previewSearch && (
+              <button
+                onClick={() => setPreviewSearch('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* セクション別ジャンプ */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          {[
+            { id: 'title', label: 'タイトル' },
+            { id: 'basicInfo', label: '基本情報' },
+            { id: 'characters', label: 'キャラクター' },
+            { id: 'plot', label: 'プロット' },
+            { id: 'synopsis', label: 'あらすじ' },
+            { id: 'chapters', label: '章立て' },
+            { id: 'draft', label: '草案' },
+          ]
+            .filter((section) => exportOptions[section.id as keyof typeof exportOptions] || section.id === 'title')
+            .map((section) => (
+              <button
+                key={section.id}
+                onClick={() => setSelectedSection(section.id)}
+                className={`px-3 py-1 text-xs rounded-lg transition-colors font-['Noto_Sans_JP'] ${
+                  selectedSection === section.id
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {section.label}
+              </button>
+            ))}
+        </div>
         
-        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg max-h-96 overflow-y-auto">
+        <div
+          ref={previewRef}
+          className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg overflow-y-auto"
+          style={{ maxHeight: `${previewHeight}px` }}
+        >
           {selectedFormat === 'html' ? (
             <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
               <p className="mb-2">HTML形式では、美しくスタイリングされた文書が生成されます。</p>
               <p className="mb-2">以下の内容が含まれます：</p>
               <ul className="list-disc list-inside space-y-1 ml-4">
-                <li>プロジェクトタイトルと概要</li>
-                <li>キャラクター一覧（外見・性格・背景情報付き）</li>
-                <li>プロット情報（テーマ・舞台・フック・構成詳細）</li>
-                <li>あらすじ</li>
-                <li>章立て</li>
-                <li>草案内容</li>
+                {exportOptions.basicInfo && <li>プロジェクトタイトルと概要</li>}
+                {exportOptions.characters && <li>キャラクター一覧（外見・性格・背景情報付き）</li>}
+                {exportOptions.plot && <li>プロット情報（テーマ・舞台・フック・構成詳細）</li>}
+                {exportOptions.synopsis && <li>あらすじ</li>}
+                {exportOptions.chapters && <li>章立て</li>}
+                {exportOptions.draft && <li>草案内容</li>}
                 <li>作成日・更新日のメタデータ</li>
               </ul>
               <p className="mt-4 text-xs text-gray-500">
@@ -655,18 +966,44 @@ export const ExportStep: React.FC = () => {
             </div>
           ) : (
             <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP']">
-              {selectedFormat === 'md' ? generateMarkdownContent().substring(0, 1000) : generateTxtContent().substring(0, 1000)}
-              {(selectedFormat === 'md' ? generateMarkdownContent() : generateTxtContent()).length > 1000 && '...'}
+              {(() => {
+                const content = selectedFormat === 'md' ? generateMarkdownContent() : generateTxtContent();
+                if (previewSearch) {
+                  const searchRegex = new RegExp(previewSearch, 'gi');
+                  const parts = content.split(searchRegex);
+                  const matches = content.match(searchRegex);
+                  if (matches) {
+                    return parts.map((part, i) => (
+                      <React.Fragment key={i}>
+                        {part}
+                        {i < parts.length - 1 && (
+                          <mark className="bg-yellow-300 dark:bg-yellow-600">{matches[i]}</mark>
+                        )}
+                      </React.Fragment>
+                    ));
+                  }
+                }
+                return content;
+              })()}
             </pre>
           )}
         </div>
         
-        <div className="mt-4 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-          総文字数: {(() => {
-            if (selectedFormat === 'html') return generateHtmlContent().length;
-            if (selectedFormat === 'md') return generateMarkdownContent().length;
-            return generateTxtContent().length;
-          })().toLocaleString()} 文字
+        <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+          <div>
+            総文字数: {(() => {
+              if (selectedFormat === 'html') return generateHtmlContent().length;
+              if (selectedFormat === 'md') return generateMarkdownContent().length;
+              return generateTxtContent().length;
+            })().toLocaleString()} 文字
+          </div>
+          <button
+            onClick={handleCopyToClipboard}
+            className="flex items-center space-x-1 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300"
+          >
+            <Copy className="h-4 w-4" />
+            <span>コピー</span>
+          </button>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Plus, BookOpen, Calendar, TrendingUp, Image, Edit3, Save, X, Upload } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { Plus, BookOpen, Calendar, TrendingUp, Image, Edit3, Save, X, Upload, Search, Filter, ArrowUpDown, Clock, CheckCircle2 } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { NewProjectModal } from './NewProjectModal';
@@ -27,6 +27,8 @@ const THEMES = [
   '復讐・救済', '冒険・探検', '戦争・平和', '死・生', '希望・夢', '孤独・疎外感', 'その他'
 ];
 
+type SortOption = 'updatedDesc' | 'updatedAsc' | 'createdDesc' | 'createdAsc' | 'titleAsc' | 'titleDesc' | 'progressDesc' | 'progressAsc' | 'lastAccessedDesc';
+
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const { projects, setProjects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading } = useProject();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -47,6 +49,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 検索・フィルタリング・ソート用の状態
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterGenre, setFilterGenre] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('lastAccessedDesc');
 
   const handleProjectSelect = (project: Project) => {
     setCurrentProject(project);
@@ -201,6 +208,101 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     setEditFormData({ title: '', description: '', genre: '', mainGenre: '', subGenre: '', targetReader: '', projectTheme: '', coverImage: '', customMainGenre: '', customSubGenre: '', customTargetReader: '', customTheme: '' });
     setPreviewUrl(null);
   };
+
+  // プロジェクト進捗を計算する関数
+  const calculateProjectProgress = (project: Project): { percentage: number; completedSteps: number; totalSteps: number } => {
+    const steps = [
+      { name: 'character', completed: project.characters.length > 0 },
+      { name: 'plot1', completed: !!(project.plot.theme && project.plot.setting && project.plot.hook && project.plot.protagonistGoal && project.plot.mainObstacle) },
+      { name: 'plot2', completed: !!(project.plot.structure && (
+        (project.plot.structure === 'kishotenketsu' && project.plot.ki && project.plot.sho && project.plot.ten && project.plot.ketsu) ||
+        (project.plot.structure === 'three-act' && project.plot.act1 && project.plot.act2 && project.plot.act3) ||
+        (project.plot.structure === 'four-act' && project.plot.fourAct1 && project.plot.fourAct2 && project.plot.fourAct3 && project.plot.fourAct4)
+      )) },
+      { name: 'synopsis', completed: !!project.synopsis },
+      { name: 'chapter', completed: project.chapters.length > 0 },
+      { name: 'draft', completed: project.chapters.some(ch => ch.draft && ch.draft.trim().length > 0) }
+    ];
+    
+    const completedSteps = steps.filter(s => s.completed).length;
+    const totalSteps = steps.length;
+    const percentage = (completedSteps / totalSteps) * 100;
+    
+    return { percentage, completedSteps, totalSteps };
+  };
+
+  // 最近使用したプロジェクトを取得（最大5件）
+  const recentProjects = useMemo(() => {
+    return projects
+      .filter(p => p.lastAccessed)
+      .sort((a, b) => {
+        const aDate = a.lastAccessed instanceof Date ? a.lastAccessed : new Date(a.lastAccessed!);
+        const bDate = b.lastAccessed instanceof Date ? b.lastAccessed : new Date(b.lastAccessed!);
+        return bDate.getTime() - aDate.getTime();
+      })
+      .slice(0, 5);
+  }, [projects]);
+
+  // フィルタリング・ソート済みプロジェクト
+  const filteredAndSortedProjects = useMemo(() => {
+    let filtered = projects;
+
+    // 検索フィルタ
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.title.toLowerCase().includes(query) ||
+        p.description.toLowerCase().includes(query) ||
+        (p.mainGenre || p.genre || '').toLowerCase().includes(query) ||
+        (p.subGenre || '').toLowerCase().includes(query)
+      );
+    }
+
+    // ジャンルフィルタ
+    if (filterGenre !== 'all') {
+      filtered = filtered.filter(p => 
+        (p.mainGenre || p.genre || '') === filterGenre || 
+        p.subGenre === filterGenre
+      );
+    }
+
+    // ソート
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'updatedDesc':
+          const aUpdated = a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
+          const bUpdated = b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
+          return bUpdated.getTime() - aUpdated.getTime();
+        case 'updatedAsc':
+          const aUpdatedAsc = a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
+          const bUpdatedAsc = b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
+          return aUpdatedAsc.getTime() - bUpdatedAsc.getTime();
+        case 'createdDesc':
+          const aCreated = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+          const bCreated = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+          return bCreated.getTime() - aCreated.getTime();
+        case 'createdAsc':
+          const aCreatedAsc = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+          const bCreatedAsc = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+          return aCreatedAsc.getTime() - bCreatedAsc.getTime();
+        case 'titleAsc':
+          return a.title.localeCompare(b.title, 'ja');
+        case 'titleDesc':
+          return b.title.localeCompare(a.title, 'ja');
+        case 'progressDesc':
+          return calculateProjectProgress(b).percentage - calculateProjectProgress(a).percentage;
+        case 'progressAsc':
+          return calculateProjectProgress(a).percentage - calculateProjectProgress(b).percentage;
+        case 'lastAccessedDesc':
+        default:
+          const aLast = a.lastAccessed instanceof Date ? a.lastAccessed : (a.lastAccessed ? new Date(a.lastAccessed) : a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt));
+          const bLast = b.lastAccessed instanceof Date ? b.lastAccessed : (b.lastAccessed ? new Date(b.lastAccessed) : b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt));
+          return bLast.getTime() - aLast.getTime();
+      }
+    });
+
+    return sorted;
+  }, [projects, searchQuery, filterGenre, sortOption]);
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -261,6 +363,60 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
           </div>
         </div>
 
+        {/* 最近使用したプロジェクト */}
+        {recentProjects.length > 0 && (
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  最近使用したプロジェクト
+                </h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+              {recentProjects.map((project) => {
+                const progress = calculateProjectProgress(project);
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => handleProjectSelect(project)}
+                    className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-lg cursor-pointer"
+                  >
+                    {project.coverImage && (
+                      <img 
+                        src={project.coverImage} 
+                        alt={project.title}
+                        className="w-full h-24 object-cover rounded-lg mb-2"
+                      />
+                    )}
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1 line-clamp-1 font-['Noto_Sans_JP']">
+                      {project.title}
+                    </h3>
+                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      <span>{progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
+                      <span>{progress.percentage.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                      <div 
+                        className="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-300" 
+                        style={{ width: `${progress.percentage}%` }}
+                      />
+                    </div>
+                    {project.lastAccessed && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 font-['Noto_Sans_JP']">
+                        {project.lastAccessed instanceof Date 
+                          ? project.lastAccessed.toLocaleDateString('ja-JP')
+                          : new Date(project.lastAccessed).toLocaleDateString('ja-JP')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Projects Section */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
@@ -268,27 +424,85 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
               プロジェクト一覧
             </h2>
           </div>
+
+          {/* 検索・フィルタリング・ソート */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 検索バー */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="プロジェクトを検索..."
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                />
+              </div>
+
+              {/* ジャンルフィルタ */}
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <select
+                  value={filterGenre}
+                  onChange={(e) => setFilterGenre(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none"
+                >
+                  <option value="all">すべてのジャンル</option>
+                  {GENRES.map(genre => (
+                    <option key={genre} value={genre}>{genre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ソート */}
+              <div className="relative">
+                <ArrowUpDown className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none"
+                >
+                  <option value="lastAccessedDesc">最近使用した順</option>
+                  <option value="updatedDesc">更新日時（新しい順）</option>
+                  <option value="updatedAsc">更新日時（古い順）</option>
+                  <option value="createdDesc">作成日時（新しい順）</option>
+                  <option value="createdAsc">作成日時（古い順）</option>
+                  <option value="titleAsc">タイトル（あいうえお順）</option>
+                  <option value="titleDesc">タイトル（逆順）</option>
+                  <option value="progressDesc">進捗率（高い順）</option>
+                  <option value="progressAsc">進捗率（低い順）</option>
+                </select>
+              </div>
+            </div>
+          </div>
           
-          {projects.length === 0 ? (
+          {filteredAndSortedProjects.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-12 text-center">
               <BookOpen className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
               <p className="text-xl text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
-                まだプロジェクトがありません
+                {searchQuery || filterGenre !== 'all' ? '該当するプロジェクトが見つかりません' : 'まだプロジェクトがありません'}
               </p>
               <p className="text-gray-500 dark:text-gray-500 mb-6 font-['Noto_Sans_JP']">
-                新しいプロジェクトを作成して、AI支援による創作を始めましょう
+                {searchQuery || filterGenre !== 'all' 
+                  ? '検索条件を変更して再度お試しください'
+                  : '新しいプロジェクトを作成して、AI支援による創作を始めましょう'}
               </p>
-              <button
-                onClick={() => setShowNewProjectModal(true)}
-                className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
-              >
-                <Plus className="h-5 w-5" />
-                <span>最初のプロジェクトを作成</span>
-              </button>
+              {(!searchQuery && filterGenre === 'all') && (
+                <button
+                  onClick={() => setShowNewProjectModal(true)}
+                  className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>最初のプロジェクトを作成</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project, index) => (
+              {filteredAndSortedProjects.map((project) => {
+                const progress = calculateProjectProgress(project);
+                return (
                 <div
                   key={project.id}
                   className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-xl relative group"
@@ -343,15 +557,40 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                       onClick={() => handleProjectSelect(project as Project)}
                       className="cursor-pointer"
                     >
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
-                        <span className="inline-flex items-center justify-center w-6 h-6 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full mr-2">
-                          {index + 1}
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex-1 font-['Noto_Sans_JP']">
+                          {project.title}
+                        </h3>
+                        <span className="ml-2 inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full">
+                          {progress.percentage.toFixed(0)}%
                         </span>
-                        {project.title}
-                      </h3>
+                      </div>
                       <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 font-['Noto_Sans_JP']">
                         {project.description}
                       </p>
+                    </div>
+                  </div>
+
+                  {/* 進捗バー */}
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1 font-['Noto_Sans_JP']">
+                      <span>進捗: {progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
+                      <span className="flex items-center space-x-1">
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        <span>{progress.completedSteps}完了</span>
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          progress.percentage === 100 
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                            : progress.percentage >= 50
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500'
+                            : 'bg-gradient-to-r from-yellow-400 to-orange-500'
+                        }`}
+                        style={{ width: `${progress.percentage}%` }}
+                      />
                     </div>
                   </div>
 
@@ -391,7 +630,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
