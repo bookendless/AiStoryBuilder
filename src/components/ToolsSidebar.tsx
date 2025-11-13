@@ -5,18 +5,15 @@ import {
   Image, 
   FileText, 
   Network, 
-  Calendar, 
-  Database, 
-  Settings
+  Calendar,
+  MessageSquare
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
-import { useAI } from '../contexts/AIContext';
 import { ImageBoard } from './ImageBoard';
-import { AISettings } from './AISettings';
-import { DataManager } from './DataManager';
 import { GlossaryManager } from './tools/GlossaryManager';
 import { RelationshipDiagram } from './tools/RelationshipDiagram';
 import { TimelineViewer } from './tools/TimelineViewer';
+import { ChatAssistant } from './tools/ChatAssistant';
 
 interface ToolsSidebarProps {
   className?: string;
@@ -26,14 +23,12 @@ interface ToolsSidebarProps {
 
 export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCollapsed: externalIsCollapsed, onCollapseChange }) => {
   const { currentProject } = useProject();
-  const { isConfigured } = useAI();
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
   const [showImageBoard, setShowImageBoard] = useState(false);
-  const [showAISettings, setShowAISettings] = useState(false);
-  const [showDataManager, setShowDataManager] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
   const [showRelationships, setShowRelationships] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   // 外部から状態が渡されている場合はそれを使用、そうでなければ内部状態を使用
   const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed;
@@ -79,23 +74,6 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       color: 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20',
       available: !!currentProject,
     },
-    {
-      id: 'dataManager',
-      label: 'データ管理',
-      icon: Database,
-      onClick: () => setShowDataManager(true),
-      color: 'text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20',
-      available: true,
-    },
-    {
-      id: 'aiSettings',
-      label: 'AI設定',
-      icon: Settings,
-      onClick: () => setShowAISettings(true),
-      color: 'text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20',
-      available: true,
-      badge: !isConfigured,
-    },
   ];
 
   return (
@@ -109,7 +87,9 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       >
         <div className="h-full flex flex-col">
           {/* ヘッダー */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className={`p-4 border-b border-gray-200 dark:border-gray-700 flex items-center ${
+            isCollapsed ? 'justify-center' : 'justify-between'
+          }`}>
             {!isCollapsed && (
               <h2 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                 ツール
@@ -139,7 +119,11 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
                   key={tool.id}
                   onClick={tool.onClick}
                   disabled={isDisabled}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 text-left group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                    isCollapsed 
+                      ? 'justify-center px-2 py-3' 
+                      : 'space-x-3 px-4 py-3 text-left'
+                  } ${
                     isDisabled
                       ? 'opacity-50 cursor-not-allowed'
                       : tool.color
@@ -150,12 +134,6 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
                 >
                   <div className="relative flex-shrink-0">
                     <Icon className="h-5 w-5" />
-                    {tool.badge && (
-                      <span 
-                        className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"
-                        aria-label="設定が必要"
-                      />
-                    )}
                   </div>
                   {!isCollapsed && (
                     <span className="font-medium font-['Noto_Sans_JP'] flex-1">
@@ -166,6 +144,29 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
               );
             })}
           </nav>
+
+          {/* チャットボタン（常に表示） */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setShowChat(true)}
+              className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 ${
+                isCollapsed 
+                  ? 'justify-center px-2 py-3' 
+                  : 'space-x-3 px-4 py-3 text-left'
+              }`}
+              aria-label="AIアシスタント"
+              title="AIアシスタントとチャット"
+            >
+              <div className="relative flex-shrink-0">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              {!isCollapsed && (
+                <span className="font-medium font-['Noto_Sans_JP'] flex-1">
+                  AIアシスタント
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* フッター情報 */}
           {!isCollapsed && currentProject && (
@@ -187,16 +188,6 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
         onClose={() => setShowImageBoard(false)} 
       />
       
-      <AISettings 
-        isOpen={showAISettings} 
-        onClose={() => setShowAISettings(false)} 
-      />
-      
-      <DataManager 
-        isOpen={showDataManager} 
-        onClose={() => setShowDataManager(false)} 
-      />
-      
       <GlossaryManager 
         isOpen={showGlossary} 
         onClose={() => setShowGlossary(false)} 
@@ -210,6 +201,11 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       <TimelineViewer 
         isOpen={showTimeline} 
         onClose={() => setShowTimeline(false)} 
+      />
+      
+      <ChatAssistant 
+        isOpen={showChat} 
+        onClose={() => setShowChat(false)} 
       />
     </>
   );

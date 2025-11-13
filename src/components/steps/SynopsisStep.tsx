@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Sparkles, RotateCcw, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Sparkles, RotateCcw, Save, CheckCircle, AlertCircle, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { useToast } from '../Toast';
 
 export const SynopsisStep: React.FC = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
+  const { showSuccess } = useToast();
   const [synopsis, setSynopsis] = useState(currentProject?.synopsis || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingStyle, setIsGeneratingStyle] = useState(false);
@@ -18,6 +20,13 @@ export const SynopsisStep: React.FC = () => {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const lastSynopsisRef = useRef<string>('');
+
+  // サイドバー項目の管理
+  type SidebarItemId = 'styleAssistant' | 'characters' | 'plotInfo';
+  const [sidebarItemOrder, setSidebarItemOrder] = useState<SidebarItemId[]>(['styleAssistant', 'characters', 'plotInfo']);
+  const [expandedSidebarItems, setExpandedSidebarItems] = useState<Set<SidebarItemId>>(new Set(['styleAssistant']));
+  const [draggedSidebarIndex, setDraggedSidebarIndex] = useState<number | null>(null);
+  const [dragOverSidebarIndex, setDragOverSidebarIndex] = useState<number | null>(null);
 
   // プロジェクトが変更されたときにあらすじを初期化
   useEffect(() => {
@@ -189,6 +198,69 @@ export const SynopsisStep: React.FC = () => {
 
   const handleReset = () => {
     setSynopsis('');
+  };
+
+  // サイドバー項目の展開/折りたたみ
+  const toggleSidebarExpansion = (itemId: SidebarItemId) => {
+    setExpandedSidebarItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  // サイドバー項目のドラッグ開始
+  const handleSidebarDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedSidebarIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // サイドバー項目のドラッグ中
+  const handleSidebarDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedSidebarIndex !== null && draggedSidebarIndex !== index) {
+      setDragOverSidebarIndex(index);
+    }
+  };
+
+  // サイドバー項目のドラッグ離脱
+  const handleSidebarDragLeave = () => {
+    setDragOverSidebarIndex(null);
+  };
+
+  // サイドバー項目のドロップ
+  const handleSidebarDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (draggedSidebarIndex === null || draggedSidebarIndex === dropIndex) {
+      setDragOverSidebarIndex(null);
+      return;
+    }
+
+    const items = [...sidebarItemOrder];
+    const draggedItem = items[draggedSidebarIndex];
+    
+    // ドラッグされた項目を削除
+    items.splice(draggedSidebarIndex, 1);
+    
+    // 新しい位置に挿入
+    items.splice(dropIndex, 0, draggedItem);
+    
+    setSidebarItemOrder(items);
+    setDraggedSidebarIndex(null);
+    setDragOverSidebarIndex(null);
+    showSuccess('サイドバー項目の並び順を変更しました');
+  };
+
+  // サイドバー項目のドラッグ終了
+  const handleSidebarDragEnd = () => {
+    setDraggedSidebarIndex(null);
+    setDragOverSidebarIndex(null);
   };
 
   // 文体調整AI機能
@@ -459,193 +531,316 @@ ${synopsis}
 
         {/* AI Assistant Panel */}
         <div className="space-y-6">
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-900/20 dark:to-purple-800/20 p-6 rounded-2xl border border-indigo-200 dark:border-purple-800">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                文体アシスタント
-              </h3>
-            </div>
-            
-            <p className="text-gray-700 dark:text-gray-300 mb-4 font-['Noto_Sans_JP']">
-              AIがあらすじの文体を調整します：
-            </p>
-            
-            <div className="space-y-3">
-              <button 
-                onClick={() => handleStyleAdjustment('readable')}
-                disabled={isGeneratingStyle || !synopsis.trim()}
-                className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
-                  isGeneratingStyle && activeStyleType === 'readable'
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 border-2 border-blue-400'
-                    : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-                } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-white/20 p-2 rounded-lg">
-                      <FileText className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">読みやすく調整</div>
-                      <div className="text-blue-100 text-sm font-['Noto_Sans_JP']">文章を整理して理解しやすく</div>
-                    </div>
-                  </div>
-                  {isGeneratingStyle && activeStyleType === 'readable' ? (
-                    <Sparkles className="h-5 w-5 text-white animate-spin" />
-                  ) : (
-                    <Sparkles className="h-5 w-5 text-white" />
-                  )}
-                </div>
-              </button>
-              
-              <button 
-                onClick={() => handleStyleAdjustment('summary')}
-                disabled={isGeneratingStyle || !synopsis.trim()}
-                className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
-                  isGeneratingStyle && activeStyleType === 'summary'
-                    ? 'bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400'
-                    : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-                } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-white/20 p-2 rounded-lg">
-                      <CheckCircle className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">要点抽出</div>
-                      <div className="text-green-100 text-sm font-['Noto_Sans_JP']">重要なポイントを抽出</div>
-                    </div>
-                  </div>
-                  {isGeneratingStyle && activeStyleType === 'summary' ? (
-                    <Sparkles className="h-5 w-5 text-white animate-spin" />
-                  ) : (
-                    <Sparkles className="h-5 w-5 text-white" />
-                  )}
-                </div>
-              </button>
-              
-              <button 
-                onClick={() => handleStyleAdjustment('engaging')}
-                disabled={isGeneratingStyle || !synopsis.trim()}
-                className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
-                  isGeneratingStyle && activeStyleType === 'engaging'
-                    ? 'bg-gradient-to-r from-purple-500 to-purple-600 border-2 border-purple-400'
-                    : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
-                } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-white/20 p-2 rounded-lg">
-                      <Sparkles className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">魅力的に演出</div>
-                      <div className="text-purple-100 text-sm font-['Noto_Sans_JP']">読者の興味を引く表現に</div>
-                    </div>
-                  </div>
-                  {isGeneratingStyle && activeStyleType === 'engaging' ? (
-                    <Sparkles className="h-5 w-5 text-white animate-spin" />
-                  ) : (
-                    <Sparkles className="h-5 w-5 text-white" />
-                  )}
-                </div>
-              </button>
-            </div>
-          </div>
+          {sidebarItemOrder.map((itemId, index) => {
+            const isExpanded = expandedSidebarItems.has(itemId);
+            const isDragged = draggedSidebarIndex === index;
+            const isDragOver = dragOverSidebarIndex === index;
 
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-              キャラクター情報
-            </h3>
-            
-            {currentProject.characters.length > 0 ? (
-              <div className="space-y-3">
-                {currentProject.characters.slice(0, 3).map((character) => (
-                  <div key={character.id} className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-bold">
-                        {character.name.charAt(0)}
-                      </span>
+            // 文体アシスタント項目
+            if (itemId === 'styleAssistant') {
+              return (
+                <div
+                  key={itemId}
+                  draggable
+                  onDragStart={(e) => handleSidebarDragStart(e, index)}
+                  onDragOver={(e) => handleSidebarDragOver(e, index)}
+                  onDragLeave={handleSidebarDragLeave}
+                  onDrop={(e) => handleSidebarDrop(e, index)}
+                  onDragEnd={handleSidebarDragEnd}
+                  className={`bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${
+                    isDragged
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-indigo-200 dark:border-purple-800 cursor-move hover:shadow-xl'
+                  }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-6 cursor-pointer"
+                    onClick={() => toggleSidebarExpansion(itemId)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
+                        <Sparkles className="h-5 w-5 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        文体アシスタント
+                      </h3>
                     </div>
-                    <div>
-                      <div className="font-semibold text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP']">
-                        {character.name}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        {character.role}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {currentProject.characters.length > 3 && (
-                  <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    他 {currentProject.characters.length - 3} 人
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP']">
-                キャラクターが設定されていません
-              </p>
-            )}
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-              プロット情報
-            </h3>
-            
-            {currentProject.plot.theme ? (
-              <div className="space-y-3 text-sm">
-                <div>
-                  <div className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">基本設定:</div>
-                  <div className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                    <div>テーマ: {currentProject.plot.theme.substring(0, 30)}...</div>
-                    <div>舞台: {currentProject.plot.setting.substring(0, 30)}...</div>
-                    <div>フック: {currentProject.plot.hook.substring(0, 30)}...</div>
-                    <div>主人公の目標: {currentProject.plot.protagonistGoal ? currentProject.plot.protagonistGoal.substring(0, 30) + '...' : '未設定'}</div>
-                    <div>主要な障害: {currentProject.plot.mainObstacle ? currentProject.plot.mainObstacle.substring(0, 30) + '...' : '未設定'}</div>
-                  </div>
-                </div>
-                <div>
-                  <div className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">構造詳細:</div>
-                  <div className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                    {currentProject.plot.structure === 'kishotenketsu' ? (
-                      <div>
-                        <div>起: {currentProject.plot.ki ? currentProject.plot.ki.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>承: {currentProject.plot.sho ? currentProject.plot.sho.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>転: {currentProject.plot.ten ? currentProject.plot.ten.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>結: {currentProject.plot.ketsu ? currentProject.plot.ketsu.substring(0, 20) + '...' : '未設定'}</div>
-                      </div>
-                    ) : currentProject.plot.structure === 'three-act' ? (
-                      <div>
-                        <div>第1幕: {currentProject.plot.act1 ? currentProject.plot.act1.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>第2幕: {currentProject.plot.act2 ? currentProject.plot.act2.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>第3幕: {currentProject.plot.act3 ? currentProject.plot.act3.substring(0, 20) + '...' : '未設定'}</div>
-                      </div>
-                    ) : currentProject.plot.structure === 'four-act' ? (
-                      <div>
-                        <div>第1幕（秩序）: {currentProject.plot.fourAct1 ? currentProject.plot.fourAct1.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>第2幕（混沌）: {currentProject.plot.fourAct2 ? currentProject.plot.fourAct2.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>第3幕（秩序）: {currentProject.plot.fourAct3 ? currentProject.plot.fourAct3.substring(0, 20) + '...' : '未設定'}</div>
-                        <div>第4幕（混沌）: {currentProject.plot.fourAct4 ? currentProject.plot.fourAct4.substring(0, 20) + '...' : '未設定'}</div>
-                      </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     ) : (
-                      <div>構造詳細が設定されていません</div>
+                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     )}
                   </div>
+                  
+                  {isExpanded && (
+                    <div className="px-6 pb-6 space-y-4">
+                      <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                        AIがあらすじの文体を調整します：
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <button 
+                          onClick={() => handleStyleAdjustment('readable')}
+                          disabled={isGeneratingStyle || !synopsis.trim()}
+                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
+                            isGeneratingStyle && activeStyleType === 'readable'
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 border-2 border-blue-400'
+                              : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-white/20 p-2 rounded-lg">
+                                <FileText className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="text-left">
+                                <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">読みやすく調整</div>
+                                <div className="text-blue-100 text-sm font-['Noto_Sans_JP']">文章を整理して理解しやすく</div>
+                              </div>
+                            </div>
+                            {isGeneratingStyle && activeStyleType === 'readable' ? (
+                              <Sparkles className="h-5 w-5 text-white animate-spin" />
+                            ) : (
+                              <Sparkles className="h-5 w-5 text-white" />
+                            )}
+                          </div>
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleStyleAdjustment('summary')}
+                          disabled={isGeneratingStyle || !synopsis.trim()}
+                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
+                            isGeneratingStyle && activeStyleType === 'summary'
+                              ? 'bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400'
+                              : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
+                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-white/20 p-2 rounded-lg">
+                                <CheckCircle className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="text-left">
+                                <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">要点抽出</div>
+                                <div className="text-green-100 text-sm font-['Noto_Sans_JP']">重要なポイントを抽出</div>
+                              </div>
+                            </div>
+                            {isGeneratingStyle && activeStyleType === 'summary' ? (
+                              <Sparkles className="h-5 w-5 text-white animate-spin" />
+                            ) : (
+                              <Sparkles className="h-5 w-5 text-white" />
+                            )}
+                          </div>
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleStyleAdjustment('engaging')}
+                          disabled={isGeneratingStyle || !synopsis.trim()}
+                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
+                            isGeneratingStyle && activeStyleType === 'engaging'
+                              ? 'bg-gradient-to-r from-purple-500 to-purple-600 border-2 border-purple-400'
+                              : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-white/20 p-2 rounded-lg">
+                                <Sparkles className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="text-left">
+                                <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">魅力的に演出</div>
+                                <div className="text-purple-100 text-sm font-['Noto_Sans_JP']">読者の興味を引く表現に</div>
+                              </div>
+                            </div>
+                            {isGeneratingStyle && activeStyleType === 'engaging' ? (
+                              <Sparkles className="h-5 w-5 text-white animate-spin" />
+                            ) : (
+                              <Sparkles className="h-5 w-5 text-white" />
+                            )}
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP']">
-                プロットが設定されていません
-              </p>
-            )}
-          </div>
+              );
+            }
+
+            // キャラクター情報項目
+            if (itemId === 'characters') {
+              return (
+                <div
+                  key={itemId}
+                  draggable
+                  onDragStart={(e) => handleSidebarDragStart(e, index)}
+                  onDragOver={(e) => handleSidebarDragOver(e, index)}
+                  onDragLeave={handleSidebarDragLeave}
+                  onDrop={(e) => handleSidebarDrop(e, index)}
+                  onDragEnd={handleSidebarDragEnd}
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
+                    isDragged
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
+                  }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-6 cursor-pointer"
+                    onClick={() => toggleSidebarExpansion(itemId)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        キャラクター情報
+                      </h3>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    )}
+                  </div>
+                  
+                  {isExpanded && (
+                    <div className="px-6 pb-6">
+                      {currentProject.characters.length > 0 ? (
+                        <div className="space-y-3">
+                          {currentProject.characters.slice(0, 3).map((character) => (
+                            <div key={character.id} className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">
+                                  {character.name.charAt(0)}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-semibold text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP']">
+                                  {character.name}
+                                </div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                  {character.role}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {currentProject.characters.length > 3 && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                              他 {currentProject.characters.length - 3} 人
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP']">
+                          キャラクターが設定されていません
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // プロット情報項目
+            if (itemId === 'plotInfo') {
+              return (
+                <div
+                  key={itemId}
+                  draggable
+                  onDragStart={(e) => handleSidebarDragStart(e, index)}
+                  onDragOver={(e) => handleSidebarDragOver(e, index)}
+                  onDragLeave={handleSidebarDragLeave}
+                  onDrop={(e) => handleSidebarDrop(e, index)}
+                  onDragEnd={handleSidebarDragEnd}
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
+                    isDragged
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
+                  }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-6 cursor-pointer"
+                    onClick={() => toggleSidebarExpansion(itemId)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        プロット情報
+                      </h3>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    )}
+                  </div>
+                  
+                  {isExpanded && (
+                    <div className="px-6 pb-6">
+                      {currentProject.plot.theme ? (
+                        <div className="space-y-3 text-sm">
+                          <div>
+                            <div className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">基本設定:</div>
+                            <div className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                              <div>テーマ: {currentProject.plot.theme.substring(0, 30)}...</div>
+                              <div>舞台: {currentProject.plot.setting.substring(0, 30)}...</div>
+                              <div>フック: {currentProject.plot.hook.substring(0, 30)}...</div>
+                              <div>主人公の目標: {currentProject.plot.protagonistGoal ? currentProject.plot.protagonistGoal.substring(0, 30) + '...' : '未設定'}</div>
+                              <div>主要な障害: {currentProject.plot.mainObstacle ? currentProject.plot.mainObstacle.substring(0, 30) + '...' : '未設定'}</div>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">構造詳細:</div>
+                            <div className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                              {currentProject.plot.structure === 'kishotenketsu' ? (
+                                <div>
+                                  <div>起: {currentProject.plot.ki ? currentProject.plot.ki.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>承: {currentProject.plot.sho ? currentProject.plot.sho.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>転: {currentProject.plot.ten ? currentProject.plot.ten.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>結: {currentProject.plot.ketsu ? currentProject.plot.ketsu.substring(0, 20) + '...' : '未設定'}</div>
+                                </div>
+                              ) : currentProject.plot.structure === 'three-act' ? (
+                                <div>
+                                  <div>第1幕: {currentProject.plot.act1 ? currentProject.plot.act1.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>第2幕: {currentProject.plot.act2 ? currentProject.plot.act2.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>第3幕: {currentProject.plot.act3 ? currentProject.plot.act3.substring(0, 20) + '...' : '未設定'}</div>
+                                </div>
+                              ) : currentProject.plot.structure === 'four-act' ? (
+                                <div>
+                                  <div>第1幕（秩序）: {currentProject.plot.fourAct1 ? currentProject.plot.fourAct1.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>第2幕（混沌）: {currentProject.plot.fourAct2 ? currentProject.plot.fourAct2.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>第3幕（秩序）: {currentProject.plot.fourAct3 ? currentProject.plot.fourAct3.substring(0, 20) + '...' : '未設定'}</div>
+                                  <div>第4幕（混沌）: {currentProject.plot.fourAct4 ? currentProject.plot.fourAct4.substring(0, 20) + '...' : '未設定'}</div>
+                                </div>
+                              ) : (
+                                <div>構造詳細が設定されていません</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP']">
+                          プロットが設定されていません
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return null;
+          })}
         </div>
       </div>
     </div>

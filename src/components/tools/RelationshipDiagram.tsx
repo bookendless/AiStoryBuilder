@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Network, Plus, Edit2, Trash2, X, Save, Users, Heart, UsersRound, Sword, GraduationCap, Zap, LayoutList, GitBranch } from 'lucide-react';
+import { Network, Plus, Edit2, Trash2, X, Save, Users, Heart, UsersRound, Sword, GraduationCap, Zap, LayoutList, GitBranch, Sparkles, Loader2, Wand2, CheckCircle, AlertCircle, Lightbulb } from 'lucide-react';
 import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
+import { useAI } from '../../contexts/AIContext';
+import { aiService } from '../../services/aiService';
 
 interface RelationshipDiagramProps {
   isOpen: boolean;
@@ -30,6 +32,13 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
     description: '',
     notes: '',
   });
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [aiMode, setAiMode] = useState<'infer' | 'suggest' | 'check' | 'generate'>('infer');
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
+  const [aiResults, setAiResults] = useState<Partial<CharacterRelationship>[]>([]);
+  const [selectedResults, setSelectedResults] = useState<Set<number>>(new Set());
+  const [consistencyCheckResult, setConsistencyCheckResult] = useState<string>('');
+  const { settings, isConfigured } = useAI();
 
   const relationships = currentProject?.relationships || [];
   const characters = currentProject?.characters || [];
@@ -206,9 +215,605 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
     });
   };
 
+  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // オーバーレイ自体がクリックされた場合のみ閉じる
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  // プロジェクトコンテキストを取得
+  const getProjectContext = (): string => {
+    if (!currentProject) return '';
+    
+    let context = `プロジェクトタイトル: ${currentProject.title}\n`;
+    context += `テーマ: ${currentProject.theme || currentProject.projectTheme || '未設定'}\n`;
+    context += `メインジャンル: ${currentProject.mainGenre || currentProject.genre || '未設定'}\n\n`;
+    
+    if (currentProject.synopsis) {
+      context += `あらすじ:\n${currentProject.synopsis}\n\n`;
+    }
+    
+    if (currentProject.plot) {
+      context += `プロット設定:\n`;
+      context += `- テーマ: ${currentProject.plot.theme || '未設定'}\n`;
+      context += `- 舞台: ${currentProject.plot.setting || '未設定'}\n`;
+      context += `- 主人公の目標: ${currentProject.plot.protagonistGoal || '未設定'}\n`;
+      context += `- 主要な障害: ${currentProject.plot.mainObstacle || '未設定'}\n\n`;
+    }
+    
+    if (currentProject.characters && currentProject.characters.length > 0) {
+      context += `キャラクター:\n`;
+      currentProject.characters.forEach(char => {
+        context += `- ${char.name} (${char.role}): ${char.personality || ''}\n`;
+        context += `  外見: ${char.appearance || ''}\n`;
+        context += `  背景: ${char.background || ''}\n`;
+      });
+      context += '\n';
+    }
+    
+    // 既存の関係性
+    if (relationships.length > 0) {
+      context += `既存の関係性:\n`;
+      relationships.forEach(rel => {
+        const fromChar = characters.find(c => c.id === rel.from);
+        const toChar = characters.find(c => c.id === rel.to);
+        context += `- ${fromChar?.name || '不明'} → ${toChar?.name || '不明'}: ${relationshipTypes[rel.type].label} (強度: ${rel.strength}/5)\n`;
+      });
+      context += '\n';
+    }
+    
+    return context;
+  };
+
+  // 関係性自動推論
+  const handleInferRelationships = async () => {
+    if (!isConfigured) {
+      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      return;
+    }
+
+    if (characters.length < 2) {
+      alert('キャラクターが2人以上必要です。');
+      return;
+    }
+
+    setIsAIGenerating(true);
+    setAiResults([]);
+    setSelectedResults(new Set());
+
+    try {
+      const projectContext = getProjectContext();
+      
+      const prompt = `以下のプロジェクト情報から、キャラクター間の関係性を自動推論してください。
+
+${projectContext}
+
+【指示】
+1. キャラクターの設定（役割、性格、背景など）から、自然な関係性を推論してください
+2. 既存の関係性は除外してください
+3. 各関係性について、以下の情報を提供してください：
+   - 起点キャラクター名
+   - 相手キャラクター名
+   - 関係の種類（friend: 友人, enemy: 敵対, family: 家族, romantic: 恋愛, mentor: 師弟, rival: ライバル, other: その他）
+   - 関係の強度（1-5の数値）
+   - 説明（100文字以上200文字程度）
+   - 備考（任意）
+
+【出力形式】
+JSON配列形式で出力してください：
+[
+  {
+    "fromName": "起点キャラクター名",
+    "toName": "相手キャラクター名",
+    "type": "friend|enemy|family|romantic|mentor|rival|other",
+    "strength": 1-5,
+    "description": "関係性の説明",
+    "notes": "備考（任意）"
+  },
+  ...
+]`;
+
+      const response = await aiService.generateContent({
+        prompt,
+        type: 'draft',
+        settings,
+        context: projectContext,
+      });
+
+      if (response.error) {
+        alert(`エラーが発生しました: ${response.error}`);
+        setIsAIGenerating(false);
+        return;
+      }
+
+      if (response.content) {
+        try {
+          let jsonText = response.content.trim();
+          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+          
+          const inferredRelationships = JSON.parse(jsonText) as Array<{
+            fromName: string;
+            toName: string;
+            type: CharacterRelationship['type'];
+            strength: number;
+            description?: string;
+            notes?: string;
+          }>;
+          
+          // キャラクターIDを解決し、既存の関係と重複しないようにフィルタ
+          const existingPairs = new Set(
+            relationships.map(r => {
+              const sorted = [r.from, r.to].sort();
+              return `${sorted[0]}-${sorted[1]}`;
+            })
+          );
+          
+          const filteredRelationships = inferredRelationships
+            .map(rel => {
+              const fromChar = characters.find(c => c.name === rel.fromName);
+              const toChar = characters.find(c => c.name === rel.toName);
+              
+              if (!fromChar || !toChar || fromChar.id === toChar.id) {
+                return null;
+              }
+              
+              // 重複チェック
+              const sorted = [fromChar.id, toChar.id].sort();
+              const pairKey = `${sorted[0]}-${sorted[1]}`;
+              if (existingPairs.has(pairKey)) {
+                return null;
+              }
+              
+              return {
+                from: fromChar.id,
+                to: toChar.id,
+                type: rel.type || 'friend',
+                strength: Math.max(1, Math.min(5, rel.strength || 3)),
+                description: rel.description,
+                notes: rel.notes,
+              } as Partial<CharacterRelationship>;
+            })
+            .filter((rel): rel is Partial<CharacterRelationship> => rel !== null);
+          
+          setAiResults(filteredRelationships);
+          setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
+        } catch (parseError) {
+          console.error('JSON解析エラー:', parseError);
+          alert('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。');
+        }
+      }
+    } catch (error) {
+      console.error('関係性推論エラー:', error);
+      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+    } finally {
+      setIsAIGenerating(false);
+    }
+  };
+
+  // 関係性提案
+  const handleSuggestRelationships = async () => {
+    if (!isConfigured) {
+      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      return;
+    }
+
+    if (characters.length < 2) {
+      alert('キャラクターが2人以上必要です。');
+      return;
+    }
+
+    setIsAIGenerating(true);
+    setAiResults([]);
+    setSelectedResults(new Set());
+
+    try {
+      const projectContext = getProjectContext();
+      
+      const prompt = `以下のプロジェクト情報を参考に、物語に追加すべき重要な関係性を提案してください。
+
+${projectContext}
+
+【指示】
+1. プロットの流れやキャラクターの設定を考慮して、物語に必要な関係性を提案してください
+2. キャラクターの成長や関係性の発展に関わる関係性も含めてください
+3. 既存の関係性は除外してください
+4. 各関係性について、以下の情報を提供してください：
+   - 起点キャラクター名
+   - 相手キャラクター名
+   - 関係の種類（friend, enemy, family, romantic, mentor, rival, other）
+   - 関係の強度（1-5の数値）
+   - 説明（100文字以上200文字程度）
+   - 備考（任意）
+
+【出力形式】
+JSON配列形式で出力してください：
+[
+  {
+    "fromName": "起点キャラクター名",
+    "toName": "相手キャラクター名",
+    "type": "friend|enemy|family|romantic|mentor|rival|other",
+    "strength": 1-5,
+    "description": "関係性の説明",
+    "notes": "備考（任意）"
+  },
+  ...
+]`;
+
+      const response = await aiService.generateContent({
+        prompt,
+        type: 'draft',
+        settings,
+        context: projectContext,
+      });
+
+      if (response.error) {
+        alert(`エラーが発生しました: ${response.error}`);
+        setIsAIGenerating(false);
+        return;
+      }
+
+      if (response.content) {
+        try {
+          let jsonText = response.content.trim();
+          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+          
+          const suggestedRelationships = JSON.parse(jsonText) as Array<{
+            fromName: string;
+            toName: string;
+            type: CharacterRelationship['type'];
+            strength: number;
+            description?: string;
+            notes?: string;
+          }>;
+          
+          // キャラクターIDを解決
+          const existingPairs = new Set(
+            relationships.map(r => {
+              const sorted = [r.from, r.to].sort();
+              return `${sorted[0]}-${sorted[1]}`;
+            })
+          );
+          
+          const filteredRelationships = suggestedRelationships
+            .map(rel => {
+              const fromChar = characters.find(c => c.name === rel.fromName);
+              const toChar = characters.find(c => c.name === rel.toName);
+              
+              if (!fromChar || !toChar || fromChar.id === toChar.id) {
+                return null;
+              }
+              
+              // 重複チェック
+              const sorted = [fromChar.id, toChar.id].sort();
+              const pairKey = `${sorted[0]}-${sorted[1]}`;
+              if (existingPairs.has(pairKey)) {
+                return null;
+              }
+              
+              return {
+                from: fromChar.id,
+                to: toChar.id,
+                type: rel.type || 'friend',
+                strength: Math.max(1, Math.min(5, rel.strength || 3)),
+                description: rel.description,
+                notes: rel.notes,
+              } as Partial<CharacterRelationship>;
+            })
+            .filter((rel): rel is Partial<CharacterRelationship> => rel !== null);
+          
+          setAiResults(filteredRelationships);
+          setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
+        } catch (parseError) {
+          console.error('JSON解析エラー:', parseError);
+          alert('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。');
+        }
+      }
+    } catch (error) {
+      console.error('関係性提案エラー:', error);
+      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+    } finally {
+      setIsAIGenerating(false);
+    }
+  };
+
+  // 整合性チェック
+  const handleCheckConsistency = async () => {
+    if (!isConfigured) {
+      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      return;
+    }
+
+    if (relationships.length === 0) {
+      alert('関係性が登録されていません。');
+      return;
+    }
+
+    setIsAIGenerating(true);
+    setConsistencyCheckResult('');
+
+    try {
+      const projectContext = getProjectContext();
+      
+      const relationshipsText = relationships.map(rel => {
+        const fromChar = characters.find(c => c.id === rel.from);
+        const toChar = characters.find(c => c.id === rel.to);
+        return `- ${fromChar?.name || '不明'} → ${toChar?.name || '不明'}: ${relationshipTypes[rel.type].label} (強度: ${rel.strength}/5)${rel.description ? `\n  説明: ${rel.description}` : ''}`;
+      }).join('\n');
+      
+      const prompt = `以下の関係性について、整合性をチェックしてください。
+
+${projectContext}
+
+【現在の関係性】
+${relationshipsText}
+
+【チェック項目】
+1. 矛盾する関係性がないか（例：敵対関係と恋愛関係の矛盾）
+2. 関係性の強度と説明の整合性
+3. 孤立したキャラクターがないか
+4. 双方向の関係性が適切か
+5. プロット設定との整合性
+
+【出力形式】
+問題があれば具体的に指摘し、改善提案をしてください。JSON形式で出力してください：
+{
+  "hasIssues": true/false,
+  "issues": ["問題点1", "問題点2", ...],
+  "suggestions": ["改善提案1", "改善提案2", ...],
+  "isolatedCharacters": ["孤立しているキャラクター名1", ...]
+}`;
+
+      const response = await aiService.generateContent({
+        prompt,
+        type: 'draft',
+        settings,
+        context: projectContext,
+      });
+
+      if (response.error) {
+        alert(`エラーが発生しました: ${response.error}`);
+        setIsAIGenerating(false);
+        return;
+      }
+
+      if (response.content) {
+        try {
+          let jsonText = response.content.trim();
+          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+          
+          const result = JSON.parse(jsonText) as {
+            hasIssues: boolean;
+            issues?: string[];
+            suggestions?: string[];
+            isolatedCharacters?: string[];
+          };
+          
+          let resultText = '';
+          if (!result.hasIssues) {
+            resultText = '✅ 関係性に問題は見つかりませんでした。整合性が保たれています。';
+          } else {
+            resultText = '⚠️ 以下の問題が見つかりました：\n\n';
+            if (result.issues && result.issues.length > 0) {
+              resultText += '【問題点】\n';
+              result.issues.forEach((issue, idx) => {
+                resultText += `${idx + 1}. ${issue}\n`;
+              });
+              resultText += '\n';
+            }
+            if (result.isolatedCharacters && result.isolatedCharacters.length > 0) {
+              resultText += '【孤立しているキャラクター】\n';
+              result.isolatedCharacters.forEach((char, idx) => {
+                resultText += `${idx + 1}. ${char}\n`;
+              });
+              resultText += '\n';
+            }
+            if (result.suggestions && result.suggestions.length > 0) {
+              resultText += '【改善提案】\n';
+              result.suggestions.forEach((suggestion, idx) => {
+                resultText += `${idx + 1}. ${suggestion}\n`;
+              });
+            }
+          }
+          
+          setConsistencyCheckResult(resultText);
+        } catch (parseError) {
+          console.error('JSON解析エラー:', parseError);
+          setConsistencyCheckResult(response.content);
+        }
+      }
+    } catch (error) {
+      console.error('整合性チェックエラー:', error);
+      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+    } finally {
+      setIsAIGenerating(false);
+    }
+  };
+
+  // 関係性説明自動生成
+  const handleGenerateDescription = async () => {
+    if (!isConfigured) {
+      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      return;
+    }
+
+    if (!formData.from || !formData.to) {
+      alert('両方のキャラクターを選択してください。');
+      return;
+    }
+
+    setIsAIGenerating(true);
+
+    try {
+      const projectContext = getProjectContext();
+      const fromChar = characters.find(c => c.id === formData.from);
+      const toChar = characters.find(c => c.id === formData.to);
+      
+      const prompt = `以下の関係性について、プロジェクトの世界観に合わせた説明文を生成してください。
+
+${projectContext}
+
+起点キャラクター: ${fromChar?.name || ''} (${fromChar?.role || ''})
+相手キャラクター: ${toChar?.name || ''} (${toChar?.role || ''})
+関係の種類: ${relationshipTypes[formData.type || 'friend'].label}
+関係の強度: ${formData.strength || 3}/5
+
+【指示】
+1. プロジェクトの世界観や設定に合わせた説明文を生成してください
+2. 説明文は100文字以上200文字程度で、具体的で分かりやすい内容にしてください
+3. 必要に応じて関係の種類や強度も提案してください（未設定の場合）
+4. 備考も提案してください（任意）
+
+【出力形式】
+JSON形式で出力してください：
+{
+  "description": "説明文",
+  "type": "friend|enemy|family|romantic|mentor|rival|other",
+  "strength": 1-5,
+  "notes": "備考（任意）"
+}`;
+
+      const response = await aiService.generateContent({
+        prompt,
+        type: 'draft',
+        settings,
+        context: projectContext,
+      });
+
+      if (response.error) {
+        alert(`エラーが発生しました: ${response.error}`);
+        setIsAIGenerating(false);
+        return;
+      }
+
+      if (response.content) {
+        try {
+          let jsonText = response.content.trim();
+          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+          
+          const generated = JSON.parse(jsonText) as {
+            description: string;
+            type?: CharacterRelationship['type'];
+            strength?: number;
+            notes?: string;
+          };
+          
+          setFormData(prev => ({
+            ...prev,
+            description: generated.description || prev.description,
+            type: generated.type || prev.type,
+            strength: generated.strength || prev.strength,
+            notes: generated.notes || prev.notes,
+          }));
+        } catch (parseError) {
+          console.error('JSON解析エラー:', parseError);
+          const descriptionMatch = response.content.match(/説明[文]?[：:]\s*(.+)/);
+          if (descriptionMatch) {
+            setFormData(prev => ({
+              ...prev,
+              description: descriptionMatch[1].trim(),
+            }));
+          } else {
+            const firstParagraph = response.content.split('\n\n')[0].trim();
+            setFormData(prev => ({
+              ...prev,
+              description: firstParagraph,
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('説明生成エラー:', error);
+      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+    } finally {
+      setIsAIGenerating(false);
+    }
+  };
+
+  // AI生成結果を追加
+  const handleAddAIResults = () => {
+    const relationshipsToAdd = aiResults
+      .filter((_, idx) => selectedResults.has(idx))
+      .map(rel => ({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        from: rel.from!,
+        to: rel.to!,
+        type: rel.type || 'friend',
+        strength: rel.strength || 3,
+        description: rel.description,
+        notes: rel.notes,
+      }));
+
+    if (relationshipsToAdd.length === 0) {
+      alert('追加する関係性を選択してください。');
+      return;
+    }
+
+    // 重複チェック
+    const existingPairs = new Set(
+      relationships.map(r => {
+        const sorted = [r.from, r.to].sort();
+        return `${sorted[0]}-${sorted[1]}`;
+      })
+    );
+
+    const validRelationships = relationshipsToAdd.filter(rel => {
+      const sorted = [rel.from, rel.to].sort();
+      const pairKey = `${sorted[0]}-${sorted[1]}`;
+      if (existingPairs.has(pairKey)) {
+        return false;
+      }
+      existingPairs.add(pairKey);
+      return true;
+    });
+
+    if (validRelationships.length === 0) {
+      alert('追加できる関係性がありません。既に登録されている可能性があります。');
+      return;
+    }
+
+    updateProject({
+      relationships: [...relationships, ...validRelationships],
+    });
+
+    setShowAIAssistant(false);
+    setAiResults([]);
+    setSelectedResults(new Set());
+    alert(`${validRelationships.length}件の関係性を追加しました。`);
+  };
+
+  // 結果の選択を切り替え
+  const toggleResultSelection = (index: number) => {
+    const newSelected = new Set(selectedResults);
+    if (newSelected.has(index)) {
+      newSelected.delete(index);
+    } else {
+      newSelected.add(index);
+    }
+    setSelectedResults(newSelected);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={handleOverlayClick}
+    >
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* ヘッダー */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
@@ -218,6 +823,14 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
             </h2>
           </div>
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowAIAssistant(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
+              title="AIアシスタント"
+            >
+              <Sparkles className="h-5 w-5" />
+              <span className="font-['Noto_Sans_JP']">AIアシスト</span>
+            </button>
             <button
               onClick={() => setViewMode('list')}
               className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
@@ -536,8 +1149,18 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
 
         {/* 追加/編集フォーム */}
         {showAddForm && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10 p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleCloseForm();
+              }
+            }}
+          >
+            <div 
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
@@ -625,9 +1248,30 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                      説明
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                        説明
+                      </label>
+                      {isConfigured && formData.from && formData.to && (
+                        <button
+                          onClick={handleGenerateDescription}
+                          disabled={isAIGenerating}
+                          className="flex items-center space-x-1 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isAIGenerating ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span className="font-['Noto_Sans_JP']">生成中...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="h-3 w-3" />
+                              <span className="font-['Noto_Sans_JP']">AIで生成</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                     <textarea
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -666,6 +1310,379 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AIアシスタントモーダル */}
+        {showAIAssistant && (
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10 p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowAIAssistant(false);
+                setAiResults([]);
+                setSelectedResults(new Set());
+                setConsistencyCheckResult('');
+              }
+            }}
+          >
+            <div 
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-2 rounded-lg">
+                      <Sparkles className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        AIアシスタント
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        関係性の自動推論・提案・整合性チェック
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowAIAssistant(false);
+                      setAiResults([]);
+                      setSelectedResults(new Set());
+                      setConsistencyCheckResult('');
+                    }}
+                    className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {!isConfigured ? (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+                    <div className="flex items-start space-x-3">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 font-['Noto_Sans_JP']">
+                          AI設定が必要です
+                        </p>
+                        <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1 font-['Noto_Sans_JP']">
+                          設定画面でAPIキーを設定してください。
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* モード選択 */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+                      <button
+                        onClick={() => {
+                          setAiMode('infer');
+                          setAiResults([]);
+                          setSelectedResults(new Set());
+                          setConsistencyCheckResult('');
+                        }}
+                        className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${
+                          aiMode === 'infer'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        <Zap className="h-5 w-5 mx-auto mb-1" />
+                        <div className="text-sm font-medium">自動推論</div>
+                        <div className="text-xs mt-1 opacity-80">設定から推論</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAiMode('suggest');
+                          setAiResults([]);
+                          setSelectedResults(new Set());
+                          setConsistencyCheckResult('');
+                        }}
+                        className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${
+                          aiMode === 'suggest'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        <Wand2 className="h-5 w-5 mx-auto mb-1" />
+                        <div className="text-sm font-medium">関係性提案</div>
+                        <div className="text-xs mt-1 opacity-80">新規関係性提案</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAiMode('check');
+                          setAiResults([]);
+                          setSelectedResults(new Set());
+                          setConsistencyCheckResult('');
+                        }}
+                        className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${
+                          aiMode === 'check'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        <CheckCircle className="h-5 w-5 mx-auto mb-1" />
+                        <div className="text-sm font-medium">整合性チェック</div>
+                        <div className="text-xs mt-1 opacity-80">矛盾を検出</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAiMode('generate');
+                          setAiResults([]);
+                          setSelectedResults(new Set());
+                          setConsistencyCheckResult('');
+                        }}
+                        className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${
+                          aiMode === 'generate'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        <Lightbulb className="h-5 w-5 mx-auto mb-1" />
+                        <div className="text-sm font-medium">説明生成</div>
+                        <div className="text-xs mt-1 opacity-80">説明文生成</div>
+                      </button>
+                    </div>
+
+                    {/* 自動推論モード */}
+                    {aiMode === 'infer' && (
+                      <div className="space-y-4">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                          <p className="text-sm text-blue-800 dark:text-blue-300 font-['Noto_Sans_JP']">
+                            <strong>自動推論機能</strong><br />
+                            キャラクターの設定（役割、性格、背景など）から、自然な関係性を自動的に推論します。
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleInferRelationships}
+                          disabled={isAIGenerating || characters.length < 2}
+                          className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isAIGenerating ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span className="font-['Noto_Sans_JP']">推論中...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="h-5 w-5" />
+                              <span className="font-['Noto_Sans_JP']">関係性を自動推論</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 関係性提案モード */}
+                    {aiMode === 'suggest' && (
+                      <div className="space-y-4">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                          <p className="text-sm text-blue-800 dark:text-blue-300 font-['Noto_Sans_JP']">
+                            <strong>関係性提案機能</strong><br />
+                            プロットの流れやキャラクターの設定を分析して、物語に追加すべき重要な関係性を提案します。
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleSuggestRelationships}
+                          disabled={isAIGenerating || characters.length < 2}
+                          className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isAIGenerating ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span className="font-['Noto_Sans_JP']">提案中...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="h-5 w-5" />
+                              <span className="font-['Noto_Sans_JP']">関係性を提案</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 整合性チェックモード */}
+                    {aiMode === 'check' && (
+                      <div className="space-y-4">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                          <p className="text-sm text-blue-800 dark:text-blue-300 font-['Noto_Sans_JP']">
+                            <strong>整合性チェック機能</strong><br />
+                            関係性の矛盾や問題点をチェックし、孤立したキャラクターを検出します。
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleCheckConsistency}
+                          disabled={isAIGenerating || relationships.length === 0}
+                          className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isAIGenerating ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span className="font-['Noto_Sans_JP']">チェック中...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-5 w-5" />
+                              <span className="font-['Noto_Sans_JP']">整合性をチェック</span>
+                            </>
+                          )}
+                        </button>
+                        {consistencyCheckResult && (
+                          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
+                              チェック結果
+                            </h4>
+                            <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                              {consistencyCheckResult}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 説明生成モード */}
+                    {aiMode === 'generate' && (
+                      <div className="space-y-4">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                          <p className="text-sm text-blue-800 dark:text-blue-300 font-['Noto_Sans_JP']">
+                            <strong>説明生成機能</strong><br />
+                            関係性追加フォームでキャラクターを選択後、「AIで生成」ボタンを使用してください。
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowAIAssistant(false);
+                            setShowAddForm(true);
+                          }}
+                          className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          <Plus className="h-5 w-5" />
+                          <span className="font-['Noto_Sans_JP']">関係性追加フォームを開く</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 生成結果 */}
+                    {aiResults.length > 0 && (
+                      <div className="mt-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                            生成結果 ({aiResults.length}件)
+                          </h4>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => {
+                                setSelectedResults(new Set(aiResults.map((_, idx) => idx)));
+                              }}
+                              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline font-['Noto_Sans_JP']"
+                            >
+                              すべて選択
+                            </button>
+                            <span className="text-gray-400">|</span>
+                            <button
+                              onClick={() => setSelectedResults(new Set())}
+                              className="text-sm text-gray-600 dark:text-gray-400 hover:underline font-['Noto_Sans_JP']"
+                            >
+                              選択解除
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                          {aiResults.map((rel, idx) => {
+                            const fromChar = characters.find(c => c.id === rel.from);
+                            const toChar = characters.find(c => c.id === rel.to);
+                            const typeInfo = relationshipTypes[rel.type || 'friend'];
+                            
+                            return (
+                              <div
+                                key={idx}
+                                className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                                  selectedResults.has(idx)
+                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                                onClick={() => toggleResultSelection(idx)}
+                              >
+                                <div className="flex items-start space-x-3">
+                                  <div className="flex-shrink-0 mt-1">
+                                    {selectedResults.has(idx) ? (
+                                      <CheckCircle className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                    ) : (
+                                      <div className="h-5 w-5 border-2 border-gray-300 dark:border-gray-600 rounded-full" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <h5 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                        {fromChar?.name || '不明'}
+                                      </h5>
+                                      <span className="text-gray-500">→</span>
+                                      <h5 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                        {toChar?.name || '不明'}
+                                      </h5>
+                                      <span className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full font-['Noto_Sans_JP']">
+                                        {typeInfo.label}
+                                      </span>
+                                      <div className="flex items-center space-x-1">
+                                        {[1, 2, 3, 4, 5].map((level) => (
+                                          <div
+                                            key={level}
+                                            className={`w-2 h-2 rounded-full ${
+                                              level <= (rel.strength || 3) ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'
+                                            }`}
+                                          />
+                                        ))}
+                                        <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] ml-1">
+                                          {rel.strength || 3}/5
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {rel.description && (
+                                      <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                                        {rel.description}
+                                      </p>
+                                    )}
+                                    {rel.notes && (
+                                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic font-['Noto_Sans_JP']">
+                                        {rel.notes}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <button
+                            onClick={() => {
+                              setAiResults([]);
+                              setSelectedResults(new Set());
+                            }}
+                            className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
+                          >
+                            キャンセル
+                          </button>
+                          <button
+                            onClick={handleAddAIResults}
+                            disabled={selectedResults.size === 0}
+                            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <CheckCircle className="h-5 w-5" />
+                            <span className="font-['Noto_Sans_JP']">
+                              {selectedResults.size}件を追加
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>

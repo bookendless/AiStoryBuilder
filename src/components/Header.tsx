@@ -1,6 +1,9 @@
-import React from 'react';
-import { Moon, Sun, Home, BookOpen, Save, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import React, { useState } from 'react';
+import { Moon, Sun, Home, BookOpen, Save, PanelLeftClose, PanelLeftOpen, Database, Settings } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useAI } from '../contexts/AIContext';
+import { DataManager } from './DataManager';
+import { AISettings } from './AISettings';
 
 interface HeaderProps {
   isDarkMode: boolean;
@@ -22,6 +25,9 @@ export const Header: React.FC<HeaderProps> = ({
   showSidebarControls = false,
 }) => {
   const { currentProject, saveProject, isLoading, lastSaved } = useProject();
+  const { isConfigured } = useAI();
+  const [showDataManager, setShowDataManager] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
 
   const handleManualSave = async () => {
     await saveProject();
@@ -77,12 +83,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={handleManualSave}
                   disabled={isLoading}
-                  className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 rounded-md"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400 transition-all duration-200 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                   aria-label={isLoading ? '保存中です' : 'プロジェクトを手動保存'}
                   aria-describedby="save-status"
                 >
-                  <Save className={`h-5 w-5 ${isLoading ? 'animate-pulse' : ''}`} aria-hidden="true" />
-                  <span className="hidden sm:inline text-sm">
+                  <Save className={`h-5 w-5 text-green-600 dark:text-green-400 ${isLoading ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                  <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
                     {isLoading ? '保存中...' : lastSaved ? `保存済み ${lastSaved.toLocaleTimeString('ja-JP')}` : '保存'}
                   </span>
                 </button>
@@ -93,20 +99,65 @@ export const Header: React.FC<HeaderProps> = ({
             )}
             
             <button
+              onClick={() => setShowDataManager(true)}
+              className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+              aria-label="データ管理を開く"
+              title="データ管理"
+            >
+              <div className="relative">
+                <Database className="h-5 w-5 text-purple-600 dark:text-purple-400" aria-hidden="true" />
+              </div>
+              <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
+                データ管理
+              </span>
+            </button>
+            
+            <button
+              onClick={() => setShowAISettings(true)}
+              className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 relative"
+              aria-label="AI設定を開く"
+              title="AI設定"
+            >
+              <div className="relative">
+                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                {!isConfigured && (
+                  <span 
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"
+                    aria-label="設定が必要"
+                  />
+                )}
+              </div>
+              <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
+                AI設定
+              </span>
+            </button>
+            
+            <button
               onClick={onToggleTheme}
-              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
               aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
             >
               {isDarkMode ? (
-                <Sun className="h-5 w-5 text-yellow-500" aria-hidden="true" />
+                <Sun className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
               ) : (
-                <Moon className="h-5 w-5 text-gray-600" aria-hidden="true" />
+                <Moon className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
               )}
             </button>
           </nav>
         </div>
       </div>
     </header>
+    
+    {/* モーダル */}
+    <DataManager 
+      isOpen={showDataManager} 
+      onClose={() => setShowDataManager(false)} 
+    />
+    
+    <AISettings 
+      isOpen={showAISettings} 
+      onClose={() => setShowAISettings(false)} 
+    />
     </>
   );
 };

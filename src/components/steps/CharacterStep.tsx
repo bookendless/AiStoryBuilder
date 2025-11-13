@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn, FileText, Copy, Download, Network, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn, Copy, Download, Network, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -574,7 +574,6 @@ export const CharacterStep: React.FC = () => {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
-  const [showLogs, setShowLogs] = useState(false);
   const [showRelationships, setShowRelationships] = useState(false);
   const [imageViewerState, setImageViewerState] = useState<{
     isOpen: boolean;
@@ -585,6 +584,13 @@ export const CharacterStep: React.FC = () => {
     imageUrl: '',
     characterName: ''
   });
+
+  // サイドバー項目の管理
+  type SidebarItemId = 'aiLogs' | 'aiAssistant' | 'progress';
+  const [sidebarItemOrder, setSidebarItemOrder] = useState<SidebarItemId[]>(['aiAssistant', 'progress', 'aiLogs']);
+  const [expandedSidebarItems, setExpandedSidebarItems] = useState<Set<SidebarItemId>>(new Set(['aiAssistant', 'progress']));
+  const [draggedSidebarIndex, setDraggedSidebarIndex] = useState<number | null>(null);
+  const [dragOverSidebarIndex, setDragOverSidebarIndex] = useState<number | null>(null);
 
   // モーダルを開く（新規追加）
   const handleOpenAddModal = () => {
@@ -685,6 +691,69 @@ export const CharacterStep: React.FC = () => {
       }
       return newSet;
     });
+  };
+
+  // サイドバー項目の展開/折りたたみ
+  const toggleSidebarExpansion = (itemId: SidebarItemId) => {
+    setExpandedSidebarItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  // サイドバー項目のドラッグ開始
+  const handleSidebarDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedSidebarIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // サイドバー項目のドラッグ中
+  const handleSidebarDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedSidebarIndex !== null && draggedSidebarIndex !== index) {
+      setDragOverSidebarIndex(index);
+    }
+  };
+
+  // サイドバー項目のドラッグ離脱
+  const handleSidebarDragLeave = () => {
+    setDragOverSidebarIndex(null);
+  };
+
+  // サイドバー項目のドロップ
+  const handleSidebarDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (draggedSidebarIndex === null || draggedSidebarIndex === dropIndex) {
+      setDragOverSidebarIndex(null);
+      return;
+    }
+
+    const items = [...sidebarItemOrder];
+    const draggedItem = items[draggedSidebarIndex];
+    
+    // ドラッグされた項目を削除
+    items.splice(draggedSidebarIndex, 1);
+    
+    // 新しい位置に挿入
+    items.splice(dropIndex, 0, draggedItem);
+    
+    setSidebarItemOrder(items);
+    setDraggedSidebarIndex(null);
+    setDragOverSidebarIndex(null);
+    showSuccess('サイドバー項目の並び順を変更しました');
+  };
+
+  // サイドバー項目のドラッグ終了
+  const handleSidebarDragEnd = () => {
+    setDraggedSidebarIndex(null);
+    setDragOverSidebarIndex(null);
   };
 
   // キャラクター画像を拡大表示
@@ -1268,194 +1337,317 @@ ${'='.repeat(80)}`
 
         {/* AI Assistant Panel */}
         <div className="space-y-6">
-          {/* AIログ表示ボタン */}
-          {aiLogs.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                  AIログ
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={handleDownloadLogs}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    title="ログをダウンロード"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => setShowLogs(!showLogs)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    title="ログを表示/非表示"
-                  >
-                    <FileText className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+          {sidebarItemOrder.map((itemId, index) => {
+            const isExpanded = expandedSidebarItems.has(itemId);
+            const isDragged = draggedSidebarIndex === index;
+            const isDragOver = dragOverSidebarIndex === index;
+
+            // AIログ項目
+            if (itemId === 'aiLogs') {
+              if (aiLogs.length === 0) return null;
               
-              {showLogs && (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {aiLogs.map((log) => (
-                    <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            log.type === 'enhance' 
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                              : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          }`}>
-                            {log.type === 'enhance' ? '詳細化' : '生成'}
-                          </span>
-                          {log.characterName && (
-                            <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                              {log.characterName}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {log.timestamp.toLocaleString('ja-JP', { 
-                              month: 'short', 
-                              day: 'numeric', 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </span>
-                          <button
-                            onClick={() => handleCopyLog(log)}
-                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                            title="ログをコピー"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </div>
+              return (
+                <div
+                  key={itemId}
+                  draggable
+                  onDragStart={(e) => handleSidebarDragStart(e, index)}
+                  onDragOver={(e) => handleSidebarDragOver(e, index)}
+                  onDragLeave={handleSidebarDragLeave}
+                  onDrop={(e) => handleSidebarDrop(e, index)}
+                  onDragEnd={handleSidebarDragEnd}
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
+                    isDragged
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
+                  }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer"
+                    onClick={() => toggleSidebarExpansion(itemId)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
                       </div>
-                      
-                      {log.error ? (
-                        <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
-                          <strong>エラー:</strong> {log.error}
-                        </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        AIログ
+                      </h3>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {!isExpanded && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadLogs();
+                          }}
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="ログをダウンロード"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      )}
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                       ) : (
-                        <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                          <div className="mb-2">
-                            <strong>プロンプト:</strong>
-                            <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                              {log.prompt.substring(0, 200)}...
-                            </div>
-                          </div>
-                          <div>
-                            <strong>応答:</strong>
-                            <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                              {log.response.substring(0, 300)}...
-                            </div>
-                          </div>
-                          {log.parsedCharacters && log.parsedCharacters.length > 0 && (
-                            <div className="mt-2">
-                              <strong>生成されたキャラクター:</strong>
-                              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                                {log.parsedCharacters.map(c => c.name).join(', ')}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-6 rounded-2xl border border-pink-200 dark:border-pink-800">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="bg-gradient-to-br from-pink-500 to-pink-600 w-10 h-10 rounded-full flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                AI支援アシスタント
-              </h3>
-            </div>
-            
-            <p className="text-gray-700 dark:text-gray-300 mb-4 font-['Noto_Sans_JP']">
-              キャラクターの詳細設定でお困りですか？
-              AIがお手伝いします
-            </p>
-            
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
-              <li>• 性格の詳細な設定</li>
-              <li>• 背景設定の補完</li>
-              <li>• 行動パターンの提案</li>
-            </ul>
-
-            <div className="mb-4 p-4 bg-white dark:bg-gray-700 rounded-lg border border-pink-200 dark:border-pink-700">
-              <h4 className="font-semibold text-pink-700 dark:text-pink-300 mb-3 font-['Noto_Sans_JP']">
-                AIキャラクター提案について
-              </h4>
-              <p className="text-sm text-pink-600 dark:text-pink-400 font-['Noto_Sans_JP'] mb-3">
-                プロジェクトの設定（ジャンル、テーマ、ターゲット読者など）に基づいて、物語に適した3〜5人のキャラクターを自動生成します。
-              </p>
-              <ul className="space-y-1 text-xs text-pink-500 dark:text-pink-400 font-['Noto_Sans_JP'] mb-4">
-                <li>• 各キャラクターの名前、役割、外見、性格、背景を設定</li>
-                <li>• プロジェクトの世界観に合ったキャラクター関係性を考慮</li>
-                <li>• 物語の展開に必要な多様なキャラクタータイプを提案</li>
-              </ul>
-              
-              {settings.provider === 'local' && (
-                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                  <h5 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 font-['Noto_Sans_JP']">
-                    ⚠️ ローカルLLM使用時の注意
-                  </h5>
-                  <ul className="space-y-1 text-xs text-yellow-700 dark:text-yellow-300 font-['Noto_Sans_JP']">
-                    <li>• ローカルLLMは解析に失敗する場合があります</li>
-                    <li>• 失敗時はAIログで詳細な応答内容を確認できます</li>
-                    <li>• プロンプトを調整して再試行してください</li>
-                    <li>• より安定した結果には非ローカルLLMの使用を推奨します</li>
-                  </ul>
-                </div>
-              )}
-              
-              <button 
-                onClick={handleAIGenerateCharacters}
-                disabled={!isConfigured || isGenerating}
-                className="w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {isGenerating ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <Loader className="h-4 w-4 animate-spin" />
-                    <span>生成中...</span>
                   </div>
-                ) : !isConfigured ? (
-                  'AI設定が必要'
-                ) : (
-                  'AIキャラクター提案'
-                )}
-              </button>
-            </div>
-          </div>
+                  
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3">
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={handleDownloadLogs}
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="ログをダウンロード"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {aiLogs.map((log) => (
+                          <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  log.type === 'enhance' 
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                                    : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                }`}>
+                                  {log.type === 'enhance' ? '詳細化' : '生成'}
+                                </span>
+                                {log.characterName && (
+                                  <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                    {log.characterName}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {log.timestamp.toLocaleString('ja-JP', { 
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </span>
+                                <button
+                                  onClick={() => handleCopyLog(log)}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                  title="ログをコピー"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {log.error ? (
+                              <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                                <strong>エラー:</strong> {log.error}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                                <div className="mb-2">
+                                  <strong>プロンプト:</strong>
+                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                    {log.prompt.substring(0, 200)}...
+                                  </div>
+                                </div>
+                                <div>
+                                  <strong>応答:</strong>
+                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                    {log.response.substring(0, 300)}...
+                                  </div>
+                                </div>
+                                {log.parsedCharacters && log.parsedCharacters.length > 0 && (
+                                  <div className="mt-2">
+                                    <strong>生成されたキャラクター:</strong>
+                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                      {log.parsedCharacters.map(c => c.name).join(', ')}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-              進捗状況
-            </h3>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">作成済みキャラクター</span>
-                <span className="font-semibold text-gray-900 dark:text-white">
-                  {currentProject.characters.length} 人
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div 
-                  className="bg-gradient-to-r from-pink-500 to-purple-500 h-2 rounded-full transition-all duration-500" 
-                  style={{ width: `${Math.min((currentProject.characters.length / 5) * 100, 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                推奨: 3-5人程度
-              </p>
-            </div>
-          </div>
+            // AI支援アシスタント項目
+            if (itemId === 'aiAssistant') {
+              return (
+                <div
+                  key={itemId}
+                  draggable
+                  onDragStart={(e) => handleSidebarDragStart(e, index)}
+                  onDragOver={(e) => handleSidebarDragOver(e, index)}
+                  onDragLeave={handleSidebarDragLeave}
+                  onDrop={(e) => handleSidebarDrop(e, index)}
+                  onDragEnd={handleSidebarDragEnd}
+                  className={`bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 rounded-2xl border transition-all duration-200 ${
+                    isDragged
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-pink-200 dark:border-pink-800 cursor-move hover:shadow-xl'
+                  }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-6 cursor-pointer"
+                    onClick={() => toggleSidebarExpansion(itemId)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <div className="bg-gradient-to-br from-pink-500 to-pink-600 w-10 h-10 rounded-full flex items-center justify-center">
+                        <Sparkles className="h-5 w-5 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        AI支援アシスタント
+                      </h3>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    )}
+                  </div>
+                  
+                  {isExpanded && (
+                    <div className="px-6 pb-6 space-y-4">
+                      <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                        キャラクターの詳細設定でお困りですか？
+                        AIがお手伝いします
+                      </p>
+                      
+                      <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        <li>• 性格の詳細な設定</li>
+                        <li>• 背景設定の補完</li>
+                        <li>• 行動パターンの提案</li>
+                      </ul>
+
+                      <div className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-pink-200 dark:border-pink-700">
+                        <h4 className="font-semibold text-pink-700 dark:text-pink-300 mb-3 font-['Noto_Sans_JP']">
+                          AIキャラクター提案について
+                        </h4>
+                        <p className="text-sm text-pink-600 dark:text-pink-400 font-['Noto_Sans_JP'] mb-3">
+                          プロジェクトの設定（ジャンル、テーマ、ターゲット読者など）に基づいて、物語に適した3〜5人のキャラクターを自動生成します。
+                        </p>
+                        <ul className="space-y-1 text-xs text-pink-500 dark:text-pink-400 font-['Noto_Sans_JP'] mb-4">
+                          <li>• 各キャラクターの名前、役割、外見、性格、背景を設定</li>
+                          <li>• プロジェクトの世界観に合ったキャラクター関係性を考慮</li>
+                          <li>• 物語の展開に必要な多様なキャラクタータイプを提案</li>
+                        </ul>
+                        
+                        {settings.provider === 'local' && (
+                          <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                            <h5 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 font-['Noto_Sans_JP']">
+                              ⚠️ ローカルLLM使用時の注意
+                            </h5>
+                            <ul className="space-y-1 text-xs text-yellow-700 dark:text-yellow-300 font-['Noto_Sans_JP']">
+                              <li>• ローカルLLMは解析に失敗する場合があります</li>
+                              <li>• 失敗時はAIログで詳細な応答内容を確認できます</li>
+                              <li>• プロンプトを調整して再試行してください</li>
+                              <li>• より安定した結果には非ローカルLLMの使用を推奨します</li>
+                            </ul>
+                          </div>
+                        )}
+                        
+                        <button 
+                          onClick={handleAIGenerateCharacters}
+                          disabled={!isConfigured || isGenerating}
+                          className="w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        >
+                          {isGenerating ? (
+                            <div className="flex items-center justify-center space-x-2">
+                              <Loader className="h-4 w-4 animate-spin" />
+                              <span>生成中...</span>
+                            </div>
+                          ) : !isConfigured ? (
+                            'AI設定が必要'
+                          ) : (
+                            'AIキャラクター提案'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // 進捗状況項目
+            if (itemId === 'progress') {
+              return (
+                <div
+                  key={itemId}
+                  draggable
+                  onDragStart={(e) => handleSidebarDragStart(e, index)}
+                  onDragOver={(e) => handleSidebarDragOver(e, index)}
+                  onDragLeave={handleSidebarDragLeave}
+                  onDrop={(e) => handleSidebarDrop(e, index)}
+                  onDragEnd={handleSidebarDragEnd}
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
+                    isDragged
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
+                  }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-6 cursor-pointer"
+                    onClick={() => toggleSidebarExpansion(itemId)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        進捗状況
+                      </h3>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    )}
+                  </div>
+                  
+                  {isExpanded && (
+                    <div className="px-6 pb-6 space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">作成済みキャラクター</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                          {currentProject.characters.length} 人
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-pink-500 to-purple-500 h-2 rounded-full transition-all duration-500" 
+                          style={{ width: `${Math.min((currentProject.characters.length / 5) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        推奨: 3-5人程度
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return null;
+          })}
         </div>
       </div>
 

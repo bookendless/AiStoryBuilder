@@ -43,7 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
       aria-label="制作ワークフローナビゲーション"
     >
       <div className="h-full flex flex-col">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div className={`p-4 border-b border-gray-200 dark:border-gray-700 flex items-center ${
+          isCollapsed ? 'justify-center' : 'justify-between'
+        }`}>
           {!isCollapsed && (
             <h2 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
               制作ワークフロー
@@ -72,7 +74,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
               <button
                 key={step.key}
                 onClick={() => onStepChange(step.key)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 text-left group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  isCollapsed 
+                    ? 'justify-center px-2 py-3' 
+                    : 'space-x-3 px-4 py-3 text-left'
+                } ${
                   isActive
                     ? `${step.color} text-white shadow-md transform scale-105`
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'

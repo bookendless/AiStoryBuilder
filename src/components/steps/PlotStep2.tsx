@@ -49,6 +49,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     { id: 'progress', title: '完成度', collapsed: false },
   ]);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
+  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     ki: currentProject?.plot?.ki || '',
     sho: currentProject?.plot?.sho || '',
@@ -234,9 +235,17 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
   }, []);
 
   // ドラッグオーバー
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent, sectionId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (draggedSectionId !== null && draggedSectionId !== sectionId) {
+      setDragOverSectionId(sectionId);
+    }
+  }, [draggedSectionId]);
+
+  // ドラッグ離脱
+  const handleDragLeave = useCallback(() => {
+    setDragOverSectionId(null);
   }, []);
 
   // ドロップ
@@ -245,6 +254,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     
     if (!draggedSectionId || draggedSectionId === targetSectionId) {
       setDraggedSectionId(null);
+      setDragOverSectionId(null);
       return;
     }
 
@@ -262,11 +272,14 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     });
     
     setDraggedSectionId(null);
-  }, [draggedSectionId]);
+    setDragOverSectionId(null);
+    showSuccess('サイドバー項目の並び順を変更しました');
+  }, [draggedSectionId, showSuccess]);
 
   // ドラッグ終了
   const handleDragEnd = useCallback(() => {
     setDraggedSectionId(null);
+    setDragOverSectionId(null);
   }, []);
 
 
@@ -1832,6 +1845,7 @@ ${charactersInfo}
           {sidebarSections.map((section) => {
             const isCollapsed = section.collapsed;
             const isDragging = draggedSectionId === section.id;
+            const isDragOver = dragOverSectionId === section.id;
             
             // 構成スタイルガイド
             if (section.id === 'guide') {
@@ -1840,11 +1854,16 @@ ${charactersInfo}
                   key={section.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, section.id)}
-                  onDragOver={handleDragOver}
+                  onDragOver={(e) => handleDragOver(e, section.id)}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl border border-indigo-200 dark:border-indigo-800 transition-all duration-200 ${
-                    isDragging ? 'opacity-50' : 'opacity-100'
+                  className={`bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl border transition-all duration-200 ${
+                    isDragging
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-indigo-200 dark:border-indigo-800 cursor-move hover:shadow-xl'
                   }`}
                 >
                   <div 
@@ -1951,11 +1970,16 @@ ${charactersInfo}
                   key={section.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, section.id)}
-                  onDragOver={handleDragOver}
+                  onDragOver={(e) => handleDragOver(e, section.id)}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl border border-amber-200 dark:border-amber-800 transition-all duration-200 ${
-                    isDragging ? 'opacity-50' : 'opacity-100'
+                  className={`bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl border transition-all duration-200 ${
+                    isDragging
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-amber-200 dark:border-amber-800 cursor-move hover:shadow-xl'
                   }`}
                 >
                   <div 
@@ -2069,11 +2093,16 @@ ${charactersInfo}
                   key={section.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, section.id)}
-                  onDragOver={handleDragOver}
+                  onDragOver={(e) => handleDragOver(e, section.id)}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border border-purple-200 dark:border-purple-800 transition-all duration-200 ${
-                    isDragging ? 'opacity-50' : 'opacity-100'
+                  className={`bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${
+                    isDragging
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-purple-200 dark:border-purple-800 cursor-move hover:shadow-xl'
                   }`}
                 >
                   <div 
@@ -2166,11 +2195,16 @@ ${charactersInfo}
                   key={section.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, section.id)}
-                  onDragOver={handleDragOver}
+                  onDragOver={(e) => handleDragOver(e, section.id)}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 transition-all duration-200 ${
-                    isDragging ? 'opacity-50' : 'opacity-100'
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
+                    isDragging
+                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                      : isDragOver
+                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
                   }`}
                 >
                   <div 
