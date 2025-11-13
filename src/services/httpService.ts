@@ -153,13 +153,25 @@ export class HttpService {
     return this.request<T>(url, { method: 'GET', headers });
   }
 
-  async post<T = unknown>(url: string, data?: unknown, headers?: Record<string, string>): Promise<HttpResponse<T>> {
+  async post<T = unknown>(
+    url: string,
+    data?: unknown,
+    options?: {
+      headers?: Record<string, string>;
+      timeout?: number;
+    }
+  ): Promise<HttpResponse<T>> {
     const body = data ? JSON.stringify(data) : undefined;
     const defaultHeaders = {
       'Content-Type': 'application/json',
-      ...headers,
+      ...(options?.headers || {}),
     };
-    return this.request<T>(url, { method: 'POST', headers: defaultHeaders, body });
+    return this.request<T>(url, {
+      method: 'POST',
+      headers: defaultHeaders,
+      body,
+      timeout: options?.timeout,
+    });
   }
 
   async put<T = unknown>(url: string, data?: unknown, headers?: Record<string, string>): Promise<HttpResponse<T>> {

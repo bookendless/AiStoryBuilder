@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { List, Plus, Sparkles, Edit3, Trash2, ChevronUp, ChevronDown, Check, X, FileText, Copy, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { List, Plus, Sparkles, Edit3, Trash2, ChevronUp, ChevronDown, Check, X, FileText, Copy, Download, Search, ChevronRight, BookOpen, History, RotateCcw } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -21,6 +21,20 @@ interface AILogEntry {
   response: string;
   error?: string;
   parsedChapters?: Array<{id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}>;
+}
+
+interface ChapterHistory {
+  id: string;
+  chapterId: string;
+  timestamp: Date;
+  data: {
+    title: string;
+    summary: string;
+    characters: string[];
+    setting: string;
+    mood: string;
+    keyEvents: string[];
+  };
 }
 
 export const ChapterStep: React.FC = () => {
@@ -58,6 +72,20 @@ export const ChapterStep: React.FC = () => {
     climax: false,
     conclusion: false,
   });
+  
+  // 折りたたみ機能の状態管理
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
+  
+  // 検索機能の状態管理
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // ジャンプ機能用のref
+  const chapterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  
+  // 履歴管理の状態
+  const [chapterHistories, setChapterHistories] = useState<{ [chapterId: string]: ChapterHistory[] }>({});
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
 
   // プロジェクトが変更されたときに構成バランスの状態を初期化
   useEffect(() => {
@@ -439,6 +467,9 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
       chapters: [...currentProject.chapters, newChapter],
     });
 
+    // 新規作成時も履歴を保存
+    saveChapterHistory(newChapter);
+
     setFormData({ title: '', summary: '', characters: [], setting: '', mood: '', keyEvents: [] });
     setShowAddForm(false);
   };
@@ -504,17 +535,28 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
   const handleUpdateChapter = () => {
     if (!currentProject || !editingId || !editFormData.title.trim()) return;
 
+    // 更新前の状態を履歴に保存
+    const oldChapter = currentProject.chapters.find(c => c.id === editingId);
+    if (oldChapter) {
+      saveChapterHistory(oldChapter);
+    }
+
+    const updatedChapter = {
+      id: editingId,
+      title: editFormData.title.trim(),
+      summary: editFormData.summary.trim(),
+      characters: editFormData.characters,
+      setting: editFormData.setting.trim(),
+      mood: editFormData.mood.trim(),
+      keyEvents: editFormData.keyEvents,
+    };
+
     updateProject({
       chapters: currentProject.chapters.map(c => 
         c.id === editingId 
           ? { 
               ...c, 
-              title: editFormData.title.trim(), 
-              summary: editFormData.summary.trim(), 
-              characters: editFormData.characters,
-              setting: editFormData.setting.trim(),
-              mood: editFormData.mood.trim(),
-              keyEvents: editFormData.keyEvents
+              ...updatedChapter
             }
           : c
       ),
@@ -568,6 +610,137 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
     updateProject({
       chapters: newChapters,
     });
+  };
+
+  // 折りたたみ機能のハンドラー
+  const toggleChapterExpansion = (chapterId: string) => {
+    setExpandedChapters(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(chapterId)) {
+        newSet.delete(chapterId);
+      } else {
+        newSet.add(chapterId);
+      }
+      return newSet;
+    });
+  };
+
+  // すべての章を展開/折りたたみ
+  const toggleAllChapters = () => {
+    if (!currentProject) return;
+    if (expandedChapters.size === currentProject.chapters.length) {
+      setExpandedChapters(new Set());
+    } else {
+      setExpandedChapters(new Set(currentProject.chapters.map(ch => ch.id)));
+    }
+  };
+
+  // 検索フィルタリング関数
+  const filterChapters = (chapters: NonNullable<typeof currentProject>['chapters']) => {
+    if (!searchQuery.trim() || !currentProject) return chapters;
+    
+    const query = searchQuery.toLowerCase();
+    return chapters.filter(chapter => {
+      // タイトルで検索
+      if (chapter.title.toLowerCase().includes(query)) return true;
+      
+      // 概要で検索
+      if (chapter.summary.toLowerCase().includes(query)) return true;
+      
+      // 設定・場所で検索
+      if (chapter.setting?.toLowerCase().includes(query)) return true;
+      
+      // 雰囲気・ムードで検索
+      if (chapter.mood?.toLowerCase().includes(query)) return true;
+      
+      // 重要な出来事で検索
+      if (chapter.keyEvents?.some(event => event.toLowerCase().includes(query))) return true;
+      
+      // キャラクター名で検索
+      if (chapter.characters?.some(characterId => {
+        const character = currentProject.characters.find(c => c.id === characterId);
+        const characterName = character ? character.name : characterId;
+        return characterName.toLowerCase().includes(query);
+      })) return true;
+      
+      return false;
+    });
+  };
+
+  // ジャンプ機能
+  const scrollToChapter = (chapterId: string) => {
+    const element = chapterRefs.current[chapterId];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // ハイライト効果
+      element.classList.add('ring-2', 'ring-blue-500');
+      setTimeout(() => {
+        element.classList.remove('ring-2', 'ring-blue-500');
+      }, 2000);
+    }
+  };
+
+  // 章の履歴を保存する関数
+  const saveChapterHistory = useCallback((chapter: {id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}) => {
+    const history: ChapterHistory = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      chapterId: chapter.id,
+      timestamp: new Date(),
+      data: {
+        title: chapter.title,
+        summary: chapter.summary,
+        characters: chapter.characters || [],
+        setting: chapter.setting || '',
+        mood: chapter.mood || '',
+        keyEvents: chapter.keyEvents || [],
+      },
+    };
+
+    setChapterHistories(prev => {
+      const chapterHistory = prev[chapter.id] || [];
+      // 最新50件まで保持
+      const newHistory = [history, ...chapterHistory].slice(0, 50);
+      return {
+        ...prev,
+        [chapter.id]: newHistory,
+      };
+    });
+  }, []);
+
+  // 履歴から章を復元する関数
+  const restoreChapterFromHistory = (history: ChapterHistory) => {
+    if (!currentProject) return;
+
+    updateProject({
+      chapters: currentProject.chapters.map(c =>
+        c.id === history.chapterId
+          ? {
+              ...c,
+              title: history.data.title,
+              summary: history.data.summary,
+              characters: history.data.characters,
+              setting: history.data.setting,
+              mood: history.data.mood,
+              keyEvents: history.data.keyEvents,
+            }
+          : c
+      ),
+    });
+
+    // 復元後、新しい履歴として保存（現在の状態を履歴に追加）
+    const currentChapter = currentProject.chapters.find(c => c.id === history.chapterId);
+    if (currentChapter) {
+      saveChapterHistory(currentChapter);
+    }
+
+    setShowHistoryModal(false);
+    alert('章を履歴から復元しました');
+  };
+
+  // 履歴モーダルを開く
+  const openHistoryModal = (chapterId: string) => {
+    setSelectedChapterId(chapterId);
+    setShowHistoryModal(true);
   };
 
 
@@ -926,6 +1099,11 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
           chapters: [...currentProject!.chapters, ...newChapters],
         });
         
+        // AI生成で追加された章の履歴を保存
+        newChapters.forEach(chapter => {
+          saveChapterHistory(chapter);
+        });
+        
         // 不完全な章があるかチェック
         const incompleteChapters = newChapters.filter((ch: {
           id: string;
@@ -1019,6 +1197,11 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
             chapters: [...currentProject.chapters, ...newChapters],
           });
           
+          // AI生成で追加された章の履歴を保存
+          newChapters.forEach(chapter => {
+            saveChapterHistory(chapter);
+          });
+          
           // 不完全な章があるかチェック
           const incompleteChapters = newChapters.filter((ch: {
             id: string;
@@ -1088,13 +1271,18 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
             {/* Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                     章構成一覧
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                     {currentProject.chapters.length} 章設定済み
+                    {searchQuery && (
+                      <span className="ml-2 text-indigo-600 dark:text-indigo-400">
+                        （検索結果: {filterChapters(currentProject.chapters).length} 章）
+                      </span>
+                    )}
                   </p>
                 </div>
 
@@ -1120,6 +1308,38 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                   </button>
                 </div>
               </div>
+              
+              {/* 検索バー */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="章を検索（タイトル、概要、キャラクター名など）"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              
+              {/* 折りたたみコントロール */}
+              {currentProject.chapters.length > 0 && (
+                <div className="mt-3 flex items-center justify-between">
+                  <button
+                    onClick={toggleAllChapters}
+                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-['Noto_Sans_JP']"
+                  >
+                    {expandedChapters.size === currentProject.chapters.length ? 'すべて折りたたむ' : 'すべて展開する'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Chapters List */}
@@ -1144,145 +1364,240 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {currentProject.chapters.map((chapter, index) => (
-                    <div 
-                      key={chapter.id} 
-                      className={`bg-gray-50 dark:bg-gray-700 p-6 rounded-xl border border-gray-200 dark:border-gray-600 transition-all duration-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                        draggedIndex === index ? 'opacity-50 scale-95' : ''
-                      }`}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, index)}
-                      onDoubleClick={() => handleDoubleClickChapter(chapter)}
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-start space-x-4">
-                          <div className="bg-gradient-to-br from-blue-500 to-teal-600 w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <span className="text-white font-bold text-lg">
-                              {index + 1}
-                            </span>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
-                              {chapter.title}
-                            </h4>
-                            <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-2">
-                              {chapter.summary}
-                            </p>
-                            
-                            {/* 設定・場所 */}
-                            {chapter.setting && (
-                              <div className="mb-2">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                  設定・場所:
-                                </span>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
-                                  {chapter.setting}
-                                </p>
-                              </div>
-                            )}
-                            
-                            {/* 雰囲気・ムード */}
-                            {chapter.mood && (
-                              <div className="mb-2">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                  雰囲気・ムード:
-                                </span>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
-                                  {chapter.mood}
-                                </p>
-                              </div>
-                            )}
-                            
-                            {/* 重要な出来事 */}
-                            {chapter.keyEvents && chapter.keyEvents.length > 0 && (
-                              <div className="mb-2">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                  重要な出来事:
-                                </span>
-                                <div className="mt-1 space-y-1">
-                                  {chapter.keyEvents.map((event: string, index: number) => (
-                                    <div key={index} className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                      • {event}
+                  {(() => {
+                    const filteredChapters = filterChapters(currentProject.chapters);
+                    const originalIndices = new Map(filteredChapters.map(ch => [ch.id, currentProject.chapters.findIndex(c => c.id === ch.id)]));
+                    
+                    return filteredChapters.length === 0 ? (
+                      <div className="text-center py-12">
+                        <Search className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                        <p className="text-xl text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
+                          検索結果が見つかりませんでした
+                        </p>
+                        <p className="text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                          「{searchQuery}」に一致する章はありません
+                        </p>
+                      </div>
+                    ) : (
+                      filteredChapters.map((chapter) => {
+                        const originalIndex = originalIndices.get(chapter.id) ?? 0;
+                        const isExpanded = expandedChapters.has(chapter.id);
+                        
+                        return (
+                          <div 
+                            key={chapter.id}
+                            ref={(el) => {
+                              chapterRefs.current[chapter.id] = el;
+                            }}
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                              draggedIndex === originalIndex ? 'opacity-50 scale-95' : ''
+                            }`}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, originalIndex)}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, originalIndex)}
+                          >
+                            {/* 章ヘッダー（常に表示） */}
+                            <div 
+                              className="p-6 cursor-pointer"
+                              onClick={() => toggleChapterExpansion(chapter.id)}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                handleDoubleClickChapter(chapter);
+                              }}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start space-x-4 flex-1">
+                                  <div className="bg-gradient-to-br from-blue-500 to-teal-600 w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white font-bold text-lg">
+                                      {originalIndex + 1}
+                                    </span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleChapterExpansion(chapter.id);
+                                        }}
+                                        className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                      >
+                                        {isExpanded ? (
+                                          <ChevronDown className="h-5 w-5" />
+                                        ) : (
+                                          <ChevronRight className="h-5 w-5" />
+                                        )}
+                                      </button>
+                                      <h4 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                        {chapter.title}
+                                      </h4>
                                     </div>
-                                  ))}
+                                    {!isExpanded && (
+                                      <div className="ml-7">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] line-clamp-2">
+                                          {chapter.summary}
+                                        </p>
+                                        {chapter.characters && chapter.characters.length > 0 && (
+                                          <div className="flex flex-wrap gap-1 mt-2">
+                                            {chapter.characters.slice(0, 3).map((characterId) => {
+                                              const character = currentProject.characters.find(c => c.id === characterId);
+                                              const characterName = character ? character.name : characterId;
+                                              return (
+                                                <span
+                                                  key={characterId}
+                                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-['Noto_Sans_JP']"
+                                                >
+                                                  {characterName}
+                                                </span>
+                                              );
+                                            })}
+                                            {chapter.characters.length > 3 && (
+                                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                                +{chapter.characters.length - 3}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-2 ml-4">
+                                  <div className="flex flex-col space-y-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        moveChapter(originalIndex, Math.max(0, originalIndex - 1));
+                                      }}
+                                      disabled={originalIndex === 0}
+                                      className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="上に移動"
+                                    >
+                                      <ChevronUp className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        moveChapter(originalIndex, Math.min(currentProject.chapters.length - 1, originalIndex + 1));
+                                      }}
+                                      disabled={originalIndex === currentProject.chapters.length - 1}
+                                      className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="下に移動"
+                                    >
+                                      <ChevronDown className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openHistoryModal(chapter.id);
+                                    }}
+                                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                                    title="変更履歴"
+                                  >
+                                    <History className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditChapter(chapter);
+                                    }}
+                                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                                    title="編集"
+                                  >
+                                    <Edit3 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteChapter(chapter.id);
+                                    }}
+                                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                    title="削除"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* 章の詳細（折りたたみ可能） */}
+                            {isExpanded && (
+                              <div className="px-6 pb-6 pt-0 border-t border-gray-200 dark:border-gray-600">
+                                <div className="ml-16 space-y-3">
+                                  <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                                    {chapter.summary}
+                                  </p>
+                                  
+                                  {/* 設定・場所 */}
+                                  {chapter.setting && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                        設定・場所:
+                                      </span>
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
+                                        {chapter.setting}
+                                      </p>
+                                    </div>
+                                  )}
+                                  
+                                  {/* 雰囲気・ムード */}
+                                  {chapter.mood && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                        雰囲気・ムード:
+                                      </span>
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
+                                        {chapter.mood}
+                                      </p>
+                                    </div>
+                                  )}
+                                  
+                                  {/* 重要な出来事 */}
+                                  {chapter.keyEvents && chapter.keyEvents.length > 0 && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                        重要な出来事:
+                                      </span>
+                                      <div className="mt-1 space-y-1">
+                                        {chapter.keyEvents.map((event: string, eventIndex: number) => (
+                                          <div key={eventIndex} className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                            • {event}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* 登場キャラクター */}
+                                  {chapter.characters && chapter.characters.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                        登場キャラクター:
+                                      </span>
+                                      {chapter.characters.map((characterId) => {
+                                        const character = currentProject.characters.find(c => c.id === characterId);
+                                        const characterName = character ? character.name : characterId;
+                                        return (
+                                          <span
+                                            key={characterId}
+                                            className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-['Noto_Sans_JP']"
+                                          >
+                                            {characterName}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}
-                            
-                            {chapter.characters && chapter.characters.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                  登場キャラクター:
-                                </span>
-                                {chapter.characters.map((characterId) => {
-                                  const character = currentProject.characters.find(c => c.id === characterId);
-                                  // キャラクターが見つからない場合は手動入力された名前として扱う
-                                  const characterName = character ? character.name : characterId;
-                                  return (
-                                    <span
-                                      key={characterId}
-                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-['Noto_Sans_JP']"
-                                    >
-                                      {characterName}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <div className="flex flex-col space-y-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveChapter(index, Math.max(0, index - 1));
-                              }}
-                              disabled={index === 0}
-                              className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="上に移動"
-                            >
-                              <ChevronUp className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveChapter(index, Math.min(currentProject.chapters.length - 1, index + 1));
-                              }}
-                              disabled={index === currentProject.chapters.length - 1}
-                              className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="下に移動"
-                            >
-                              <ChevronDown className="h-3 w-3" />
-                            </button>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditChapter(chapter);
-                            }}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                            title="編集"
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteChapter(chapter.id);
-                            }}
-                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="削除"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                        );
+                      })
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -1291,6 +1606,56 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
 
         {/* AI Assistant Panel */}
         <div className="space-y-6">
+          {/* 章目次ナビゲーション */}
+          {currentProject.chapters.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 max-h-[400px] overflow-y-auto">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
+                  <BookOpen className="h-5 w-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  章目次
+                </h3>
+              </div>
+              
+              <div className="space-y-1">
+                {currentProject.chapters.map((chapter, index) => {
+                  const isExpanded = expandedChapters.has(chapter.id);
+                  const isVisible = !searchQuery || filterChapters(currentProject.chapters).some(ch => ch.id === chapter.id);
+                  
+                  if (!isVisible) return null;
+                  
+                  return (
+                    <button
+                      key={chapter.id}
+                      onClick={() => scrollToChapter(chapter.id)}
+                      className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm font-['Noto_Sans_JP'] ${
+                        isExpanded
+                          ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                          {index + 1}.
+                        </span>
+                        <span className="truncate">{chapter.title}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {searchQuery && (
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    検索中: {filterChapters(currentProject.chapters).length} / {currentProject.chapters.length} 章
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="bg-gradient-to-br from-blue-50 to-teal-50 dark:from-blue-900/20 dark:to-teal-900/20 p-6 rounded-2xl border border-blue-200 dark:border-blue-800">
             <div className="flex items-center space-x-3 mb-4">
               <div className="bg-gradient-to-br from-blue-500 to-teal-600 w-10 h-10 rounded-full flex items-center justify-center">
@@ -2177,6 +2542,195 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chapter History Modal */}
+      {showHistoryModal && selectedChapterId && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowHistoryModal(false);
+              setSelectedChapterId(null);
+            }
+          }}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
+                    <History className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                      変更履歴
+                    </h3>
+                    {currentProject && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
+                        {currentProject.chapters.find(c => c.id === selectedChapterId)?.title || '章の履歴'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowHistoryModal(false);
+                    setSelectedChapterId(null);
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {(() => {
+                const histories = chapterHistories[selectedChapterId] || [];
+                const currentChapter = currentProject?.chapters.find(c => c.id === selectedChapterId);
+                
+                if (histories.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <History className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                      <p className="text-xl text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
+                        変更履歴がありません
+                      </p>
+                      <p className="text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                        章を編集すると、ここに履歴が表示されます
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {/* 現在の状態 */}
+                    {currentChapter && (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border-2 border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="font-semibold text-blue-800 dark:text-blue-300 font-['Noto_Sans_JP']">
+                              現在の状態
+                            </span>
+                          </div>
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">タイトル:</span>
+                            <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">{currentChapter.title}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">概要:</span>
+                            <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">{currentChapter.summary || '（未設定）'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 履歴一覧 */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-gray-800 dark:text-gray-200 font-['Noto_Sans_JP']">
+                        過去の履歴 ({histories.length}件)
+                      </h4>
+                      {histories.map((history, index) => (
+                        <div 
+                          key={history.id} 
+                          className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                #{histories.length - index}
+                              </span>
+                              <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                {history.timestamp.toLocaleString('ja-JP', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (confirm('この履歴の状態に復元しますか？現在の状態は履歴として保存されます。')) {
+                                  restoreChapterFromHistory(history);
+                                }
+                              }}
+                              className="flex items-center space-x-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-['Noto_Sans_JP']"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              <span>この状態に復元</span>
+                            </button>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div>
+                              <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">タイトル:</span>
+                              <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">{history.data.title}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">概要:</span>
+                              <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] line-clamp-2">
+                                {history.data.summary || '（未設定）'}
+                              </p>
+                            </div>
+                            {history.data.setting && (
+                              <div>
+                                <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">設定・場所:</span>
+                                <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">{history.data.setting}</p>
+                              </div>
+                            )}
+                            {history.data.mood && (
+                              <div>
+                                <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">雰囲気・ムード:</span>
+                                <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">{history.data.mood}</p>
+                              </div>
+                            )}
+                            {history.data.characters.length > 0 && (
+                              <div>
+                                <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">登場キャラクター:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {history.data.characters.map((characterId, idx) => {
+                                    const character = currentProject?.characters.find(c => c.id === characterId);
+                                    const characterName = character ? character.name : characterId;
+                                    return (
+                                      <span
+                                        key={idx}
+                                        className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-['Noto_Sans_JP']"
+                                      >
+                                        {characterName}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {history.data.keyEvents.length > 0 && (
+                              <div>
+                                <span className="font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">重要な出来事:</span>
+                                <ul className="mt-1 space-y-1">
+                                  {history.data.keyEvents.map((event, idx) => (
+                                    <li key={idx} className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] text-sm">
+                                      • {event}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -106,7 +106,9 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           ],
           max_tokens: 50,
         }, {
-          'Authorization': `Bearer ${formData.apiKey}`,
+          headers: {
+            'Authorization': `Bearer ${formData.apiKey}`,
+          },
         });
 
         if (response.status >= 400) {
@@ -127,8 +129,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             },
           ],
         }, {
-          'x-api-key': formData.apiKey,
-          'anthropic-version': '2023-06-01',
+          headers: {
+            'x-api-key': formData.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
         });
 
         if (response.status >= 400) {
@@ -145,6 +149,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           generationConfig: {
             maxOutputTokens: 50,
           },
+        }, {
+          headers: formData.apiKey ? { 'x-goog-api-key': formData.apiKey } : undefined,
         });
 
         if (response.status >= 400) {
@@ -193,6 +199,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             },
           ],
           max_tokens: 50,
+        }, {
+          timeout: 60000,
         });
         
         console.log('Local LLM test response:', {

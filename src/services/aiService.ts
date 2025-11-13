@@ -430,7 +430,9 @@ class AIService {
         temperature: request.settings.temperature,
         max_tokens: request.settings.maxTokens,
       }, {
-        'Authorization': `Bearer ${apiKey}`,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
       });
 
       if (response.status >= 400) {
@@ -489,8 +491,10 @@ class AIService {
           },
         ],
       }, {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
       });
 
       if (response.status >= 400) {
@@ -539,6 +543,10 @@ class AIService {
         prompt: request.prompt.substring(0, 100) + '...',
         temperature: request.settings.temperature,
         maxTokens: request.settings.maxTokens,
+      }, {
+        headers: {
+          'x-goog-api-key': apiKey,
+        },
       });
 
       const response = await httpService.post(`https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`, {
@@ -647,6 +655,8 @@ class AIService {
         ],
         temperature: request.settings.temperature,
         max_tokens: maxTokens,
+      }, {
+        timeout: 120000,
       });
 
       if (response.status >= 400) {

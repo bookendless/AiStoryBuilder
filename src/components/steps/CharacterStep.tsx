@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn, FileText, Copy, Download, Network } from 'lucide-react';
+import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, GripVertical, ZoomIn, FileText, Copy, Download, Network, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { RelationshipDiagram } from '../tools/RelationshipDiagram';
+import { useToast } from '../Toast';
 
 interface AILogEntry {
   id: string;
@@ -79,6 +80,8 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
   editingCharacter,
   onUpdate
 }) => {
+  const { showError, showSuccess } = useToast();
+  const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -111,6 +114,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
         setPreviewUrl('');
       }
       setSelectedFile(null);
+      setActiveTab('basic'); // タブをリセット
     }
   }, [isOpen, editingCharacter]);
 
@@ -131,14 +135,14 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
 
     // ファイルタイプの検証
     if (!file.type.startsWith('image/')) {
-      alert('画像ファイルを選択してください。');
+      showError('画像ファイルを選択してください。');
       return;
     }
 
     // ファイルサイズの検証（5MB制限）
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
-      alert('ファイルサイズが大きすぎます。5MB以下の画像を選択してください。');
+      showError('ファイルサイズが大きすぎます。5MB以下の画像を選択してください。');
       return;
     }
 
@@ -151,7 +155,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
       setFormData(prev => ({ ...prev, image: base64 }));
     } catch (error) {
       console.error('ファイル読み込みエラー:', error);
-      alert('ファイルの読み込みに失敗しました。');
+      showError('ファイルの読み込みに失敗しました。');
     } finally {
       setIsUploading(false);
     }
@@ -196,8 +200,10 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
 
     if (editingCharacter && onUpdate) {
       onUpdate(character);
+      showSuccess('キャラクターを更新しました');
     } else {
       onSubmit(character);
+      showSuccess('キャラクターを追加しました');
     }
 
     // フォームをリセット
@@ -245,38 +251,157 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
             </button>
       </div>
 
+          {/* タブナビゲーション */}
+          <div className="flex space-x-1 mb-6 border-b border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => setActiveTab('basic')}
+              className={`px-4 py-2 text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${
+                activeTab === 'basic'
+                  ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              基本情報
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('details')}
+              className={`px-4 py-2 text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${
+                activeTab === 'details'
+                  ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              詳細情報
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                        名前 *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="キャラクターの名前"
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
-                required
-                      />
-                    </div>
+                    {/* 基本情報タブ */}
+                    {activeTab === 'basic' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                            名前 *
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="キャラクターの名前"
+                            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                            required
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                        役割・立場
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.role}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                        placeholder="主人公、ヒロイン、悪役など"
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
-                      />
-                    </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                            役割・立場
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.role}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                            placeholder="主人公、ヒロイン、悪役など"
+                            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                        外見・特徴
-                      </label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                            キャラクター画像
+                          </label>
+                          
+                          {/* ファイル選択エリア */}
+                          <div className="space-y-3">
+                            <button
+                              type="button"
+                              onClick={handleSelectFile}
+                              disabled={isUploading}
+                              className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <div className="text-center">
+                                {isUploading ? (
+                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+                                ) : (
+                                  <Upload className="h-6 w-6 text-gray-400 group-hover:text-indigo-500 mx-auto mb-2" />
+                                )}
+                                <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-indigo-500 font-['Noto_Sans_JP']">
+                                  {isUploading ? '読み込み中...' : '画像を選択'}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 font-['Noto_Sans_JP']">
+                                  JPG, PNG, GIF, WebP (最大5MB)
+                                </p>
+                              </div>
+                            </button>
+                            
+                            {/* 選択されたファイル情報 */}
+                            {selectedFile && (
+                              <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <div className="flex items-center space-x-2">
+                                  <FileImage className="h-4 w-4 text-indigo-600" />
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                      {selectedFile.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleClearFile}
+                                  className="text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* プレビュー */}
+                            {previewUrl && (
+                              <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-2 relative group">
+                                <div 
+                                  className="relative cursor-pointer"
+                                  onClick={handleOpenImageViewer}
+                                >
+                                  <img
+                                    src={previewUrl}
+                                    alt="Preview"
+                                    className="w-24 h-32 object-cover rounded mx-auto"
+                                  />
+                                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded flex items-center justify-center">
+                                    <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                  </div>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1 font-['Noto_Sans_JP']">
+                                  クリックで拡大表示
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* 隠しファイル入力 */}
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* 詳細情報タブ */}
+                    {activeTab === 'details' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                            外見・特徴
+                          </label>
                       <div className="relative">
                         <textarea
                           value={formData.appearance}
@@ -404,91 +529,8 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
                         </p>
                       )}
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                        キャラクター画像
-                      </label>
-                      
-                      {/* ファイル選択エリア */}
-                      <div className="space-y-3">
-                        <button
-                          type="button"
-                          onClick={handleSelectFile}
-                          disabled={isUploading}
-                          className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <div className="text-center">
-                            {isUploading ? (
-                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto mb-2"></div>
-                            ) : (
-                              <Upload className="h-6 w-6 text-gray-400 group-hover:text-indigo-500 mx-auto mb-2" />
-                            )}
-                            <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-indigo-500 font-['Noto_Sans_JP']">
-                              {isUploading ? '読み込み中...' : '画像を選択'}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 font-['Noto_Sans_JP']">
-                              JPG, PNG, GIF, WebP (最大5MB)
-                            </p>
-                          </div>
-                        </button>
-                        
-                        {/* 選択されたファイル情報 */}
-                        {selectedFile && (
-                          <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                            <div className="flex items-center space-x-2">
-                              <FileImage className="h-4 w-4 text-indigo-600" />
-                              <div>
-                                <p className="text-xs font-medium text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                  {selectedFile.name}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                      type="button"
-                              onClick={handleClearFile}
-                              className="text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-
-                        {/* プレビュー */}
-                        {previewUrl && (
-                          <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-2 relative group">
-                            <div 
-                              className="relative cursor-pointer"
-                              onClick={handleOpenImageViewer}
-                            >
-                              <img
-                                src={previewUrl}
-                                alt="Preview"
-                                className="w-24 h-32 object-cover rounded mx-auto"
-                              />
-                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded flex items-center justify-center">
-                                <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                              </div>
-                            </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1 font-['Noto_Sans_JP']">
-                              クリックで拡大表示
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* 隠しファイル入力 */}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                      />
-                    </div>
+                      </>
+                    )}
 
                     <div className="flex space-x-3 pt-4">
                       <button
@@ -523,11 +565,14 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
 export const CharacterStep: React.FC = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
+  const { showError, showSuccess } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [enhancingId, setEnhancingId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [showRelationships, setShowRelationships] = useState(false);
@@ -586,16 +631,27 @@ export const CharacterStep: React.FC = () => {
   };
 
   // ドラッグ中
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  // ドラッグ離脱
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
   };
 
   // ドロップ
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     
-    if (draggedIndex === null || draggedIndex === dropIndex || !currentProject) return;
+    if (draggedIndex === null || draggedIndex === dropIndex || !currentProject) {
+      setDragOverIndex(null);
+      return;
+    }
 
     const characters = [...currentProject.characters];
     const draggedCharacter = characters[draggedIndex];
@@ -608,11 +664,27 @@ export const CharacterStep: React.FC = () => {
     
     updateProject({ characters });
     setDraggedIndex(null);
+    setDragOverIndex(null);
+    showSuccess('キャラクターの並び順を変更しました');
   };
 
   // ドラッグ終了
   const handleDragEnd = () => {
     setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // カードの展開/折りたたみ
+  const toggleCardExpansion = (characterId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(characterId)) {
+        newSet.delete(characterId);
+      } else {
+        newSet.add(characterId);
+      }
+      return newSet;
+    });
   };
 
   // キャラクター画像を拡大表示
@@ -635,7 +707,7 @@ export const CharacterStep: React.FC = () => {
 
   const handleAIEnhance = async (character: Character) => {
     if (!isConfigured) {
-      alert('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
       return;
     }
 
@@ -684,7 +756,7 @@ export const CharacterStep: React.FC = () => {
       setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
 
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}\n\n詳細はAIログを確認してください。`);
+        showError(`AI生成エラー: ${response.error}\n詳細はAIログを確認してください。`);
         return;
       }
 
@@ -727,7 +799,7 @@ export const CharacterStep: React.FC = () => {
       updateProject({ characters: updatedCharacters });
       
     } catch (_error) {
-      alert('AI生成中にエラーが発生しました');
+      showError('AI生成中にエラーが発生しました');
     } finally {
       setEnhancingId(null);
     }
@@ -735,7 +807,7 @@ export const CharacterStep: React.FC = () => {
 
   const handleAIGenerateCharacters = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
       return;
     }
 
@@ -796,7 +868,7 @@ export const CharacterStep: React.FC = () => {
       setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
 
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}\n\n詳細はAIログを確認してください。`);
+        showError(`AI生成エラー: ${response.error}\n詳細はAIログを確認してください。`);
         return;
       }
 
@@ -924,14 +996,14 @@ export const CharacterStep: React.FC = () => {
         setAiLogs(prev => [updatedLogEntry, ...prev.slice(1)]); // 最新のログを更新
 
         const characterNames = newCharacters.map(c => c.name).join('、');
-        alert(`${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`);
+        showSuccess(`${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`);
       } else {
-        alert('キャラクターの生成に失敗しました。AIログを確認して詳細を確認してください。');
+        showError('キャラクターの生成に失敗しました。AIログを確認して詳細を確認してください。');
       }
       
     } catch (error) {
       console.error('AI生成エラー:', error);
-      alert('AI生成中にエラーが発生しました');
+      showError('AI生成中にエラーが発生しました');
     } finally {
       setIsGenerating(false);
     }
@@ -1031,19 +1103,26 @@ ${'='.repeat(80)}`
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Characters List */}
         <div className="lg:col-span-2 space-y-4">
-          {currentProject.characters.map((character, index) => (
+          {currentProject.characters.map((character, index) => {
+            const isExpanded = expandedCards.has(character.id);
+            const hasDetails = !!(character.appearance || character.personality || character.background);
+            
+            return (
             <div 
               key={character.id} 
               draggable
               onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={handleDragOver}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, index)}
               onDragEnd={handleDragEnd}
               onDoubleClick={() => handleOpenEditModal(character)}
-              className={`bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 cursor-move transition-all duration-200 ${
+              className={`bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border transition-all duration-200 ${
                 draggedIndex === index 
-                  ? 'opacity-50 scale-95 shadow-2xl' 
-                  : 'hover:shadow-xl hover:scale-[1.02]'
+                  ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing' 
+                  : dragOverIndex === index
+                    ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl hover:scale-[1.02]'
               }`}
             >
                   <div className="flex items-start justify-between mb-4">
@@ -1114,30 +1193,64 @@ ${'='.repeat(80)}`
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {character.appearance && (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">外見</h4>
-                        <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.appearance}</p>
-                      </div>
-                    )}
-                    
-                    {character.personality && (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">性格</h4>
-                        <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.personality}</p>
-                      </div>
-                    )}
-                    
-                    {character.background && (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">背景</h4>
-                        <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.background}</p>
-                      </div>
-                    )}
-                  </div>
+                  {/* 詳細情報の折りたたみ */}
+                  {hasDetails && (
+                    <>
+                      {!isExpanded && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleCardExpansion(character.id);
+                          }}
+                          className="w-full mt-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-center space-x-1 font-['Noto_Sans_JP']"
+                        >
+                          <span>詳細を表示</span>
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      )}
+                      
+                      {isExpanded && (
+                        <>
+                          <div className="space-y-3 mt-4">
+                            {character.appearance && (
+                              <div>
+                                <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">外見</h4>
+                                <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.appearance}</p>
+                              </div>
+                            )}
+                            
+                            {character.personality && (
+                              <div>
+                                <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">性格</h4>
+                                <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.personality}</p>
+                              </div>
+                            )}
+                            
+                            {character.background && (
+                              <div>
+                                <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">背景</h4>
+                                <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.background}</p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCardExpansion(character.id);
+                            }}
+                            className="w-full mt-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-center space-x-1 font-['Noto_Sans_JP']"
+                          >
+                            <span>詳細を折りたたむ</span>
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
             </div>
-          ))}
+            );
+          })}
 
           {/* Add Character Button */}
             <button

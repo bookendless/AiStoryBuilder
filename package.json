@@ -50,6 +50,7 @@
     "@tauri-apps/plugin-http": "^2.5.2",
     "axios": "^1.11.0",
     "dexie": "^4.2.0",
+    "diff": "^7.0.0",
     "lucide-react": "^0.344.0",
     "openai": "^5.12.2",
     "react": "^18.3.1",
@@ -57,6 +58,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@types/diff": "^7.0.2",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

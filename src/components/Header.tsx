@@ -1,9 +1,6 @@
-import React, { useState } from 'react';
-import { Moon, Sun, Home, BookOpen, Save, PanelLeftClose, PanelLeftOpen, Database, Settings } from 'lucide-react';
+import React from 'react';
+import { Moon, Sun, Home, BookOpen, Save, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
-import { useAI } from '../contexts/AIContext';
-import { DataManager } from './DataManager';
-import { AISettings } from './AISettings';
 
 interface HeaderProps {
   isDarkMode: boolean;
@@ -25,9 +22,6 @@ export const Header: React.FC<HeaderProps> = ({
   showSidebarControls = false,
 }) => {
   const { currentProject, saveProject, isLoading, lastSaved } = useProject();
-  const { isConfigured } = useAI();
-  const [showDataManager, setShowDataManager] = useState(false);
-  const [showAISettings, setShowAISettings] = useState(false);
 
   const handleManualSave = async () => {
     await saveProject();
@@ -35,9 +29,6 @@ export const Header: React.FC<HeaderProps> = ({
 
   // 両方のサイドバーが折りたたまれているかどうか
   const areBothCollapsed = isSidebarCollapsed && isToolsSidebarCollapsed;
-  
-  // ホーム画面かどうか（サイドバーコントロールが表示されていない場合）
-  const isHomePage = !showSidebarControls;
 
   return (
     <>
@@ -101,40 +92,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
             
-            {/* ホーム画面でのみ表示されるボタン */}
-            {isHomePage && (
-              <>
-                <button
-                  onClick={() => setShowDataManager(true)}
-                  className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 rounded-md"
-                  aria-label="データ管理を開く"
-                >
-                  <Database className="h-5 w-5" aria-hidden="true" />
-                  <span className="hidden sm:inline">データ管理</span>
-                </button>
-                
-                <button
-                  onClick={() => setShowAISettings(true)}
-                  className={`flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 rounded-md ${
-                    !isConfigured ? 'animate-pulse' : ''
-                  }`}
-                  aria-label={isConfigured ? 'AI設定を開く' : 'AI設定が必要です'}
-                  aria-describedby={!isConfigured ? 'ai-config-required' : undefined}
-                >
-                  <Settings className="h-5 w-5" aria-hidden="true" />
-                  <span className="hidden sm:inline">AI設定</span>
-                  {!isConfigured && (
-                    <span className="w-2 h-2 bg-red-500 rounded-full" aria-hidden="true"></span>
-                  )}
-                </button>
-                {!isConfigured && (
-                  <span id="ai-config-required" className="sr-only">
-                    AI設定が必要です。設定を完了してください。
-                  </span>
-                )}
-              </>
-            )}
-            
             <button
               onClick={onToggleTheme}
               className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
@@ -150,17 +107,6 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
     </header>
-    
-    {/* モーダル */}
-    <DataManager 
-      isOpen={showDataManager} 
-      onClose={() => setShowDataManager(false)} 
-    />
-    
-    <AISettings 
-      isOpen={showAISettings} 
-      onClose={() => setShowAISettings(false)} 
-    />
     </>
   );
 };

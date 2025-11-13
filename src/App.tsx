@@ -12,6 +12,7 @@ import { DraftStep } from './components/steps/DraftStep';
 import { ExportStep } from './components/steps/ExportStep';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
+import { ToastProvider } from './components/Toast';
 import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
 import { PerformanceMonitor, registerServiceWorker, onOnlineStatusChange } from './utils/performanceUtils';
 
@@ -158,8 +159,9 @@ function App() {
   }
 
   return (
-    <AIProvider>
-      <ProjectProvider>
+    <ToastProvider>
+      <AIProvider>
+        <ProjectProvider>
         {/* スキップリンク */}
         <a 
           href="#main-content" 
@@ -224,8 +226,9 @@ function App() {
             />
           </div>
         </div>
-      </ProjectProvider>
-    </AIProvider>
+        </ProjectProvider>
+      </AIProvider>
+    </ToastProvider>
   );
 }
 
