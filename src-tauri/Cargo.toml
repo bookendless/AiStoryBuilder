@@ -1,6 +1,6 @@
 [package]
 name = "ai-story-builder"
-version = "1.0.0"
+version = "1.1.0"
 description = "AIを活用した小説創作支援アプリケーション"
 authors = ["AI Story Builder Team"]
 license = "CC-BY-NC-ND-4.0"
