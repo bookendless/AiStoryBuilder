@@ -27,6 +27,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     hook: currentProject?.plot?.hook || '',
     protagonistGoal: currentProject?.plot?.protagonistGoal || '',
     mainObstacle: currentProject?.plot?.mainObstacle || '',
+    ending: currentProject?.plot?.ending || '',
   });
 
   // 入力履歴管理
@@ -44,6 +45,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     { key: 'hook', label: 'フック要素' },
     { key: 'protagonistGoal', label: '主人公の目標' },
     { key: 'mainObstacle', label: '主要な障害' },
+    { key: 'ending', label: '物語の結末' },
   ]);
 
   // テンプレート・サンプル表示用の状態
@@ -114,6 +116,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         hook: currentProject.plot?.hook || '',
         protagonistGoal: currentProject.plot?.protagonistGoal || '',
         mainObstacle: currentProject.plot?.mainObstacle || '',
+        ending: currentProject.plot?.ending || '',
       };
       historyRef.current = true;
       setFormData(newFormData);
@@ -141,7 +144,8 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         formData.setting !== (currentProject.plot?.setting || '') ||
         formData.hook !== (currentProject.plot?.hook || '') ||
         formData.protagonistGoal !== (currentProject.plot?.protagonistGoal || '') ||
-        formData.mainObstacle !== (currentProject.plot?.mainObstacle || '');
+        formData.mainObstacle !== (currentProject.plot?.mainObstacle || '') ||
+        formData.ending !== (currentProject.plot?.ending || '');
       
       if (hasChanges) {
         // 直接保存処理を実行
@@ -157,6 +161,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
             hook: formData.hook,
             protagonistGoal: formData.protagonistGoal,
             mainObstacle: formData.mainObstacle,
+            ending: formData.ending,
           };
 
           await updateProject({
@@ -198,6 +203,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         hook: formData.hook,
         protagonistGoal: formData.protagonistGoal,
         mainObstacle: formData.mainObstacle,
+        ending: formData.ending,
       };
 
       // 即座に保存
@@ -231,6 +237,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         hook: '',
         protagonistGoal: '',
         mainObstacle: '',
+        ending: '',
       };
       setFormData(resetData);
       saveToHistory(resetData);
@@ -272,6 +279,12 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
       '強大な敵の存在と、異世界の複雑な政治情勢',
       '家族の過去の重みと、真実を知ることによる代償',
     ],
+    ending: [
+      '主人公と転校生が和解し、クラス全体が団結して新しい関係を築く',
+      'AIアシスタントが感情を獲得し、主人公と共に未来を歩む決意を固める',
+      '異世界の危機を救い、主人公は元の世界に戻り、そこで得た経験を活かして成長する',
+      '家族の秘密が明らかになり、主人公は真実を受け入れ、新しい家族の絆を築く',
+    ],
   };
 
   // テンプレートを適用する関数
@@ -305,6 +318,10 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     mainObstacle: {
       description: '主要な障害は主人公の目標を阻むものである必要があります。目標と関連性を持たせることで物語が成立します。',
       relatedFields: ['protagonistGoal'],
+    },
+    ending: {
+      description: '物語の結末は、主人公の目標達成や成長、テーマの完結を表現します。結末から逆算して物語を構築することも可能です。',
+      relatedFields: ['theme', 'protagonistGoal', 'mainObstacle'],
     },
   };
 
@@ -557,7 +574,8 @@ ${charactersInfo}
   "舞台設定": "ここにジャンルに合わせた世界観を表現して300文字以内で記述",
   "フック要素": "ここに魅力的なフック要素を300文字以内で記述",
   "主人公の目標": "ここに主人公が達成したい目標を100文字以内で記述",
-  "主要な障害": "ここに主人公の目標を阻む主要な障害を100文字以内で記述"
+  "主要な障害": "ここに主人公の目標を阻む主要な障害を100文字以内で記述",
+  "物語の結末": "ここに物語の結末を200文字以内で記述"
 }
 
 【絶対に守るべきルール】
@@ -575,6 +593,7 @@ ${charactersInfo}
 - フック要素：300文字以内
 - 主人公の目標：100文字以内
 - 主要な障害：100文字以内
+- 物語の結末：200文字以内
 
 【出力例】
 {
@@ -582,7 +601,8 @@ ${charactersInfo}
   "舞台設定": "現代の高校を舞台に、主人公の日常と非日常が交錯する世界観",
   "フック要素": "謎の転校生との出会いが引き起こす予想外の展開",
   "主人公の目標": "転校生の正体を突き止め、クラスメイトとの友情を深める",
-  "主要な障害": "転校生の秘密と、クラス内の対立関係"
+  "主要な障害": "転校生の秘密と、クラス内の対立関係",
+  "物語の結末": "主人公と転校生が和解し、クラス全体が団結して新しい関係を築く"
 }
 
 上記の形式で出力してください。`;
@@ -644,7 +664,7 @@ ${charactersInfo}
               const parsed = JSON.parse(jsonStr);
               
               // 基本設定のキーが存在するかチェック
-              const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害'];
+              const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害', '物語の結末'];
               const validKeys = basicKeys.filter(key => Object.prototype.hasOwnProperty.call(parsed, key));
               
               if (validKeys.length >= 2) { // 最低2つのキーがあれば有効
@@ -700,6 +720,7 @@ ${charactersInfo}
       const rawHook = extractBasicField('フック要素');
       const rawProtagonistGoal = extractBasicField('主人公の目標');
       const rawMainObstacle = extractBasicField('主要な障害');
+      const rawEnding = extractBasicField('物語の結末');
 
       // 文字数制限に基づいて内容を成形
       const theme = formatContentToFit(rawTheme, 100, 'メインテーマ');
@@ -707,23 +728,24 @@ ${charactersInfo}
       const hook = formatContentToFit(rawHook, 300, 'フック要素');
       const protagonistGoal = formatContentToFit(rawProtagonistGoal, 100, '主人公の目標');
       const mainObstacle = formatContentToFit(rawMainObstacle, 100, '主要な障害');
+      const ending = formatContentToFit(rawEnding, 200, '物語の結末');
 
       // 解析結果の確認
-      const extractedCount = [theme, setting, hook, protagonistGoal, mainObstacle].filter(v => v).length;
+      const extractedCount = [theme, setting, hook, protagonistGoal, mainObstacle, ending].filter(v => v).length;
       if (extractedCount === 0) {
         console.error('基本設定の解析に完全に失敗:', {
           rawContent: content,
           parsedData: parsedData,
-          extractedFields: { theme, setting, hook, protagonistGoal, mainObstacle }
+          extractedFields: { theme, setting, hook, protagonistGoal, mainObstacle, ending }
         });
         showError('基本設定の解析に失敗しました。AIがテンプレートを逸脱した出力をしています。もう一度お試しください。', 7000);
         return;
-      } else if (extractedCount < 5) {
-        console.warn(`基本設定の一部項目のみ解析成功: ${extractedCount}/5項目`, {
-          extractedFields: { theme, setting, hook, protagonistGoal, mainObstacle },
+      } else if (extractedCount < 6) {
+        console.warn(`基本設定の一部項目のみ解析成功: ${extractedCount}/6項目`, {
+          extractedFields: { theme, setting, hook, protagonistGoal, mainObstacle, ending },
           rawContent: content.substring(0, 500) + '...'
         });
-        showWarning(`一部の基本設定項目のみ解析できました（${extractedCount}/5項目）。不完全な結果が適用されます。`, 5000);
+        showWarning(`一部の基本設定項目のみ解析できました（${extractedCount}/6項目）。不完全な結果が適用されます。`, 5000);
       } else {
         showSuccess('基本設定の生成が完了しました', 3000);
       }
@@ -736,6 +758,7 @@ ${charactersInfo}
         hook: hook || prev.hook,
         protagonistGoal: protagonistGoal || prev.protagonistGoal,
         mainObstacle: mainObstacle || prev.mainObstacle,
+        ending: ending || prev.ending,
       }));
 
     } catch (error) {
@@ -769,7 +792,7 @@ ${charactersInfo}
   };
 
   // 個別フィールドのAI提案関数
-  const handleFieldAIGenerate = async (fieldKey: 'theme' | 'setting' | 'hook' | 'protagonistGoal' | 'mainObstacle') => {
+  const handleFieldAIGenerate = async (fieldKey: 'theme' | 'setting' | 'hook' | 'protagonistGoal' | 'mainObstacle' | 'ending') => {
     if (!isConfigured) {
       showWarning('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 5000);
       return;
@@ -790,6 +813,7 @@ ${charactersInfo}
         hook: { label: 'フック要素', maxLength: 300, description: '魅力的なフック要素' },
         protagonistGoal: { label: '主人公の目標', maxLength: 100, description: '主人公が達成したい目標' },
         mainObstacle: { label: '主要な障害', maxLength: 100, description: '主人公の目標を阻む主要な障害' },
+        ending: { label: '物語の結末', maxLength: 200, description: '物語の結末、主人公の成長や目標達成の結果' },
       };
 
       const config = fieldConfig[fieldKey];
@@ -896,6 +920,7 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
       { key: 'hook', label: 'フック要素', value: formData.hook },
       { key: 'protagonistGoal', label: '主人公の目標', value: formData.protagonistGoal },
       { key: 'mainObstacle', label: '主要な障害', value: formData.mainObstacle },
+      { key: 'ending', label: '物語の結末', value: formData.ending },
     ];
 
     const completedFields = fields.filter(field => field.value.trim().length > 0);
@@ -941,6 +966,10 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
     if (formData.mainObstacle) {
       preview += `【障害】\n${formData.mainObstacle}\n\n`;
     }
+    
+    if (formData.ending) {
+      preview += `【結末】\n${formData.ending}\n\n`;
+    }
 
     // 完成度が高い場合は物語風の要約を生成
     if (progress.percentage === 100) {
@@ -948,6 +977,9 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
       preview += `${formData.theme}をテーマに、${formData.setting}という世界で展開される物語。`;
       preview += `${formData.hook}という展開を通じて、主人公は${formData.protagonistGoal}を目指すが、`;
       preview += `${formData.mainObstacle}という障害に直面する。`;
+      if (formData.ending) {
+        preview += `最終的に、${formData.ending}という結末を迎える。`;
+      }
     }
 
     return preview.trim();
@@ -992,6 +1024,7 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                   hook: { label: 'フック（読者を引き込む要素）', maxLength: 300, rows: 3, placeholder: '例：謎の転校生との出会いが引き起こす予想外の展開。主人公の過去の秘密が明かされることで、クラス全体の関係性が大きく変化する', instruction: '独創的で読者の興味を引く要素を展開してください（300文字以内）' },
                   protagonistGoal: { label: '主人公の目標', maxLength: 100, rows: 2, placeholder: '例：転校生の正体を突き止め、クラスメイトとの友情を深める', instruction: '主人公が達成したい目標を明確に表現してください（100文字以内）' },
                   mainObstacle: { label: '主要な障害', maxLength: 100, rows: 2, placeholder: '例：転校生の秘密と、クラス内の対立関係', instruction: '主人公の目標を阻む主要な障害を設定してください（100文字以内）' },
+                  ending: { label: '物語の結末', maxLength: 200, rows: 3, placeholder: '例：主人公と転校生が和解し、クラス全体が団結して新しい関係を築く', instruction: '物語の結末、主人公の成長や目標達成の結果を表現してください（200文字以内）' },
                 };
                 const config = fieldConfig[fieldKey];
                 const dependencies = fieldDependencies[fieldKey];
@@ -1332,10 +1365,11 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                       </p>
                       
                       <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">基本設定提案</span>：メインテーマ、舞台設定、フック要素を独立して提案</li>
+                          <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">基本設定提案</span>：メインテーマ、舞台設定、フック要素、結末を独立して提案</li>
                         <li>• キャラクター設定との連携強化</li>
                         <li>• ジャンルに適した設定パターン</li>
                         <li>• 文字数制限による適切なボックスサイズ対応</li>
+                        <li>• 結末から逆算して物語を構築する機能（PlotStep2で利用可能）</li>
                       </ul>
 
                       <div className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
@@ -1346,9 +1380,10 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                           プロジェクトの設定（ジャンル、テーマ、キャラクターなど）に基づいて、一貫性のある物語の基本設定を自動生成します。
                         </p>
                         <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mb-4">
-                          <li>• メインテーマ、舞台設定、フック要素、主人公の目標、主要な障害を設定</li>
+                          <li>• メインテーマ、舞台設定、フック要素、主人公の目標、主要な障害、物語の結末を設定</li>
                           <li>• キャラクター設定と連携した一貫性のある物語基盤を構築</li>
                           <li>• ジャンルに適した設定パターンと文字数制限を考慮</li>
+                          <li>• 結末を設定することで、PlotStep2で逆算プロンプティング機能が利用可能</li>
                         </ul>
                         
                         <button

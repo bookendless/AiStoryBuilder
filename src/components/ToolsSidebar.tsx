@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -6,7 +6,8 @@ import {
   FileText, 
   Network, 
   Calendar,
-  MessageSquare
+  MessageSquare,
+  Globe
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { ImageBoard } from './ImageBoard';
@@ -14,6 +15,15 @@ import { GlossaryManager } from './tools/GlossaryManager';
 import { RelationshipDiagram } from './tools/RelationshipDiagram';
 import { TimelineViewer } from './tools/TimelineViewer';
 import { ChatAssistant } from './tools/ChatAssistant';
+import { WorldSettingsManager } from './tools/WorldSettingsManager';
+
+const MEMO_TABS = [
+  { id: 'ideas', label: '1' },
+  { id: 'tasks', label: '2' },
+  { id: 'notes', label: '3' },
+] as const;
+
+type MemoTabId = (typeof MEMO_TABS)[number]['id'];
 
 interface ToolsSidebarProps {
   className?: string;
@@ -28,7 +38,51 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
   const [showGlossary, setShowGlossary] = useState(false);
   const [showRelationships, setShowRelationships] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showWorldSettings, setShowWorldSettings] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [activeMemoTab, setActiveMemoTab] = useState<MemoTabId>('ideas');
+  const memoDefaults = useMemo(
+    () =>
+      MEMO_TABS.reduce<Record<MemoTabId, string>>((acc, tab) => {
+        acc[tab.id] = '';
+        return acc;
+      }, { ideas: '', tasks: '', notes: '' }),
+    []
+  );
+  const [memoTexts, setMemoTexts] = useState<Record<MemoTabId, string>>(memoDefaults);
+  const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedMemo = localStorage.getItem(memoStorageKey);
+      if (savedMemo) {
+        const parsed = JSON.parse(savedMemo) as Partial<Record<MemoTabId, string>>;
+        setMemoTexts({ ...memoDefaults, ...parsed });
+      } else {
+        setMemoTexts(memoDefaults);
+      }
+    } catch (error) {
+      console.error('メモ読み込みエラー:', error);
+      setMemoTexts(memoDefaults);
+    }
+  }, [memoStorageKey, memoDefaults]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(memoStorageKey, JSON.stringify(memoTexts));
+    } catch (error) {
+      console.error('メモ保存エラー:', error);
+    }
+  }, [memoStorageKey, memoTexts]);
+
+  const handleMemoChange = (value: string) => {
+    setMemoTexts((prev) => ({
+      ...prev,
+      [activeMemoTab]: value,
+    }));
+  };
 
   // 外部から状態が渡されている場合はそれを使用、そうでなければ内部状態を使用
   const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed;
@@ -72,6 +126,14 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       icon: Calendar,
       onClick: () => setShowTimeline(true),
       color: 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20',
+      available: !!currentProject,
+    },
+    {
+      id: 'worldSettings',
+      label: '世界観',
+      icon: Globe,
+      onClick: () => setShowWorldSettings(true),
+      color: 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20',
       available: !!currentProject,
     },
   ];
@@ -145,6 +207,47 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
             })}
           </nav>
 
+          {/* メモエリア */}
+          {!isCollapsed && (
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']" htmlFor="tools-sidebar-memo">
+                  クイックメモ
+                </label>
+                <div role="tablist" aria-label="メモタブ" className="flex gap-1">
+                  {MEMO_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeMemoTab === tab.id}
+                      onClick={() => setActiveMemoTab(tab.id)}
+                      className={`px-2 py-1 rounded-md text-xs font-['Noto_Sans_JP'] transition-colors ${
+                        activeMemoTab === tab.id
+                          ? 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <textarea
+                id="tools-sidebar-memo"
+                aria-label="ツールメモ"
+                value={memoTexts[activeMemoTab] ?? ''}
+                onChange={(event) => handleMemoChange(event.target.value)}
+                rows={4}
+                placeholder="アイデアや気づきを自由にメモ..."
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[110px] max-h-[360px]"
+              />
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                メモは自動的に保存されます
+              </p>
+            </div>
+          )}
+
           {/* チャットボタン（常に表示） */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <button
@@ -201,6 +304,11 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       <TimelineViewer 
         isOpen={showTimeline} 
         onClose={() => setShowTimeline(false)} 
+      />
+      
+      <WorldSettingsManager 
+        isOpen={showWorldSettings} 
+        onClose={() => setShowWorldSettings(false)} 
       />
       
       <ChatAssistant 

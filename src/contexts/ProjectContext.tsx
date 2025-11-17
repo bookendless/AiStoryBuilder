@@ -43,6 +43,21 @@ export interface TimelineEvent {
   category: 'plot' | 'character' | 'world' | 'other';
 }
 
+export interface WorldSetting {
+  id: string;
+  category: 'geography' | 'society' | 'culture' | 'technology' | 'magic' | 'history' | 'politics' | 'economy' | 'religion' | 'other';
+  title: string;
+  content: string; // 詳細な説明
+  relatedLocations?: string[]; // 関連する場所（GlossaryTermのID）
+  relatedCharacters?: string[]; // 関連するキャラクター（CharacterのID）
+  relatedEvents?: string[]; // 関連するイベント（TimelineEventのID）
+  tags?: string[]; // 検索・分類用のタグ
+  createdAt: Date;
+  updatedAt: Date;
+  aiGenerated?: boolean; // AI生成かどうか
+  aiPrompt?: string; // 生成に使ったプロンプト（参考用）
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -87,6 +102,7 @@ export interface Project {
     hook: string;
     protagonistGoal: string; // 主人公の目標
     mainObstacle: string; // 主要な障害
+    ending?: string; // 物語の結末
     // PlotStep2の構成詳細
     structure?: 'kishotenketsu' | 'three-act' | 'four-act';
     ki?: string; // 起 - 導入
@@ -119,6 +135,7 @@ export interface Project {
   glossary?: GlossaryTerm[];
   relationships?: CharacterRelationship[];
   timeline?: TimelineEvent[];
+  worldSettings?: WorldSetting[];
 }
 
 interface ProjectContextType {
@@ -305,6 +322,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       glossary: [],
       relationships: [],
       timeline: [],
+      worldSettings: [],
     };
     
     setProjects(prev => [...prev, newProject]);
@@ -363,6 +381,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           imageBoard: project.imageBoard?.map(img => ({
             ...img,
             addedAt: img.addedAt instanceof Date ? img.addedAt : new Date(img.addedAt)
+          })) || [],
+          worldSettings: project.worldSettings?.map(ws => ({
+            ...ws,
+            createdAt: ws.createdAt instanceof Date ? ws.createdAt : new Date(ws.createdAt),
+            updatedAt: ws.updatedAt instanceof Date ? ws.updatedAt : new Date(ws.updatedAt)
           })) || []
         };
         setCurrentProject(normalizedProject);
@@ -432,6 +455,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         imageBoard: project.imageBoard?.map(img => ({
           ...img,
           addedAt: img.addedAt instanceof Date ? img.addedAt : new Date(img.addedAt)
+        })) || [],
+        worldSettings: project.worldSettings?.map(ws => ({
+          ...ws,
+          createdAt: ws.createdAt instanceof Date ? ws.createdAt : new Date(ws.createdAt),
+          updatedAt: ws.updatedAt instanceof Date ? ws.updatedAt : new Date(ws.updatedAt)
         })) || []
       }));
       setProjects(normalizedProjects);

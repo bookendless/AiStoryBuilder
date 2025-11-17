@@ -730,8 +730,12 @@ ${charactersInfo}
 フック要素: ${currentProject?.plot?.hook || '未設定'}
 主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
 主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
+${currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : ''}
 
-【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。
+${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Oriented Prompting）】
+上記の「物語の結末」から逆算して、その結末に至るための物語構成を構築してください。
+結末を目標として、そこに到達するための起承転結の各段階を設計してください。
+結末に自然に繋がるように、各段階で必要な要素や展開を配置してください。` : '【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。'}
 基礎設定の内容を活かしながら、起承転結の各段階でどのように展開するかを具体的に記述してください。
 
 起承転結の構成について：
@@ -766,8 +770,12 @@ ${charactersInfo}
 フック要素: ${currentProject?.plot?.hook || '未設定'}
 主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
 主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
+${currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : ''}
 
-【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。
+${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Oriented Prompting）】
+上記の「物語の結末」から逆算して、その結末に至るための物語構成を構築してください。
+結末を目標として、そこに到達するための三幕構成の各段階を設計してください。
+結末に自然に繋がるように、各段階で必要な要素や展開を配置してください。` : '【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。'}
 基礎設定の内容を活かしながら、三幕構成の各段階でどのように展開するかを具体的に記述してください。
 
 三幕構成について：
@@ -800,8 +808,12 @@ ${charactersInfo}
 フック要素: ${currentProject?.plot?.hook || '未設定'}
 主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
 主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
+${currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : ''}
 
-【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。
+${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Oriented Prompting）】
+上記の「物語の結末」から逆算して、その結末に至るための物語構成を構築してください。
+結末を目標として、そこに到達するための四幕構成の各段階を設計してください。
+結末に自然に繋がるように、各段階で必要な要素や展開を配置してください。` : '【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。'}
 基礎設定の内容を活かしながら、四幕構成の各段階でどのように展開するかを具体的に記述してください。
 
 四幕構成（ダン・ハーモンの秩序と混沌の対比）について：
@@ -2067,12 +2079,25 @@ ${charactersInfo}
                             {currentProject?.plot?.mainObstacle || '未設定'}
                           </p>
                         </div>
+
+                        {/* 物語の結末 */}
+                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
+                          <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
+                            物語の結末
+                          </h4>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                            {currentProject?.plot?.ending || '未設定'}
+                          </p>
+                        </div>
                       </div>
                       
                       <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
                         {currentProject?.plot?.theme && currentProject?.plot?.setting && currentProject?.plot?.hook && currentProject?.plot?.protagonistGoal && currentProject?.plot?.mainObstacle ? (
                           <p className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
                             💡 これらの基礎設定を参考に、一貫性のあるプロット構成を作成しましょう
+                            {currentProject?.plot?.ending && (
+                              <span className="block mt-1">✨ 結末が設定されているため、逆算プロンプティング機能が利用可能です</span>
+                            )}
                           </p>
                         ) : (
                           <p className="text-xs text-amber-600 dark:text-amber-400 font-['Noto_Sans_JP']">
@@ -2162,6 +2187,9 @@ ${charactersInfo}
                           <li>• 基本設定（テーマ、舞台、フック要素など）を反映した一貫性のある構成</li>
                           <li>• キャラクターの関係性と成長を考慮した展開パターン</li>
                           <li>• ジャンルに適した物語の流れと各段階の詳細設定</li>
+                          {currentProject?.plot?.ending && (
+                            <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">逆算プロンプティング</span>：結末から逆算して物語を構築（Goal-Oriented Prompting）</li>
+                          )}
                         </ul>
                         
                         <button

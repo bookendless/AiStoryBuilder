@@ -780,21 +780,33 @@ export const CharacterStep: React.FC = () => {
       return;
     }
 
+    // クラウドAIかどうかを判定
+    const isCloudAI = settings.provider !== 'local';
+    const hasImage = !!character.image;
+
     setEnhancingId(character.id);
     
     try {
+      // 画像分析指示を追加（クラウドAIかつ画像がある場合）
+      const imageAnalysisInstruction = isCloudAI && hasImage
+        ? '\n\n【重要】このキャラクターには画像が設定されています。画像を詳しく分析し、以下の点を確認してください：\n- 外見の特徴（髪色、髪型、目の色、体型、服装など）\n- 表情や雰囲気から読み取れる性格の特徴\n- 背景や設定から推測できる情報\n\n画像の分析結果を、既存の情報と統合して「外見の詳細」に反映してください。'
+        : '';
+
       const prompt = aiService.buildPrompt('character', 'enhance', {
         name: character.name,
         role: character.role,
         appearance: character.appearance || '未設定',
         personality: character.personality || '未設定',
         background: character.background || '未設定',
+        imageAnalysis: imageAnalysisInstruction,
       });
 
       console.log('AI Request:', {
         provider: settings.provider,
         model: settings.model,
         prompt: prompt.substring(0, 100) + '...',
+        hasImage: hasImage,
+        isCloudAI: isCloudAI,
         temperature: settings.temperature,
         maxTokens: settings.maxTokens,
       });
@@ -803,6 +815,7 @@ export const CharacterStep: React.FC = () => {
         prompt,
         type: 'character',
         settings,
+        image: isCloudAI && hasImage ? character.image : undefined,
       });
 
       console.log('AI Response:', {

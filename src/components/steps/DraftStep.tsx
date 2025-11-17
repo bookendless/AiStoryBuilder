@@ -39,7 +39,18 @@ interface AISuggestion {
   body: string;
 }
 
-type GenerationAction = 'fullDraft' | 'continue' | 'description' | 'style' | 'shorten' | 'improve';
+interface ImprovementLog {
+  id: string;
+  timestamp: number;
+  chapterId: string;
+  phase1Critique: string; // フェーズ1の評価結果
+  phase2Summary: string; // フェーズ2の改善戦略要約
+  phase2Changes: string[]; // 主な変更点
+  originalLength: number;
+  revisedLength: number;
+}
+
+type GenerationAction = 'fullDraft' | 'continue' | 'description' | 'style' | 'shorten' | 'improve' | 'selfRefine';
 type AIStatusTone = 'emerald' | 'blue' | 'purple';
 type SecondaryTab = 'ai' | 'display' | 'history' | 'project';
 
@@ -264,9 +275,12 @@ export const DraftStep: React.FC = () => {
   const [modalDraft, setModalDraft] = useState('');
   const [isVerticalWriting, setIsVerticalWriting] = useState(false);
   const [isModalChapterInfoCollapsed, setIsModalChapterInfoCollapsed] = useState(false);
+  const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
   const [mainLineNumbers, setMainLineNumbers] = useState<number[]>([1]);
   const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
   const [selectedHistoryEntryId, setSelectedHistoryEntryId] = useState<string | null>(null);
+  const [improvementLogs, setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
+  const [selectedImprovementLogId, setSelectedImprovementLogId] = useState<string | null>(null);
   const [aiSuggestions, setAISuggestions] = useState<AISuggestion[]>([]);
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState<boolean>(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
@@ -834,16 +848,16 @@ useEffect(() => {
   const secondaryTabs = useMemo(
     () => [
       { 
-        id: 'ai' as SecondaryTab, 
-        label: 'AIアシスト', 
-        disabled: !selectedChapter,
-        disabledReason: '章を選択すると利用できます'
-      },
-      { 
         id: 'display' as SecondaryTab, 
         label: '表示設定', 
         disabled: false,
         disabledReason: ''
+      },
+      { 
+        id: 'ai' as SecondaryTab, 
+        label: 'AIアシスト', 
+        disabled: !selectedChapter,
+        disabledReason: '章を選択すると利用できます'
       },
       { 
         id: 'history' as SecondaryTab, 
@@ -960,6 +974,51 @@ useEffect(() => {
               </div>
             </div>
           </button>
+          <button
+            type="button"
+            onClick={handleSelfRefineImprovement}
+            disabled={isGenerating || !draft.trim() || !selectedChapter}
+            aria-busy={isSelfRefining}
+            className="w-full p-3 text-left bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex flex-col">
+              <div className="font-semibold text-gray-900 dark:text-white text-xs font-['Noto_Sans_JP'] flex items-center justify-between">
+                弱点特定と修正ループ
+                <Sparkles
+                  className={`h-3 w-3 ${isSelfRefining ? 'text-amber-500 animate-spin' : 'text-amber-500/70'}`}
+                />
+              </div>
+              <div
+                className={`text-[11px] font-['Noto_Sans_JP'] mt-0.5 ${
+                  isSelfRefining ? 'text-amber-600 dark:text-amber-300' : 'text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                {isSelfRefining ? 'AIが弱点を特定し、改善しています…' : '批評→改訂の2段階で改善'}
+              </div>
+            </div>
+          </button>
+          
+          {/* 改善ログ表示セクション */}
+          {selectedChapter && improvementLogs[selectedChapter] && improvementLogs[selectedChapter].length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="text-xs font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  改善ログ ({improvementLogs[selectedChapter].length}件)
+                </h5>
+                <button
+                  type="button"
+                  onClick={() => setIsImprovementLogModalOpen(true)}
+                  className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-['Noto_Sans_JP'] underline"
+                >
+                  詳細を表示
+                </button>
+              </div>
+              <div className="text-[11px] text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                最新: {formatTimestamp(improvementLogs[selectedChapter][0].timestamp)}
+              </div>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               type="button"
@@ -1664,6 +1723,7 @@ useEffect(() => {
   const isStyleGenerating = isGenerating && currentGenerationAction === 'style';
   const isShortenGenerating = isGenerating && currentGenerationAction === 'shorten';
   const isImproving = isGenerating && currentGenerationAction === 'improve';
+  const isSelfRefining = isGenerating && currentGenerationAction === 'selfRefine';
 
   const aiStatus = useMemo<{
     tone: AIStatusTone;
@@ -1728,6 +1788,14 @@ useEffect(() => {
         tone: 'purple',
         title: '章全体を改善しています…',
         detail: '描写強化と文体調整を同時に実行中です。',
+      };
+    }
+
+    if (isSelfRefining) {
+      return {
+        tone: 'purple',
+        title: '弱点を特定し、改善しています…',
+        detail: 'フェーズ1：批評 → フェーズ2：改訂を実行中です。',
       };
     }
 
@@ -2802,6 +2870,189 @@ ${draft}
     }
   };
 
+  // 弱点の特定と修正案の生成ループ（Self-Refine）
+  const handleSelfRefineImprovement = async () => {
+    if (!selectedChapter || !draft.trim()) return;
+    
+    if (!isConfigured) {
+      alert('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+      return;
+    }
+
+    setCurrentGenerationAction('selfRefine');
+    setIsGenerating(true);
+    
+    try {
+      // フェーズ1：批評フェーズ（弱点の特定と修正案の生成）
+      const critiquePrompt = `あなたは辛口で知られるプロの文芸編集者です。以下の文章を、構成、キャラクターの一貫性、描写、文体、感情表現の各側面で客観的に評価してください。
+
+【章情報】
+作品タイトル: ${currentProject?.title || '未設定'}
+章タイトル: ${currentChapter?.title || '未設定'}
+章の概要: ${currentChapter?.summary || '未設定'}
+
+【評価対象の文章】
+${draft}
+
+【評価基準（各項目10点満点で採点）】
+1. **プロットの一貫性**：物語に矛盾や論理的な飛躍がないか？
+2. **キャラクターの深み**：登場人物は多面的で、行動に説得力があるか？
+3. **描写の具体性**：五感に訴えかける具体的な描写がなされているか？
+4. **読者共感度**：読者が感情移入できる感情的な真正性があるか？
+5. **文体の完成度**：文章のリズムが整い、読みやすいか？
+
+【出力形式】
+以下のJSON形式で出力してください（余計な文章は書かないこと）:
+{
+  "scores": {
+    "plot": 点数（0-10の整数）,
+    "character": 点数（0-10の整数）,
+    "description": 点数（0-10の整数）,
+    "empathy": 点数（0-10の整数）,
+    "style": 点数（0-10の整数）
+  },
+  "weaknesses": [
+    {
+      "aspect": "評価項目名（例：プロットの一貫性）",
+      "score": 点数,
+      "problem": "具体的な問題点の説明",
+      "solutions": [
+        "改善策1（具体的な修正案）",
+        "改善策2（具体的な修正案）",
+        "改善策3（具体的な修正案）"
+      ]
+    }
+  ],
+  "summary": "全体的な評価と最も重要な改善点の要約（200文字程度）"
+}
+
+7点以下の項目について、特に詳しく分析してください。`;
+
+      const critiqueResponse = await aiService.generateContent({
+        prompt: critiquePrompt,
+        type: 'draft',
+        settings
+      });
+
+      if (!critiqueResponse || !critiqueResponse.content) {
+        throw new Error('批評フェーズの応答が取得できませんでした');
+      }
+
+      // フェーズ2：改訂フェーズ（改善実行と統合）
+      const revisionPrompt = `フェーズ1で指摘された弱点を克服するために、以下の文章を書き直してください。
+
+【章情報】
+作品タイトル: ${currentProject?.title || '未設定'}
+章タイトル: ${currentChapter?.title || '未設定'}
+章の概要: ${currentChapter?.summary || '未設定'}
+
+【元の文章】
+${draft}
+
+【フェーズ1での評価結果】
+${critiqueResponse.content}
+
+【改訂指示】
+1. フェーズ1で指摘されたすべての弱点を克服してください
+2. 特に7点以下の評価項目については、改善策を必ず適用してください
+3. 現在の文字数（${draft.length}文字）を維持または3,000-4,000文字程度に調整してください
+4. 重要な内容は保持しつつ、表現を改善してください
+5. 適度な改行と段落分けを行ってください（改行は通常の改行文字\\nで表現）
+
+【出力形式】
+以下のJSON形式で出力してください（余計な文章は書かないこと）:
+{
+  "revisedText": "改訂後の文章全文",
+  "improvementSummary": "適用した改善戦略の要約（200文字程度）",
+  "changes": [
+    "主な変更点1",
+    "主な変更点2",
+    "主な変更点3"
+  ]
+}`;
+
+      const revisionResponse = await aiService.generateContent({
+        prompt: revisionPrompt,
+        type: 'draft',
+        settings
+      });
+
+      if (!revisionResponse || !revisionResponse.content) {
+        throw new Error('改訂フェーズの応答が取得できませんでした');
+      }
+
+      // JSON形式の応答をパース
+      let revisedText = '';
+      let improvementSummary = '';
+      let phase2Changes: string[] = [];
+      
+      try {
+        // JSON形式の応答を抽出（コードブロックがあれば除去）
+        let jsonContent = revisionResponse.content.trim();
+        if (jsonContent.startsWith('```')) {
+          const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (jsonMatch) {
+            jsonContent = jsonMatch[1].trim();
+          }
+        }
+        
+        const parsed = JSON.parse(jsonContent);
+        revisedText = parsed.revisedText || parsed.revised_text || revisionResponse.content;
+        improvementSummary = parsed.improvementSummary || parsed.improvement_summary || '';
+        phase2Changes = parsed.changes || [];
+      } catch (parseError) {
+        // JSONパースに失敗した場合は、応答全体をテキストとして使用
+        revisedText = revisionResponse.content;
+        console.warn('JSONパースエラー、応答全体を使用:', parseError);
+      }
+
+      if (revisedText.trim()) {
+        setDraft(revisedText);
+        handleSaveChapterDraft(selectedChapter!, revisedText);
+        
+        // 改善ログを保存
+        const logId = `log-${Date.now()}`;
+        const improvementLog: ImprovementLog = {
+          id: logId,
+          timestamp: Date.now(),
+          chapterId: selectedChapter!,
+          phase1Critique: critiqueResponse.content,
+          phase2Summary: improvementSummary || '改善戦略の要約が取得できませんでした',
+          phase2Changes: phase2Changes,
+          originalLength: draft.length,
+          revisedLength: revisedText.length,
+        };
+        
+        setImprovementLogs(prev => {
+          const chapterLogs = prev[selectedChapter!] || [];
+          return {
+            ...prev,
+            [selectedChapter!]: [improvementLog, ...chapterLogs].slice(0, 20), // 最新20件まで保持
+          };
+        });
+        
+        // 改善戦略の要約をトーストで表示
+        const toastMsg = improvementSummary 
+          ? `弱点を特定し、改善しました。改善ログを確認できます。`
+          : '弱点を特定し、改善しました';
+        setShowCompletionToast(toastMsg);
+        setTimeout(() => {
+          setShowCompletionToast(null);
+        }, 3000);
+      } else {
+        throw new Error('改訂後の文章が取得できませんでした');
+      }
+    } catch (error) {
+      console.error('弱点特定と修正ループエラー:', error);
+      if ((error as Error).name !== 'AbortError') {
+        alert('弱点特定と修正中にエラーが発生しました: ' + ((error as Error).message || '不明なエラー'));
+      }
+    } finally {
+      setIsGenerating(false);
+      setCurrentGenerationAction(null);
+    }
+  };
+
   // プロジェクトが存在しない場合の表示
   if (!currentProject) {
     return (
@@ -3769,6 +4020,165 @@ ${draft}
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 改善ログモーダル */}
+      {isImprovementLogModalOpen && selectedChapter && improvementLogs[selectedChapter] && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            {/* オーバーレイ */}
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+              onClick={() => setIsImprovementLogModalOpen(false)}
+            />
+
+            {/* モーダルコンテンツ */}
+            <div className="relative w-full max-w-5xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
+              {/* モーダルヘッダー */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-gradient-to-br from-amber-500 to-orange-600 w-8 h-8 rounded-full flex items-center justify-center">
+                    <ListChecks className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                      改善ログ
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                      {currentChapter?.title || '選択中の章'} - {improvementLogs[selectedChapter].length}件のログ
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsImprovementLogModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* モーダルボディ */}
+              <div className="p-4 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-4">
+                  {improvementLogs[selectedChapter].map((log, index) => {
+                    const isSelected = selectedImprovementLogId === log.id;
+                    return (
+                      <div
+                        key={log.id}
+                        className={`border rounded-lg transition-all ${
+                          isSelected
+                            ? 'border-amber-400 bg-amber-50/80 dark:border-amber-500 dark:bg-amber-900/30'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                        }`}
+                      >
+                        {/* ログヘッダー */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedImprovementLogId(isSelected ? null : log.id)}
+                          className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                  #{improvementLogs[selectedChapter].length - index}
+                                </span>
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                  {formatTimestamp(log.timestamp)}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                {log.originalLength}字 → {log.revisedLength}字
+                                {log.revisedLength !== log.originalLength && (
+                                  <span className={`ml-2 ${log.revisedLength > log.originalLength ? 'text-green-600' : 'text-blue-600'}`}>
+                                    ({log.revisedLength > log.originalLength ? '+' : ''}{log.revisedLength - log.originalLength}字)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {isSelected ? (
+                              <ChevronUp className="h-5 w-5 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="h-5 w-5 text-gray-400" />
+                            )}
+                          </div>
+                        </button>
+
+                        {/* ログ詳細 */}
+                        {isSelected && (
+                          <div className="px-4 pb-4 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                            {/* フェーズ1：評価結果 */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="bg-blue-500 w-6 h-6 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">1</span>
+                                </div>
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                  フェーズ1：評価結果
+                                </h4>
+                              </div>
+                              <div className="ml-8 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-4 max-h-64 overflow-y-auto whitespace-pre-wrap font-['Noto_Sans_JP'] leading-relaxed">
+                                {log.phase1Critique}
+                              </div>
+                            </div>
+
+                            {/* フェーズ2：改善戦略 */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="bg-amber-500 w-6 h-6 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">2</span>
+                                </div>
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                  フェーズ2：改善戦略
+                                </h4>
+                              </div>
+                              <div className="ml-8 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-4 font-['Noto_Sans_JP'] leading-relaxed">
+                                {log.phase2Summary}
+                              </div>
+                            </div>
+
+                            {/* 主な変更点 */}
+                            {log.phase2Changes && log.phase2Changes.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="bg-green-500 w-6 h-6 rounded-full flex items-center justify-center">
+                                    <CheckCircle className="h-3 w-3 text-white" />
+                                  </div>
+                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                    主な変更点
+                                  </h4>
+                                </div>
+                                <ul className="ml-8 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-4 space-y-2 font-['Noto_Sans_JP']">
+                                  {log.phase2Changes.map((change, idx) => (
+                                    <li key={idx} className="flex items-start gap-2">
+                                      <span className="text-amber-500 mt-1">•</span>
+                                      <span className="flex-1">{change}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* モーダルフッター */}
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                <button
+                  onClick={() => setIsImprovementLogModalOpen(false)}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-['Noto_Sans_JP']"
+                >
+                  閉じる
+                </button>
               </div>
             </div>
           </div>

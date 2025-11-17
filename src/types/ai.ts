@@ -25,8 +25,9 @@ export interface AISettings {
 export interface AIRequest {
   prompt: string;
   context?: string;
-  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft';
+  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world';
   settings: AISettings;
+  image?: string; // Base64エンコードされた画像データ（data:image/...形式）
 }
 
 export interface AIResponse {

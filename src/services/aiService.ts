@@ -162,6 +162,8 @@ const PROMPTS: PromptTemplates = {
 現在の性格: {personality}
 現在の背景: {background}
 
+{imageAnalysis}
+
 以下の形式で具体的に回答してください（各項目は2-3行程度）：
 【外見の詳細】
 （具体的な外見特徴）
@@ -403,6 +405,121 @@ const PROMPTS: PromptTemplates = {
 
 各キャラクターの性格を反映し、章の雰囲気と場所に適した自然な対話を作成してください。章設定から逸脱しないよう注意してください。`,
   },
+
+  world: {
+    generate: `以下の情報を基に、指定されたカテゴリに特化した世界観設定を生成してください。
+
+【プロジェクト基本情報】
+タイトル: {title}
+テーマ: {theme}
+メインジャンル: {mainGenre}
+サブジャンル: {subGenre}
+ターゲット読者: {targetReader}
+作品内容・概要: {description}
+
+【キャラクター情報】
+{characters}
+
+【プロット基礎設定】
+{plotInfo}
+
+【既存の世界観情報】
+{existingWorldInfo}
+
+【生成カテゴリ】
+{category}
+
+【生成指示】
+{instruction}
+
+【重要】以下の点を厳守してください：
+1. 指定されたカテゴリ「{category}」に特化した内容のみを生成してください
+2. 他のカテゴリの内容は含めないでください
+3. 物語執筆に直接役立つ具体的な情報を提供してください
+4. 簡潔で実用的な内容にしてください
+5. **既存のキャラクター情報とプロット基礎設定と整合性を保った世界観を構築してください**
+6. キャラクターの背景や設定と矛盾しない世界観を生成してください
+7. プロットの舞台設定や物語の流れと一貫性のある世界観を構築してください
+
+以下の形式で世界観設定を生成してください：
+
+【タイトル】
+（カテゴリ「{category}」に特化した世界観設定のタイトル）
+
+【詳細】
+（カテゴリ「{category}」に関する具体的な設定内容。物語執筆に必要な情報を含める。100-300文字程度で簡潔に。キャラクター情報とプロット基礎設定との整合性を保つこと）
+
+特に、メインジャンルとサブジャンルの特徴を活かし、作品のテーマに沿った一貫性のある世界観を構築してください。既存のキャラクター設定やプロット設定と矛盾しないよう注意してください。指定されたカテゴリ以外の内容は含めないでください。`,
+    enhance: `以下の世界観設定をより詳細に補完・改善してください。
+
+【現在の設定】
+タイトル: {title}
+カテゴリ: {category}
+内容:
+{content}
+
+【プロジェクト情報】
+タイトル: {projectTitle}
+テーマ: {theme}
+メインジャンル: {mainGenre}
+サブジャンル: {subGenre}
+
+【補完指示】
+{instruction}
+
+既存の設定を活かしつつ、より深みのある世界観設定にしてください。物語執筆に役立つ具体的な情報を追加してください。
+
+以下の形式で改善された設定を出力してください：
+
+【タイトル】
+（改善されたタイトル）
+
+【詳細な内容】
+（補完・改善された詳細な設定内容）`,
+    expand: `以下の世界観設定から、関連する新しい設定を展開してください。
+
+【元の設定】
+タイトル: {sourceTitle}
+カテゴリ: {sourceCategory}
+内容: {sourceContent}
+
+【展開カテゴリ】
+{targetCategory}
+
+【展開指示】
+{instruction}
+
+元の設定と一貫性を保ちながら、新しい側面を展開してください。物語の世界観をより豊かにする設定を提案してください。
+
+以下の形式で展開された設定を出力してください：
+
+【タイトル】
+（新しい設定のタイトル）
+
+【詳細な内容】
+（展開された詳細な設定内容）
+
+【元の設定との関連性】
+（元の設定との関連性や接続点）`,
+    validate: `以下の世界観設定に矛盾や不整合がないか検証してください。
+
+【世界観設定一覧】
+{worldSettings}
+
+【プロジェクト情報】
+タイトル: {projectTitle}
+テーマ: {theme}
+メインジャンル: {mainGenre}
+
+【検証ポイント】
+- 設定間の矛盾
+- 論理的な不整合
+- 物語の一貫性
+- キャラクター設定との整合性
+- プロット設定との整合性
+
+問題があれば指摘し、改善案を提示してください。問題がなければ、設定の一貫性を確認した旨を伝えてください。`,
+  },
 };
 
 class AIService {
@@ -415,6 +532,26 @@ class AIService {
       // APIキーの復号化
       const apiKey = decryptApiKey(request.settings.apiKey);
 
+      // 画像がある場合のメッセージ構築
+      let userContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+      if (request.image) {
+        // Base64データURLをそのまま使用（OpenAI Vision APIはdata:形式をサポート）
+        userContent = [
+          {
+            type: 'text',
+            text: request.prompt,
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: request.image,
+            },
+          },
+        ];
+      } else {
+        userContent = request.prompt;
+      }
+
       const response = await httpService.post('https://api.openai.com/v1/chat/completions', {
         model: request.settings.model,
         messages: [
@@ -424,7 +561,7 @@ class AIService {
           },
           {
             role: 'user',
-            content: request.prompt,
+            content: userContent,
           },
         ],
         temperature: request.settings.temperature,
@@ -476,9 +613,40 @@ class AIService {
       console.log('Claude API Request:', {
         model: request.settings.model,
         prompt: request.prompt.substring(0, 100) + '...',
+        hasImage: !!request.image,
         temperature: request.settings.temperature,
         maxTokens: request.settings.maxTokens,
       });
+
+      // 画像がある場合のコンテンツ構築
+      let userContent: string | Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }>;
+      if (request.image) {
+        // Base64データURLからBase64部分とMIMEタイプを抽出
+        const match = request.image.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          const mimeType = match[1];
+          const base64Data = match[2];
+          userContent = [
+            {
+              type: 'text',
+              text: request.prompt,
+            },
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mimeType,
+                data: base64Data,
+              },
+            },
+          ];
+        } else {
+          // data:形式でない場合は画像なしとして扱う
+          userContent = request.prompt;
+        }
+      } else {
+        userContent = request.prompt;
+      }
 
       const response = await httpService.post('https://api.anthropic.com/v1/messages', {
         model: request.settings.model,
@@ -487,7 +655,7 @@ class AIService {
         messages: [
           {
             role: 'user',
-            content: request.prompt,
+            content: userContent,
           },
         ],
       }, {
@@ -541,6 +709,7 @@ class AIService {
       console.log('Gemini API Request:', {
         model: request.settings.model,
         prompt: request.prompt.substring(0, 100) + '...',
+        hasImage: !!request.image,
         temperature: request.settings.temperature,
         maxTokens: request.settings.maxTokens,
       }, {
@@ -549,11 +718,31 @@ class AIService {
         },
       });
 
+      // 画像がある場合のパーツ構築
+      const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [
+        {
+          text: request.prompt,
+        },
+      ];
+
+      if (request.image) {
+        // Base64データURLからBase64部分とMIMEタイプを抽出
+        const match = request.image.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          const mimeType = match[1];
+          const base64Data = match[2];
+          parts.push({
+            inline_data: {
+              mime_type: mimeType,
+              data: base64Data,
+            },
+          });
+        }
+      }
+
       const response = await httpService.post(`https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`, {
         contents: [{
-          parts: [{
-            text: request.prompt,
-          }],
+          parts: parts,
         }],
         generationConfig: {
           temperature: request.settings.temperature,
