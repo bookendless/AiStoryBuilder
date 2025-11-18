@@ -9,6 +9,26 @@ interface RelationshipDiagramProps {
   onClose: () => void;
 }
 
+interface FlowChartNode {
+  id: string;
+  x: number;
+  y: number;
+  name: string;
+}
+
+interface FlowChartEdge {
+  from: string;
+  to: string;
+  type: CharacterRelationship['type'];
+  label: string;
+  strength: number;
+  color: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+}
+
 const relationshipTypes: Record<CharacterRelationship['type'], { label: string; icon: typeof Users; color: string; svgColor: string }> = {
   friend: { label: '友人', icon: Users, color: 'bg-green-500', svgColor: '#10b981' },
   enemy: { label: '敵対', icon: Sword, color: 'bg-red-500', svgColor: '#ef4444' },
@@ -48,11 +68,11 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   };
 
   // フローチャート用のレイアウト計算
-  const flowChartLayout = useMemo<{ nodes: any[]; edges: any[]; svgWidth: number; svgHeight: number } | null>(() => {
+  const flowChartLayout = useMemo<{ nodes: FlowChartNode[]; edges: FlowChartEdge[]; svgWidth: number; svgHeight: number } | null>(() => {
     if (relationships.length === 0 || characters.length === 0) return null;
 
     // ノードの位置計算（円形配置 + 関係性に基づく最適化）
-    const nodes: any[] = [];
+    const nodes: FlowChartNode[] = [];
     const charCount = characters.length;
     
     // 中心点と半径（大きなキャンバスサイズに合わせて調整）
@@ -995,7 +1015,7 @@ JSON形式で出力してください：
                     </marker>
                     
                     {/* クリッピングパス定義 */}
-                    {flowChartLayout.nodes.map((node: any, idx: number) => (
+                    {flowChartLayout.nodes.map((node: FlowChartNode, idx: number) => (
                       <clipPath key={`clip-${idx}`} id={`clip-${idx}`}>
                         <circle cx={node.x} cy={node.y - 50} r="35" />
                       </clipPath>
@@ -1003,7 +1023,7 @@ JSON形式で出力してください：
                   </defs>
                   
                   {/* エッジ（矢印）の線を先に描画 */}
-                  {flowChartLayout.edges.map((edge: any, idx: number) => {
+                  {flowChartLayout.edges.map((edge: FlowChartEdge, idx: number) => {
                     if (!edge) return null;
                     const relType = relationshipTypes[edge.type as CharacterRelationship['type']];
                     
@@ -1088,7 +1108,7 @@ JSON形式で出力してください：
                   })}
                   
                   {/* ノード（キャラクター）を描画 */}
-                  {flowChartLayout.nodes.map((node: any, idx: number) => (
+                  {flowChartLayout.nodes.map((node: FlowChartNode, idx: number) => (
                     <g key={node.id}>
                       {/* キャラクター背景（円形） */}
                       <circle

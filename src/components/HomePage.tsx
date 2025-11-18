@@ -269,22 +269,26 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     // ソート
     const sorted = [...filtered].sort((a, b) => {
       switch (sortOption) {
-        case 'updatedDesc':
+        case 'updatedDesc': {
           const aUpdated = a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
           const bUpdated = b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
           return bUpdated.getTime() - aUpdated.getTime();
-        case 'updatedAsc':
+        }
+        case 'updatedAsc': {
           const aUpdatedAsc = a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
           const bUpdatedAsc = b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
           return aUpdatedAsc.getTime() - bUpdatedAsc.getTime();
-        case 'createdDesc':
+        }
+        case 'createdDesc': {
           const aCreated = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
           const bCreated = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
           return bCreated.getTime() - aCreated.getTime();
-        case 'createdAsc':
+        }
+        case 'createdAsc': {
           const aCreatedAsc = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
           const bCreatedAsc = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
           return aCreatedAsc.getTime() - bCreatedAsc.getTime();
+        }
         case 'titleAsc':
           return a.title.localeCompare(b.title, 'ja');
         case 'titleDesc':
@@ -294,10 +298,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         case 'progressAsc':
           return calculateProjectProgress(a).percentage - calculateProjectProgress(b).percentage;
         case 'lastAccessedDesc':
-        default:
+        default: {
           const aLast = a.lastAccessed instanceof Date ? a.lastAccessed : (a.lastAccessed ? new Date(a.lastAccessed) : a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt));
           const bLast = b.lastAccessed instanceof Date ? b.lastAccessed : (b.lastAccessed ? new Date(b.lastAccessed) : b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt));
           return bLast.getTime() - aLast.getTime();
+        }
       }
     });
 

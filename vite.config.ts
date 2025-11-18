@@ -20,17 +20,40 @@ export default defineConfig({
     watch: {
       ignored: ["**/src-tauri/**"],
     },
-    // ローカルLLM用のプロキシ設定
+    // ローカルLLM & クラウドAI用のプロキシ設定（開発環境のCORS回避）
     proxy: {
+      // ローカルLLM（LM Studio）
       '/api/local': {
         target: 'http://localhost:1234',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/local/, '/v1/chat/completions'),
       },
+      // ローカルLLM（Ollama）
       '/api/ollama': {
         target: 'http://localhost:11434',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/ollama/, '/v1/chat/completions'),
+      },
+      // クラウドAPI（OpenAI）
+      '/api/openai': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/openai/, ''),
+      },
+      // クラウドAPI（Claude/Anthropic）
+      '/api/anthropic': {
+        target: 'https://api.anthropic.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
+      },
+      // クラウドAPI（Gemini）
+      '/api/gemini': {
+        target: 'https://generativelanguage.googleapis.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
       },
     },
   },

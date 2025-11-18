@@ -16,6 +16,11 @@ export const ExportStep: React.FC = () => {
     chapters: true,
     imageBoard: true,
     draft: true,
+    glossary: true,
+    relationships: true,
+    timeline: true,
+    worldSettings: true,
+    memo: true,
   });
   
   // ファイル名のカスタマイズ
@@ -31,6 +36,79 @@ export const ExportStep: React.FC = () => {
   const [previewSearch, setPreviewSearch] = useState('');
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewContentRef = useRef<HTMLPreElement | HTMLDivElement>(null);
+  
+  // セクション名と検索文字列のマッピング
+  const sectionSearchMap: Record<string, string> = {
+    title: currentProject?.title || '',
+    basicInfo: '基本情報',
+    characters: 'キャラクター一覧',
+    plot: 'プロット',
+    synopsis: 'あらすじ',
+    chapters: '章立て',
+    imageBoard: 'イメージボード',
+    draft: '草案',
+    glossary: '用語集',
+    relationships: 'キャラクター相関図',
+    timeline: 'タイムライン',
+    worldSettings: '世界観設定',
+    memo: 'クイックメモ',
+  };
+  
+  // セクションまでスクロールする関数
+  const scrollToSection = (sectionId: string) => {
+    setSelectedSection(sectionId);
+    
+    if (!previewRef.current || !previewContentRef.current) return;
+    
+    const searchText = sectionSearchMap[sectionId];
+    if (!searchText) return;
+    
+    // 少し遅延を入れて、コンテンツがレンダリングされた後にスクロール
+    setTimeout(() => {
+      if (!previewContentRef.current) return;
+      
+      const content = previewContentRef.current.textContent || '';
+      const index = content.indexOf(searchText);
+      
+      if (index !== -1) {
+        // テキストノード内の位置を計算
+        const textNode = previewContentRef.current.firstChild;
+        if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+          // 範囲を作成してスクロール
+          const range = document.createRange();
+          range.setStart(textNode, index);
+          range.setEnd(textNode, index);
+          
+          // 範囲を可視化するためにマーカー要素を作成
+          const marker = document.createElement('span');
+          marker.id = `section-marker-${sectionId}`;
+          marker.style.position = 'absolute';
+          marker.style.top = '0';
+          marker.style.left = '0';
+          marker.style.width = '1px';
+          marker.style.height = '1px';
+          marker.style.visibility = 'hidden';
+          
+          // より簡単な方法：テキストを検索して、その位置を計算
+          const container = previewRef.current;
+          if (container) {
+            const scrollPosition = (index / content.length) * container.scrollHeight;
+            container.scrollTo({
+              top: Math.max(0, scrollPosition - 20), // 少し上に余白を持たせる
+              behavior: 'smooth'
+            });
+          }
+        } else {
+          // HTMLコンテンツの場合、IDで検索
+          const element = previewContentRef.current.querySelector(`#section-${sectionId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      }
+    }, 100);
+  };
 
   const exportFormats = [
     { id: 'txt', name: 'テキスト (.txt)', icon: FileText, description: 'シンプルなテキスト形式' },
@@ -73,8 +151,9 @@ export const ExportStep: React.FC = () => {
       
       const fileName = generateFileName();
       
-      // Tauri環境かどうかを確認
-      const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+      // Tauri環境かどうかを確認（Tauri 2対応）
+      const isTauri = typeof window !== 'undefined' && 
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
       
       if (!isTauri) {
         // ブラウザ環境の場合、ダウンロードリンクを作成
@@ -289,7 +368,97 @@ export const ExportStep: React.FC = () => {
     if (exportOptions.draft && currentProject.draft) {
       content += '草案\n';
       content += '-'.repeat(20) + '\n';
-      content += `${currentProject.draft}\n`;
+      content += `${currentProject.draft}\n\n`;
+    }
+    
+    if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
+      content += '用語集\n';
+      content += '-'.repeat(20) + '\n';
+      currentProject.glossary.forEach(term => {
+        content += `${term.term}`;
+        if (term.reading) content += ` (${term.reading})`;
+        content += ` [${term.category}]\n`;
+        content += `定義: ${term.definition}\n`;
+        if (term.notes) content += `備考: ${term.notes}\n`;
+        content += '\n';
+      });
+    }
+    
+    if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) {
+      content += 'キャラクター相関図\n';
+      content += '-'.repeat(20) + '\n';
+      currentProject.relationships.forEach(rel => {
+        const fromChar = currentProject.characters.find(c => c.id === rel.from);
+        const toChar = currentProject.characters.find(c => c.id === rel.to);
+        const fromName = fromChar?.name || rel.from;
+        const toName = toChar?.name || rel.to;
+        content += `${fromName} → ${toName} [${rel.type}] (強度: ${rel.strength}/10)\n`;
+        if (rel.description) content += `説明: ${rel.description}\n`;
+        if (rel.notes) content += `備考: ${rel.notes}\n`;
+        content += '\n';
+      });
+    }
+    
+    if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) {
+      content += 'タイムライン\n';
+      content += '-'.repeat(20) + '\n';
+      const sortedTimeline = [...currentProject.timeline].sort((a, b) => a.order - b.order);
+      sortedTimeline.forEach(event => {
+        content += `${event.order}. ${event.title} [${event.category}]\n`;
+        if (event.date) content += `日付: ${event.date}\n`;
+        content += `説明: ${event.description}\n`;
+        if (event.characterIds && event.characterIds.length > 0) {
+          const charNames = event.characterIds
+            .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .join(', ');
+          content += `関連キャラクター: ${charNames}\n`;
+        }
+        if (event.chapterId) {
+          const chapter = currentProject.chapters.find(c => c.id === event.chapterId);
+          if (chapter) content += `関連章: ${chapter.title}\n`;
+        }
+        content += '\n';
+      });
+    }
+    
+    if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) {
+      content += '世界観設定\n';
+      content += '-'.repeat(20) + '\n';
+      currentProject.worldSettings.forEach(setting => {
+        content += `${setting.title} [${setting.category}]\n`;
+        content += `${setting.content}\n`;
+        if (setting.tags && setting.tags.length > 0) {
+          content += `タグ: ${setting.tags.join(', ')}\n`;
+        }
+        content += '\n';
+      });
+    }
+    
+    if (exportOptions.memo) {
+      const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
+      try {
+        const savedMemo = localStorage.getItem(memoStorageKey);
+        if (savedMemo) {
+          const memoData = JSON.parse(savedMemo) as Record<string, string>;
+          const memoLabels: Record<string, string> = {
+            ideas: 'アイデア',
+            tasks: 'タスク',
+            notes: 'メモ',
+          };
+          const hasMemo = Object.values(memoData).some(v => v && v.trim().length > 0);
+          if (hasMemo) {
+            content += 'クイックメモ\n';
+            content += '-'.repeat(20) + '\n';
+            Object.entries(memoData).forEach(([key, value]) => {
+              if (value && value.trim().length > 0) {
+                content += `${memoLabels[key] || key}:\n${value}\n\n`;
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('メモ読み込みエラー:', error);
+      }
     }
     
     return content;
@@ -376,7 +545,89 @@ export const ExportStep: React.FC = () => {
     
     if (exportOptions.draft && currentProject.draft) {
       content += '## 草案\n\n';
-      content += `${currentProject.draft}\n`;
+      content += `${currentProject.draft}\n\n`;
+    }
+    
+    if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
+      content += '## 用語集\n\n';
+      currentProject.glossary.forEach(term => {
+        content += `### ${term.term}`;
+        if (term.reading) content += ` (${term.reading})`;
+        content += ` [${term.category}]\n\n`;
+        content += `**定義**: ${term.definition}\n\n`;
+        if (term.notes) content += `**備考**: ${term.notes}\n\n`;
+      });
+    }
+    
+    if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) {
+      content += '## キャラクター相関図\n\n';
+      currentProject.relationships.forEach(rel => {
+        const fromChar = currentProject.characters.find(c => c.id === rel.from);
+        const toChar = currentProject.characters.find(c => c.id === rel.to);
+        const fromName = fromChar?.name || rel.from;
+        const toName = toChar?.name || rel.to;
+        content += `### ${fromName} → ${toName}\n\n`;
+        content += `**関係性**: ${rel.type} (強度: ${rel.strength}/10)\n\n`;
+        if (rel.description) content += `**説明**: ${rel.description}\n\n`;
+        if (rel.notes) content += `**備考**: ${rel.notes}\n\n`;
+      });
+    }
+    
+    if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) {
+      content += '## タイムライン\n\n';
+      const sortedTimeline = [...currentProject.timeline].sort((a, b) => a.order - b.order);
+      sortedTimeline.forEach(event => {
+        content += `### ${event.order}. ${event.title} [${event.category}]\n\n`;
+        if (event.date) content += `**日付**: ${event.date}\n\n`;
+        content += `${event.description}\n\n`;
+        if (event.characterIds && event.characterIds.length > 0) {
+          const charNames = event.characterIds
+            .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .join(', ');
+          content += `**関連キャラクター**: ${charNames}\n\n`;
+        }
+        if (event.chapterId) {
+          const chapter = currentProject.chapters.find(c => c.id === event.chapterId);
+          if (chapter) content += `**関連章**: ${chapter.title}\n\n`;
+        }
+      });
+    }
+    
+    if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) {
+      content += '## 世界観設定\n\n';
+      currentProject.worldSettings.forEach(setting => {
+        content += `### ${setting.title} [${setting.category}]\n\n`;
+        content += `${setting.content}\n\n`;
+        if (setting.tags && setting.tags.length > 0) {
+          content += `**タグ**: ${setting.tags.join(', ')}\n\n`;
+        }
+      });
+    }
+    
+    if (exportOptions.memo) {
+      const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
+      try {
+        const savedMemo = localStorage.getItem(memoStorageKey);
+        if (savedMemo) {
+          const memoData = JSON.parse(savedMemo) as Record<string, string>;
+          const memoLabels: Record<string, string> = {
+            ideas: 'アイデア',
+            tasks: 'タスク',
+            notes: 'メモ',
+          };
+          const hasMemo = Object.values(memoData).some(v => v && v.trim().length > 0);
+          if (hasMemo) {
+            content += '## クイックメモ\n\n';
+            Object.entries(memoData).forEach(([key, value]) => {
+              if (value && value.trim().length > 0) {
+                content += `### ${memoLabels[key] || key}\n\n${value}\n\n`;
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('メモ読み込みエラー:', error);
+      }
     }
     
     return content;
@@ -623,6 +874,121 @@ export const ExportStep: React.FC = () => {
     <div class="draft-content">${currentProject.draft}</div>`;
     }
     
+    if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
+      content += `
+    <h2>用語集</h2>`;
+      currentProject.glossary.forEach(term => {
+        content += `
+    <div class="character-card">
+        <h3>${term.term}`;
+        if (term.reading) content += ` (${term.reading})`;
+        content += ` [${term.category}]</h3>
+        <p><strong>定義:</strong> ${term.definition}</p>`;
+        if (term.notes) content += `
+        <p><strong>備考:</strong> ${term.notes}</p>`;
+        content += `
+    </div>`;
+      });
+    }
+    
+    if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) {
+      content += `
+    <h2>キャラクター相関図</h2>`;
+      currentProject.relationships.forEach(rel => {
+        const fromChar = currentProject.characters.find(c => c.id === rel.from);
+        const toChar = currentProject.characters.find(c => c.id === rel.to);
+        const fromName = fromChar?.name || rel.from;
+        const toName = toChar?.name || rel.to;
+        content += `
+    <div class="plot-item">
+        <h3>${fromName} → ${toName}</h3>
+        <p><strong>関係性:</strong> ${rel.type} (強度: ${rel.strength}/10)</p>`;
+        if (rel.description) content += `
+        <p><strong>説明:</strong> ${rel.description}</p>`;
+        if (rel.notes) content += `
+        <p><strong>備考:</strong> ${rel.notes}</p>`;
+        content += `
+    </div>`;
+      });
+    }
+    
+    if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) {
+      content += `
+    <h2>タイムライン</h2>`;
+      const sortedTimeline = [...currentProject.timeline].sort((a, b) => a.order - b.order);
+      sortedTimeline.forEach(event => {
+        content += `
+    <div class="chapter-item">
+        <h3>${event.order}. ${event.title} [${event.category}]</h3>`;
+        if (event.date) content += `
+        <p><strong>日付:</strong> ${event.date}</p>`;
+        content += `
+        <p>${event.description}</p>`;
+        if (event.characterIds && event.characterIds.length > 0) {
+          const charNames = event.characterIds
+            .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .join(', ');
+          content += `
+        <p><strong>関連キャラクター:</strong> ${charNames}</p>`;
+        }
+        if (event.chapterId) {
+          const chapter = currentProject.chapters.find(c => c.id === event.chapterId);
+          if (chapter) content += `
+        <p><strong>関連章:</strong> ${chapter.title}</p>`;
+        }
+        content += `
+    </div>`;
+      });
+    }
+    
+    if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) {
+      content += `
+    <h2>世界観設定</h2>`;
+      currentProject.worldSettings.forEach(setting => {
+        content += `
+    <div class="character-card">
+        <h3>${setting.title} [${setting.category}]</h3>
+        <div class="draft-content">${setting.content}</div>`;
+        if (setting.tags && setting.tags.length > 0) {
+          content += `
+        <p><strong>タグ:</strong> ${setting.tags.join(', ')}</p>`;
+        }
+        content += `
+    </div>`;
+      });
+    }
+    
+    if (exportOptions.memo) {
+      const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
+      try {
+        const savedMemo = localStorage.getItem(memoStorageKey);
+        if (savedMemo) {
+          const memoData = JSON.parse(savedMemo) as Record<string, string>;
+          const memoLabels: Record<string, string> = {
+            ideas: 'アイデア',
+            tasks: 'タスク',
+            notes: 'メモ',
+          };
+          const hasMemo = Object.values(memoData).some(v => v && v.trim().length > 0);
+          if (hasMemo) {
+            content += `
+    <h2>クイックメモ</h2>`;
+            Object.entries(memoData).forEach(([key, value]) => {
+              if (value && value.trim().length > 0) {
+                content += `
+    <div class="character-card">
+        <h3>${memoLabels[key] || key}</h3>
+        <div class="draft-content">${value}</div>
+    </div>`;
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('メモ読み込みエラー:', error);
+      }
+    }
+    
     content += `
     <div class="metadata">
         <p><strong>作成日:</strong> ${currentProject.createdAt.toLocaleDateString('ja-JP')}</p>
@@ -838,6 +1204,11 @@ export const ExportStep: React.FC = () => {
                   { key: 'chapters', label: '章立て' },
                   { key: 'imageBoard', label: 'イメージボード' },
                   { key: 'draft', label: '草案' },
+                  { key: 'glossary', label: '用語集' },
+                  { key: 'relationships', label: '相関図' },
+                  { key: 'timeline', label: 'タイムライン' },
+                  { key: 'worldSettings', label: '世界観' },
+                  { key: 'memo', label: 'クイックメモ' },
                 ].map((option) => (
                   <label key={option.key} className="flex items-center space-x-2 cursor-pointer">
                     <input
@@ -925,12 +1296,17 @@ export const ExportStep: React.FC = () => {
             { id: 'synopsis', label: 'あらすじ' },
             { id: 'chapters', label: '章立て' },
             { id: 'draft', label: '草案' },
+            { id: 'glossary', label: '用語集' },
+            { id: 'relationships', label: '相関図' },
+            { id: 'timeline', label: 'タイムライン' },
+            { id: 'worldSettings', label: '世界観' },
+            { id: 'memo', label: 'クイックメモ' },
           ]
             .filter((section) => exportOptions[section.id as keyof typeof exportOptions] || section.id === 'title')
             .map((section) => (
               <button
                 key={section.id}
-                onClick={() => setSelectedSection(section.id)}
+                onClick={() => scrollToSection(section.id)}
                 className={`px-3 py-1 text-xs rounded-lg transition-colors font-['Noto_Sans_JP'] ${
                   selectedSection === section.id
                     ? 'bg-orange-500 text-white'
@@ -957,7 +1333,13 @@ export const ExportStep: React.FC = () => {
                 {exportOptions.plot && <li>プロット情報（テーマ・舞台・フック・構成詳細）</li>}
                 {exportOptions.synopsis && <li>あらすじ</li>}
                 {exportOptions.chapters && <li>章立て</li>}
+                {exportOptions.imageBoard && <li>イメージボード</li>}
                 {exportOptions.draft && <li>草案内容</li>}
+                {exportOptions.glossary && <li>用語集</li>}
+                {exportOptions.relationships && <li>キャラクター相関図</li>}
+                {exportOptions.timeline && <li>タイムライン</li>}
+                {exportOptions.worldSettings && <li>世界観設定</li>}
+                {exportOptions.memo && <li>クイックメモ</li>}
                 <li>作成日・更新日のメタデータ</li>
               </ul>
               <p className="mt-4 text-xs text-gray-500">
@@ -965,7 +1347,10 @@ export const ExportStep: React.FC = () => {
               </p>
             </div>
           ) : (
-            <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP']">
+            <pre 
+              ref={previewContentRef as React.RefObject<HTMLPreElement>}
+              className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP']"
+            >
               {(() => {
                 const content = selectedFormat === 'md' ? generateMarkdownContent() : generateTxtContent();
                 if (previewSearch) {

@@ -169,19 +169,21 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           }
         }
         
-        // Tauri環境チェック
-        const isTauriEnv = typeof window !== 'undefined' && '__TAURI__' in window;
+        // Tauri環境チェック（Tauri 2対応）
+        const isTauriEnv = typeof window !== 'undefined' && 
+          ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
         
-        // 開発環境でTauriでない場合はプロキシ経由（CORS回避）
+        // 開発環境でブラウザの場合のみプロキシ経由（CORS回避）
         let apiEndpoint = endpoint;
         if (!isTauriEnv && import.meta.env.DEV) {
-          // 開発環境ではViteのプロキシを使用
+          // ブラウザ開発環境ではViteのプロキシを使用
           if (endpoint.includes('localhost:1234')) {
             apiEndpoint = '/api/local';
           } else if (endpoint.includes('localhost:11434')) {
             apiEndpoint = '/api/ollama';
           }
         }
+        // Tauri環境では常に元のエンドポイントを使用（HTTPプラグインがlocalhostにアクセス可能）
         
         console.log('Testing local LLM connection:', {
           originalEndpoint: endpoint,

@@ -1,11 +1,13 @@
-// Tauri環境を検出
-const isTauri = (): boolean => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
-
 // Tauri fetchのキャッシュ
 let tauriFetchCache: typeof fetch | null = null;
 let tauriFetchInitialized = false;
+
+// Tauri環境を検出（Tauri 2対応）
+const isTauri = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  // Tauri 2では__TAURI_INTERNALS__が存在する
+  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
+};
 
 // Tauri fetchを取得（非同期）
 const getTauriFetch = async (): Promise<typeof fetch | null> => {
@@ -13,15 +15,21 @@ const getTauriFetch = async (): Promise<typeof fetch | null> => {
     return tauriFetchCache;
   }
 
-  if (isTauri()) {
+  const isTauriEnv = isTauri();
+  
+  if (isTauriEnv) {
     try {
+      // 動的インポートを使用してブラウザ環境でのエラーを防ぐ
       const httpPlugin = await import('@tauri-apps/plugin-http');
       tauriFetchCache = httpPlugin.fetch;
-      console.log('Tauri HTTP plugin loaded successfully');
+      console.log('✅ Tauri HTTP plugin loaded successfully');
     } catch (error) {
-      console.warn('Tauri HTTP plugin not available, falling back to browser fetch:', error);
+      console.error('❌ Failed to load Tauri HTTP plugin:', error);
       tauriFetchCache = null;
     }
+  } else {
+    console.log('🌐 Running in browser environment, using standard fetch');
+    tauriFetchCache = null;
   }
   
   tauriFetchInitialized = true;

@@ -176,7 +176,7 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
         
         alert(`${imported.length}件の用語をインポートしました`);
         setShowImportExport(false);
-      } catch (error) {
+      } catch (_error) {
         alert('インポートに失敗しました: ファイル形式が正しくありません');
       }
     };

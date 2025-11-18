@@ -241,7 +241,8 @@ const parseAISuggestions = (raw: string): AISuggestion[] => {
 };
 const isTauriEnvironment = () => {
   if (typeof window === 'undefined') return false;
-  return Boolean((window as any).__TAURI_IPC__ || (window as any).__TAURI_METADATA__);
+  // Tauri 2では__TAURI_INTERNALS__が存在する
+  return Boolean((window as Window & { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown }).__TAURI_INTERNALS__ || (window as Window & { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown }).__TAURI__);
 };
 
 const sanitizeFilename = (filename: string) => {
@@ -3053,40 +3054,6 @@ ${critiqueResponse.content}
     }
   };
 
-  // プロジェクトが存在しない場合の表示
-  if (!currentProject) {
-    return (
-      <div className="p-8 text-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          草案作成
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-          プロジェクトを作成してから草案作成を開始してください。
-        </p>
-      </div>
-    );
-  }
-
-  // 章が存在しない場合の表示
-  if (currentProject.chapters.length === 0) {
-    return (
-      <div className="p-8 text-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          草案作成
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
-          草案を作成するには、まず章立てを完成させてください。
-        </p>
-        <div className="text-center">
-          <BookOpen className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-          <p className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-            「章立て」ステップで章を作成してから戻ってきてください。
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // AI生成キャンセル処理
   const handleCancelGeneration = useCallback(() => {
     if (generationAbortControllerRef.current) {
@@ -3132,6 +3099,40 @@ ${critiqueResponse.content}
     
     return { visible: false };
   }, [isGenerating, isGeneratingSuggestion, isGeneratingAllChapters, aiStatus, generationStatus, generationProgress]);
+
+  // プロジェクトが存在しない場合の表示
+  if (!currentProject) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
+          草案作成
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+          プロジェクトを作成してから草案作成を開始してください。
+        </p>
+      </div>
+    );
+  }
+
+  // 章が存在しない場合の表示
+  if (currentProject.chapters.length === 0) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
+          草案作成
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
+          草案を作成するには、まず章立てを完成させてください。
+        </p>
+        <div className="text-center">
+          <BookOpen className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+            「章立て」ステップで章を作成してから戻ってきてください。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

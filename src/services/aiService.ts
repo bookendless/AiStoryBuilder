@@ -532,6 +532,15 @@ class AIService {
       // APIキーの復号化
       const apiKey = decryptApiKey(request.settings.apiKey);
 
+      // Tauri環境検出（Tauri 2対応）
+      const isTauriEnv = typeof window !== 'undefined' && 
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+      
+      // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+      const apiUrl = isTauriEnv || !import.meta.env.DEV
+        ? 'https://api.openai.com/v1/chat/completions'
+        : '/api/openai/v1/chat/completions';
+
       // 画像がある場合のメッセージ構築
       let userContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
       if (request.image) {
@@ -552,7 +561,7 @@ class AIService {
         userContent = request.prompt;
       }
 
-      const response = await httpService.post('https://api.openai.com/v1/chat/completions', {
+      const response = await httpService.post(apiUrl, {
         model: request.settings.model,
         messages: [
           {
@@ -610,12 +619,22 @@ class AIService {
       // APIキーの復号化
       const apiKey = decryptApiKey(request.settings.apiKey);
 
+      // Tauri環境検出（Tauri 2対応）
+      const isTauriEnv = typeof window !== 'undefined' && 
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+      
+      // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+      const apiUrl = isTauriEnv || !import.meta.env.DEV
+        ? 'https://api.anthropic.com/v1/messages'
+        : '/api/anthropic/v1/messages';
+
       console.log('Claude API Request:', {
         model: request.settings.model,
         prompt: request.prompt.substring(0, 100) + '...',
         hasImage: !!request.image,
         temperature: request.settings.temperature,
         maxTokens: request.settings.maxTokens,
+        apiUrl,
       });
 
       // 画像がある場合のコンテンツ構築
@@ -648,7 +667,7 @@ class AIService {
         userContent = request.prompt;
       }
 
-      const response = await httpService.post('https://api.anthropic.com/v1/messages', {
+      const response = await httpService.post(apiUrl, {
         model: request.settings.model,
         max_tokens: request.settings.maxTokens,
         temperature: request.settings.temperature,
@@ -706,12 +725,22 @@ class AIService {
       // APIキーの復号化
       const apiKey = decryptApiKey(request.settings.apiKey);
 
+      // Tauri環境検出（Tauri 2対応）
+      const isTauriEnv = typeof window !== 'undefined' && 
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+      
+      // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+      const apiUrl = isTauriEnv || !import.meta.env.DEV
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`
+        : `/api/gemini/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`;
+
       console.log('Gemini API Request:', {
         model: request.settings.model,
         prompt: request.prompt.substring(0, 100) + '...',
         hasImage: !!request.image,
         temperature: request.settings.temperature,
         maxTokens: request.settings.maxTokens,
+        apiUrl,
       }, {
         headers: {
           'x-goog-api-key': apiKey,
@@ -740,7 +769,7 @@ class AIService {
         }
       }
 
-      const response = await httpService.post(`https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`, {
+      const response = await httpService.post(apiUrl, {
         contents: [{
           parts: parts,
         }],
@@ -794,13 +823,14 @@ class AIService {
         }
       }
 
-      // Tauri環境チェック
-      const isTauriEnv = typeof window !== 'undefined' && '__TAURI__' in window;
+      // Tauri環境チェック（Tauri 2対応）
+      const isTauriEnv = typeof window !== 'undefined' && 
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
       
-      // 開発環境でTauriでない場合はプロキシ経由（CORS回避）
+      // 開発環境でブラウザの場合のみプロキシ経由（CORS回避）
       let apiEndpoint = endpoint;
       if (!isTauriEnv && import.meta.env.DEV) {
-        // 開発環境ではViteのプロキシを使用
+        // ブラウザ開発環境ではViteのプロキシを使用
         // http://localhost:1234 -> /api/local
         if (endpoint.includes('localhost:1234')) {
           apiEndpoint = '/api/local';
@@ -810,6 +840,7 @@ class AIService {
         }
         // それ以外のローカルエンドポイントの場合は直接接続を試みる
       }
+      // Tauri環境では常に元のエンドポイントを使用（HTTPプラグインがlocalhostにアクセス可能）
 
       // プロンプトの長さを制限（Local LLMでは短めに）
       const maxPromptLength = 3000;
