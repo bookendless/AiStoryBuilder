@@ -188,6 +188,7 @@ out/
 .npm/
 .yarn/
 .pnpm-store/
+.vite/
 
 # 一時的なファイル
 *.swp

@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { PenTool, BookOpen, Save, Download, ChevronDown, ChevronUp, ListChecks, Wand2, MoreVertical } from 'lucide-react';
+import { PenTool, BookOpen, Save, Download, ChevronDown, ChevronUp, ListChecks, Wand2, MoreVertical, Minimize } from 'lucide-react';
 import { formatTimestamp } from './utils';
 
 interface Chapter {
@@ -45,6 +45,9 @@ interface MainEditorProps {
   onExportChapter: () => void;
   onOpenDisplaySettings: () => void;
   onOpenAIAssist: () => void;
+  isVerticalWriting: boolean;
+  isZenMode: boolean;
+  onExitZenMode: () => void;
 }
 
 export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
@@ -68,6 +71,9 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   onExportChapter,
   onOpenDisplaySettings,
   onOpenAIAssist,
+  isVerticalWriting,
+  isZenMode,
+  onExitZenMode,
 }, ref) => {
   const mainTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const mainLineNumbersRef = useRef<HTMLDivElement | null>(null);
@@ -86,6 +92,9 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
 
   // 行番号の更新
   const updateLineNumbers = useCallback(() => {
+    // 縦書きモードでは行番号を計算しない（または非表示にするため不要）
+    if (isVerticalWriting) return;
+
     const textarea = mainTextareaRef.current;
     if (!textarea) {
       setLocalLineNumbers([1]);
@@ -104,11 +113,11 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
       }
       return Array.from({ length: totalLines }, (_, index) => index + 1);
     });
-  }, [mainComputedLineHeight]);
+  }, [mainComputedLineHeight, isVerticalWriting]);
 
   useEffect(() => {
     updateLineNumbers();
-  }, [draft, mainComputedLineHeight, mainTextareaHeight, isMainFocusMode, showMainLineNumbers, updateLineNumbers]);
+  }, [draft, mainComputedLineHeight, mainTextareaHeight, isMainFocusMode, showMainLineNumbers, isVerticalWriting, updateLineNumbers]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -139,18 +148,18 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
 
   const handleMainTextareaScroll = useCallback(() => {
     if (!mainTextareaRef.current || !mainLineNumbersInnerRef.current) return;
-    
+
     const textarea = mainTextareaRef.current;
     const innerElement = mainLineNumbersInnerRef.current;
-    
+
     innerElement.style.transform = `translateY(-${textarea.scrollTop}px)`;
   }, []);
 
   useEffect(() => {
-    if (showMainLineNumbers) {
+    if (showMainLineNumbers && !isVerticalWriting) {
       handleMainTextareaScroll();
     }
-  }, [showMainLineNumbers, mainTextareaHeight, draft, mainComputedLineHeight, handleMainTextareaScroll]);
+  }, [showMainLineNumbers, mainTextareaHeight, draft, mainComputedLineHeight, handleMainTextareaScroll, isVerticalWriting]);
 
   // 親コンポーネントからref経由でアクセスできるメソッドを公開
   useImperativeHandle(ref, () => ({
@@ -165,17 +174,22 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   }), []);
 
   return (
-    <div className="flex-1 min-w-0 space-y-6">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="p-6 space-y-6">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-              {selectedChapterId && currentChapter ? `${currentChapter.title} の草案` : '草案執筆'}
-            </h3>
-          </div>
+    <div className={`flex-1 min-w-0 space-y-6 ${isZenMode ? 'z-50' : ''}`}>
+      <div
+        className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden ${isZenMode ? 'fixed inset-0 z-50 flex flex-col' : ''}`}
+        style={isZenMode ? { borderRadius: 0, border: 'none' } : undefined}
+      >
+        <div className={`p-6 space-y-6 ${isZenMode ? 'flex-1 flex flex-col overflow-hidden' : ''}`}>
+          {!isZenMode && (
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                {selectedChapterId && currentChapter ? `${currentChapter.title} の草案` : '草案執筆'}
+              </h3>
+            </div>
+          )}
 
-          {/* 章内容表示 */}
-          {currentChapter && (
+          {/* 章内容表示（禅モード時は非表示） */}
+          {!isZenMode && currentChapter && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
               {/* アコーディオンヘッダー */}
               <button
@@ -249,29 +263,28 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
 
           {/* メインテキストエリア */}
           <div
-            className={`rounded-lg min-h-[300px] border ${
-              isMainFocusMode
+            className={`rounded-lg min-h-[300px] border ${isMainFocusMode
                 ? 'border-emerald-500/40 bg-gray-900 text-emerald-50'
                 : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-            }`}
+              } ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
+            style={isZenMode ? { minHeight: 'auto', backgroundColor: isMainFocusMode ? '#111827' : undefined } : undefined}
           >
             {selectedChapterId ? (
-              <div className={`p-4 ${isMainFocusMode ? 'bg-gray-900/80 rounded-b-lg' : ''}`}>
+              <div className={`p-4 ${isMainFocusMode ? 'bg-gray-900/80 rounded-b-lg' : ''} ${isZenMode ? 'flex-1 flex flex-col p-0 bg-transparent' : ''}`}>
                 <div
-                  className={`${mainEditorContainerClass} rounded-lg transition-colors duration-200`}
-                  style={isMainFocusMode ? { boxShadow: '0 0 0 1px rgba(16, 185, 129, 0.25)' } : undefined}
+                  className={`${mainEditorContainerClass} rounded-lg transition-colors duration-200 ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
+                  style={isMainFocusMode ? { boxShadow: isZenMode ? 'none' : '0 0 0 1px rgba(16, 185, 129, 0.25)' } : undefined}
                 >
-                  <div className="flex">
-                    {showMainLineNumbers && (
+                  <div className={`flex ${isZenMode ? 'flex-1' : ''}`}>
+                    {showMainLineNumbers && !isVerticalWriting && (
                       <div
                         ref={mainLineNumbersRef}
-                        className={`pl-6 pr-3 py-5 md:pl-8 md:pr-4 md:py-6 select-none border-r ${
-                          isMainFocusMode
+                        className={`pl-6 pr-3 py-5 md:pl-8 md:pr-4 md:py-6 select-none border-r ${isMainFocusMode
                             ? 'border-emerald-500/40 bg-gray-900/60 text-emerald-200/80'
                             : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-500'
-                        }`}
+                          }`}
                         style={{
-                          height: mainTextareaHeight,
+                          height: isZenMode ? '100%' : mainTextareaHeight,
                           overflow: 'hidden',
                           position: 'relative',
                         }}
@@ -295,17 +308,31 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                       ref={mainTextareaRef}
                       value={draft}
                       onChange={(e) => onDraftChange(e.target.value)}
-                      onScroll={handleMainTextareaScroll}
+                      onScroll={!isVerticalWriting ? handleMainTextareaScroll : undefined}
                       placeholder="ここに草案を執筆してください..."
-                      className={`flex-1 px-6 py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none font-['Noto_Sans_JP'] ${
-                        isMainFocusMode
+                      className={`flex-1 px-6 py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none ${isVerticalWriting ? 'font-serif-jp' : "font-['Noto_Sans_JP']"
+                        } ${isMainFocusMode
                           ? 'text-emerald-50 placeholder-emerald-400/50'
                           : 'text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400'
-                      }`}
+                        } ${isZenMode ? 'h-full' : ''}`}
                       style={{
                         fontSize: mainFontSize,
-                        lineHeight: `${mainComputedLineHeight}px`,
-                        height: mainTextareaHeight,
+                        lineHeight: isVerticalWriting ? '2.0' : `${mainComputedLineHeight}px`,
+                        height: isZenMode ? '100%' : mainTextareaHeight,
+                        writingMode: isVerticalWriting ? 'vertical-rl' : 'horizontal-tb',
+                        textOrientation: isVerticalWriting ? 'upright' : 'mixed',
+                        letterSpacing: isVerticalWriting ? '0.05em' : 'normal',
+                        overflowX: isVerticalWriting ? 'auto' : 'hidden',
+                        overflowY: isVerticalWriting ? 'hidden' : 'auto',
+                      }}
+                      onWheel={(e) => {
+                        if (isVerticalWriting) {
+                          const container = e.currentTarget;
+                          container.scrollLeft -= e.deltaY;
+                          // 縦書き時は横スクロールを優先するため、親要素への伝播を止める場合があるが、
+                          // ここではブラウザのデフォルト挙動を上書きして横スクロールにする
+                          // e.preventDefault() は状況によるが、スムーズスクロールのために必要
+                        }
                       }}
                     />
                   </div>
@@ -327,30 +354,46 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
           </div>
         </div>
 
-        <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-900/30">
+        {/* フッター（禅モード時は簡易表示） */}
+        <div className={`border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-900/30 ${isZenMode ? 'bg-gray-900/90 text-white border-none' : ''}`}>
           <div className="flex flex-col gap-1">
-            <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+            <div className={`text-sm font-['Noto_Sans_JP'] ${isZenMode ? 'text-gray-300' : 'text-gray-600 dark:text-gray-400'}`}>
               文字数: {wordCount.toLocaleString()}
             </div>
-            {lastSavedAt && (
+            {!isZenMode && lastSavedAt && (
               <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
                 最終保存: {formatTimestamp(lastSavedAt.getTime())}
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* 禅モード解除ボタン */}
+            {isZenMode && (
+              <button
+                type="button"
+                onClick={onExitZenMode}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors font-['Noto_Sans_JP'] text-sm"
+              >
+                <Minimize className="h-4 w-4" />
+                <span className="hidden sm:inline">禅モード終了</span>
+              </button>
+            )}
+
             {/* プライマリボタン */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onSave}
                 disabled={!selectedChapter}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-['Noto_Sans_JP'] text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-['Noto_Sans_JP'] text-sm disabled:opacity-50 disabled:cursor-not-allowed ${isZenMode
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
               >
                 <Save className="h-4 w-4" />
                 <span className="hidden sm:inline">保存</span>
               </button>
-              {selectedChapter && (
+              {selectedChapter && !isZenMode && (
                 <button
                   type="button"
                   onClick={onOpenViewer}
@@ -367,7 +410,10 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="flex items-center justify-center p-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className={`flex items-center justify-center p-2 rounded-lg border transition-colors ${isZenMode
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
                 aria-label="その他の操作"
                 aria-expanded={isMenuOpen}
               >
@@ -423,4 +469,3 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
     </div>
   );
 });
-

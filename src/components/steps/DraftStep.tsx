@@ -60,6 +60,7 @@ export const DraftStep: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalDraft, setModalDraft] = useState('');
   const [isVerticalWriting, setIsVerticalWriting] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false);
   const [isModalChapterInfoCollapsed, setIsModalChapterInfoCollapsed] = useState(false);
   const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
   const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
@@ -1122,6 +1123,10 @@ useEffect(() => {
             handleResetDisplaySettings={handleResetDisplaySettings}
             mainControlButtonBase={mainControlButtonBase}
             mainControlButtonActive={mainControlButtonActive}
+            isVerticalWriting={isVerticalWriting}
+            setIsVerticalWriting={setIsVerticalWriting}
+            isZenMode={isZenMode}
+            setIsZenMode={setIsZenMode}
           />
         );
       case 'history':
@@ -2789,6 +2794,9 @@ ${critiqueResponse.content}
               onExportChapter={handleExportChapter}
               onOpenDisplaySettings={() => openSecondaryTab('display')}
               onOpenAIAssist={() => openSecondaryTab('ai')}
+              isVerticalWriting={isVerticalWriting}
+              isZenMode={isZenMode}
+              onExitZenMode={() => setIsZenMode(false)}
             />
           </div>
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, AlignLeft, AlignJustify, Maximize, Minimize } from 'lucide-react';
 import {
   MODAL_DEFAULT_LINE_HEIGHT,
   MODAL_FONT_SIZE_OPTIONS,
@@ -23,6 +23,10 @@ interface DisplaySettingsPanelProps {
   handleResetDisplaySettings: () => void;
   mainControlButtonBase: string;
   mainControlButtonActive: string;
+  isVerticalWriting: boolean;
+  setIsVerticalWriting: React.Dispatch<React.SetStateAction<boolean>>;
+  isZenMode: boolean;
+  setIsZenMode: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
@@ -39,6 +43,10 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
   handleResetDisplaySettings,
   mainControlButtonBase,
   mainControlButtonActive,
+  isVerticalWriting,
+  setIsVerticalWriting,
+  isZenMode,
+  setIsZenMode,
 }) => {
   return (
     <div className="space-y-4">
@@ -70,9 +78,8 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
                   key={`display-font-${size}`}
                   type="button"
                   onClick={() => setMainFontSize(size)}
-                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-                    mainFontSize === size ? mainControlButtonActive : ''
-                  }`}
+                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainFontSize === size ? mainControlButtonActive : ''
+                    }`}
                   aria-pressed={mainFontSize === size}
                 >
                   {size}px
@@ -91,9 +98,8 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
                   key={`display-line-height-${value}`}
                   type="button"
                   onClick={() => setMainLineHeight(value)}
-                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-                    mainLineHeight === value ? mainControlButtonActive : ''
-                  }`}
+                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainLineHeight === value ? mainControlButtonActive : ''
+                    }`}
                   aria-pressed={mainLineHeight === value}
                 >
                   {value === MODAL_DEFAULT_LINE_HEIGHT ? '標準' : value.toFixed(1)}
@@ -148,22 +154,43 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
           <button
             type="button"
             onClick={() => setShowMainLineNumbers((prev) => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-              showMainLineNumbers ? mainControlButtonActive : ''
-            }`}
+            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${showMainLineNumbers ? mainControlButtonActive : ''
+              }`}
             aria-pressed={showMainLineNumbers}
           >
             行番号 {showMainLineNumbers ? 'ON' : 'OFF'}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsVerticalWriting((prev) => !prev)}
+            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] flex items-center gap-1.5 ${isVerticalWriting ? mainControlButtonActive : ''
+              }`}
+            aria-pressed={isVerticalWriting}
+          >
+            {isVerticalWriting ? <AlignJustify className="h-3.5 w-3.5" /> : <AlignLeft className="h-3.5 w-3.5" />}
+            {isVerticalWriting ? '縦書き' : '横書き'}
+          </button>
+
           <button
             type="button"
             onClick={() => setIsMainFocusMode((prev) => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-              isMainFocusMode ? mainControlButtonActive : ''
-            }`}
+            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${isMainFocusMode ? mainControlButtonActive : ''
+              }`}
             aria-pressed={isMainFocusMode}
           >
             {isMainFocusMode ? '集中モード解除' : '集中モード'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsZenMode((prev) => !prev)}
+            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] flex items-center gap-1.5 ${isZenMode ? mainControlButtonActive : ''
+              }`}
+            aria-pressed={isZenMode}
+          >
+            {isZenMode ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+            {isZenMode ? '禅モード解除' : '禅モード'}
           </button>
         </div>
       </div>
@@ -178,26 +205,28 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
               setMainLineHeight(1.6);
               setShowMainLineNumbers(false);
               setIsMainFocusMode(false);
+              setIsVerticalWriting(false);
             }}
             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-left hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-xs font-['Noto_Sans_JP'] text-gray-600 dark:text-gray-300"
           >
             標準ビュー
             <br />
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">16px / 行間1.6 / 行番号OFF</span>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">16px / 行間1.6 / 横書き</span>
           </button>
           <button
             type="button"
             onClick={() => {
               setMainFontSize(18);
-              setMainLineHeight(1.8);
-              setShowMainLineNumbers(true);
+              setMainLineHeight(2.0);
+              setShowMainLineNumbers(false);
               setIsMainFocusMode(true);
+              setIsVerticalWriting(true);
             }}
             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-left hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-xs font-['Noto_Sans_JP'] text-gray-600 dark:text-gray-300"
           >
-            集中ビュー
+            小説執筆ビュー
             <br />
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">18px / 行間1.8 / 行番号ON</span>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">18px / 行間2.0 / 縦書き</span>
           </button>
         </div>
       </div>
