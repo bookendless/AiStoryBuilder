@@ -3,6 +3,7 @@ import { BookOpen, Plus, Search, Edit2, Trash2, X, Save, Download, Upload, Spark
 import { useProject, GlossaryTerm } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 
 interface GlossaryManagerProps {
   isOpen: boolean;
@@ -19,6 +20,10 @@ const categoryLabels: Record<GlossaryTerm['category'], string> = {
 
 export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -226,7 +231,7 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
     if (currentProject.characters && currentProject.characters.length > 0) {
       context += `キャラクター:\n`;
       currentProject.characters.forEach(char => {
-        context += `- ${char.name}: ${char.description || char.role || ''}\n`;
+        context += `- ${char.name}: ${char.role || ''}\n`;
       });
       context += '\n';
     }
@@ -235,8 +240,8 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
     if (currentProject.chapters && currentProject.chapters.length > 0) {
       context += `章の内容:\n`;
       currentProject.chapters.slice(0, 5).forEach((chapter, idx) => {
-        if (chapter.content) {
-          context += `第${idx + 1}章: ${chapter.title}\n${chapter.content.substring(0, 500)}...\n\n`;
+        if (chapter.draft) {
+          context += `第${idx + 1}章: ${chapter.title}\n${chapter.draft.substring(0, 500)}...\n\n`;
         }
       });
     }
@@ -562,6 +567,7 @@ JSON配列形式で出力してください：
       onClick={handleOverlayClick}
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >

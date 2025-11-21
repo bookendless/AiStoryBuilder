@@ -138,6 +138,19 @@ export interface Project {
   worldSettings?: WorldSetting[];
 }
 
+export interface StepProgress {
+  step: string;
+  completed: boolean;
+}
+
+export interface ProjectProgress {
+  percentage: number;
+  completedSteps: number;
+  totalSteps: number;
+  steps: StepProgress[];
+  nextStep?: string;
+}
+
 interface ProjectContextType {
   currentProject: Project | null;
   setCurrentProject: (project: Project | null) => void;
@@ -152,6 +165,8 @@ interface ProjectContextType {
   duplicateProject: (id: string) => Promise<void>;
   loadAllProjects: () => Promise<void>;
   deleteChapter: (chapterId: string) => void;
+  calculateProjectProgress: (project: Project | null) => ProjectProgress;
+  getStepCompletion: (project: Project | null, step: string) => boolean;
   isLoading: boolean;
   lastSaved: Date | null;
 }
@@ -343,11 +358,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setProjects(prev => prev.map(p => 
         p.id === currentProject.id ? currentProject : p
       ));
+      setIsLoading(false); // 成功時にもローディング状態を解除
     } catch (error) {
       console.error('プロジェクト保存エラー:', error);
-      alert('プロジェクトの保存に失敗しました');
-    } finally {
       setIsLoading(false);
+      throw error; // エラーを呼び出し側に伝播
     }
   };
 
@@ -357,12 +372,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setIsLoading(true);
     try {
       await databaseService.createManualBackup(currentProject, description);
-      alert('手動バックアップを作成しました');
+      setIsLoading(false);
+      // 成功は呼び出し側で通知
     } catch (error) {
       console.error('手動バックアップ作成エラー:', error);
-      alert('手動バックアップの作成に失敗しました');
-    } finally {
       setIsLoading(false);
+      throw error; // エラーを呼び出し側に伝播
     }
   };
 
@@ -395,14 +410,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         ));
         // データベースにも保存
         await databaseService.saveProject(normalizedProject);
+        setIsLoading(false); // 成功時にもローディング状態を解除
       } else {
-        alert('プロジェクトが見つかりません');
+        setIsLoading(false);
+        throw new Error('プロジェクトが見つかりません');
       }
     } catch (error) {
       console.error('プロジェクト読み込みエラー:', error);
-      alert('プロジェクトの読み込みに失敗しました');
-    } finally {
       setIsLoading(false);
+      throw error; // エラーを呼び出し側に伝播
     }
   };
 
@@ -419,11 +435,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (currentProject?.id === id) {
         setCurrentProject(null);
       }
+      setIsLoading(false); // 成功時にもローディング状態を解除
     } catch (error) {
       console.error('プロジェクト削除エラー:', error);
-      alert('プロジェクトの削除に失敗しました');
-    } finally {
       setIsLoading(false);
+      throw error; // エラーを呼び出し側に伝播
     }
   };
 
@@ -434,11 +450,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (duplicated) {
         setProjects(prev => [duplicated, ...prev]);
       }
+      setIsLoading(false); // 成功時にもローディング状態を解除
     } catch (error) {
       console.error('プロジェクト複製エラー:', error);
-      alert('プロジェクトの複製に失敗しました');
-    } finally {
       setIsLoading(false);
+      throw error; // エラーを呼び出し側に伝播
     }
   };
 
@@ -481,6 +497,75 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       chapters: updatedChapters,
     });
   };
+
+  // 特定のステップが完了しているかどうかを判定
+  const getStepCompletion = (project: Project | null, step: string): boolean => {
+    if (!project) return false;
+
+    switch (step) {
+      case 'character':
+        return project.characters.length > 0;
+      case 'plot1':
+        return !!(project.plot.theme && project.plot.setting && project.plot.hook && project.plot.protagonistGoal && project.plot.mainObstacle);
+      case 'plot2':
+        return !!(project.plot.structure && (
+          (project.plot.structure === 'kishotenketsu' && project.plot.ki && project.plot.sho && project.plot.ten && project.plot.ketsu) ||
+          (project.plot.structure === 'three-act' && project.plot.act1 && project.plot.act2 && project.plot.act3) ||
+          (project.plot.structure === 'four-act' && project.plot.fourAct1 && project.plot.fourAct2 && project.plot.fourAct3 && project.plot.fourAct4)
+        ));
+      case 'synopsis':
+        return !!project.synopsis && project.synopsis.trim().length > 0;
+      case 'chapter':
+        return project.chapters.length > 0;
+      case 'draft':
+        return project.chapters.some(ch => ch.draft && ch.draft.trim().length > 0);
+      default:
+        return false;
+    }
+  };
+
+  // プロジェクトの進捗を計算する関数
+  const calculateProjectProgress = (project: Project | null): ProjectProgress => {
+    if (!project) {
+      return {
+        percentage: 0,
+        completedSteps: 0,
+        totalSteps: 6,
+        steps: [],
+      };
+    }
+
+    const stepDefinitions = [
+      { name: 'character', label: 'キャラクター' },
+      { name: 'plot1', label: 'プロット基本設定' },
+      { name: 'plot2', label: 'プロット構成詳細' },
+      { name: 'synopsis', label: 'あらすじ' },
+      { name: 'chapter', label: '章立て' },
+      { name: 'draft', label: '草案' },
+    ];
+
+    const steps: StepProgress[] = stepDefinitions.map(stepDef => ({
+      step: stepDef.name,
+      completed: getStepCompletion(project, stepDef.name),
+    }));
+
+    const completedSteps = steps.filter(s => s.completed).length;
+    const totalSteps = steps.length;
+    const percentage = (completedSteps / totalSteps) * 100;
+
+    // 次の未完了ステップを特定
+    const nextStep = steps.find(s => !s.completed);
+    const nextStepName = nextStep ? stepDefinitions.find(sd => sd.name === nextStep.step)?.label : undefined;
+
+    return {
+      percentage,
+      completedSteps,
+      totalSteps,
+      steps,
+      nextStep: nextStepName,
+    };
+  };
+
   return (
     <ProjectContext.Provider value={{
       currentProject,
@@ -496,6 +581,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       duplicateProject,
       loadAllProjects,
       deleteChapter,
+      calculateProjectProgress,
+      getStepCompletion,
       isLoading,
       lastSaved,
     }}>

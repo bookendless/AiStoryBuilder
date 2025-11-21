@@ -5,6 +5,7 @@ import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { RelationshipDiagram } from '../tools/RelationshipDiagram';
 import { useToast } from '../Toast';
+import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 
 interface AILogEntry {
   id: string;
@@ -31,6 +32,11 @@ const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
   imageUrl,
   characterName
 }) => {
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -39,6 +45,7 @@ const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
       onClick={onClose}
     >
       <div 
+        ref={modalRef}
         className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
@@ -81,6 +88,10 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
   onUpdate
 }) => {
   const { showError, showSuccess } = useToast();
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
   const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
   const [formData, setFormData] = useState({
     name: '',
@@ -235,6 +246,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
       onClick={handleCancel}
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >

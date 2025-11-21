@@ -45,6 +45,7 @@ logs/
 *.temp
 .temp/
 tmp/
+.cursorrules
 
 # バックアップファイル
 *.bak

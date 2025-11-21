@@ -4,6 +4,7 @@ import { useProject, WorldSetting } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { getUserFriendlyErrorMessage } from '../../utils/apiUtils';
+import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 
 interface WorldSettingsManagerProps {
   isOpen: boolean;
@@ -25,6 +26,10 @@ const categoryLabels: Record<WorldSetting['category'], { label: string; color: s
 
 export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -448,6 +453,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
       onClick={handleOverlayClick}
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >

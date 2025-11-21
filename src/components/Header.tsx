@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
-import { Moon, Sun, Home, BookOpen, Save, PanelLeftClose, PanelLeftOpen, Database, Settings } from 'lucide-react';
+import { Moon, Sun, Home, BookOpen, Save, PanelLeftClose, PanelLeftOpen, Database, Settings, TrendingUp, ChevronRight, Check, HelpCircle } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAI } from '../contexts/AIContext';
 import { DataManager } from './DataManager';
 import { AISettings } from './AISettings';
+import { useToast } from './Toast';
+import { getUserFriendlyError } from '../utils/errorHandler';
+import { useGlobalShortcuts } from '../hooks/useKeyboardNavigation';
+import { ContextHelp } from './ContextHelp';
+import { Step } from '../App';
 
 interface HeaderProps {
   isDarkMode: boolean;
@@ -13,6 +18,7 @@ interface HeaderProps {
   isToolsSidebarCollapsed?: boolean;
   onToggleBothSidebars?: () => void;
   showSidebarControls?: boolean;
+  currentStep?: Step;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -23,15 +29,50 @@ export const Header: React.FC<HeaderProps> = ({
   isToolsSidebarCollapsed = false,
   onToggleBothSidebars,
   showSidebarControls = false,
+  currentStep = 'home',
 }) => {
-  const { currentProject, saveProject, isLoading, lastSaved } = useProject();
+  const { currentProject, saveProject, isLoading, lastSaved, calculateProjectProgress } = useProject();
   const { isConfigured } = useAI();
+  const { showError, showSuccess } = useToast();
   const [showDataManager, setShowDataManager] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
+  const [showProgressDetails, setShowProgressDetails] = useState(false);
+  const [showContextHelp, setShowContextHelp] = useState(false);
+
+  const projectProgress = currentProject ? calculateProjectProgress(currentProject) : null;
 
   const handleManualSave = async () => {
-    await saveProject();
+    try {
+      await saveProject();
+      showSuccess('プロジェクトを保存しました', 3000);
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: errorInfo.title,
+        details: errorInfo.details || errorInfo.solution,
+      });
+    }
   };
+
+  // Ctrl+S ショートカット
+  useGlobalShortcuts(
+    [
+      {
+        keys: 'ctrl+s',
+        handler: () => {
+          if (currentProject && !isLoading) {
+            handleManualSave();
+          }
+        },
+        description: 'プロジェクトを手動保存',
+        enabled: !!currentProject && !isLoading,
+      },
+    ],
+    {
+      enabled: true,
+      ignoreInputs: false, // Ctrl+Sは入力フィールド内でも有効
+    }
+  );
 
   // 両方のサイドバーが折りたたまれているかどうか
   const areBothCollapsed = isSidebarCollapsed && isToolsSidebarCollapsed;
@@ -55,11 +96,102 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">ホーム</span>
             </button>
             
-            <div className="hidden sm:flex items-center space-x-2">
-              <BookOpen className="h-6 w-6 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                AIと共創するストーリービルダー
-              </h1>
+            <div className="hidden sm:flex items-center space-x-4 flex-1">
+              <div className="flex items-center space-x-2">
+                <BookOpen className="h-6 w-6 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  AIと共創するストーリービルダー
+                </h1>
+              </div>
+              
+              {/* 進捗バー */}
+              {currentProject && projectProgress && (
+                <div className="flex-1 max-w-md ml-4">
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => setShowProgressDetails(!showProgressDetails)}
+                    onMouseEnter={() => setShowProgressDetails(true)}
+                    onMouseLeave={() => setShowProgressDetails(false)}
+                  >
+                    <div className="flex items-center space-x-2 mb-1">
+                      <TrendingUp className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        {projectProgress.completedSteps}/{projectProgress.totalSteps} ステップ完了
+                      </span>
+                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                        {projectProgress.percentage.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          projectProgress.percentage === 100 
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                            : projectProgress.percentage >= 50
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500'
+                            : 'bg-gradient-to-r from-yellow-400 to-orange-500'
+                        }`}
+                        style={{ width: `${projectProgress.percentage}%` }}
+                      />
+                    </div>
+                    
+                    {/* 進捗詳細ツールチップ */}
+                    {showProgressDetails && (
+                      <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 z-50">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                              プロジェクト進捗
+                            </span>
+                            <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                              {projectProgress.percentage.toFixed(0)}%
+                            </span>
+                          </div>
+                          {projectProgress.steps.map((stepProgress) => {
+                            const stepLabels: Record<string, string> = {
+                              character: 'キャラクター',
+                              plot1: 'プロット基本設定',
+                              plot2: 'プロット構成詳細',
+                              synopsis: 'あらすじ',
+                              chapter: '章立て',
+                              draft: '草案',
+                            };
+                            return (
+                              <div key={stepProgress.step} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center space-x-2">
+                                  {stepProgress.completed ? (
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <div className="h-4 w-4 rounded-full border-2 border-gray-300 dark:border-gray-600" />
+                                  )}
+                                  <span className={`font-['Noto_Sans_JP'] ${
+                                    stepProgress.completed 
+                                      ? 'text-gray-700 dark:text-gray-300' 
+                                      : 'text-gray-400 dark:text-gray-500'
+                                  }`}>
+                                    {stepLabels[stepProgress.step] || stepProgress.step}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {projectProgress.nextStep && (
+                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center space-x-2 text-sm text-indigo-600 dark:text-indigo-400">
+                                <ChevronRight className="h-4 w-4" />
+                                <span className="font-['Noto_Sans_JP']">
+                                  次: {projectProgress.nextStep}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
               {showSidebarControls && onToggleBothSidebars && (
                 <button
                   onClick={onToggleBothSidebars}
@@ -132,6 +264,21 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </button>
             
+            {/* コンテキストヘルプボタン */}
+            {currentStep !== 'home' && (
+              <button
+                onClick={() => setShowContextHelp(true)}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                aria-label="ヘルプを表示"
+                title="ヘルプ"
+              >
+                <HelpCircle className="h-5 w-5 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+                <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
+                  ヘルプ
+                </span>
+              </button>
+            )}
+            
             <button
               onClick={onToggleTheme}
               className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
@@ -157,6 +304,13 @@ export const Header: React.FC<HeaderProps> = ({
     <AISettings 
       isOpen={showAISettings} 
       onClose={() => setShowAISettings(false)} 
+    />
+    
+    {/* コンテキストヘルプ */}
+    <ContextHelp
+      step={currentStep}
+      isOpen={showContextHelp}
+      onClose={() => setShowContextHelp(false)}
     />
     </>
   );

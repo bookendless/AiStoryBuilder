@@ -3,6 +3,7 @@ import { Calendar, Plus, Edit2, Trash2, X, Save, BookOpen, Users, Globe, Radio, 
 import { useProject, TimelineEvent } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 
 interface TimelineViewerProps {
   isOpen: boolean;
@@ -25,6 +26,10 @@ const categoryColors: Record<TimelineEvent['category'], string> = {
 
 export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -697,6 +702,7 @@ JSON配列形式で出力してください：
       onClick={handleOverlayClick}
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >

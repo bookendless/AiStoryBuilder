@@ -288,21 +288,108 @@ export const useModalNavigation = (options: {
 };
 
 /**
- * グローバルキーボードショートカット
+ * ショートカットキーの組み合わせを正規化
  */
-export const useGlobalShortcuts = (shortcuts: Record<string, () => void>) => {
+export const normalizeShortcut = (event: KeyboardEvent): string => {
+  const parts: string[] = [];
+  
+  if (event.ctrlKey || event.metaKey) {
+    parts.push('ctrl');
+  }
+  if (event.shiftKey) {
+    parts.push('shift');
+  }
+  if (event.altKey) {
+    parts.push('alt');
+  }
+  
+  // キー名を正規化
+  let key = event.key.toLowerCase();
+  if (key === ' ') {
+    key = 'space';
+  } else if (key === 'escape') {
+    key = 'esc';
+  } else if (key === 'control') {
+    return ''; // 修飾キーのみは無視
+  } else if (key === 'meta') {
+    return ''; // 修飾キーのみは無視
+  }
+  
+  parts.push(key);
+  return parts.join('+');
+};
+
+/**
+ * ショートカット定義の型
+ */
+export interface ShortcutDefinition {
+  keys: string; // 例: "ctrl+s", "ctrl+shift+n", "esc"
+  handler: () => void;
+  description?: string;
+  enabled?: boolean; // 動的に有効/無効を切り替え可能
+  preventDefault?: boolean; // デフォルトの動作を防ぐかどうか（デフォルト: true）
+  stopPropagation?: boolean; // イベントの伝播を止めるかどうか（デフォルト: false）
+}
+
+/**
+ * グローバルキーボードショートカット（拡張版）
+ */
+export const useGlobalShortcuts = (
+  shortcuts: ShortcutDefinition[] | Record<string, () => void>,
+  options: {
+    enabled?: boolean;
+    ignoreInputs?: boolean; // 入力フィールド内では無効化（デフォルト: true）
+  } = {}
+) => {
+  const { enabled = true, ignoreInputs = true } = options;
+
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    const key = event.key.toLowerCase();
-    const modifier = event.ctrlKey || event.metaKey;
-    
-    if (modifier) {
-      const shortcut = `ctrl+${key}`;
-      if (shortcuts[shortcut]) {
-        event.preventDefault();
-        shortcuts[shortcut]();
+    if (!enabled) return;
+
+    // 入力フィールド内では無効化（オプション）
+    if (ignoreInputs) {
+      const target = event.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || 
+                     target.tagName === 'TEXTAREA' || 
+                     target.isContentEditable ||
+                     target.getAttribute('role') === 'textbox';
+      
+      // Escキーは常に有効
+      if (isInput && event.key !== 'Escape') {
+        // Ctrl+S, Ctrl+N, Ctrl+/ などの特定のショートカットは入力フィールド内でも有効
+        const normalized = normalizeShortcut(event);
+        const allowedInInput = ['ctrl+s', 'ctrl+n', 'ctrl+/', 'ctrl+shift+/', 'ctrl+b', 'ctrl+h', 'esc', '?'];
+        if (!allowedInInput.includes(normalized)) {
+          return;
+        }
       }
     }
-  }, [shortcuts]);
+
+    const normalized = normalizeShortcut(event);
+    if (!normalized) return;
+
+    // 配列形式のショートカット定義
+    if (Array.isArray(shortcuts)) {
+      for (const shortcut of shortcuts) {
+        if (shortcut.keys === normalized && (shortcut.enabled !== false)) {
+          if (shortcut.preventDefault !== false) {
+            event.preventDefault();
+          }
+          if (shortcut.stopPropagation) {
+            event.stopPropagation();
+          }
+          shortcut.handler();
+          return;
+        }
+      }
+    } else {
+      // レガシー形式（Record<string, () => void>）のサポート
+      if (shortcuts[normalized]) {
+        event.preventDefault();
+        shortcuts[normalized]();
+      }
+    }
+  }, [shortcuts, enabled, ignoreInputs]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);

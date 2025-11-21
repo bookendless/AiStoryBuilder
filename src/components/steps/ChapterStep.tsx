@@ -622,16 +622,18 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
   // ESCキーでモーダルを閉じる
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && (showAddForm || showEditForm)) {
+      if (e.key === 'Escape') {
         if (showAddForm) {
           handleCloseModal();
         } else if (showEditForm) {
           handleCloseEditModal();
+        } else if (showHistoryModal) {
+          setShowHistoryModal(false);
         }
       }
     };
 
-    if (showAddForm || showEditForm) {
+    if (showAddForm || showEditForm || showHistoryModal) {
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
     } else {
@@ -642,7 +644,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [showAddForm, showEditForm, handleCloseModal, handleCloseEditModal]);
+  }, [showAddForm, showEditForm, showHistoryModal, handleCloseModal, handleCloseEditModal]);
 
   const handleDeleteChapter = (id: string) => {
     if (!currentProject) return;

@@ -3,6 +3,7 @@ import { Network, Plus, Edit2, Trash2, X, Save, Users, Heart, UsersRound, Sword,
 import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 
 interface RelationshipDiagramProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface FlowChartNode {
   x: number;
   y: number;
   name: string;
+  image?: string;
 }
 
 interface FlowChartEdge {
@@ -27,6 +29,7 @@ interface FlowChartEdge {
   fromY: number;
   toX: number;
   toY: number;
+  offset?: number;
 }
 
 const relationshipTypes: Record<CharacterRelationship['type'], { label: string; icon: typeof Users; color: string; svgColor: string }> = {
@@ -41,6 +44,10 @@ const relationshipTypes: Record<CharacterRelationship['type'], { label: string; 
 
 export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'flow'>('list');
   const [editingRelationship, setEditingRelationship] = useState<CharacterRelationship | null>(null);
@@ -101,9 +108,11 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       const y = centerY + baseRadius * Math.sin(angle);
       
       nodes.push({
-        ...char,
+        id: char.id,
+        name: char.name,
         x: Math.max(100, x),
         y: Math.max(100, y),
+        image: char.image,
       });
     });
 
@@ -121,7 +130,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       bidirectionalPairs.get(pairKey)!.push(idx);
     });
     
-    const edges = relationships.map((rel, idx) => {
+    const edges: FlowChartEdge[] = relationships.map((rel, idx) => {
       const fromNode = nodes.find(n => n.id === rel.from);
       const toNode = nodes.find(n => n.id === rel.to);
       
@@ -144,15 +153,22 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
         offset = isReversed ? indexOffset * offsetStep : -indexOffset * offsetStep;
       }
       
+      const relationshipType = relationshipTypes[rel.type];
+      
       return {
-        ...rel,
+        from: rel.from,
+        to: rel.to,
+        type: rel.type,
+        label: relationshipType.label,
+        strength: rel.strength,
+        color: relationshipType.svgColor,
         fromX: fromNode.x,
         fromY: fromNode.y,
         toX: toNode.x,
         toY: toNode.y,
-        offset,
-      };
-    }).filter(edge => edge !== null);
+        offset: offset,
+      } as FlowChartEdge;
+    }).filter((edge): edge is FlowChartEdge => edge !== null);
 
     // SVGのサイズをノードの最大座標に基づいて計算
     const maxX = Math.max(...nodes.map(n => n.x), 0) + 200;
@@ -831,6 +847,7 @@ JSON形式で出力してください：
       onClick={handleOverlayClick}
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >

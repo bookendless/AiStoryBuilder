@@ -3,6 +3,7 @@ import { Send, Bot, User, X, Sparkles, BookOpen, Calendar, Network, Zap, CheckCi
 import { useAI } from '../../contexts/AIContext';
 import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
+import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 
 interface Message {
   id: string;
@@ -17,6 +18,10 @@ interface ChatAssistantProps {
 }
 
 export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose }) => {
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
   const { settings, isConfigured } = useAI();
   const { currentProject } = useProject();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -384,6 +389,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
       onClick={handleOverlayClick}
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >

@@ -2,6 +2,7 @@ import React from 'react';
 import { ListChecks, X, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
 import type { ImprovementLog } from './types';
 import { formatTimestamp } from './utils';
+import { useModalNavigation } from '../../../hooks/useKeyboardNavigation';
 
 interface ImprovementLogModalProps {
   isOpen: boolean;
@@ -20,6 +21,11 @@ export const ImprovementLogModal: React.FC<ImprovementLogModalProps> = ({
   onClose,
   onSelectLog,
 }) => {
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -32,7 +38,7 @@ export const ImprovementLogModal: React.FC<ImprovementLogModalProps> = ({
         />
 
         {/* モーダルコンテンツ */}
-        <div className="relative w-full max-w-5xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
+        <div ref={modalRef} className="relative w-full max-w-5xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
           {/* モーダルヘッダー */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 gap-3">
             <div className="flex items-center space-x-3">

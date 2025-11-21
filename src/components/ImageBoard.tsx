@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, Image, X, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { ImageItem } from '../types/ai';
+import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 
 interface ImageBoardProps {
   isOpen: boolean;
@@ -18,6 +19,10 @@ const categories = [
 
 export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [formData, setFormData] = useState({
@@ -89,8 +94,6 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
   }, [formData, selectedFile, isOpen, currentProject, autoSaveImage]);
 
-  if (!isOpen || !currentProject) return null;
-
   // ファイルをBase64に変換する関数
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -151,7 +154,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
 
   const handleAddImage = () => {
-    if (!formData.url.trim() || !formData.title.trim()) return;
+    if (!currentProject || !formData.url.trim() || !formData.title.trim()) return;
 
     const newImage = {
       id: Date.now().toString(),
@@ -177,14 +180,11 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
 
   const handleDeleteImage = (id: string) => {
+    if (!currentProject) return;
     updateProject({
       imageBoard: currentProject.imageBoard.filter(img => img.id !== id),
     });
   };
-
-  const filteredImages = selectedCategory === 'all' 
-    ? currentProject.imageBoard 
-    : currentProject.imageBoard.filter(img => img.category === selectedCategory);
 
   const getCategoryInfo = (categoryId: string) => {
     return categories.find(cat => cat.id === categoryId) || categories[4];
@@ -247,7 +247,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   const handleUpdateImage = () => {
-    if (!editingImage || !editFormData.title.trim()) return;
+    if (!currentProject || !editingImage || !editFormData.title.trim()) return;
 
     const updatedImages = currentProject.imageBoard.map(img =>
       img.id === editingImage.id
@@ -270,11 +270,46 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     setEditFormData({ title: '', description: '', category: 'reference' });
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setShowEditForm(false);
     setEditingImage(null);
     setEditFormData({ title: '', description: '', category: 'reference' });
-  };
+  }, []);
+
+  // 画像編集モーダル用のESCキー処理
+  const editModalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (showEditForm) {
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleCancelEdit();
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [showEditForm, handleCancelEdit]);
+
+  // 画像ビューアーモーダル用のESCキー処理
+  const viewerModalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (showImageViewer) {
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleCloseImageViewer();
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [showImageViewer]);
+
+  // すべてのHooksの呼び出し後に早期リターンを配置
+  if (!isOpen || !currentProject) return null;
+
+  const filteredImages = selectedCategory === 'all' 
+    ? currentProject.imageBoard 
+    : currentProject.imageBoard.filter(img => img.category === selectedCategory);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // オーバーレイ自体がクリックされた場合のみ閉じる
@@ -289,6 +324,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       onClick={handleOverlayClick}
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-6xl w-full mx-4 h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -627,11 +663,12 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70]"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
-              handleCloseEditForm();
+              handleCancelEdit();
             }
           }}
         >
           <div 
+            ref={editModalRef}
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -752,6 +789,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
           }}
         >
           <div 
+            ref={viewerModalRef}
             className="relative w-full h-full flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >

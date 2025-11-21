@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Users, BookOpen, FileText, List, PenTool, Download, Check, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, BookOpen, FileText, List, PenTool, Download, Check, Layers, ChevronLeft, ChevronRight, ArrowRight, Sparkles } from 'lucide-react';
 import { Step } from '../App';
+import { useProject } from '../contexts/ProjectContext';
 
 interface SidebarProps {
   currentStep: Step;
@@ -22,9 +23,18 @@ const steps = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, className, isCollapsed: externalIsCollapsed, onCollapseChange }) => {
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
+  const { currentProject, getStepCompletion, calculateProjectProgress } = useProject();
   
   // 外部から状態が渡されている場合はそれを使用、そうでなければ内部状態を使用
   const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed;
+
+  // 次の未完了ステップを取得
+  const projectProgress = currentProject ? calculateProjectProgress(currentProject) : null;
+  const nextIncompleteStep = projectProgress?.steps.find(s => !s.completed);
+  const nextStepInfo = nextIncompleteStep ? steps.find(s => s.key === nextIncompleteStep.step) : null;
+  
+  // 現在のステップが完了しているかどうか
+  const isCurrentStepCompleted = getStepCompletion(currentProject, currentStep);
 
   const handleToggleCollapse = () => {
     const newState = !isCollapsed;
@@ -67,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
         <nav className="flex-1 overflow-y-auto p-4 space-y-2" role="list" aria-label="制作ステップ">
           {steps.map((step, index) => {
             const isActive = currentStep === step.key;
-            const isCompleted = false; // TODO: プロジェクト進捗から取得
+            const isCompleted = getStepCompletion(currentProject, step.key);
             const Icon = step.icon;
             
             return (
@@ -106,14 +116,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
                 {!isCollapsed && (
                   <>
                     <div className="flex-1">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-1">
                         <span className="font-medium font-['Noto_Sans_JP']">{step.label}</span>
-                        <span 
-                          className="text-xs bg-black/10 px-2 py-1 rounded-full"
-                          aria-label={`ステップ${index + 1}`}
-                        >
-                          {index + 1}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          {isCompleted && (
+                            <span 
+                              className="text-xs text-green-600 dark:text-green-400 font-semibold"
+                              aria-label="完了済み"
+                            >
+                              完了
+                            </span>
+                          )}
+                          <span 
+                            className="text-xs bg-black/10 dark:bg-white/10 px-2 py-1 rounded-full"
+                            aria-label={`ステップ${index + 1}`}
+                          >
+                            {index + 1}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     
@@ -126,6 +146,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
             );
           })}
         </nav>
+        
+        {/* 次のステップへの案内 */}
+        {!isCollapsed && nextStepInfo && isCurrentStepCompleted && currentStep !== nextStepInfo.key && (
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg p-3 border border-indigo-200 dark:border-indigo-800">
+              <div className="flex items-center space-x-2 mb-2">
+                <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 font-['Noto_Sans_JP']">
+                  次のステップ
+                </span>
+              </div>
+              <button
+                onClick={() => onStepChange(nextStepInfo.key)}
+                className="w-full flex items-center justify-between p-2 rounded-lg bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors group"
+              >
+                <div className="flex items-center space-x-2">
+                  <nextStepInfo.icon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                    {nextStepInfo.label}
+                  </span>
+                </div>
+                <ArrowRight className="h-4 w-4 text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

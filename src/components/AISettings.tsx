@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Settings, Key, Server, Zap } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
 import { AI_PROVIDERS } from '../services/aiService';
+import { useToast } from './Toast';
+import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 
 interface AISettingsProps {
   isOpen: boolean;
@@ -10,6 +12,7 @@ interface AISettingsProps {
 
 export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings } = useAI();
+  const { showError } = useToast();
   const [formData, setFormData] = useState(() => {
     const initialData = { ...settings };
     // ローカルLLMの場合はlocalEndpointを確実に設定
@@ -21,6 +24,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string>('');
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
 
   // 環境変数の状態をチェック
   const hasEnvApiKey = Boolean(
@@ -69,7 +76,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
   const handleSave = () => {
     if (apiKeyError) {
-      alert(`APIキーエラー: ${apiKeyError}`);
+      showError(apiKeyError, 7000, {
+        title: 'APIキーエラー',
+        details: 'APIキーの形式が正しくありません。各プロバイダーのAPIキー形式を確認してください。',
+      });
       return;
     }
     
@@ -258,8 +268,15 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const selectedModel = selectedProvider?.models.find(m => m.id === formData.model);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div 
+        ref={modalRef}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">

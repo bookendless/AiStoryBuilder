@@ -4,11 +4,12 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
+import { getUserFriendlyError } from '../../utils/errorHandler';
 
 export const SynopsisStep: React.FC = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
-  const { showSuccess } = useToast();
+  const { showSuccess, showError, showErrorWithDetails } = useToast();
   const [synopsis, setSynopsis] = useState(currentProject?.synopsis || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingStyle, setIsGeneratingStyle] = useState(false);
@@ -95,7 +96,17 @@ export const SynopsisStep: React.FC = () => {
 
   const handleAIGenerate = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
+        title: 'AI設定が必要',
+        details: 'AI機能を使用するには、ヘッダーの「AI設定」ボタンからAPIキーを設定する必要があります。',
+        action: {
+          label: '設定を開く',
+          onClick: () => {
+            // ヘッダーの設定ボタンをクリックする処理は、親コンポーネントで実装
+            // ここでは単にエラーを表示
+          },
+        },
+      });
       return;
     }
 
@@ -178,7 +189,17 @@ export const SynopsisStep: React.FC = () => {
       });
 
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}`);
+        const errorInfo = getUserFriendlyError(response.error);
+        showErrorWithDetails(
+          errorInfo.title,
+          errorInfo.message,
+          errorInfo.details,
+          errorInfo.retryable ? {
+            label: '再試行',
+            onClick: () => handleAIGenerate(),
+            variant: 'primary',
+          } : undefined
+        );
         return;
       }
 
@@ -189,8 +210,19 @@ export const SynopsisStep: React.FC = () => {
         performSave();
       }, 500);
       
-    } catch (_error) {
-      alert('AI生成中にエラーが発生しました');
+    } catch (error) {
+      console.error('AI generation error:', error);
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showErrorWithDetails(
+        errorInfo.title,
+        errorInfo.message,
+        errorInfo.details,
+        errorInfo.retryable ? {
+          label: '再試行',
+          onClick: () => handleAIGenerate(),
+          variant: 'primary',
+        } : undefined
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -266,12 +298,15 @@ export const SynopsisStep: React.FC = () => {
   // 文体調整AI機能
   const handleStyleAdjustment = async (styleType: string) => {
     if (!isConfigured) {
-      alert('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
+        title: 'AI設定が必要',
+        details: 'AI機能を使用するには、ヘッダーの「AI設定」ボタンからAPIキーを設定する必要があります。',
+      });
       return;
     }
 
     if (!synopsis.trim()) {
-      alert('あらすじが入力されていません。まずあらすじを入力してください。');
+      showErrorWithDetails('入力が必要', 'あらすじが入力されていません。まずあらすじを入力してください。', '文体調整を行うには、先にあらすじを入力する必要があります。');
       return;
     }
 
@@ -333,7 +368,17 @@ ${synopsis}
       });
 
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}`);
+        const errorInfo = getUserFriendlyError(response.error);
+        showErrorWithDetails(
+          errorInfo.title,
+          errorInfo.message,
+          errorInfo.details,
+          errorInfo.retryable ? {
+            label: '再試行',
+            onClick: () => handleStyleAdjustment(styleType),
+            variant: 'primary',
+          } : undefined
+        );
         return;
       }
 
@@ -346,7 +391,17 @@ ${synopsis}
       
     } catch (error) {
       console.error('Style adjustment error:', error);
-      alert('AI生成中にエラーが発生しました。ブラウザのコンソールを確認してください。');
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showErrorWithDetails(
+        errorInfo.title,
+        errorInfo.message,
+        errorInfo.details || 'ブラウザのコンソールを確認してください。',
+        errorInfo.retryable ? {
+          label: '再試行',
+          onClick: () => handleStyleAdjustment(styleType),
+          variant: 'primary',
+        } : undefined
+      );
     } finally {
       setIsGeneratingStyle(false);
       setActiveStyleType(null);

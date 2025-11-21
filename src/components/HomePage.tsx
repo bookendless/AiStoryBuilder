@@ -1,10 +1,14 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { Plus, BookOpen, Calendar, TrendingUp, Image, Edit3, Save, X, Upload, Search, Filter, ArrowUpDown, Clock, CheckCircle2 } from 'lucide-react';
+import { Plus, BookOpen, Calendar, TrendingUp, Image, Edit3, Save, X, Upload, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { NewProjectModal } from './NewProjectModal';
 import { databaseService } from '../services/databaseService';
 import { Project } from '../contexts/ProjectContext';
+import { useToast } from './Toast';
+import { getUserFriendlyError } from '../utils/errorHandler';
+import { useGlobalShortcuts } from '../hooks/useKeyboardNavigation';
+import { ContextHelp } from './ContextHelp';
 
 interface HomePageProps {
   onNavigateToStep: (step: Step) => void;
@@ -30,8 +34,10 @@ const THEMES = [
 type SortOption = 'updatedDesc' | 'updatedAsc' | 'createdDesc' | 'createdAsc' | 'titleAsc' | 'titleDesc' | 'progressDesc' | 'progressAsc' | 'lastAccessedDesc';
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
-  const { projects, setProjects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading } = useProject();
+  const { projects, setProjects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
+  const { showError, showSuccess } = useToast();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showContextHelp, setShowContextHelp] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState({
     title: '',
@@ -62,12 +68,30 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
   const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
     e.stopPropagation();
-    await deleteProject(projectId);
+    try {
+      await deleteProject(projectId);
+      showSuccess('プロジェクトを削除しました', 3000);
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: errorInfo.title,
+        details: errorInfo.details || errorInfo.solution,
+      });
+    }
   };
 
   const handleDuplicateProject = async (e: React.MouseEvent, projectId: string) => {
     e.stopPropagation();
-    await duplicateProject(projectId);
+    try {
+      await duplicateProject(projectId);
+      showSuccess('プロジェクトを複製しました', 3000);
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: errorInfo.title,
+        details: errorInfo.details || errorInfo.solution,
+      });
+    }
   };
 
   // ファイルをBase64に変換
@@ -87,12 +111,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
     // ファイルタイプとサイズの検証
     if (!file.type.startsWith('image/')) {
-      alert('画像ファイルを選択してください。');
+      showError('画像ファイルを選択してください。', 5000, {
+        title: 'ファイル形式エラー',
+        details: 'サポートされている形式: JPG, PNG, GIF, WebP',
+      });
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) { // 10MB制限
-      alert('ファイルサイズは10MB以下にしてください。');
+      showError('ファイルサイズは10MB以下にしてください。', 5000, {
+        title: 'ファイルサイズエラー',
+        details: `現在のファイルサイズ: ${(file.size / 1024 / 1024).toFixed(2)}MB\n最大サイズ: 10MB`,
+      });
       return;
     }
 
@@ -157,7 +187,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       // 編集対象のプロジェクトを取得
       const projectToUpdate = projects.find(p => p.id === editingProject);
       if (!projectToUpdate) {
-        alert('プロジェクトが見つかりません。');
+        showError('プロジェクトが見つかりません。', 5000, {
+          title: 'プロジェクト取得エラー',
+          details: 'プロジェクトが削除されたか、データが破損している可能性があります。',
+        });
         return;
       }
 
@@ -195,10 +228,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       setEditFormData({ title: '', description: '', genre: '', mainGenre: '', subGenre: '', targetReader: '', projectTheme: '', coverImage: '', customMainGenre: '', customSubGenre: '', customTargetReader: '', customTheme: '' });
       setPreviewUrl(null);
       
-      alert('プロジェクトを更新しました。');
+      showSuccess('プロジェクトを更新しました。', 3000);
     } catch (error) {
       console.error('Update error:', error);
-      alert('更新に失敗しました。');
+      showError('更新に失敗しました。', 7000, {
+        title: '保存エラー',
+        details: error instanceof Error ? error.message : '不明なエラーが発生しました。',
+      });
     }
   };
 
@@ -209,26 +245,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     setPreviewUrl(null);
   };
 
-  // プロジェクト進捗を計算する関数
-  const calculateProjectProgress = (project: Project): { percentage: number; completedSteps: number; totalSteps: number } => {
-    const steps = [
-      { name: 'character', completed: project.characters.length > 0 },
-      { name: 'plot1', completed: !!(project.plot.theme && project.plot.setting && project.plot.hook && project.plot.protagonistGoal && project.plot.mainObstacle) },
-      { name: 'plot2', completed: !!(project.plot.structure && (
-        (project.plot.structure === 'kishotenketsu' && project.plot.ki && project.plot.sho && project.plot.ten && project.plot.ketsu) ||
-        (project.plot.structure === 'three-act' && project.plot.act1 && project.plot.act2 && project.plot.act3) ||
-        (project.plot.structure === 'four-act' && project.plot.fourAct1 && project.plot.fourAct2 && project.plot.fourAct3 && project.plot.fourAct4)
-      )) },
-      { name: 'synopsis', completed: !!project.synopsis },
-      { name: 'chapter', completed: project.chapters.length > 0 },
-      { name: 'draft', completed: project.chapters.some(ch => ch.draft && ch.draft.trim().length > 0) }
-    ];
-    
-    const completedSteps = steps.filter(s => s.completed).length;
-    const totalSteps = steps.length;
-    const percentage = (completedSteps / totalSteps) * 100;
-    
-    return { percentage, completedSteps, totalSteps };
+  // プロジェクト進捗を計算する関数（ProjectContextの関数を使用）
+  const getProjectProgress = (project: Project) => {
+    const progress = calculateProjectProgress(project);
+    return {
+      percentage: progress.percentage,
+      completedSteps: progress.completedSteps,
+      totalSteps: progress.totalSteps,
+    };
   };
 
   // 最近使用したプロジェクトを取得（最大5件）
@@ -242,6 +266,26 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       })
       .slice(0, 5);
   }, [projects]);
+
+  // Ctrl+N ショートカット
+  useGlobalShortcuts(
+    [
+      {
+        keys: 'ctrl+n',
+        handler: () => {
+          if (!showNewProjectModal) {
+            setShowNewProjectModal(true);
+          }
+        },
+        description: '新しいプロジェクトを作成',
+        enabled: !showNewProjectModal,
+      },
+    ],
+    {
+      enabled: true,
+      ignoreInputs: false, // Ctrl+Nは入力フィールド内でも有効
+    }
+  );
 
   // フィルタリング・ソート済みプロジェクト
   const filteredAndSortedProjects = useMemo(() => {
@@ -294,9 +338,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         case 'titleDesc':
           return b.title.localeCompare(a.title, 'ja');
         case 'progressDesc':
-          return calculateProjectProgress(b).percentage - calculateProjectProgress(a).percentage;
+          return getProjectProgress(b).percentage - getProjectProgress(a).percentage;
         case 'progressAsc':
-          return calculateProjectProgress(a).percentage - calculateProjectProgress(b).percentage;
+          return getProjectProgress(a).percentage - getProjectProgress(b).percentage;
         case 'lastAccessedDesc':
         default: {
           const aLast = a.lastAccessed instanceof Date ? a.lastAccessed : (a.lastAccessed ? new Date(a.lastAccessed) : a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt));
@@ -313,13 +357,23 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl sm:text-6xl font-bold text-gray-900 dark:text-white mb-6 font-['Noto_Sans_JP']">
-            <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              AIと共創する
-            </span>
-            <br />
-            ストーリービルダー
-          </h1>
+          <div className="flex items-center justify-center space-x-4 mb-6">
+            <h1 className="text-4xl sm:text-6xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+              <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                AIと共創する
+              </span>
+              <br />
+              ストーリービルダー
+            </h1>
+            <button
+              onClick={() => setShowContextHelp(true)}
+              className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              aria-label="ヘルプを表示"
+              title="ヘルプ"
+            >
+              <HelpCircle className="h-6 w-6" />
+            </button>
+          </div>
           <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 font-['Noto_Sans_JP']">
             80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう
           </p>
@@ -381,7 +435,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
               {recentProjects.map((project) => {
-                const progress = calculateProjectProgress(project);
+                const progress = getProjectProgress(project);
                 return (
                   <div
                     key={project.id}
@@ -506,7 +560,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredAndSortedProjects.map((project) => {
-                const progress = calculateProjectProgress(project);
+                const progress = getProjectProgress(project);
                 return (
                 <div
                   key={project.id}
@@ -680,6 +734,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         isOpen={showNewProjectModal}
         onClose={() => setShowNewProjectModal(false)}
         onNavigateToStep={onNavigateToStep}
+      />
+
+      {/* Context Help */}
+      <ContextHelp
+        step="home"
+        isOpen={showContextHelp}
+        onClose={() => setShowContextHelp(false)}
       />
 
       {/* Edit Project Modal */}

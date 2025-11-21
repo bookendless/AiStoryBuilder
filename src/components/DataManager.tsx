@@ -4,6 +4,9 @@ import { databaseService } from '../services/databaseService';
 import { useProject, Project } from '../contexts/ProjectContext';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
+import { useToast } from './Toast';
+import { getUserFriendlyError } from '../utils/errorHandler';
+import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 
 interface DataManagerProps {
   isOpen: boolean;
@@ -27,11 +30,16 @@ interface BackupItem {
 
 export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, loadAllProjects, createManualBackup, setCurrentProject } = useProject();
+  const { showError, showSuccess } = useToast();
   const [stats, setStats] = useState<DatabaseStats | null>(null);
   const [manualBackups, setManualBackups] = useState<BackupItem[]>([]);
   const [autoBackups, setAutoBackups] = useState<BackupItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'backups' | 'import-export'>('overview');
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
 
   const loadStats = async () => {
     try {
@@ -77,8 +85,13 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       await createManualBackup(description);
       await loadBackups();
       await loadStats();
-    } catch (_error) {
-      alert('手動バックアップの作成に失敗しました');
+      showSuccess('手動バックアップを作成しました', 3000);
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: errorInfo.title,
+        details: errorInfo.details || errorInfo.solution,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -99,10 +112,14 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         setCurrentProject(restoredProject);
       }
       
-      alert('バックアップから復元しました。ホーム画面に戻ります。');
+      showSuccess('バックアップから復元しました。ホーム画面に戻ります。', 5000);
       onClose();
-    } catch (_error) {
-      alert('復元に失敗しました');
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: errorInfo.title,
+        details: errorInfo.details || errorInfo.solution,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -128,11 +145,15 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       if (filePath) {
         // TauriのファイルシステムAPIを使用してファイルを保存
         await writeTextFile(filePath, exportData);
-        alert('データをエクスポートしました');
+        showSuccess('データをエクスポートしました', 3000);
       }
     } catch (error) {
       console.error('Export error:', error);
-      alert('エクスポートに失敗しました: ' + (error as Error).message);
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: 'エクスポートエラー',
+        details: errorInfo.details || errorInfo.solution,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -152,9 +173,13 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       await databaseService.importData(text);
       await loadAllProjects();
       await loadStats();
-      alert('データをインポートしました');
+      showSuccess('データをインポートしました', 3000);
     } catch (error) {
-      alert('インポートに失敗しました: ' + (error as Error).message);
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: 'インポートエラー',
+        details: errorInfo.details || errorInfo.solution,
+      });
     } finally {
       setIsLoading(false);
       event.target.value = '';
@@ -175,10 +200,14 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       await databaseService.clearAllData();
       await loadAllProjects();
       await loadStats();
-      alert('すべてのデータを削除しました');
+      showSuccess('すべてのデータを削除しました', 3000);
       onClose();
-    } catch (_error) {
-      alert('データ削除に失敗しました');
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 7000, {
+        title: 'データ削除エラー',
+        details: errorInfo.details || errorInfo.solution,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -187,8 +216,15 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div 
+        ref={modalRef}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+      >
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">

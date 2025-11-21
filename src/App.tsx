@@ -13,18 +13,17 @@ import { ExportStep } from './components/steps/ExportStep';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
 import { ToastProvider } from './components/Toast';
+import { OfflineNotifier } from './components/OfflineNotifier';
 import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
-import { PerformanceMonitor, registerServiceWorker, onOnlineStatusChange } from './utils/performanceUtils';
+import { PerformanceMonitor, registerServiceWorker } from './utils/performanceUtils';
+import { useGlobalShortcuts } from './hooks/useKeyboardNavigation';
+import { ShortcutHelpModal } from './components/ShortcutHelpModal';
+import { Onboarding } from './components/Onboarding';
 
 export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
 function App() {
-  const [currentStep, setCurrentStep] = useState<Step>('home');
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [error] = useState<string | null>(null);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isToolsSidebarCollapsed, setIsToolsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -36,9 +35,6 @@ function App() {
         const sessionManager = new SessionManager();
         sessionManager.updateActivity();
         
-        // レート制限の初期化（将来の使用のためにコメントアウト）
-        // const rateLimiter = new RateLimiter(100, 60000); // 1分間に100リクエスト
-        
         // パフォーマンス監視の開始
         const performanceMonitor = new PerformanceMonitor();
         
@@ -47,24 +43,9 @@ function App() {
           await registerServiceWorker();
         }
         
-        // オフライン状態の監視
-        const unsubscribeOnlineStatus = onOnlineStatusChange((isOnline) => {
-          if (!isOnline) {
-            console.warn('オフライン状態です。一部の機能が制限される可能性があります。');
-          }
-        });
-        
-        // テーマの初期化
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-          setIsDarkMode(true);
-          document.documentElement.classList.add('dark');
-        }
-        
         // クリーンアップ関数
         return () => {
           performanceMonitor.disconnect();
-          unsubscribeOnlineStatus();
         };
       } catch (err) {
         console.error('アプリ初期化エラー:', err);
@@ -74,6 +55,62 @@ function App() {
     };
     
     initializeApp();
+  }, []);
+
+  // ローディング状態
+  if (isLoading) {
+    return (
+      <div 
+        className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center"
+        role="status"
+        aria-live="polite"
+        aria-label="アプリケーションを読み込み中"
+      >
+        <div className="text-center">
+          <div 
+            className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"
+            aria-hidden="true"
+          ></div>
+          <p className="text-gray-600 dark:text-gray-300 font-['Noto_Sans_JP']">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  );
+}
+
+const AppContent: React.FC = () => {
+  const [currentStep, setCurrentStep] = useState<Step>('home');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isToolsSidebarCollapsed, setIsToolsSidebarCollapsed] = useState(false);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // テーマの初期化
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      setIsDarkMode(true);
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  // オンボーディングの初期化
+  useEffect(() => {
+    const onboardingCompleted = localStorage.getItem('onboarding-completed');
+    if (!onboardingCompleted) {
+      // 少し遅延させて表示（アプリの読み込み完了後）
+      const timer = setTimeout(() => {
+        setShowOnboarding(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const toggleTheme = () => {
@@ -90,6 +127,51 @@ function App() {
       console.error('テーマ切り替えエラー:', err);
     }
   };
+
+  // グローバルショートカットの登録
+  useGlobalShortcuts(
+    [
+      {
+        keys: 'ctrl+/',
+        handler: () => setShowShortcutHelp(true),
+        description: 'ショートカット一覧を表示',
+      },
+      {
+        keys: '?',
+        handler: () => setShowShortcutHelp(true),
+        description: 'ショートカット一覧を表示（別キー）',
+        preventDefault: false, // ?キーは通常の入力としても使用されるため
+      },
+      {
+        keys: 'ctrl+b',
+        handler: () => {
+          if (currentStep !== 'home') {
+            setIsSidebarCollapsed(!isSidebarCollapsed);
+          }
+        },
+        description: 'サイドバーの折りたたみ/展開',
+        enabled: currentStep !== 'home',
+      },
+      {
+        keys: 'ctrl+h',
+        handler: () => setCurrentStep('home'),
+        description: 'ホームページに戻る',
+      },
+      {
+        keys: 'esc',
+        handler: () => {
+          // モーダルが開いている場合は閉じる（各モーダルコンポーネントで処理）
+          // ここではショートカットヘルプのみ閉じる
+          setShowShortcutHelp(false);
+        },
+        description: 'モーダルを閉じる',
+      },
+    ],
+    {
+      enabled: true,
+      ignoreInputs: true,
+    }
+  );
 
   const renderStep = () => {
     switch (currentStep) {
@@ -114,54 +196,10 @@ function App() {
     }
   };
 
-  // ローディング状態
-  if (isLoading) {
-    return (
-      <div 
-        className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center"
-        role="status"
-        aria-live="polite"
-        aria-label="アプリケーションを読み込み中"
-      >
-        <div className="text-center">
-          <div 
-            className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"
-            aria-hidden="true"
-          ></div>
-          <p className="text-gray-600 dark:text-gray-300 font-['Noto_Sans_JP']">読み込み中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // エラー状態
-  if (error) {
-    return (
-      <div 
-        className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center"
-        role="alert"
-        aria-live="assertive"
-      >
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="bg-red-100 dark:bg-red-900 p-4 rounded-lg mb-4">
-            <p className="text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">{error}</p>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP'] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-            aria-label="ページを再読み込みしてエラーを解決"
-          >
-            ページを再読み込み
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <ToastProvider>
-      <AIProvider>
-        <ProjectProvider>
+    <AIProvider>
+      <ProjectProvider>
+        <OfflineNotifier />
         {/* スキップリンク */}
         <a 
           href="#main-content" 
@@ -206,6 +244,7 @@ function App() {
                   setIsToolsSidebarCollapsed(newState);
                 }}
                 showSidebarControls={currentStep !== 'home'}
+                currentStep={currentStep}
               />
               
               <main 
@@ -226,9 +265,23 @@ function App() {
             />
           </div>
         </div>
-        </ProjectProvider>
-      </AIProvider>
-    </ToastProvider>
+        
+        {/* ショートカットヘルプモーダル */}
+        <ShortcutHelpModal
+          isOpen={showShortcutHelp}
+          onClose={() => setShowShortcutHelp(false)}
+        />
+        
+        {/* オンボーディング */}
+        <Onboarding
+          isOpen={showOnboarding}
+          onClose={() => setShowOnboarding(false)}
+          onComplete={() => {
+            setShowOnboarding(false);
+          }}
+        />
+      </ProjectProvider>
+    </AIProvider>
   );
 }
 

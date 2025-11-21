@@ -2376,6 +2376,19 @@ ${chaptersInfo}
     setModalDraft('');
   };
 
+  // ESCキーでモーダルを閉じる
+  useEffect(() => {
+    if (isModalOpen) {
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleCloseModal();
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isModalOpen]);
+
   // 章全体改善（描写強化＋文体調整の組み合わせ）
   const handleChapterImprovement = async () => {
     if (!selectedChapter || !draft.trim()) return;

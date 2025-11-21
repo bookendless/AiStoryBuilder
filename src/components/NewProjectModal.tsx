@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { X, BookOpen, Image, Upload } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
+import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -41,6 +42,10 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const [customTheme, setCustomTheme] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { createNewProject } = useProject();
+  const { modalRef } = useModalNavigation({
+    isOpen,
+    onClose,
+  });
 
   // ファイルをBase64に変換
   const fileToBase64 = (file: File): Promise<string> => {
@@ -119,8 +124,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
     >
       <div 
+        ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto p-6"
         onClick={(e) => e.stopPropagation()}
       >
