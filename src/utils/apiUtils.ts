@@ -13,6 +13,7 @@ export interface RetryConfig {
 export interface ApiCallOptions {
   timeout?: number;
   retryConfig?: RetryConfig;
+  shouldRetry?: (error: unknown) => boolean;
   onRetry?: (attempt: number, error: unknown) => void;
   onSuccess?: (response: unknown) => void;
   onError?: (error: unknown) => void;
@@ -38,6 +39,7 @@ export const retryApiCall = async <T>(
   const {
     timeout = 30000,
     retryConfig = DEFAULT_RETRY_CONFIG,
+    shouldRetry,
     onRetry,
     onSuccess,
     onError
@@ -51,7 +53,10 @@ export const retryApiCall = async <T>(
       const result = await Promise.race([
         apiCall(),
         new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('API呼び出しがタイムアウトしました')), timeout)
+          setTimeout(() => {
+            const timeoutSeconds = Math.round(timeout / 1000);
+            reject(new Error(`API呼び出しがタイムアウトしました（${timeoutSeconds}秒以内に完了しませんでした）`));
+          }, timeout)
         )
       ]);
 
@@ -63,6 +68,14 @@ export const retryApiCall = async <T>(
       return result;
     } catch (error) {
       lastError = error;
+      
+      // shouldRetryが指定されている場合、再試行可能かチェック
+      if (shouldRetry && !shouldRetry(error)) {
+        if (onError) {
+          onError(error);
+        }
+        throw error;
+      }
       
       // 最後の試行の場合はエラーを投げる
       if (attempt === retryConfig.maxRetries) {

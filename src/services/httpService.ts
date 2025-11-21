@@ -194,6 +194,82 @@ export class HttpService {
   async delete<T = unknown>(url: string, headers?: Record<string, string>): Promise<HttpResponse<T>> {
     return this.request<T>(url, { method: 'DELETE', headers });
   }
+
+  /**
+   * ストリーミングリクエストを実行する
+   * @param url URL
+   * @param data リクエストボディ
+   * @param onChunk チャンク受信時のコールバック
+   * @param options オプション
+   */
+  async postStream(
+    url: string,
+    data: unknown,
+    onChunk: (chunk: string) => void,
+    options?: {
+      headers?: Record<string, string>;
+      timeout?: number;
+      signal?: AbortSignal;
+    }
+  ): Promise<void> {
+    const body = JSON.stringify(data);
+    const defaultHeaders = {
+      'Content-Type': 'application/json',
+      ...(options?.headers || {}),
+    };
+
+    try {
+      const tauriFetch = await getTauriFetch();
+      const fetchToUse = tauriFetch || window.fetch.bind(window);
+      const isUsingTauri = tauriFetch !== null;
+      
+      // TauriのfetchがAbortSignalに対応しているか確認が必要だが、標準的にはsignalを渡す
+      const fetchOptions: RequestInit & { connectTimeout?: number } = {
+        method: 'POST',
+        headers: defaultHeaders,
+        body,
+        signal: options?.signal
+      };
+
+      if (isUsingTauri) {
+        fetchOptions.connectTimeout = options?.timeout || 30000;
+      }
+
+      const response = await fetchToUse(url, fetchOptions);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      // ReadableStreamの処理
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+        
+        const chunk = decoder.decode(value, { stream: true });
+        onChunk(chunk);
+      }
+
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // 中断は正常な動作とする場合もあるが、ここではエラーとして再スローするか、呼び出し元でハンドリングさせる
+        throw error;
+      }
+      console.error('Stream Request Error:', error);
+      throw error;
+    }
+  }
 }
 
 export const httpService = new HttpService();

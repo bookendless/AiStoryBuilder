@@ -561,7 +561,7 @@ class AIService {
         userContent = request.prompt;
       }
 
-      const response = await httpService.post(apiUrl, {
+      const requestBody = {
         model: request.settings.model,
         messages: [
           {
@@ -575,7 +575,50 @@ class AIService {
         ],
         temperature: request.settings.temperature,
         max_tokens: request.settings.maxTokens,
-      }, {
+        stream: !!request.onStream, // ストリーミング有効化
+      };
+
+      // ストリーミング処理
+      if (request.onStream) {
+        let fullContent = '';
+        
+        await httpService.postStream(
+          apiUrl,
+          requestBody,
+          (chunk) => {
+            // SSEの解析
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  const content = data.choices?.[0]?.delta?.content || '';
+                  if (content) {
+                    fullContent += content;
+                    request.onStream!(content);
+                  }
+                } catch (e) {
+                  console.warn('SSE parse error:', e);
+                }
+              }
+            }
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            signal: request.signal
+          }
+        );
+
+        return {
+          content: fullContent,
+        };
+      }
+
+      // 通常のリクエスト（非ストリーミング）
+      const response = await httpService.post(apiUrl, requestBody, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
         },
@@ -635,6 +678,7 @@ class AIService {
         temperature: request.settings.temperature,
         maxTokens: request.settings.maxTokens,
         apiUrl,
+        stream: !!request.onStream
       });
 
       // 画像がある場合のコンテンツ構築
@@ -667,7 +711,7 @@ class AIService {
         userContent = request.prompt;
       }
 
-      const response = await httpService.post(apiUrl, {
+      const requestBody = {
         model: request.settings.model,
         max_tokens: request.settings.maxTokens,
         temperature: request.settings.temperature,
@@ -677,7 +721,52 @@ class AIService {
             content: userContent,
           },
         ],
-      }, {
+        stream: !!request.onStream,
+      };
+
+      // ストリーミング処理
+      if (request.onStream) {
+        let fullContent = '';
+        
+        await httpService.postStream(
+          apiUrl,
+          requestBody,
+          (chunk) => {
+            // SSEの解析
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              
+              const dataStr = line.slice(6).trim();
+              if (dataStr === '[DONE]') continue;
+              
+              try {
+                const data = JSON.parse(dataStr);
+                if (data.type === 'content_block_delta' && data.delta?.text) {
+                  const content = data.delta.text;
+                  fullContent += content;
+                  request.onStream!(content);
+                }
+              } catch (e) {
+                console.warn('SSE parse error:', e);
+              }
+            }
+          },
+          {
+            headers: {
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            signal: request.signal
+          }
+        );
+
+        return {
+          content: fullContent,
+        };
+      }
+
+      const response = await httpService.post(apiUrl, requestBody, {
         headers: {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
@@ -729,10 +818,13 @@ class AIService {
       const isTauriEnv = typeof window !== 'undefined' && 
         ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
       
+      // ストリーミングの場合はエンドポイントが異なる (streamGenerateContent)
+      const method = request.onStream ? 'streamGenerateContent' : 'generateContent';
+      
       // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
       const apiUrl = isTauriEnv || !import.meta.env.DEV
-        ? `https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`
-        : `/api/gemini/v1beta/models/${request.settings.model}:generateContent?key=${apiKey}`;
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:${method}?key=${apiKey}`
+        : `/api/gemini/v1beta/models/${request.settings.model}:${method}?key=${apiKey}`;
 
       console.log('Gemini API Request:', {
         model: request.settings.model,
@@ -741,6 +833,7 @@ class AIService {
         temperature: request.settings.temperature,
         maxTokens: request.settings.maxTokens,
         apiUrl,
+        stream: !!request.onStream
       }, {
         headers: {
           'x-goog-api-key': apiKey,
@@ -769,7 +862,7 @@ class AIService {
         }
       }
 
-      const response = await httpService.post(apiUrl, {
+      const requestBody = {
         contents: [{
           parts: parts,
         }],
@@ -777,12 +870,83 @@ class AIService {
           temperature: request.settings.temperature,
           maxOutputTokens: request.settings.maxTokens,
         },
+      };
+
+      // ストリーミング処理
+      if (request.onStream) {
+        let fullContent = '';
+        
+        // GeminiのストリーミングはJSONの配列が送られてくる特殊な形式
+        // 通常のSSEとは異なり、]で終わるJSON配列のストリーム
+        // ここでは簡易的にパースする
+        
+        await httpService.postStream(
+          apiUrl,
+          requestBody,
+          (chunk) => {
+            // チャンク処理が複雑なため、Geminiの場合は
+            // 行ごとに分割して処理を試みる
+            
+            // Note: GeminiのREST APIストリーミングは単純なSSEではなく、
+            // JSON配列が徐々に送られてくる形式。
+            // 完全な実装にはストリーミングJSONパーサーが必要だが、
+            // ここでは簡易的にtextフィールドを抽出する
+            
+            // 簡易実装: "text": "..." を正規表現で探す
+            const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
+            let match;
+            while ((match = regex.exec(chunk)) !== null) {
+              try {
+                // JSON文字列のエスケープを解除
+                const text = JSON.parse(`"${match[1]}"`);
+                fullContent += text;
+                request.onStream!(text);
+              } catch (e) {
+                console.warn('Gemini stream parse error:', e);
+              }
+            }
+          },
+          {
+            timeout: 120000, // Gemini APIストリーミングも120秒に設定
+            signal: request.signal
+          }
+        );
+
+        return {
+          content: fullContent,
+        };
+      }
+
+      // Gemini APIは長文生成に時間がかかることがあるため、タイムアウトを120秒に設定
+      const response = await httpService.post(apiUrl, requestBody, {
+        timeout: 120000, // 120秒
       });
 
       if (response.status >= 400) {
-        const errorData = response.data as { error?: { message?: string } };
+        const errorData = response.data as { error?: { message?: string; code?: number } };
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
-        throw new Error(`Gemini API エラー: ${errorMessage}`);
+        
+        // 429エラーの場合、より詳細なメッセージを提供
+        if (response.status === 429) {
+          let detailedMessage = `Gemini API エラー (429): ${errorMessage}`;
+          
+          if (errorMessage.includes('Resource has been exhausted') || errorMessage.includes('quota')) {
+            detailedMessage += '\n\n【考えられる原因】\n';
+            detailedMessage += '1. リージョンのリソース制限: 特定のリージョンでリソースが一時的に枯渇している可能性があります\n';
+            detailedMessage += '2. プロビジョニングされたスループット未購入: 従量課金制の場合、リソースの優先度が低い可能性があります\n';
+            detailedMessage += '3. 一時的なリソース不足: Googleのインフラストラクチャが一時的に高負荷状態にある可能性があります\n';
+            detailedMessage += '4. Proモデルの制限: Gemini 2.5 ProはFlashモデルよりも厳しいリソース制限があります\n\n';
+            detailedMessage += '【対処法】\n';
+            detailedMessage += '- しばらく待ってから再試行してください\n';
+            detailedMessage += '- Gemini 2.5 Flashなどの軽量モデルを試してください\n';
+            detailedMessage += '- Google Cloud Consoleでクォータとレート制限を確認してください\n';
+            detailedMessage += '- プロビジョニングされたスループットの購入を検討してください';
+          }
+          
+          throw new Error(detailedMessage);
+        }
+        
+        throw new Error(`Gemini API エラー (${response.status}): ${errorMessage}`);
       }
 
       const data = response.data as { candidates: Array<{ content: { parts: Array<{ text: string }> } }> };
@@ -859,9 +1023,10 @@ class AIService {
         originalPromptLength: request.prompt.length,
         temperature: request.settings.temperature,
         maxTokens: maxTokens,
+        stream: !!request.onStream
       });
 
-      const response = await httpService.post(apiEndpoint, {
+      const requestBody = {
         model: request.settings.model || 'local-model',
         messages: [
           {
@@ -875,7 +1040,47 @@ class AIService {
         ],
         temperature: request.settings.temperature,
         max_tokens: maxTokens,
-      }, {
+        stream: !!request.onStream,
+      };
+
+      // ストリーミング処理
+      if (request.onStream) {
+        let fullContent = '';
+        
+        await httpService.postStream(
+          apiEndpoint,
+          requestBody,
+          (chunk) => {
+            // OpenAI互換のSSE解析
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  const content = data.choices?.[0]?.delta?.content || '';
+                  if (content) {
+                    fullContent += content;
+                    request.onStream!(content);
+                  }
+                } catch (_e) {
+                  // JSONパースエラーは無視（不完全なチャンクの可能性）
+                }
+              }
+            }
+          },
+          {
+            timeout: 120000,
+            signal: request.signal
+          }
+        );
+
+        return {
+          content: fullContent,
+        };
+      }
+
+      const response = await httpService.post(apiEndpoint, requestBody, {
         timeout: 120000,
       });
 
@@ -984,12 +1189,31 @@ class AIService {
           }
         },
         {
-          timeout: isLocalProvider ? 120000 : 30000, // ローカルLLMは2分、その他は30秒
+          // プロバイダーごとのタイムアウト設定
+          // Gemini APIは長文生成に時間がかかるため、120秒に設定
+          // ローカルLLMも120秒、その他のAPIは60秒
+          timeout: isLocalProvider 
+            ? 120000 
+            : request.settings.provider === 'gemini' 
+              ? 120000 
+              : 60000,
           retryConfig: {
             maxRetries: isLocalProvider ? 2 : 3, // ローカルLLMは再試行回数を減らす
             baseDelay: isLocalProvider ? 2000 : 1000, // ローカルLLMは待機時間を長く
             maxDelay: isLocalProvider ? 15000 : 10000,
             backoffMultiplier: 2
+          },
+          // ストリーミングの場合は再試行しない（複雑になるため）
+          shouldRetry: (error: unknown) => {
+            if (request.onStream) return false;
+            if (!(error instanceof Error)) return false;
+            return (
+              error.message.includes('timeout') || 
+              error.message.includes('network') ||
+              error.message.includes('rate limit') ||
+              error.message.includes('500') ||
+              error.message.includes('503')
+            );
           },
           onRetry: (attempt, error) => {
             console.warn(`AI API呼び出し失敗 (試行 ${attempt}):`, error);
@@ -999,6 +1223,11 @@ class AIService {
           }
         }
       );
+
+      // ストリーミングの場合はそのまま返す
+      if (request.onStream) {
+        return response;
+      }
 
       // 応答の解析と検証
       if (response.content) {

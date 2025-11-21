@@ -1,267 +1,52 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
-import { PenTool, Sparkles, BookOpen, Save, Download, FileText, ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, ListChecks, Wand2, ChevronDown, ChevronUp, AlignLeft, AlignJustify, CheckCircle, X, MoreVertical } from 'lucide-react';
+import { PenTool, Sparkles, BookOpen, FileText, ChevronDown, ChevronUp, AlignLeft, AlignJustify } from 'lucide-react';
 import { diffLines, type Change } from 'diff';
 import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
-
-const MODAL_TEXTAREA_MIN_HEIGHT = 260;
-const MODAL_TEXTAREA_MAX_HEIGHT = 1000;
-const MODAL_TEXTAREA_DEFAULT_HEIGHT = 420;
-const MODAL_TEXTAREA_HEIGHT_STEP = 80;
-const MODAL_FONT_SIZE_OPTIONS = [14, 16, 18, 20, 24];
-const MODAL_LINE_HEIGHT_OPTIONS = [1.4, 1.6, 1.8];
-const MODAL_DEFAULT_FONT_SIZE = 16;
-const MODAL_DEFAULT_LINE_HEIGHT = 1.6;
-
-const HISTORY_STORAGE_PREFIX = 'chapterHistory';
-const HISTORY_MAX_ENTRIES = 30;
-const HISTORY_AUTO_SAVE_DELAY = 20000;
-
-type HistoryEntryType = 'auto' | 'manual' | 'restore';
-
-interface ChapterHistoryEntry {
-  id: string;
-  timestamp: number;
-  content: string;
-  type: HistoryEntryType;
-  label: string;
-}
-
-type AISuggestionType = 'rewrite' | 'tone' | 'summary';
-
-interface AISuggestion {
-  id: string;
-  title: string;
-  body: string;
-}
-
-interface ImprovementLog {
-  id: string;
-  timestamp: number;
-  chapterId: string;
-  phase1Critique: string; // フェーズ1の評価結果
-  phase2Summary: string; // フェーズ2の改善戦略要約
-  phase2Changes: string[]; // 主な変更点
-  originalLength: number;
-  revisedLength: number;
-}
-
-type GenerationAction = 'fullDraft' | 'continue' | 'description' | 'style' | 'shorten' | 'improve' | 'selfRefine';
-type AIStatusTone = 'emerald' | 'blue' | 'purple';
-type SecondaryTab = 'ai' | 'display' | 'history' | 'project';
-
-const AI_STATUS_STYLES: Record<
+import {
+  HISTORY_AUTO_SAVE_DELAY,
+  HISTORY_MAX_ENTRIES,
+  HISTORY_TYPE_LABELS,
+  MAX_SUGGESTION_TEXT_LENGTH,
+  MODAL_DEFAULT_FONT_SIZE,
+  MODAL_DEFAULT_LINE_HEIGHT,
+  MODAL_TEXTAREA_DEFAULT_HEIGHT,
+  MODAL_TEXTAREA_MAX_HEIGHT,
+  MODAL_TEXTAREA_MIN_HEIGHT,
+  SUGGESTION_CONFIG,
+} from './draft/constants';
+import { DisplaySettingsPanel } from './draft/DisplaySettingsPanel';
+import { AiTabPanel } from './draft/AiTabPanel';
+import { HistoryTabPanel } from './draft/HistoryTabPanel';
+import { Toast } from './draft/Toast';
+import { ImprovementLogModal } from './draft/ImprovementLogModal';
+import { CustomPromptModal } from './draft/CustomPromptModal';
+import { AIStatusBar } from './draft/AIStatusBar';
+import { DraftHeader } from './draft/DraftHeader';
+import { ChapterTabs } from './draft/ChapterTabs';
+import { MainEditor, type MainEditorHandle } from './draft/MainEditor';
+import type {
   AIStatusTone,
-  {
-    container: string;
-    icon: string;
-    title: string;
-    detail: string;
-  }
-> = {
-  emerald: {
-    container: 'bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-200',
-    icon: 'bg-emerald-500 text-white',
-    title: 'text-emerald-700 dark:text-emerald-200',
-    detail: 'text-emerald-600 dark:text-emerald-300',
-  },
-  blue: {
-    container: 'bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200',
-    icon: 'bg-blue-500 text-white',
-    title: 'text-blue-700 dark:text-blue-200',
-    detail: 'text-blue-600 dark:text-blue-300',
-  },
-  purple: {
-    container: 'bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-200',
-    icon: 'bg-purple-500 text-white',
-    title: 'text-purple-700 dark:text-purple-200',
-    detail: 'text-purple-600 dark:text-purple-300',
-  },
-};
-
-interface SuggestionPromptPayload {
-  selectedText: string;
-  chapterTitle?: string;
-  chapterSummary?: string;
-  projectTitle?: string;
-}
-
-const HISTORY_TYPE_LABELS: Record<HistoryEntryType, string> = {
-  auto: '自動保存',
-  manual: '手動保存',
-  restore: '復元前',
-};
-
-const HISTORY_BADGE_CLASSES: Record<HistoryEntryType, string> = {
-  auto: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200',
-  manual: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
-  restore: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
-};
-
-const MAX_SUGGESTION_TEXT_LENGTH = 2000;
-
-const SUGGESTION_CONFIG: Record<
+  AISuggestion,
   AISuggestionType,
-  {
-    label: string;
-    description: string;
-    prompt: (payload: SuggestionPromptPayload) => string;
-  }
-> = {
-  rewrite: {
-    label: 'リライト案',
-    description: '読みやすさと臨場感を両立した案を生成します',
-    prompt: ({ selectedText, chapterTitle, chapterSummary, projectTitle }) => `あなたは熟練の小説編集者です。以下のテキストを、読者が没入しやすい自然な流れに整えてください。
+  ChapterHistoryEntry,
+  GenerationAction,
+  HistoryEntryType,
+  ImprovementLog,
+  SecondaryTab,
+} from './draft/types';
+import {
+  downloadTextFileInBrowser,
+  getHistoryStorageKey,
+  isTauriEnvironment,
+  parseAISuggestions,
+  sanitizeFilename,
+} from './draft/utils';
 
-作品タイトル: ${projectTitle || '未設定'}
-章タイトル: ${chapterTitle || '未設定'}
-章概要: ${chapterSummary || '未設定'}
-
-対象テキスト:
-"""${selectedText}"""
-
-返答は必ず次のJSON形式で出力してください（余計な文章は書かないこと）:
-{
-  "suggestions": [
-    { "title": "案の短い説明", "body": "提案内容（200文字程度）" },
-    { "title": "案の短い説明", "body": "提案内容（200文字程度）" },
-    { "title": "案の短い説明", "body": "提案内容（200文字程度）" }
-  ]
-}
-
-各案は文体やリズムに変化を付け、会話と描写のバランスを意識してください。`,
-  },
-  tone: {
-    label: 'トーン調整',
-    description: '雰囲気や感情のトーンを強調した案を提示します',
-    prompt: ({ selectedText, chapterTitle, chapterSummary, projectTitle }) => `あなたは物語のトーンを整える編集者です。以下のテキストの感情・雰囲気を際立たせたバリエーションを3案提案してください。
-
-作品タイトル: ${projectTitle || '未設定'}
-章タイトル: ${chapterTitle || '未設定'}
-章概要: ${chapterSummary || '未設定'}
-
-対象テキスト:
-"""${selectedText}"""
-
-返答は必ず次のJSON形式で出力してください:
-{
-  "suggestions": [
-    { "title": "強調するトーンの説明", "body": "提案本文（180文字程度）" },
-    { "title": "強調するトーンの説明", "body": "提案本文（180文字程度）" },
-    { "title": "強調するトーンの説明", "body": "提案本文（180文字程度）" }
-  ]
-}
-
-各案では異なる感情や雰囲気（例: 緊張感、切なさ、希望など）を意識し、描写を調整してください。`,
-  },
-  summary: {
-    label: '要約＆鍵フレーズ',
-    description: '内容を整理し、重要な要素を抽出します',
-    prompt: ({ selectedText, chapterTitle, chapterSummary, projectTitle }) => `あなたは編集アシスタントです。以下のテキストの要点を整理し、今後の執筆に役立つ情報を抽出してください。
-
-作品タイトル: ${projectTitle || '未設定'}
-章タイトル: ${chapterTitle || '未設定'}
-章概要: ${chapterSummary || '未設定'}
-
-対象テキスト:
-"""${selectedText}"""
-
-返答は必ず次のJSON形式で出力してください:
-{
-  "suggestions": [
-    { "title": "要約", "body": "3〜4文で内容を要約" },
-    { "title": "伏線・感情のヒント", "body": "注意すべきポイントを箇条書きで" },
-    { "title": "キーフレーズ", "body": "重要語句やアイデアを列挙" }
-  ]
-}
-
-要約は具体的・簡潔に、箇条書きは「・」で始めてください。`,
-  },
-};
-
-const getHistoryStorageKey = (projectId: string, chapterId: string) =>
-  `${HISTORY_STORAGE_PREFIX}_${projectId}_${chapterId}`;
-
-const formatTimestamp = (timestamp: number) => {
-  try {
-    return new Date(timestamp).toLocaleString('ja-JP', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-  } catch {
-    return `${timestamp}`;
-  }
-};
-
-const parseAISuggestions = (raw: string): AISuggestion[] => {
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.suggestions)) {
-      return parsed.suggestions
-        .map((item: { title?: string; body?: string }, index: number) => ({
-          id: `parsed-${Date.now()}-${index}`,
-          title: item?.title?.trim() || `提案 ${index + 1}`,
-          body: item?.body?.trim() || '',
-        }))
-        .filter((item: AISuggestion) => item.body);
-    }
-  } catch {
-    // フォールバック処理へ
-  }
-
-  const fallbackSegments = raw
-    .split(/\n{2,}/)
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-
-  if (fallbackSegments.length) {
-    return fallbackSegments.map((segment, index) => ({
-      id: `fallback-${Date.now()}-${index}`,
-      title: `提案 ${index + 1}`,
-      body: segment,
-    }));
-  }
-
-  return [
-    {
-      id: `raw-${Date.now()}`,
-      title: 'AI提案',
-      body: raw.trim(),
-    },
-  ];
-};
-const isTauriEnvironment = () => {
-  if (typeof window === 'undefined') return false;
-  // Tauri 2では__TAURI_INTERNALS__が存在する
-  return Boolean((window as Window & { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown }).__TAURI_INTERNALS__ || (window as Window & { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown }).__TAURI__);
-};
-
-const sanitizeFilename = (filename: string) => {
-  return filename.replace(/[\\/:*?"<>|]/g, '_');
-};
-
-const downloadTextFileInBrowser = (filename: string, content: string) => {
-  if (typeof window === 'undefined') return;
-
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
 
 export const DraftStep: React.FC = () => {
   const { currentProject, updateProject, createManualBackup } = useProject();
@@ -277,7 +62,6 @@ export const DraftStep: React.FC = () => {
   const [isVerticalWriting, setIsVerticalWriting] = useState(false);
   const [isModalChapterInfoCollapsed, setIsModalChapterInfoCollapsed] = useState(false);
   const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
-  const [mainLineNumbers, setMainLineNumbers] = useState<number[]>([1]);
   const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
   const [selectedHistoryEntryId, setSelectedHistoryEntryId] = useState<string | null>(null);
   const [improvementLogs, setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
@@ -317,18 +101,11 @@ export const DraftStep: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   
-  // 章選択タブのスクロール状態
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  
   // AI生成キャンセル用のref
   const generationAbortControllerRef = useRef<AbortController | null>(null);
   const [showCompletionToast, setShowCompletionToast] = useState<string | null>(null);
 
-  const mainTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const mainLineNumbersRef = useRef<HTMLDivElement | null>(null);
-  const mainLineNumbersInnerRef = useRef<HTMLDivElement | null>(null);
-  const chapterTabsContainerRef = useRef<HTMLDivElement | null>(null);
+  const mainEditorRef = useRef<MainEditorHandle | null>(null);
   const previousMainChapterCollapsedRef = useRef<boolean>(false);
   const previousMainFocusModeRef = useRef<boolean>(false);
   const historyAutoSaveTimeoutRef = useRef<number | null>(null);
@@ -340,73 +117,6 @@ export const DraftStep: React.FC = () => {
     setChapterHistories({});
     setSelectedHistoryEntryId(null);
   }, [currentProject?.id]);
-
-  // 章選択タブのスクロール状態を更新
-  const updateScrollButtons = useCallback(() => {
-    const container = chapterTabsContainerRef.current;
-    if (!container) {
-      setCanScrollLeft(false);
-      setCanScrollRight(false);
-      return;
-    }
-    
-    const { scrollLeft, scrollWidth, clientWidth } = container;
-    setCanScrollLeft(scrollLeft > 0);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1);
-  }, []);
-
-  // 選択章を中央に自動スクロール
-  useEffect(() => {
-    if (!chapterTabsContainerRef.current || !selectedChapter) {
-      updateScrollButtons();
-      return;
-    }
-    const container = chapterTabsContainerRef.current;
-    const activeTab = container.querySelector<HTMLButtonElement>(`[data-chapter-id="${selectedChapter}"]`);
-    if (!activeTab) {
-      updateScrollButtons();
-      return;
-    }
-
-    const tabLeft = activeTab.offsetLeft;
-    const tabWidth = activeTab.offsetWidth;
-    const tabCenter = tabLeft + tabWidth / 2;
-    const containerWidth = container.clientWidth;
-    const scrollLeft = tabCenter - containerWidth / 2;
-
-    container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
-    
-    // スクロール完了後にボタン状態を更新
-    setTimeout(updateScrollButtons, 300);
-  }, [selectedChapter, updateScrollButtons]);
-
-  // スクロール時にボタン状態を更新
-  useEffect(() => {
-    const container = chapterTabsContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      updateScrollButtons();
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    // 初期状態を更新
-    updateScrollButtons();
-
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-    };
-  }, [updateScrollButtons]);
-
-  // ウィンドウリサイズ時にスクロール状態を更新
-  useEffect(() => {
-    const handleResize = () => {
-      updateScrollButtons();
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [updateScrollButtons]);
 
   const createHistorySnapshot = useCallback(
     (type: HistoryEntryType, options?: { content?: string; label?: string; force?: boolean }) => {
@@ -467,11 +177,8 @@ export const DraftStep: React.FC = () => {
   }, [createHistorySnapshot]);
 
   const getCurrentSelection = useCallback(() => {
-    const textarea = mainTextareaRef.current;
-    if (!textarea) return '';
-    const { selectionStart, selectionEnd } = textarea;
-    if (selectionStart === selectionEnd) return '';
-    return textarea.value.slice(selectionStart, selectionEnd);
+    if (!mainEditorRef.current) return '';
+    return mainEditorRef.current.getCurrentSelection();
   }, []);
 
   // カスタムプロンプトの保存・読み込み
@@ -771,64 +478,6 @@ useEffect(() => {
     handleNavigateChapter('next');
   }, [handleNavigateChapter]);
 
-  const mainLineNumbersContent = useMemo(() => mainLineNumbers.join('\n'), [mainLineNumbers]);
-  const mainComputedLineHeight = useMemo(() => Math.max(mainFontSize * mainLineHeight, 12), [mainFontSize, mainLineHeight]);
-
-  const updateMainLineNumbers = useCallback(() => {
-    const textarea = mainTextareaRef.current;
-    if (!textarea) {
-      setMainLineNumbers([1]);
-      return;
-    }
-
-    const computedStyle = window.getComputedStyle(textarea);
-    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
-    const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-    const contentHeight = Math.max(textarea.scrollHeight - paddingTop - paddingBottom, 0);
-    const totalLines = Math.max(1, Math.ceil(contentHeight / mainComputedLineHeight));
-
-    setMainLineNumbers((prev) => {
-      if (prev.length === totalLines) {
-        return prev;
-      }
-      return Array.from({ length: totalLines }, (_, index) => index + 1);
-    });
-  }, [mainComputedLineHeight]);
-
-  useEffect(() => {
-    updateMainLineNumbers();
-  }, [draft, mainComputedLineHeight, mainTextareaHeight, isMainFocusMode, showMainLineNumbers, updateMainLineNumbers]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleResize = () => {
-      updateMainLineNumbers();
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [updateMainLineNumbers]);
-
-  const syncLineNumberScroll = useCallback((textarea: HTMLTextAreaElement | null, innerElement: HTMLDivElement | null) => {
-    if (!textarea || !innerElement) return;
-    innerElement.style.transform = `translateY(-${textarea.scrollTop}px)`;
-  }, []);
-
-  const handleMainTextareaScroll = useCallback(() => {
-    syncLineNumberScroll(mainTextareaRef.current, mainLineNumbersInnerRef.current);
-  }, [syncLineNumberScroll]);
-
-  useEffect(() => {
-    if (showMainLineNumbers) {
-      syncLineNumberScroll(mainTextareaRef.current, mainLineNumbersInnerRef.current);
-    }
-  }, [showMainLineNumbers, mainTextareaHeight, draft, mainComputedLineHeight, syncLineNumberScroll]);
-
-  const mainEditorContainerClass = isMainFocusMode
-    ? 'border border-emerald-500/40 bg-gray-900/90 shadow-inner'
-    : 'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700';
-
   const mainControlButtonBase = isMainFocusMode
     ? 'rounded-md border border-emerald-500/40 bg-gray-900/80 text-emerald-200 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
     : 'rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
@@ -897,6 +546,13 @@ useEffect(() => {
     setIsMainFocusMode(false);
   }, []);
 
+  const handleClearSuggestionState = useCallback(() => {
+    setAISuggestions([]);
+    setSuggestionError(null);
+    setLastSelectedText('');
+    setWasSelectionTruncated(false);
+  }, []);
+
   const renderAiTab = (): React.ReactNode => {
     if (!selectedChapter || !currentChapter) {
       return (
@@ -906,121 +562,68 @@ useEffect(() => {
       );
     }
 
-    const hasSelectionState = aiSuggestions.length > 0 || lastSelectedText;
+    return (
+      <AiTabPanel
+        selectedChapterId={selectedChapter}
+        currentChapter={currentChapter}
+        draft={draft}
+        aiSuggestions={aiSuggestions}
+        lastSelectedText={lastSelectedText}
+        wasSelectionTruncated={wasSelectionTruncated}
+        suggestionError={suggestionError}
+        isGeneratingSuggestion={isGeneratingSuggestion}
+        isGenerating={isGenerating}
+        isFullDraftGenerating={isFullDraftGenerating}
+        isImproving={isImproving}
+        isSelfRefining={isSelfRefining}
+        isContinueGenerating={isContinueGenerating}
+        isDescriptionGenerating={isDescriptionGenerating}
+        isStyleGenerating={isStyleGenerating}
+        isShortenGenerating={isShortenGenerating}
+        activeSuggestionType={activeSuggestionType}
+        improvementLogs={improvementLogs}
+        onOpenCustomPrompt={() => setShowCustomPromptModal(true)}
+        onGenerateFullDraft={handleAIGenerate}
+        onImproveChapter={handleChapterImprovement}
+        onSelfRefine={handleSelfRefineImprovement}
+        onContinueGeneration={handleContinueGeneration}
+        onDescriptionEnhancement={handleDescriptionEnhancement}
+        onStyleAdjustment={handleStyleAdjustment}
+        onShortenText={handleShortenText}
+        onGenerateSuggestions={handleGenerateSuggestions}
+        onApplySuggestion={applyAISuggestion}
+        onClearSelectionState={handleClearSuggestionState}
+        onOpenImprovementLogModal={() => setIsImprovementLogModalOpen(true)}
+      />
+    );
+  };
+
+  const renderHistoryTab = (): React.ReactNode => {
+    if (!selectedChapter || !currentChapter) {
+      return (
+        <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+          章を選択すると履歴を表示できます。
+        </div>
+      );
+    }
 
     return (
-      <div className="space-y-5">
-        {/* サイドバー内の状態表示は削除（画面上部の統合バーに統合） */}
+      <HistoryTabPanel
+        selectedChapterId={selectedChapter}
+        currentChapter={currentChapter}
+        historyEntries={historyEntries}
+        selectedHistoryEntryId={selectedHistoryEntryId}
+        setSelectedHistoryEntryId={setSelectedHistoryEntryId}
+        onManualSnapshot={handleManualHistorySnapshot}
+        onRestoreHistoryEntry={handleRestoreHistoryEntry}
+        hasHistoryDiff={hasHistoryDiff}
+        historyDiffSegments={historyDiffSegments}
+      />
+    );
+  };
 
-        <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                章全体の生成
-              </h4>
-              <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                選択中の章をベースに長文ドラフトを生成します。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowCustomPromptModal(true)}
-              className="px-3 py-1.5 rounded-lg border border-purple-300 text-sm text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/40 font-['Noto_Sans_JP'] transition-colors"
-            >
-              カスタムプロンプト
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={handleAIGenerate}
-            disabled={isGenerating || !selectedChapter}
-            aria-busy={isFullDraftGenerating}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold font-['Noto_Sans_JP'] transition-all ${
-              isFullDraftGenerating
-                ? 'bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200 shadow-inner'
-                : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 shadow-sm'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            <Sparkles
-              className={`h-4 w-4 ${isFullDraftGenerating ? 'animate-spin text-emerald-600 dark:text-emerald-300' : 'text-white'}`}
-            />
-            <span>{isFullDraftGenerating ? 'AIが執筆中…' : 'AI章執筆を実行'}</span>
-          </button>
-        </div>
-
-        <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
-          <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-            章全体の改善
-          </h4>
-          <button
-            type="button"
-            onClick={handleChapterImprovement}
-            disabled={isGenerating || !draft.trim() || !selectedChapter}
-            aria-busy={isImproving}
-            className="w-full p-3 text-left bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <div className="flex flex-col">
-              <div className="font-semibold text-gray-900 dark:text-white text-xs font-['Noto_Sans_JP'] flex items-center justify-between">
-                章全体改善
-                <Sparkles
-                  className={`h-3 w-3 ${isImproving ? 'text-indigo-500 animate-spin' : 'text-indigo-500/70'}`}
-                />
-              </div>
-              <div
-                className={`text-[11px] font-['Noto_Sans_JP'] mt-0.5 ${
-                  isImproving ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400'
-                }`}
-              >
-                {isImproving ? 'AIが描写と文体を総合的に改善しています…' : '描写強化＋文体調整を同時に実行'}
-              </div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={handleSelfRefineImprovement}
-            disabled={isGenerating || !draft.trim() || !selectedChapter}
-            aria-busy={isSelfRefining}
-            className="w-full p-3 text-left bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <div className="flex flex-col">
-              <div className="font-semibold text-gray-900 dark:text-white text-xs font-['Noto_Sans_JP'] flex items-center justify-between">
-                弱点特定と修正ループ
-                <Sparkles
-                  className={`h-3 w-3 ${isSelfRefining ? 'text-amber-500 animate-spin' : 'text-amber-500/70'}`}
-                />
-              </div>
-              <div
-                className={`text-[11px] font-['Noto_Sans_JP'] mt-0.5 ${
-                  isSelfRefining ? 'text-amber-600 dark:text-amber-300' : 'text-gray-600 dark:text-gray-400'
-                }`}
-              >
-                {isSelfRefining ? 'AIが弱点を特定し、改善しています…' : '批評→改訂の2段階で改善'}
-              </div>
-            </div>
-          </button>
-          
-          {/* 改善ログ表示セクション */}
-          {selectedChapter && improvementLogs[selectedChapter] && improvementLogs[selectedChapter].length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-2">
-                <h5 className="text-xs font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                  改善ログ ({improvementLogs[selectedChapter].length}件)
-                </h5>
-                <button
-                  type="button"
-                  onClick={() => setIsImprovementLogModalOpen(true)}
-                  className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-['Noto_Sans_JP'] underline"
-                >
-                  詳細を表示
-                </button>
-              </div>
-              <div className="text-[11px] text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                最新: {formatTimestamp(improvementLogs[selectedChapter][0].timestamp)}
-              </div>
-            </div>
-          )}
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+  /*
+  const renderProjectTab = (): React.ReactNode => {
             <button
               type="button"
               onClick={handleContinueGeneration}
@@ -1240,169 +843,6 @@ useEffect(() => {
     );
   };
 
-  const renderDisplayTab = (): React.ReactNode => (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-              表示設定
-            </h4>
-            <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-              執筆エリアの見た目と操作感を調整します。
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleResetDisplaySettings}
-            className="text-xs px-2 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-['Noto_Sans_JP'] transition-colors"
-          >
-            リセット
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
-              フォントサイズ
-            </span>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {MODAL_FONT_SIZE_OPTIONS.map(size => (
-                <button
-                  key={`display-font-${size}`}
-                  type="button"
-                  onClick={() => setMainFontSize(size)}
-                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-                    mainFontSize === size ? mainControlButtonActive : ''
-                  }`}
-                  aria-pressed={mainFontSize === size}
-                >
-                  {size}px
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
-              行間
-            </span>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {MODAL_LINE_HEIGHT_OPTIONS.map(value => (
-                <button
-                  key={`display-line-height-${value}`}
-                  type="button"
-                  onClick={() => setMainLineHeight(value)}
-                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-                    mainLineHeight === value ? mainControlButtonActive : ''
-                  }`}
-                  aria-pressed={mainLineHeight === value}
-                >
-                  {value === MODAL_DEFAULT_LINE_HEIGHT ? '標準' : value.toFixed(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
-                テキストエリアの高さ
-              </span>
-              <span className="text-[11px] text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                {Math.round(mainTextareaHeight)}px
-              </span>
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => adjustMainTextareaHeight(-MODAL_TEXTAREA_HEIGHT_STEP)}
-                disabled={mainTextareaHeight <= MODAL_TEXTAREA_MIN_HEIGHT}
-                className={`${mainControlButtonBase} w-9 h-9 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed`}
-                aria-label="テキストエリアの高さを縮小"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full relative">
-                <div
-                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-400 to-green-500 rounded-full transition-all"
-                  style={{
-                    width: `${((mainTextareaHeight - MODAL_TEXTAREA_MIN_HEIGHT) / (MODAL_TEXTAREA_MAX_HEIGHT - MODAL_TEXTAREA_MIN_HEIGHT)) * 100}%`,
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => adjustMainTextareaHeight(MODAL_TEXTAREA_HEIGHT_STEP)}
-                disabled={mainTextareaHeight >= MODAL_TEXTAREA_MAX_HEIGHT}
-                className={`${mainControlButtonBase} w-9 h-9 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed`}
-                aria-label="テキストエリアの高さを拡大"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700 mt-2 pt-3">
-          <button
-            type="button"
-            onClick={() => setShowMainLineNumbers(prev => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-              showMainLineNumbers ? mainControlButtonActive : ''
-            }`}
-            aria-pressed={showMainLineNumbers}
-          >
-            行番号 {showMainLineNumbers ? 'ON' : 'OFF'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsMainFocusMode(prev => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${
-              isMainFocusMode ? mainControlButtonActive : ''
-            }`}
-            aria-pressed={isMainFocusMode}
-          >
-            {isMainFocusMode ? '集中モード解除' : '集中モード'}
-          </button>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2">
-          表示プリセット
-        </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setMainFontSize(16);
-              setMainLineHeight(1.6);
-              setShowMainLineNumbers(false);
-              setIsMainFocusMode(false);
-            }}
-            className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-left hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-xs font-['Noto_Sans_JP'] text-gray-600 dark:text-gray-300"
-          >
-            標準ビュー<br/>
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">16px / 行間1.6 / 行番号OFF</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMainFontSize(18);
-              setMainLineHeight(1.8);
-              setShowMainLineNumbers(true);
-              setIsMainFocusMode(true);
-            }}
-            className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-left hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-xs font-['Noto_Sans_JP'] text-gray-600 dark:text-gray-300"
-          >
-            集中ビュー<br/>
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">18px / 行間1.8 / 行番号ON</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 
   const renderHistoryTab = (): React.ReactNode => {
     if (!selectedChapter || !currentChapter) {
@@ -1512,6 +952,9 @@ useEffect(() => {
       </div>
     );
   };
+
+  };
+  */
 
   const renderProjectTab = (): React.ReactNode => {
     if (!currentProject) {
@@ -1664,7 +1107,23 @@ useEffect(() => {
       case 'ai':
         return renderAiTab();
       case 'display':
-        return renderDisplayTab();
+        return (
+          <DisplaySettingsPanel
+            mainFontSize={mainFontSize}
+            setMainFontSize={setMainFontSize}
+            mainLineHeight={mainLineHeight}
+            setMainLineHeight={setMainLineHeight}
+            mainTextareaHeight={mainTextareaHeight}
+            adjustMainTextareaHeight={adjustMainTextareaHeight}
+            showMainLineNumbers={showMainLineNumbers}
+            setShowMainLineNumbers={setShowMainLineNumbers}
+            isMainFocusMode={isMainFocusMode}
+            setIsMainFocusMode={setIsMainFocusMode}
+            handleResetDisplaySettings={handleResetDisplaySettings}
+            mainControlButtonBase={mainControlButtonBase}
+            mainControlButtonActive={mainControlButtonActive}
+          />
+        );
       case 'history':
         return renderHistoryTab();
       case 'project':
@@ -1988,8 +1447,8 @@ useEffect(() => {
     await handleSaveChapterDraft(selectedChapter, nextContent);
 
     setTimeout(() => {
-      if (mainTextareaRef.current) {
-        const textarea = mainTextareaRef.current;
+      const textarea = mainEditorRef.current?.getTextareaRef();
+      if (textarea) {
         textarea.focus();
         const cursorPosition = nextContent.length;
         textarea.setSelectionRange(cursorPosition, cursorPosition);
@@ -2001,7 +1460,7 @@ useEffect(() => {
     (suggestion: AISuggestion) => {
       if (!selectedChapter) return;
 
-      const textarea = mainTextareaRef.current;
+      const textarea = mainEditorRef.current?.getTextareaRef();
       if (!textarea) return;
 
       const replacement = suggestion.body;
@@ -2031,10 +1490,11 @@ useEffect(() => {
       });
 
       setTimeout(() => {
-        if (mainTextareaRef.current) {
+        const textarea = mainEditorRef.current?.getTextareaRef();
+        if (textarea) {
           const cursorPosition = selectionStart + replacement.length;
-          mainTextareaRef.current.focus();
-          mainTextareaRef.current.setSelectionRange(cursorPosition, cursorPosition);
+          textarea.focus();
+          textarea.setSelectionRange(cursorPosition, cursorPosition);
         }
       }, 0);
     },
@@ -2086,13 +1546,83 @@ useEffect(() => {
   // 文字数カウント（メモ化）
   const wordCount = useMemo(() => draft.length, [draft]);
 
+  // 設定情報の取得ヘルパー
+  const getProjectContextInfo = useCallback(() => {
+    if (!currentProject) return { worldSettings: '', glossary: '', relationships: '', plotInfo: '' };
+
+    // 1. 世界観設定・用語集
+    const worldSettingsList = currentProject.worldSettings || [];
+    const glossaryList = currentProject.glossary || [];
+    
+    // 重要度が高いものを優先的に抽出（ここでは簡易的に全件、ただし長すぎる場合は制限が必要）
+    // プロンプトサイズ削減のため、タイトルと内容の要約のみを抽出するなどの工夫が可能
+    const worldSettingsText = worldSettingsList.length > 0 
+      ? worldSettingsList.map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n')
+      : '特になし';
+      
+    const glossaryText = glossaryList.length > 0
+      ? glossaryList.map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n')
+      : '特になし';
+
+    // 2. キャラクター相関図
+    const relationshipsList = currentProject.relationships || [];
+    const relationshipsText = relationshipsList.length > 0
+      ? relationshipsList.map(r => {
+          const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
+          const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
+          return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
+        }).join('\n')
+      : '特になし';
+
+    // 3. 物語構造の進行度
+    // PlotStep2の情報を活用
+    const plot = currentProject.plot;
+    let plotInfo = '構成情報なし';
+    
+    if (plot.structure === 'kishotenketsu') {
+      plotInfo = `全体構造: 起承転結
+起: ${plot.ki?.substring(0, 50) || '未設定'}...
+承: ${plot.sho?.substring(0, 50) || '未設定'}...
+転: ${plot.ten?.substring(0, 50) || '未設定'}...
+結: ${plot.ketsu?.substring(0, 50) || '未設定'}...`;
+    } else if (plot.structure === 'three-act') {
+      plotInfo = `全体構造: 三幕構成
+第1幕: ${plot.act1?.substring(0, 50) || '未設定'}...
+第2幕: ${plot.act2?.substring(0, 50) || '未設定'}...
+第3幕: ${plot.act3?.substring(0, 50) || '未設定'}...`;
+    }
+
+    return {
+      worldSettings: worldSettingsText,
+      glossary: glossaryText,
+      relationships: relationshipsText,
+      plotInfo
+    };
+  }, [currentProject]);
+
   // カスタムプロンプトの構築（メモ化）
-  const buildCustomPrompt = useCallback((currentChapter: { title: string; summary: string }, chapterDetails: { characters: string; setting: string; mood: string; keyEvents: string }, projectCharacters: string) => {
+  const buildCustomPrompt = useCallback((
+    currentChapter: { title: string; summary: string }, 
+    chapterDetails: { characters: string; setting: string; mood: string; keyEvents: string }, 
+    projectCharacters: string, 
+    previousStory: string, 
+    previousChapterEnd: string = '',
+    contextInfo: { worldSettings: string; glossary: string; relationships: string; plotInfo: string } = { worldSettings: '', glossary: '', relationships: '', plotInfo: '' }
+  ) => {
     const basePrompt = `以下の章の情報を基に、会話を重視し、読者に臨場感のある魅力的な小説の章を執筆してください。
 
 【最重要：章情報】
 章タイトル: ${currentChapter.title}
 章の概要: ${currentChapter.summary}
+
+【これまでの物語（前章までの流れ）】
+${previousStory || 'これが最初の章です。'}
+${previousChapterEnd ? `
+【直前の章のラストシーン（接続用）】
+以下の文章は、直前の章の終わりの部分です。この流れを汲んで、自然に接続するように新しい章を書き始めてください。
+---
+${previousChapterEnd}
+---` : ''}
 
 【章の詳細設定】
 設定・場所: ${chapterDetails.setting}
@@ -2114,8 +1644,20 @@ useEffect(() => {
 主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
 主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
 
+【物語の全体構成】
+${contextInfo.plotInfo}
+
 【キャラクター情報】
 ${projectCharacters}
+
+【キャラクター相関図】
+${contextInfo.relationships}
+
+【設定資料・世界観】
+${contextInfo.worldSettings}
+
+【重要用語集】
+${contextInfo.glossary}
 
 【執筆指示】
 1. **文字数**: 3000-4000文字程度で執筆してください
@@ -2124,7 +1666,8 @@ ${projectCharacters}
 4. **感情表現**: キャラクターの心理状態や感情を丁寧に描写してください
 5. **五感の活用**: 視覚、聴覚、触覚、嗅覚、味覚を意識した描写を入れてください
 6. **章の目的**: 章の概要に沿った内容で、物語を前進させてください
-7. **一貫性**: キャラクターの性格や設定を一貫して保ってください
+7. **一貫性**: キャラクターの性格や設定を一貫して保ってください。特に「設定資料・世界観」や「重要用語集」の内容と矛盾しないようにしてください
+8. **関係性の反映**: 「キャラクター相関図」の関係性に基づいた会話や態度を描写してください
 
 【文体の特徴】
 - 現代的な日本語小説の文体
@@ -2182,8 +1725,31 @@ ${projectCharacters}
         `${char.name}: ${char.bio || char.description || '説明なし'}`
       ).join('\n');
 
+      // 前章までのあらすじを取得
+      const currentChapterIndex = currentProject.chapters.findIndex((c) => c.id === currentChapter.id);
+      const previousStory = currentProject.chapters
+        .slice(0, currentChapterIndex)
+        .map((c, index: number) => `第${index + 1}章「${c.title}」\nあらすじ: ${c.summary || '（あらすじなし）'}`)
+        .join('\n\n');
+
+      // 直前の章の末尾を取得（一貫性確保のため）
+      let previousChapterEnd = '';
+      if (currentChapterIndex > 0) {
+        const prevChapter = currentProject.chapters[currentChapterIndex - 1];
+        if (prevChapter.draft && prevChapter.draft.trim()) {
+          // 末尾1000文字程度を取得
+          const prevDraft = prevChapter.draft.trim();
+          previousChapterEnd = prevDraft.length > 1000 
+            ? '...' + prevDraft.slice(-1000) 
+            : prevDraft;
+        }
+      }
+
+      // 設定情報の取得
+      const contextInfo = getProjectContextInfo();
+
       // プロンプトを構築
-      const prompt = buildCustomPrompt(currentChapter, chapterDetails, projectCharacters);
+      const prompt = buildCustomPrompt(currentChapter, chapterDetails, projectCharacters, previousStory, previousChapterEnd, contextInfo);
 
       const response = await aiService.generateContent({
         prompt,
@@ -2219,19 +1785,48 @@ ${projectCharacters}
     setCurrentGenerationAction('continue');
     setIsGenerating(true);
     try {
-      // const chapterDetails = getChapterDetails(currentChapter);
-      
+      // プロジェクトのキャラクター情報を整理
+      const projectCharacters = currentProject.characters.map((char: { name: string; bio?: string; description?: string }) => 
+        `${char.name}: ${char.bio || char.description || '説明なし'}`
+      ).join('\n');
+
+      // 設定情報の取得
+      const contextInfo = getProjectContextInfo();
+
       const prompt = `以下の章の続きを執筆してください。
 
 【章情報】
 章タイトル: ${currentChapter?.title}
 章の概要: ${currentChapter?.summary}
 
+【プロジェクト基本情報】
+作品タイトル: ${currentProject?.title}
+テーマ: ${currentProject?.plot?.theme || '未設定'}
+舞台設定: ${currentProject?.plot?.setting || '未設定'}
+
+【物語の全体構成】
+${contextInfo.plotInfo}
+
+【キャラクター情報】
+${projectCharacters}
+
+【キャラクター相関図】
+${contextInfo.relationships}
+
+【設定資料・世界観】
+${contextInfo.worldSettings}
+
+【重要用語集】
+${contextInfo.glossary}
+
 【現在の文章】
 ${draft}
 
 【続きの執筆指示】
 - 上記の文章の自然な続きを書いてください
+- キャラクターの性格や設定を一貫して保ってください
+- 特に「設定資料・世界観」や「重要用語集」の内容と矛盾しないようにしてください
+- 「キャラクター相関図」の関係性に基づいた会話や態度を描写してください
 - 会話を重視し、臨場感のある描写を心がけてください
 - 1000-1500文字程度で続きを執筆してください
 - 章の目的に沿った内容で物語を前進させてください
@@ -2724,31 +2319,6 @@ ${chaptersInfo}
   // 自動保存用のタイマー
   const autoSaveTimeoutRef = useRef<number | null>(null);
 
-  // テキストエリアの変更ハンドラー
-  const handleDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newContent = e.target.value;
-    setDraft(newContent);
-    
-    // 即座にchapterDraftsを更新（保存はしない）
-    if (selectedChapter) {
-      setChapterDrafts(prev => ({
-        ...prev,
-        [selectedChapter]: newContent
-      }));
-      
-      // 自動保存のタイマーを設定（2秒後に保存）
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-      
-      autoSaveTimeoutRef.current = setTimeout(() => {
-        if (selectedChapter && newContent.trim()) {
-          handleSaveChapterDraft(selectedChapter, newContent, true);
-        }
-      }, 2000);
-    }
-  };
-
   // コンポーネントのアンマウント時に現在の章の内容を保存
   useEffect(() => {
     return () => {
@@ -3137,528 +2707,89 @@ ${critiqueResponse.content}
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* ヘッダー */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-emerald-500">
-                  <PenTool className="h-5 w-5 text-white" />
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                  草案作成
-                </h1>
-              </div>
-              <p className="mt-2 text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                章ごとに詳細な草案を作成し、物語を完成させましょう
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button
-                type="button"
-                onClick={handleCreateManualBackup}
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm font-['Noto_Sans_JP']"
-              >
-                <Save className="h-4 w-4" />
-                <span>バックアップ</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DraftHeader onBackup={handleCreateManualBackup} />
 
       {/* 統合AI生成状態バー */}
-      {unifiedAIStatus.visible && unifiedAIStatus.tone && (
-        <div className={`${AI_STATUS_STYLES[unifiedAIStatus.tone].container} border-b border-gray-200 dark:border-gray-700`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className={`${AI_STATUS_STYLES[unifiedAIStatus.tone].icon} w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0`}>
-                  <Sparkles className="h-4 w-4 animate-spin" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold ${AI_STATUS_STYLES[unifiedAIStatus.tone].title} font-['Noto_Sans_JP']`}>
-                    {unifiedAIStatus.title}
-                  </p>
-                  {unifiedAIStatus.detail && (
-                    <p className={`mt-0.5 text-xs leading-relaxed ${AI_STATUS_STYLES[unifiedAIStatus.tone].detail} font-['Noto_Sans_JP']`}>
-                      {unifiedAIStatus.detail}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {unifiedAIStatus.canCancel && (
-                <button
-                  type="button"
-                  onClick={handleCancelGeneration}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-current hover:bg-opacity-10 transition-colors text-sm font-['Noto_Sans_JP'] flex-shrink-0"
-                  aria-label="生成をキャンセル"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="hidden sm:inline">キャンセル</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <AIStatusBar
+        visible={unifiedAIStatus.visible}
+        title={unifiedAIStatus.title || ''}
+        detail={unifiedAIStatus.detail}
+        tone={unifiedAIStatus.tone}
+        canCancel={unifiedAIStatus.canCancel}
+        onCancel={handleCancelGeneration}
+      />
 
       {/* メインコンテンツ */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row lg:items-start gap-6">
           {/* メインエディタエリア */}
           <div className="flex-1 min-w-0 space-y-6">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="p-6 space-y-6">
-                {/* 章選択 */}
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 font-['Noto_Sans_JP']">
-                        章を選択
-                      </label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        ショートカット: Ctrl + ← / → で章を切り替え
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handlePrevChapter}
-                        disabled={
-                          !selectedChapter ||
-                          currentProject.chapters.length === 0 ||
-                          currentProject.chapters[0]?.id === selectedChapter
-                        }
-                        className="flex items-center space-x-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="前の章へ"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        <span className="font-['Noto_Sans_JP']">前の章</span>
-                      </button>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        {currentChapterIndex >= 0
-                          ? `第${currentChapterIndex + 1}章 / 全${currentProject.chapters.length}章`
-                          : `全${currentProject.chapters.length}章`}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleNextChapter}
-                        disabled={
-                          !selectedChapter ||
-                          currentProject.chapters.length === 0 ||
-                          currentProject.chapters[currentProject.chapters.length - 1]?.id === selectedChapter
-                        }
-                        className="flex items-center space-x-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="次の章へ"
-                      >
-                        <span className="font-['Noto_Sans_JP']">次の章</span>
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    {/* スクロール可能な章タブエリア */}
-                    <div className="relative">
-                      {/* 左スクロールボタン */}
-                      {canScrollLeft && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const container = chapterTabsContainerRef.current;
-                            if (container) {
-                              container.scrollBy({ left: -300, behavior: 'smooth' });
-                            }
-                          }}
-                          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          aria-label="左にスクロール"
-                        >
-                          <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                        </button>
-                      )}
-
-                      {/* 右スクロールボタン */}
-                      {canScrollRight && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const container = chapterTabsContainerRef.current;
-                            if (container) {
-                              container.scrollBy({ left: 300, behavior: 'smooth' });
-                            }
-                          }}
-                          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          aria-label="右にスクロール"
-                        >
-                          <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                        </button>
-                      )}
-
-                      <div
-                        ref={chapterTabsContainerRef}
-                        role="tablist"
-                        aria-label="章一覧"
-                        className="flex gap-2 overflow-x-auto pb-2 pt-1 scrollbar-hide"
-                        style={{
-                          scrollbarWidth: 'none',
-                          msOverflowStyle: 'none',
-                        }}
-                      >
-                        {currentProject.chapters.map((chapter, index) => {
-                          const isSelected = selectedChapter === chapter.id;
-                          const hasContent = Boolean(chapterDrafts[chapter.id] && chapterDrafts[chapter.id].trim());
-                          return (
-                            <button
-                              key={chapter.id}
-                              type="button"
-                              data-chapter-id={chapter.id}
-                              role="tab"
-                              tabIndex={isSelected ? 0 : -1}
-                              aria-selected={isSelected}
-                              onClick={() => handleChapterSelect(chapter.id)}
-                              className={`group flex min-w-[200px] flex-col gap-1 rounded-xl border px-4 py-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 font-['Noto_Sans_JP'] ${
-                                isSelected
-                                  ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-400 dark:bg-blue-900/40 dark:text-blue-100'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-gray-700'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
-                                <span>{`第${index + 1}章`}</span>
-                                {hasContent && (
-                                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                                    草案あり
-                                  </span>
-                                )}
-                              </div>
-                              <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                                {chapter.title || `章 ${index + 1}`}
-                              </div>
-                              {chapter.summary && (
-                                <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 max-h-10 overflow-hidden">
-                                  {chapter.summary}
-                                </p>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* 章数が多い場合のドロップダウン（モバイル表示） */}
-                    {currentProject.chapters.length > 5 && (
-                      <div className="mt-3 sm:hidden">
-                        <select
-                          value={selectedChapter || ''}
-                          onChange={(e) => handleChapterSelect(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-['Noto_Sans_JP'] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">章を選択してください</option>
-                          {currentProject.chapters.map((chapter, index) => (
-                            <option key={chapter.id} value={chapter.id}>
-                              第{index + 1}章: {chapter.title || `章 ${index + 1}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* 章数が多い場合のデスクトップ用ドロップダウン */}
-                    {currentProject.chapters.length > 8 && (
-                      <div className="hidden sm:block mt-3">
-                        <select
-                          value={selectedChapter || ''}
-                          onChange={(e) => handleChapterSelect(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-['Noto_Sans_JP'] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">章を選択してください（クイック選択）</option>
-                          {currentProject.chapters.map((chapter, index) => (
-                            <option key={chapter.id} value={chapter.id}>
-                              第{index + 1}章: {chapter.title || `章 ${index + 1}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-
-                  <select
-                    value={selectedChapter || ''}
-                    onChange={(e) => handleChapterSelect(e.target.value)}
-                    className="sr-only"
-                    aria-label="章を選択"
-                  >
-                    <option value="">章を選択してください</option>
-                    {currentProject.chapters.map(chapter => (
-                      <option key={chapter.id} value={chapter.id}>
-                        {chapter.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                    {selectedChapter && currentChapter ? `${currentChapter.title} の草案` : '草案執筆'}
-                  </h3>
-                </div>
-
-                {/* 章内容表示 */}
-                {currentChapter && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
-                    {/* アコーディオンヘッダー */}
-                    <button
-                      type="button"
-                      onClick={() => setIsChapterInfoCollapsed(prev => !prev)}
-                      className="w-full p-4 flex items-start space-x-3 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                    >
-                      <div className="bg-blue-500 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                        <BookOpen className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-center justify-between">
-                          <h4 className={`font-semibold text-blue-900 dark:text-blue-100 font-['Noto_Sans_JP'] ${!isChapterInfoCollapsed ? 'mb-2' : ''}`}>
-                            {currentChapter.title}
-                          </h4>
-                          {isChapterInfoCollapsed ? (
-                            <ChevronDown className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
-                          ) : (
-                            <ChevronUp className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
-                          )}
-                        </div>
-                        {!isChapterInfoCollapsed && (
-                          <>
-                            <p className="text-blue-800 dark:text-blue-200 text-sm font-['Noto_Sans_JP'] leading-relaxed mb-3">
-                              {currentChapter.summary}
-                            </p>
-
-                            {/* 章詳細情報 */}
-                            {(() => {
-                              const chapterDetails = getChapterDetails(currentChapter);
-                              const hasDetails = Object.values(chapterDetails).some(value => value !== '未設定');
-
-                              if (!hasDetails) return null;
-
-                              return (
-                                <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                    {chapterDetails.characters !== '未設定' && (
-                                      <div>
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">登場キャラクター:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.characters}</span>
-                                      </div>
-                                    )}
-                                    {chapterDetails.setting !== '未設定' && (
-                                      <div>
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">設定・場所:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.setting}</span>
-                                      </div>
-                                    )}
-                                    {chapterDetails.mood !== '未設定' && (
-                                      <div>
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">雰囲気:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.mood}</span>
-                                      </div>
-                                    )}
-                                    {chapterDetails.keyEvents !== '未設定' && (
-                                      <div className="sm:col-span-2">
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">重要な出来事:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.keyEvents}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </>
-                        )}
-                      </div>
-                    </button>
-                  </div>
-                )}
-
-                {/* メインテキストエリア */}
-                <div
-                  className={`rounded-lg min-h-[300px] border ${
-                    isMainFocusMode
-                      ? 'border-emerald-500/40 bg-gray-900 text-emerald-50'
-                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-                  }`}
-                >
-                  {selectedChapter ? (
-                    <div className={`p-4 ${isMainFocusMode ? 'bg-gray-900/80 rounded-b-lg' : ''}`}>
-                      <div
-                        className={`${mainEditorContainerClass} rounded-lg transition-colors duration-200`}
-                        style={isMainFocusMode ? { boxShadow: '0 0 0 1px rgba(16, 185, 129, 0.25)' } : undefined}
-                      >
-                        <div className="flex">
-                          {showMainLineNumbers && (
-                            <div
-                              ref={mainLineNumbersRef}
-                              className={`pl-6 pr-3 py-5 md:pl-8 md:pr-4 md:py-6 select-none border-r ${
-                                isMainFocusMode
-                                  ? 'border-emerald-500/40 bg-gray-900/60 text-emerald-200/80'
-                                  : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-500'
-                              }`}
-                              style={{
-                                height: mainTextareaHeight,
-                                overflow: 'hidden',
-                                position: 'relative',
-                              }}
-                            >
-                              <div
-                                ref={mainLineNumbersInnerRef}
-                                style={{
-                                  fontFamily: 'monospace',
-                                  whiteSpace: 'pre',
-                                  fontSize: mainFontSize,
-                                  lineHeight: `${mainComputedLineHeight}px`,
-                                  transform: 'translateY(0)',
-                                  willChange: 'transform',
-                                }}
-                              >
-                                {mainLineNumbersContent}
-                              </div>
-                            </div>
-                          )}
-                          <textarea
-                            ref={mainTextareaRef}
-                            value={draft}
-                            onChange={handleDraftChange}
-                            onScroll={handleMainTextareaScroll}
-                            placeholder="ここに草案を執筆してください..."
-                            className={`flex-1 px-6 py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none font-['Noto_Sans_JP'] ${
-                              isMainFocusMode
-                                ? 'text-emerald-50 placeholder-emerald-400/50'
-                                : 'text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400'
-                            }`}
-                            style={{
-                              fontSize: mainFontSize,
-                              lineHeight: `${mainComputedLineHeight}px`,
-                              height: mainTextareaHeight,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-6 min-h-[300px] flex items-center justify-center">
-                      <div className="text-center text-gray-500 dark:text-gray-400">
-                        <PenTool className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg font-medium font-['Noto_Sans_JP'] mb-2">
-                          章を選択してください
-                        </p>
-                        <p className="text-sm font-['Noto_Sans_JP']">
-                          上部の章一覧から章を選択すると、ここで草案を執筆できます。
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-900/30">
-                <div className="flex flex-col gap-1">
-                  <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    文字数: {wordCount.toLocaleString()}
-                  </div>
-                  {lastSavedAt && (
-                    <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
-                      最終保存: {formatTimestamp(lastSavedAt.getTime())}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* プライマリボタン */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (selectedChapter) {
-                          await handleSaveChapterDraft(selectedChapter, undefined, false);
-                          setToastMessage('保存しました');
-                          setTimeout(() => {
-                            setToastMessage(null);
-                          }, 3000);
-                        }
-                      }}
-                      disabled={!selectedChapter}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-['Noto_Sans_JP'] text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Save className="h-4 w-4" />
-                      <span className="hidden sm:inline">保存</span>
-                    </button>
-                    {selectedChapter && (
-                      <button
-                        type="button"
-                        onClick={handleOpenViewer}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-sm font-['Noto_Sans_JP'] text-sm"
-                      >
-                        <BookOpen className="h-4 w-4" />
-                        <span className="hidden sm:inline">プレビュー</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* セカンダリボタン（ドロップダウンメニュー） */}
-                  <div className="relative" ref={menuRef}>
-                    <button
-                      type="button"
-                      onClick={() => setIsMenuOpen(!isMenuOpen)}
-                      className="flex items-center justify-center p-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      aria-label="その他の操作"
-                      aria-expanded={isMenuOpen}
-                    >
-                      <MoreVertical className="h-5 w-5" />
-                    </button>
-
-                    {/* ドロップダウンメニュー */}
-                    {isMenuOpen && (
-                      <div className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 fade-in">
-                        {currentChapter && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleExportChapter();
-                              setIsMenuOpen(false);
-                            }}
-                            disabled={!draft.trim()}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                          >
-                            <Download className="h-4 w-4" />
-                            章出力
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            openSecondaryTab('display');
-                            setIsMenuOpen(false);
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
-                        >
-                          <ListChecks className="h-4 w-4" />
-                          表示設定
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            openSecondaryTab('ai');
-                            setIsMenuOpen(false);
-                          }}
-                          disabled={!selectedChapter}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                        >
-                          <Wand2 className="h-4 w-4" />
-                          AIアシスト
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+            {/* 章選択 */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden p-6">
+              <ChapterTabs
+                chapters={currentProject.chapters}
+                selectedChapterId={selectedChapter}
+                chapterDrafts={chapterDrafts}
+                onChapterSelect={handleChapterSelect}
+                onPrevChapter={handlePrevChapter}
+                onNextChapter={handleNextChapter}
+                currentChapterIndex={currentChapterIndex}
+              />
             </div>
+
+            <MainEditor
+              ref={mainEditorRef}
+              selectedChapterId={selectedChapter}
+              currentChapter={currentChapter}
+              draft={draft}
+              chapterDetails={currentChapter ? getChapterDetails(currentChapter) : null}
+              isChapterInfoCollapsed={isChapterInfoCollapsed}
+              onChapterInfoToggle={() => setIsChapterInfoCollapsed(prev => !prev)}
+              onDraftChange={(value) => {
+                const newContent = value;
+                setDraft(newContent);
+                
+                // 即座にchapterDraftsを更新（保存はしない）
+                if (selectedChapter) {
+                  setChapterDrafts(prev => ({
+                    ...prev,
+                    [selectedChapter]: newContent
+                  }));
+                  
+                  // 自動保存のタイマーを設定（2秒後に保存）
+                  if (autoSaveTimeoutRef.current) {
+                    clearTimeout(autoSaveTimeoutRef.current);
+                  }
+                  
+                  autoSaveTimeoutRef.current = setTimeout(() => {
+                    if (selectedChapter && newContent.trim()) {
+                      handleSaveChapterDraft(selectedChapter, newContent, true);
+                    }
+                  }, 2000);
+                }
+              }}
+              mainFontSize={mainFontSize}
+              mainLineHeight={mainLineHeight}
+              mainTextareaHeight={mainTextareaHeight}
+              showMainLineNumbers={showMainLineNumbers}
+              isMainFocusMode={isMainFocusMode}
+              wordCount={wordCount}
+              lastSavedAt={lastSavedAt}
+              selectedChapter={selectedChapter}
+              onSave={async () => {
+                if (selectedChapter) {
+                  await handleSaveChapterDraft(selectedChapter, undefined, false);
+                  setToastMessage('保存しました');
+                  setTimeout(() => {
+                    setToastMessage(null);
+                  }, 3000);
+                }
+              }}
+              onOpenViewer={handleOpenViewer}
+              onExportChapter={handleExportChapter}
+              onOpenDisplaySettings={() => openSecondaryTab('display')}
+              onOpenAIAssist={() => openSecondaryTab('ai')}
+            />
           </div>
 
           {/* 副次機能パネル */}
@@ -3720,137 +2851,19 @@ ${critiqueResponse.content}
         </div>
       </div>
 
-      {showCustomPromptModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-center justify-center p-4">
-            {/* オーバーレイ */}
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-              onClick={() => setShowCustomPromptModal(false)}
-            />
-
-            {/* モーダルコンテンツ */}
-            <div className="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
-              {/* モーダルヘッダー */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-br from-purple-500 to-pink-600 w-8 h-8 rounded-full flex items-center justify-center">
-                    <PenTool className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                      カスタムプロンプト設定
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      執筆スタイルをカスタマイズできます
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setShowCustomPromptModal(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* モーダルボディ */}
-              <div className="p-6">
-                <div className="space-y-6">
-                  {/* カスタムプロンプト使用の切り替え */}
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id="useCustomPrompt"
-                      checked={useCustomPrompt}
-                      onChange={(e) => setUseCustomPrompt(e.target.checked)}
-                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                    />
-                    <label
-                      htmlFor="useCustomPrompt"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']"
-                    >
-                      カスタムプロンプトを使用する
-                    </label>
-                  </div>
-
-                  {/* カスタムプロンプト入力エリア */}
-                  {useCustomPrompt && (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                          カスタム執筆指示
-                        </label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
-                          基本のプロンプトに追加したい執筆指示を記述してください。例：「詩的な表現を多用する」「一人称視点で執筆する」「短編小説風の文体にする」など
-                        </p>
-                        <textarea
-                          value={customPrompt}
-                          onChange={(e) => setCustomPrompt(e.target.value)}
-                          placeholder={'例：\n• 詩的な表現を多用し、美しい情景描写を心がける\n• 一人称視点で主人公の内面を深く描写する\n• 短編小説風の簡潔で印象的な文体にする\n• 会話は最小限に抑え、心理描写を重視する\n• ミステリー要素を織り交ぜ、読者の興味を引く展開にする'}
-                          className="w-full h-40 p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-['Noto_Sans_JP'] leading-relaxed"
-                          style={{ lineHeight: '1.6' }}
-                        />
-                      </div>
-
-                      <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        文字数: {customPrompt.length.toLocaleString()}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* プレビューエリア */}
-                  {useCustomPrompt && customPrompt.trim() && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                        プロンプトプレビュー
-                      </h4>
-                      <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                        <div className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] whitespace-pre-wrap">
-                          【基本プロンプト】<br />
-                          以下の章の情報を基に、会話を重視し、読者に臨場感のある魅力的な小説の章を執筆してください。<br /><br />
-                          【章情報・プロジェクト情報・キャラクター情報・執筆指示】<br />
-                          （省略）<br /><br />
-                          【カスタム執筆指示】<br />
-                          {customPrompt}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* モーダルフッター */}
-              <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700">
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  {useCustomPrompt ? 'カスタムプロンプトが有効です' : 'デフォルトプロンプトを使用します'}
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => {
-                      setCustomPrompt('');
-                      setUseCustomPrompt(false);
-                    }}
-                    className="px-4 py-2 text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-['Noto_Sans_JP']"
-                  >
-                    リセット
-                  </button>
-                  <button
-                    onClick={() => setShowCustomPromptModal(false)}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP']"
-                  >
-                    保存して閉じる
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* カスタムプロンプトモーダル */}
+      <CustomPromptModal
+        isOpen={showCustomPromptModal}
+        customPrompt={customPrompt}
+        useCustomPrompt={useCustomPrompt}
+        onClose={() => setShowCustomPromptModal(false)}
+        onCustomPromptChange={setCustomPrompt}
+        onUseCustomPromptChange={setUseCustomPrompt}
+        onReset={() => {
+          setCustomPrompt('');
+          setUseCustomPrompt(false);
+        }}
+      />
 
       {/* プレビュー／編集モーダル */}
       {isModalOpen && (
@@ -3991,11 +3004,23 @@ ${critiqueResponse.content}
                 {/* テキストエリア（読み取り専用） */}
                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
                   <div
-                    className={`${isVerticalWriting ? 'h-[600px]' : 'h-[400px]'} w-full p-4 border-0 rounded-lg bg-transparent text-gray-900 dark:text-white font-['Noto_Sans_JP'] leading-relaxed overflow-auto whitespace-pre-wrap`}
+                    className={`${isVerticalWriting ? 'h-[600px] font-serif-jp' : 'h-[400px] font-[\'Noto_Sans_JP\']'} w-full p-4 border-0 rounded-lg bg-transparent text-gray-900 dark:text-white leading-relaxed overflow-auto whitespace-pre-wrap`}
                     style={{
-                      lineHeight: '1.6',
+                      lineHeight: isVerticalWriting ? '2.0' : '1.8',
+                      letterSpacing: isVerticalWriting ? '0.05em' : 'normal',
                       writingMode: isVerticalWriting ? 'vertical-rl' : 'horizontal-tb',
                       textOrientation: isVerticalWriting ? 'upright' : 'mixed',
+                    }}
+                    onWheel={(e) => {
+                      if (isVerticalWriting) {
+                        const container = e.currentTarget;
+                        // マウスホイールの回転（deltaY）を横スクロール（scrollLeft）に変換
+                        // 通常のマウス：下に回す（deltaY > 0）→ 左へスクロール（文章が進む）
+                        // 縦書き（vertical-rl）の仕様上、スクロール位置は負の値になるブラウザが多い
+                        // 左へスクロール = scrollLeft を減らす（マイナス方向へ進む）
+                        container.scrollLeft -= e.deltaY;
+                        e.preventDefault();
+                      }
                     }}
                   >
                     {modalDraft || (
@@ -4028,196 +3053,31 @@ ${critiqueResponse.content}
       )}
 
       {/* 改善ログモーダル */}
-      {isImprovementLogModalOpen && selectedChapter && improvementLogs[selectedChapter] && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-center justify-center p-4">
-            {/* オーバーレイ */}
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-              onClick={() => setIsImprovementLogModalOpen(false)}
-            />
-
-            {/* モーダルコンテンツ */}
-            <div className="relative w-full max-w-5xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
-              {/* モーダルヘッダー */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 gap-3">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-br from-amber-500 to-orange-600 w-8 h-8 rounded-full flex items-center justify-center">
-                    <ListChecks className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                      改善ログ
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      {currentChapter?.title || '選択中の章'} - {improvementLogs[selectedChapter].length}件のログ
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setIsImprovementLogModalOpen(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* モーダルボディ */}
-              <div className="p-4 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-4">
-                  {improvementLogs[selectedChapter].map((log, index) => {
-                    const isSelected = selectedImprovementLogId === log.id;
-                    return (
-                      <div
-                        key={log.id}
-                        className={`border rounded-lg transition-all ${
-                          isSelected
-                            ? 'border-amber-400 bg-amber-50/80 dark:border-amber-500 dark:bg-amber-900/30'
-                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-                        }`}
-                      >
-                        {/* ログヘッダー */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedImprovementLogId(isSelected ? null : log.id)}
-                          className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                  #{improvementLogs[selectedChapter].length - index}
-                                </span>
-                                <span className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                  {formatTimestamp(log.timestamp)}
-                                </span>
-                              </div>
-                              <div className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                {log.originalLength}字 → {log.revisedLength}字
-                                {log.revisedLength !== log.originalLength && (
-                                  <span className={`ml-2 ${log.revisedLength > log.originalLength ? 'text-green-600' : 'text-blue-600'}`}>
-                                    ({log.revisedLength > log.originalLength ? '+' : ''}{log.revisedLength - log.originalLength}字)
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {isSelected ? (
-                              <ChevronUp className="h-5 w-5 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5 text-gray-400" />
-                            )}
-                          </div>
-                        </button>
-
-                        {/* ログ詳細 */}
-                        {isSelected && (
-                          <div className="px-4 pb-4 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-                            {/* フェーズ1：評価結果 */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="bg-blue-500 w-6 h-6 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">1</span>
-                                </div>
-                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                  フェーズ1：評価結果
-                                </h4>
-                              </div>
-                              <div className="ml-8 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-4 max-h-64 overflow-y-auto whitespace-pre-wrap font-['Noto_Sans_JP'] leading-relaxed">
-                                {log.phase1Critique}
-                              </div>
-                            </div>
-
-                            {/* フェーズ2：改善戦略 */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="bg-amber-500 w-6 h-6 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">2</span>
-                                </div>
-                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                  フェーズ2：改善戦略
-                                </h4>
-                              </div>
-                              <div className="ml-8 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-4 font-['Noto_Sans_JP'] leading-relaxed">
-                                {log.phase2Summary}
-                              </div>
-                            </div>
-
-                            {/* 主な変更点 */}
-                            {log.phase2Changes && log.phase2Changes.length > 0 && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <div className="bg-green-500 w-6 h-6 rounded-full flex items-center justify-center">
-                                    <CheckCircle className="h-3 w-3 text-white" />
-                                  </div>
-                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                    主な変更点
-                                  </h4>
-                                </div>
-                                <ul className="ml-8 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-4 space-y-2 font-['Noto_Sans_JP']">
-                                  {log.phase2Changes.map((change, idx) => (
-                                    <li key={idx} className="flex items-start gap-2">
-                                      <span className="text-amber-500 mt-1">•</span>
-                                      <span className="flex-1">{change}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* モーダルフッター */}
-              <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                <button
-                  onClick={() => setIsImprovementLogModalOpen(false)}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-['Noto_Sans_JP']"
-                >
-                  閉じる
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ImprovementLogModal
+        isOpen={isImprovementLogModalOpen}
+        chapterTitle={currentChapter?.title || null}
+        logs={selectedChapter && improvementLogs[selectedChapter] ? improvementLogs[selectedChapter] : []}
+        selectedLogId={selectedImprovementLogId}
+        onClose={() => setIsImprovementLogModalOpen(false)}
+        onSelectLog={setSelectedImprovementLogId}
+      />
 
       {/* トースト通知 */}
       {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 fade-in">
-          <div className="bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[280px] max-w-md">
-            <CheckCircle className="h-5 w-5 flex-shrink-0" />
-            <span className="flex-1 text-sm font-['Noto_Sans_JP']">{toastMessage}</span>
-            <button
-              onClick={() => setToastMessage(null)}
-              className="flex-shrink-0 p-1 hover:bg-emerald-600 rounded transition-colors"
-              aria-label="閉じる"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <Toast
+          message={toastMessage}
+          type="success"
+          onClose={() => setToastMessage(null)}
+        />
       )}
 
       {/* 生成完了通知 */}
       {showCompletionToast && (
-        <div className="fixed top-4 right-4 z-50 fade-in">
-          <div className="bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[280px] max-w-md">
-            <CheckCircle className="h-5 w-5 flex-shrink-0" />
-            <span className="flex-1 text-sm font-['Noto_Sans_JP']">{showCompletionToast}</span>
-            <button
-              onClick={() => setShowCompletionToast(null)}
-              className="flex-shrink-0 p-1 hover:bg-blue-600 rounded transition-colors"
-              aria-label="閉じる"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <Toast
+          message={showCompletionToast}
+          type="info"
+          onClose={() => setShowCompletionToast(null)}
+        />
       )}
     </div>
   );

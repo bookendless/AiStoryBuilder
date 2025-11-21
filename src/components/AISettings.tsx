@@ -154,8 +154,30 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         });
 
         if (response.status >= 400) {
-          const errorData = response.data as { error?: { message?: string } };
-          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
+          const errorData = response.data as { error?: { message?: string; code?: number } };
+          const errorMessage = errorData.error?.message || response.statusText;
+          
+          // 429エラーの場合、より詳細なメッセージを提供
+          if (response.status === 429) {
+            let detailedMessage = `API エラー (429): ${errorMessage}`;
+            
+            if (errorMessage.includes('Resource has been exhausted') || errorMessage.includes('quota')) {
+              detailedMessage += '\n\n【考えられる原因】\n';
+              detailedMessage += '1. リージョンのリソース制限: 特定のリージョンでリソースが一時的に枯渇している可能性があります\n';
+              detailedMessage += '2. プロビジョニングされたスループット未購入: 従量課金制の場合、リソースの優先度が低い可能性があります\n';
+              detailedMessage += '3. 一時的なリソース不足: Googleのインフラストラクチャが一時的に高負荷状態にある可能性があります\n';
+              detailedMessage += '4. Proモデルの制限: Gemini 2.5 ProはFlashモデルよりも厳しいリソース制限があります\n\n';
+              detailedMessage += '【対処法】\n';
+              detailedMessage += '- しばらく待ってから再試行してください\n';
+              detailedMessage += '- Gemini 2.5 Flashなどの軽量モデルを試してください\n';
+              detailedMessage += '- Google Cloud Consoleでクォータとレート制限を確認してください\n';
+              detailedMessage += '- プロビジョニングされたスループットの購入を検討してください';
+            }
+            
+            throw new Error(detailedMessage);
+          }
+          
+          throw new Error(`API エラー (${response.status}): ${errorMessage}`);
         }
       } else if (formData.provider === 'local') {
         let endpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';

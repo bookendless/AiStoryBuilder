@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, X, Sparkles, BookOpen, Calendar, Network, Zap, CheckCircle, Lightbulb } from 'lucide-react';
+import { Send, Bot, User, X, Sparkles, BookOpen, Calendar, Network, Zap, CheckCircle, Lightbulb, StopCircle } from 'lucide-react';
 import { useAI } from '../../contexts/AIContext';
 import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
@@ -25,11 +25,12 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // メッセージが更新されたら自動スクロール
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]); // isLoading中もスクロールするように追加
 
   // チャットが開いたらフォーカス
   useEffect(() => {
@@ -213,20 +214,33 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
     setInput('');
     setIsLoading(true);
 
+    // AbortControllerのセットアップ
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    // アシスタントのメッセージ用プレースホルダーを作成
+    const assistantMessageId = (Date.now() + 1).toString();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '', // 初期状態は空
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, assistantMessage]);
+
     try {
       // コマンドを解析
       const commandResult = await parseCommand(userInput);
       
       if (commandResult && commandResult.result) {
-        // コマンド結果を直接表示
-        const commandMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: commandResult.result,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, commandMessage]);
+        // コマンド結果を直接更新
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: commandResult.result! } 
+            : msg
+        ));
         setIsLoading(false);
+        abortControllerRef.current = null;
         inputRef.current?.focus();
         return;
       }
@@ -263,42 +277,66 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
       // ユーザーの質問を追加
       const fullPrompt = `${systemPrompt}\n\nユーザー: ${userMessage.content}\nアシスタント:`;
 
+      let accumulatedContent = '';
+
       const response = await aiService.generateContent({
         prompt: fullPrompt,
         type: 'draft',
         settings,
         context: projectContext || undefined,
+        signal: abortController.signal,
+        onStream: (chunk) => {
+          accumulatedContent += chunk;
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId 
+              ? { ...msg, content: accumulatedContent } 
+              : msg
+          ));
+        }
       });
 
       if (response.error) {
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: `エラーが発生しました: ${response.error}`,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, errorMessage]);
-      } else if (response.content) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.content,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, assistantMessage]);
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: `エラーが発生しました: ${response.error}` } 
+            : msg
+        ));
+      } else if (!accumulatedContent && response.content) {
+        // ストリーミングが機能しなかった場合のフォールバック
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: response.content } 
+            : msg
+        ));
       }
     } catch (error) {
-      console.error('Chat error:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('生成が中断されました');
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: msg.content + '\n(生成を中断しました)' } 
+            : msg
+        ));
+      } else {
+        console.error('Chat error:', error);
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: `エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}` } 
+            : msg
+        ));
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
       inputRef.current?.focus();
+    }
+  };
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
     }
   };
 
@@ -508,9 +546,18 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                   }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap font-['Noto_Sans_JP']">
-                    {message.content}
-                  </p>
+                  {/* メッセージ内容が空の場合はローディング表示（ストリーミング開始前） */}
+                  {message.content === '' && isLoading ? (
+                     <div className="flex space-x-1 h-5 items-center">
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                     </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap font-['Noto_Sans_JP']">
+                      {message.content}
+                    </p>
+                  )}
                   <p
                     className={`text-xs mt-1 ${
                       message.role === 'user'
@@ -584,23 +631,6 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
             </div>
           )}
           
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="flex items-start space-x-2 max-w-[80%]">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                  <Bot className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                </div>
-                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
           <div ref={messagesEndRef} />
         </div>
 
@@ -617,14 +647,24 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
               rows={2}
               className="flex-1 resize-none px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
             />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading || !isConfigured}
-              className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              aria-label="送信"
-            >
-              <Send className="h-5 w-5" />
-            </button>
+            {isLoading ? (
+               <button
+                onClick={handleStop}
+                className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                aria-label="停止"
+               >
+                 <StopCircle className="h-5 w-5" />
+               </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || !isConfigured}
+                className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                aria-label="送信"
+              >
+                <Send className="h-5 w-5" />
+              </button>
+            )}
           </div>
           {!isConfigured && (
             <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 font-['Noto_Sans_JP']">

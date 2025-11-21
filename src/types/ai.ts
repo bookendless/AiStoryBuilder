@@ -28,6 +28,8 @@ export interface AIRequest {
   type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world';
   settings: AISettings;
   image?: string; // Base64エンコードされた画像データ（data:image/...形式）
+  onStream?: (chunk: string) => void; // ストリーミング用のコールバック
+  signal?: AbortSignal; // 中断用のシグナル
 }
 
 export interface AIResponse {
