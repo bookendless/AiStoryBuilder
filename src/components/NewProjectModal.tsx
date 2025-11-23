@@ -3,6 +3,7 @@ import { X, BookOpen, Image, Upload } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
+import { OptimizedImage } from './OptimizedImage';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -12,13 +13,13 @@ interface NewProjectModalProps {
 
 // ジャンル選択オプション
 const GENRES = [
-  '一般小説', '恋愛小説', 'ミステリー', 'SF', 'ファンタジー', 'ホラー', '歴史小説', 
-  '青春小説', 'ビジネス小説', 'スポーツ小説', 'コメディ', 'アクション', 'サスペンス', 'その他'
+  '一般小説', '恋愛小説', 'ミステリー', 'SF', 'ファンタジー', 'ホラー',  
+  'コメディ', 'アクション', 'サスペンス', 'その他'
 ];
 
 // ターゲット読者選択オプション
 const TARGET_READERS = [
-  '10代', '20代', '30代', '40代', '50代以上', '全年齢', 'その他'
+  '10代', '20代', '30代','40代以上', '全年齢','その他'
 ];
 
 // テーマ選択オプション
@@ -27,7 +28,41 @@ const THEMES = [
   '復讐・救済', '冒険・探検', '戦争・平和', '死・生', '希望・夢', '孤独・疎外感', 'その他'
 ];
 
+// 文体オプション
+const STYLE_OPTIONS = [
+  '現代小説風', '文語調', '口語的', '詩的', '簡潔', '詳細', 'その他'
+];
+
+const PERSPECTIVE_OPTIONS = [
+  '一人称', '三人称', '神の視点'
+];
+
+const FORMALITY_OPTIONS = [
+  '硬め', '柔らかめ', '口語的', '文語的'
+];
+
+const RHYTHM_OPTIONS = [
+  '短文中心', '長短混合', '流れるような長文'
+];
+
+const METAPHOR_OPTIONS = [
+  '多用', '控えめ', '詩的', '写実的'
+];
+
+const DIALOGUE_OPTIONS = [
+  '会話多め', '描写重視', 'バランス型'
+];
+
+const EMOTION_OPTIONS = [
+  '内面重視', '行動で示す', '抑制的'
+];
+
+const TONE_OPTIONS = [
+  '緊張感', '穏やか', '希望', '切なさ', '謎めいた'
+];
+
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onNavigateToStep }) => {
+  const [activeTab, setActiveTab] = useState<'basic' | 'style'>('basic');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [mainGenre, setMainGenre] = useState('');
@@ -40,6 +75,16 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const [customSubGenre, setCustomSubGenre] = useState('');
   const [customTargetReader, setCustomTargetReader] = useState('');
   const [customTheme, setCustomTheme] = useState('');
+  const [styleData, setStyleData] = useState({
+    style: '',
+    perspective: '',
+    formality: '',
+    rhythm: '',
+    metaphor: '',
+    dialogue: '',
+    emotion: '',
+    tone: '',
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { createNewProject } = useProject();
   const { modalRef } = useModalNavigation({
@@ -102,7 +147,24 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       const finalTargetReader = targetReader === 'その他' ? customTargetReader : targetReader;
       const finalTheme = projectTheme === 'その他' ? customTheme : projectTheme;
       
-      createNewProject(title.trim(), description.trim(), finalMainGenre, finalSubGenre, coverImage, finalTargetReader, finalTheme);
+      // 文体設定を構築（空でない値のみ含める）
+      const writingStyle = {
+        style: styleData.style || undefined,
+        perspective: styleData.perspective || undefined,
+        formality: styleData.formality || undefined,
+        rhythm: styleData.rhythm || undefined,
+        metaphor: styleData.metaphor || undefined,
+        dialogue: styleData.dialogue || undefined,
+        emotion: styleData.emotion || undefined,
+        tone: styleData.tone || undefined,
+      };
+      
+      // すべての値が undefined の場合は writingStyle 自体を undefined にする
+      const finalWritingStyle = Object.values(writingStyle).every(v => v === undefined) 
+        ? undefined 
+        : writingStyle;
+      
+      createNewProject(title.trim(), description.trim(), finalMainGenre, finalSubGenre, coverImage, finalTargetReader, finalTheme, finalWritingStyle);
       onNavigateToStep('character');
       onClose();
       setTitle('');
@@ -117,6 +179,17 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       setCustomSubGenre('');
       setCustomTargetReader('');
       setCustomTheme('');
+      setStyleData({
+        style: '',
+        perspective: '',
+        formality: '',
+        rhythm: '',
+        metaphor: '',
+        dialogue: '',
+        emotion: '',
+        tone: '',
+      });
+      setActiveTab('basic');
     }
   };
 
@@ -149,7 +222,35 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
           </button>
         </div>
 
+        {/* タブナビゲーション */}
+        <div className="mb-6 flex space-x-1 border-b border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setActiveTab('basic')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'basic'
+                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            } font-['Noto_Sans_JP']`}
+          >
+            基本情報
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('style')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'style'
+                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            } font-['Noto_Sans_JP']`}
+          >
+            文体設定
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
+          {activeTab === 'basic' && (
+            <div className="space-y-6">
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
               プロジェクトタイトル *
@@ -195,7 +296,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                       setCustomMainGenre('');
                     }
                   }}
-                  className={`p-2 rounded-lg text-sm transition-colors ${
+                  className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${
                     mainGenre === genreOption
                       ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/50'
@@ -237,7 +338,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                       setCustomSubGenre('');
                     }
                   }}
-                  className={`p-2 rounded-lg text-sm transition-colors ${
+                  className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${
                     subGenre === genreOption
                       ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/50'
@@ -279,7 +380,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                       setCustomTargetReader('');
                     }
                   }}
-                  className={`p-2 rounded-lg text-sm transition-colors ${
+                  className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${
                     targetReader === target
                       ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/50'
@@ -321,7 +422,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                       setCustomTheme('');
                     }
                   }}
-                  className={`p-2 rounded-lg text-sm transition-colors ${
+                  className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${
                     projectTheme === themeOption
                       ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/50'
@@ -362,10 +463,12 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               
               {previewUrl ? (
                 <div className="space-y-3">
-                  <img 
-                    src={previewUrl} 
-                    alt="プレビュー" 
-                    className="w-full h-32 object-cover rounded-lg mx-auto"
+                  <OptimizedImage
+                    src={previewUrl}
+                    alt="プレビュー"
+                    className="w-full h-32 rounded-lg mx-auto"
+                    lazy={false}
+                    quality={0.8}
                   />
                   <div className="flex space-x-2 justify-center">
                     <button
@@ -406,6 +509,154 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               )}
             </div>
           </div>
+          </div>
+          )}
+
+          {activeTab === 'style' && (
+            <div className="space-y-6">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-800 dark:text-blue-200 font-['Noto_Sans_JP']">
+                  これらの設定は、AIによる文章生成時に使用されます。設定しない場合はデフォルト値が使用されます。
+                </p>
+              </div>
+
+              {/* 基本文体 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  基本文体
+                </label>
+                <select
+                  value={styleData.style}
+                  onChange={(e) => setStyleData({ ...styleData, style: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">デフォルト（現代小説風）</option>
+                  {STYLE_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 人称 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  人称
+                </label>
+                <select
+                  value={styleData.perspective}
+                  onChange={(e) => setStyleData({ ...styleData, perspective: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">指定なし</option>
+                  {PERSPECTIVE_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 硬軟 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  硬軟
+                </label>
+                <select
+                  value={styleData.formality}
+                  onChange={(e) => setStyleData({ ...styleData, formality: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">指定なし</option>
+                  {FORMALITY_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* リズム */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  リズム
+                </label>
+                <select
+                  value={styleData.rhythm}
+                  onChange={(e) => setStyleData({ ...styleData, rhythm: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">指定なし</option>
+                  {RHYTHM_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 比喩表現 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  比喩表現
+                </label>
+                <select
+                  value={styleData.metaphor}
+                  onChange={(e) => setStyleData({ ...styleData, metaphor: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">指定なし</option>
+                  {METAPHOR_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 会話比率 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  会話比率
+                </label>
+                <select
+                  value={styleData.dialogue}
+                  onChange={(e) => setStyleData({ ...styleData, dialogue: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">指定なし</option>
+                  {DIALOGUE_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 感情描写 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  感情描写
+                </label>
+                <select
+                  value={styleData.emotion}
+                  onChange={(e) => setStyleData({ ...styleData, emotion: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">指定なし</option>
+                  {EMOTION_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* トーン */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                  トーン
+                </label>
+                <select
+                  value={styleData.tone}
+                  onChange={(e) => setStyleData({ ...styleData, tone: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                >
+                  <option value="">指定なし</option>
+                  {TONE_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           <div className="flex space-x-3 pt-4">
             <button

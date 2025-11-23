@@ -3,6 +3,94 @@ import { Users, BookOpen, FileText, List, PenTool, Download, Check, Layers, Chev
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 
+// ステップボタンコンポーネント（メモ化）
+interface StepButtonProps {
+  step: { key: Step; label: string; icon: React.ComponentType<{ className?: string }>; color: string };
+  index: number;
+  isActive: boolean;
+  isCompleted: boolean;
+  isCollapsed: boolean;
+  onClick: () => void;
+}
+
+const StepButton = React.memo<StepButtonProps>(({ step, index, isActive, isCompleted, isCollapsed, onClick }) => {
+  const Icon = step.icon;
+  
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+        isCollapsed 
+          ? 'justify-center px-2 py-3' 
+          : 'space-x-3 px-4 py-3 text-left'
+      } ${
+        isActive
+          ? `${step.color} text-white shadow-md transform scale-105`
+          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+      }`}
+      role="listitem"
+      aria-current={isActive ? 'step' : undefined}
+      aria-label={`ステップ${index + 1}: ${step.label}`}
+      aria-describedby={`step-${step.key}-description`}
+      title={isCollapsed ? step.label : undefined}
+    >
+      <div className={`flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0 ${
+        isActive 
+          ? 'bg-white/20' 
+          : isCompleted 
+            ? 'bg-green-100 dark:bg-green-900' 
+            : step.color
+      }`}>
+        {isCompleted ? (
+          <Check className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden="true" />
+        ) : (
+          <Icon className={`h-4 w-4 ${isActive ? 'text-white' : isCompleted ? 'text-green-600 dark:text-green-400' : 'text-white'}`} aria-hidden="true" />
+        )}
+      </div>
+      
+      {!isCollapsed && (
+        <>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-medium font-['Noto_Sans_JP']">{step.label}</span>
+              <div className="flex items-center space-x-2">
+                {isCompleted && (
+                  <span 
+                    className="text-xs text-green-600 dark:text-green-400 font-semibold"
+                    aria-label="完了済み"
+                  >
+                    完了
+                  </span>
+                )}
+                <span 
+                  className="text-xs bg-black/10 dark:bg-white/10 px-2 py-1 rounded-full"
+                  aria-label={`ステップ${index + 1}`}
+                >
+                  {index + 1}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <span id={`step-${step.key}-description`} className="sr-only">
+            {isActive ? '現在のステップ' : isCompleted ? '完了済み' : '未完了'} - {step.label}
+          </span>
+        </>
+      )}
+    </button>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数：ステップの状態が変更された場合のみ再レンダリング
+  return (
+    prevProps.step.key === nextProps.step.key &&
+    prevProps.isActive === nextProps.isActive &&
+    prevProps.isCompleted === nextProps.isCompleted &&
+    prevProps.isCollapsed === nextProps.isCollapsed
+  );
+});
+
+StepButton.displayName = 'StepButton';
+
 interface SidebarProps {
   currentStep: Step;
   onStepChange: (step: Step) => void;
@@ -78,71 +166,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
           {steps.map((step, index) => {
             const isActive = currentStep === step.key;
             const isCompleted = getStepCompletion(currentProject, step.key);
-            const Icon = step.icon;
             
             return (
-              <button
+              <StepButton
                 key={step.key}
+                step={step}
+                index={index}
+                isActive={isActive}
+                isCompleted={isCompleted}
+                isCollapsed={isCollapsed}
                 onClick={() => onStepChange(step.key)}
-                className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                  isCollapsed 
-                    ? 'justify-center px-2 py-3' 
-                    : 'space-x-3 px-4 py-3 text-left'
-                } ${
-                  isActive
-                    ? `${step.color} text-white shadow-md transform scale-105`
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-                role="listitem"
-                aria-current={isActive ? 'step' : undefined}
-                aria-label={`ステップ${index + 1}: ${step.label}`}
-                aria-describedby={`step-${step.key}-description`}
-                title={isCollapsed ? step.label : undefined}
-              >
-                <div className={`flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0 ${
-                  isActive 
-                    ? 'bg-white/20' 
-                    : isCompleted 
-                      ? 'bg-green-100 dark:bg-green-900' 
-                      : step.color
-                }`}>
-                  {isCompleted ? (
-                    <Check className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden="true" />
-                  ) : (
-                    <Icon className={`h-4 w-4 ${isActive ? 'text-white' : isCompleted ? 'text-green-600 dark:text-green-400' : 'text-white'}`} aria-hidden="true" />
-                  )}
-                </div>
-                
-                {!isCollapsed && (
-                  <>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium font-['Noto_Sans_JP']">{step.label}</span>
-                        <div className="flex items-center space-x-2">
-                          {isCompleted && (
-                            <span 
-                              className="text-xs text-green-600 dark:text-green-400 font-semibold"
-                              aria-label="完了済み"
-                            >
-                              完了
-                            </span>
-                          )}
-                          <span 
-                            className="text-xs bg-black/10 dark:bg-white/10 px-2 py-1 rounded-full"
-                            aria-label={`ステップ${index + 1}`}
-                          >
-                            {index + 1}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <span id={`step-${step.key}-description`} className="sr-only">
-                      {isActive ? '現在のステップ' : isCompleted ? '完了済み' : '未完了'} - {step.label}
-                    </span>
-                  </>
-                )}
-              </button>
+              />
             );
           })}
         </nav>

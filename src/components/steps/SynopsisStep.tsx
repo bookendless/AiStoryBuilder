@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Sparkles, RotateCcw, Save, CheckCircle, AlertCircle, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
+import { FileText, Sparkles, RotateCcw, Save, CheckCircle, AlertCircle, ChevronDown, ChevronUp, GripVertical, Copy, Download } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
 import { getUserFriendlyError } from '../../utils/errorHandler';
+
+interface AILogEntry {
+  id: string;
+  timestamp: Date;
+  type: 'generate' | 'readable' | 'summary' | 'engaging';
+  prompt: string;
+  response: string;
+  error?: string;
+}
 
 export const SynopsisStep: React.FC = () => {
   const { currentProject, updateProject } = useProject();
@@ -14,7 +23,7 @@ export const SynopsisStep: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingStyle, setIsGeneratingStyle] = useState(false);
   const [activeStyleType, setActiveStyleType] = useState<string | null>(null);
-  
+
   // 自動保存関連の状態
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -22,9 +31,12 @@ export const SynopsisStep: React.FC = () => {
   const saveTimeoutRef = useRef<number | null>(null);
   const lastSynopsisRef = useRef<string>('');
 
+  // AIログ管理
+  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+
   // サイドバー項目の管理
-  type SidebarItemId = 'styleAssistant' | 'characters' | 'plotInfo';
-  const [sidebarItemOrder, setSidebarItemOrder] = useState<SidebarItemId[]>(['styleAssistant', 'characters', 'plotInfo']);
+  type SidebarItemId = 'styleAssistant' | 'characters' | 'plotInfo' | 'aiLogs';
+  const [sidebarItemOrder, setSidebarItemOrder] = useState<SidebarItemId[]>(['styleAssistant', 'characters', 'plotInfo', 'aiLogs']);
   const [expandedSidebarItems, setExpandedSidebarItems] = useState<Set<SidebarItemId>>(new Set(['styleAssistant']));
   const [draggedSidebarIndex, setDraggedSidebarIndex] = useState<number | null>(null);
   const [dragOverSidebarIndex, setDragOverSidebarIndex] = useState<number | null>(null);
@@ -49,7 +61,7 @@ export const SynopsisStep: React.FC = () => {
       lastSynopsisRef.current = synopsis;
       setLastSaved(new Date());
       setSaveStatus('saved');
-      
+
       // 3秒後にステータスをリセット
       setTimeout(() => {
         setSaveStatus('idle');
@@ -57,7 +69,7 @@ export const SynopsisStep: React.FC = () => {
     } catch (error) {
       console.error('Save error:', error);
       setSaveStatus('error');
-      
+
       // 5秒後にステータスをリセット
       setTimeout(() => {
         setSaveStatus('idle');
@@ -111,17 +123,17 @@ export const SynopsisStep: React.FC = () => {
     }
 
     setIsGenerating(true);
-    
+
     try {
       // キャラクター情報を詳細に構築
-      const charactersInfo = currentProject?.characters && currentProject.characters.length > 0 
-        ? currentProject.characters.map(c => 
-            `【${c.name}】\n` +
-            `役割: ${c.role}\n` +
-            `外見: ${c.appearance || '未設定'}\n` +
-            `性格: ${c.personality || '未設定'}\n` +
-            `背景: ${c.background || '未設定'}\n`
-          ).join('\n')
+      const charactersInfo = currentProject?.characters && currentProject.characters.length > 0
+        ? currentProject.characters.map(c =>
+          `【${c.name}】\n` +
+          `役割: ${c.role}\n` +
+          `外見: ${c.appearance || '未設定'}\n` +
+          `性格: ${c.personality || '未設定'}\n` +
+          `背景: ${c.background || '未設定'}\n`
+        ).join('\n')
         : 'キャラクター情報が設定されていません';
 
       // プロット基本設定情報を構築
@@ -188,6 +200,17 @@ export const SynopsisStep: React.FC = () => {
         settings,
       });
 
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'generate',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
+
       if (response.error) {
         const errorInfo = getUserFriendlyError(response.error);
         showErrorWithDetails(
@@ -204,12 +227,12 @@ export const SynopsisStep: React.FC = () => {
       }
 
       setSynopsis(response.content);
-      
+
       // AI生成後は即座に保存
       setTimeout(() => {
         performSave();
       }, 500);
-      
+
     } catch (error) {
       console.error('AI generation error:', error);
       const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
@@ -268,7 +291,7 @@ export const SynopsisStep: React.FC = () => {
   // サイドバー項目のドロップ
   const handleSidebarDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
-    
+
     if (draggedSidebarIndex === null || draggedSidebarIndex === dropIndex) {
       setDragOverSidebarIndex(null);
       return;
@@ -276,13 +299,13 @@ export const SynopsisStep: React.FC = () => {
 
     const items = [...sidebarItemOrder];
     const draggedItem = items[draggedSidebarIndex];
-    
+
     // ドラッグされた項目を削除
     items.splice(draggedSidebarIndex, 1);
-    
+
     // 新しい位置に挿入
     items.splice(dropIndex, 0, draggedItem);
-    
+
     setSidebarItemOrder(items);
     setDraggedSidebarIndex(null);
     setDragOverSidebarIndex(null);
@@ -293,6 +316,54 @@ export const SynopsisStep: React.FC = () => {
   const handleSidebarDragEnd = () => {
     setDraggedSidebarIndex(null);
     setDragOverSidebarIndex(null);
+  };
+
+  // AIログをコピー
+  const handleCopyLog = (log: AILogEntry) => {
+    const logText = `【AIログ - ${log.type === 'generate' ? 'あらすじ生成' : log.type === 'readable' ? '読みやすく調整' : log.type === 'summary' ? '要点抽出' : '魅力的に演出'}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}`;
+
+    navigator.clipboard.writeText(logText);
+    showSuccess('ログをクリップボードにコピーしました');
+  };
+
+  // AIログをダウンロード
+  const handleDownloadLogs = () => {
+    const logsText = aiLogs.map(log =>
+      `【AIログ - ${log.type === 'generate' ? 'あらすじ生成' : log.type === 'readable' ? '読みやすく調整' : log.type === 'summary' ? '要点抽出' : '魅力的に演出'}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${'='.repeat(80)}`
+    ).join('\n\n');
+
+    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `synopsis_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showSuccess('ログをダウンロードしました');
   };
 
   // 文体調整AI機能
@@ -315,50 +386,20 @@ export const SynopsisStep: React.FC = () => {
 
     try {
       let prompt = '';
-      
+
       // プロンプトの構築
       if (styleType === 'readable') {
-        prompt = `以下のあらすじを読みやすく調整してください。文章を整理し、理解しやすく、流れの良い文章に修正してください。
-
-【現在のあらすじ】
-${synopsis}
-
-【調整方針】
-- 文章の流れを自然にする
-- 重複や冗長な表現を整理する
-- 読み手が理解しやすい構造にする
-- 物語の魅力は保ちつつ、簡潔で分かりやすくする
-
-【出力形式】
-調整されたあらすじのみを出力してください。`;
+        prompt = aiService.buildPrompt('synopsis', 'improveReadable', {
+          synopsis: synopsis,
+        });
       } else if (styleType === 'summary') {
-        prompt = `以下のあらすじから重要なポイントを抽出し、要約版を作成してください。
-
-【現在のあらすじ】
-${synopsis}
-
-【要約方針】
-- 物語の核心となる要素を抽出
-- 主人公の動機と目標を明確にする
-- 重要な出来事と転換点を簡潔に表現
-- 読者の興味を引く要素を残す
-
-【出力形式】
-要約されたあらすじのみを出力してください。`;
+        prompt = aiService.buildPrompt('synopsis', 'improveSummary', {
+          synopsis: synopsis,
+        });
       } else if (styleType === 'engaging') {
-        prompt = `以下のあらすじをより魅力的で読者の興味を引く表現に調整してください。
-
-【現在のあらすじ】
-${synopsis}
-
-【演出方針】
-- 読者の好奇心を刺激する表現を使う
-- 感情に訴える描写を強化する
-- 物語の魅力を際立たせる
-- 読者を引き込む力強い文章にする
-
-【出力形式】
-魅力的に演出されたあらすじのみを出力してください。`;
+        prompt = aiService.buildPrompt('synopsis', 'improveEngaging', {
+          synopsis: synopsis,
+        });
       }
 
       const response = await aiService.generateContent({
@@ -366,6 +407,17 @@ ${synopsis}
         type: 'synopsis',
         settings,
       });
+
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: styleType as 'readable' | 'summary' | 'engaging',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
 
       if (response.error) {
         const errorInfo = getUserFriendlyError(response.error);
@@ -383,12 +435,12 @@ ${synopsis}
       }
 
       setSynopsis(response.content);
-      
+
       // 文体調整後は即座に保存
       setTimeout(() => {
         performSave();
       }, 500);
-      
+
     } catch (error) {
       console.error('Style adjustment error:', error);
       const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
@@ -467,21 +519,19 @@ ${synopsis}
                   <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                     文字数進捗
                   </span>
-                  <span className={`font-semibold ${
-                    wordCount >= targetWordCount 
-                      ? 'text-green-600 dark:text-green-400' 
+                  <span className={`font-semibold ${wordCount >= targetWordCount
+                      ? 'text-green-600 dark:text-green-400'
                       : 'text-gray-900 dark:text-white'
-                  }`}>
+                    }`}>
                     {wordCount} / {targetWordCount} 文字 ({Math.min((wordCount / targetWordCount) * 100, 100).toFixed(0)}%)
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all duration-500 ${
-                      wordCount >= targetWordCount 
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${wordCount >= targetWordCount
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500'
                         : 'bg-gradient-to-r from-indigo-500 to-purple-500'
-                    }`}
+                      }`}
                     style={{ width: `${Math.min((wordCount / targetWordCount) * 100, 100)}%` }}
                   />
                 </div>
@@ -502,7 +552,7 @@ ${synopsis}
                   <li>• プロット構成（起承転結/三幕構成/四幕構成）に沿った展開</li>
                   <li>• ジャンルとテーマに適した文体と表現</li>
                 </ul>
-                
+
                 <div className="flex space-x-3">
                   <button
                     onClick={handleReset}
@@ -602,13 +652,12 @@ ${synopsis}
                   onDragLeave={handleSidebarDragLeave}
                   onDrop={(e) => handleSidebarDrop(e, index)}
                   onDragEnd={handleSidebarDragEnd}
-                  className={`bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${
-                    isDragged
+                  className={`bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${isDragged
                       ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                       : isDragOver
                         ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                         : 'border-indigo-200 dark:border-purple-800 cursor-move hover:shadow-xl'
-                  }`}
+                    }`}
                 >
                   <div
                     className="flex items-center justify-between p-6 cursor-pointer"
@@ -631,22 +680,21 @@ ${synopsis}
                       <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     )}
                   </div>
-                  
+
                   {isExpanded && (
                     <div className="px-6 pb-6 space-y-4">
                       <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
                         AIがあらすじの文体を調整します：
                       </p>
-                      
+
                       <div className="space-y-3">
-                        <button 
+                        <button
                           onClick={() => handleStyleAdjustment('readable')}
                           disabled={isGeneratingStyle || !synopsis.trim()}
-                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
-                            isGeneratingStyle && activeStyleType === 'readable'
+                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'readable'
                               ? 'bg-gradient-to-r from-blue-500 to-blue-600 border-2 border-blue-400'
                               : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                            } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
@@ -665,15 +713,14 @@ ${synopsis}
                             )}
                           </div>
                         </button>
-                        
-                        <button 
+
+                        <button
                           onClick={() => handleStyleAdjustment('summary')}
                           disabled={isGeneratingStyle || !synopsis.trim()}
-                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
-                            isGeneratingStyle && activeStyleType === 'summary'
+                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'summary'
                               ? 'bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400'
                               : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                            } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
@@ -692,15 +739,14 @@ ${synopsis}
                             )}
                           </div>
                         </button>
-                        
-                        <button 
+
+                        <button
                           onClick={() => handleStyleAdjustment('engaging')}
                           disabled={isGeneratingStyle || !synopsis.trim()}
-                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
-                            isGeneratingStyle && activeStyleType === 'engaging'
+                          className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'engaging'
                               ? 'bg-gradient-to-r from-purple-500 to-purple-600 border-2 border-purple-400'
                               : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
-                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                            } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
@@ -737,13 +783,12 @@ ${synopsis}
                   onDragLeave={handleSidebarDragLeave}
                   onDrop={(e) => handleSidebarDrop(e, index)}
                   onDragEnd={handleSidebarDragEnd}
-                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
-                    isDragged
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${isDragged
                       ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                       : isDragOver
                         ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                         : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
-                  }`}
+                    }`}
                 >
                   <div
                     className="flex items-center justify-between p-6 cursor-pointer"
@@ -763,7 +808,7 @@ ${synopsis}
                       <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     )}
                   </div>
-                  
+
                   {isExpanded && (
                     <div className="px-6 pb-6">
                       {currentProject.characters.length > 0 ? (
@@ -813,13 +858,12 @@ ${synopsis}
                   onDragLeave={handleSidebarDragLeave}
                   onDrop={(e) => handleSidebarDrop(e, index)}
                   onDragEnd={handleSidebarDragEnd}
-                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
-                    isDragged
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${isDragged
                       ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                       : isDragOver
                         ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                         : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
-                  }`}
+                    }`}
                 >
                   <div
                     className="flex items-center justify-between p-6 cursor-pointer"
@@ -839,7 +883,7 @@ ${synopsis}
                       <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     )}
                   </div>
-                  
+
                   {isExpanded && (
                     <div className="px-6 pb-6">
                       {currentProject.plot.theme ? (
@@ -887,6 +931,146 @@ ${synopsis}
                         <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP']">
                           プロットが設定されていません
                         </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // AIログ項目
+            if (itemId === 'aiLogs') {
+              return (
+                <div
+                  key={itemId}
+                  draggable
+                  onDragStart={(e) => handleSidebarDragStart(e, index)}
+                  onDragOver={(e) => handleSidebarDragOver(e, index)}
+                  onDragLeave={handleSidebarDragLeave}
+                  onDrop={(e) => handleSidebarDrop(e, index)}
+                  onDragEnd={handleSidebarDragEnd}
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${isDragged
+                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                    : isDragOver
+                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
+                    }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer"
+                    onClick={() => toggleSidebarExpansion(itemId)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        AIログ
+                      </h3>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {!isExpanded && aiLogs.length > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadLogs();
+                          }}
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="ログをダウンロード"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      )}
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      )}
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3">
+                      {aiLogs.length === 0 ? (
+                        <div className="text-center py-8">
+                          <FileText className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-['Noto_Sans_JP']">
+                            AIログがありません
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                            AI生成を実行すると、ここにログが表示されます
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={handleDownloadLogs}
+                              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="ログをダウンロード"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {aiLogs.map((log) => (
+                          <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${log.type === 'generate'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                  : log.type === 'readable'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                    : log.type === 'summary'
+                                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                  }`}>
+                                  {log.type === 'generate' ? '生成' : log.type === 'readable' ? '読みやすく' : log.type === 'summary' ? '要点抽出' : '魅力的に'}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {log.timestamp.toLocaleString('ja-JP', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                                <button
+                                  onClick={() => handleCopyLog(log)}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                  title="ログをコピー"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {log.error ? (
+                              <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                                <strong>エラー:</strong> {log.error}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                                <div className="mb-2">
+                                  <strong>プロンプト:</strong>
+                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                    {log.prompt.substring(0, 200)}...
+                                  </div>
+                                </div>
+                                <div>
+                                  <strong>応答:</strong>
+                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                    {log.response.substring(0, 300)}...
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                          </div>
+                        </>
                       )}
                     </div>
                   )}

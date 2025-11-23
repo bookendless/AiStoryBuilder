@@ -1,9 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Sparkles, Check, Play, Zap, Target, Heart, RotateCcw, Loader2, Layers, ChevronDown, ChevronUp, Copy, Trash2, AlertCircle, Undo2, Redo2, MoreVertical, Clock, GripVertical } from 'lucide-react';
+import { Sparkles, Check, Play, Zap, Target, Heart, RotateCcw, Loader2, Layers, ChevronDown, ChevronUp, Copy, Trash2, AlertCircle, Undo2, Redo2, MoreVertical, Clock, GripVertical, Download, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
+
+interface AILogEntry {
+  id: string;
+  timestamp: Date;
+  type: 'supplement' | 'consistency' | 'generateStructure';
+  prompt: string;
+  response: string;
+  error?: string;
+  fieldLabel?: string;
+  structureType?: string;
+}
 
 type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
@@ -40,13 +51,17 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
   const [plotStructure, setPlotStructure] = useState<'kishotenketsu' | 'three-act' | 'four-act'>('kishotenketsu');
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  
+
+  // AIログ管理
+  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+
   // サイドバーセクションの折りたたみ状態と順序管理
   const [sidebarSections, setSidebarSections] = useState([
     { id: 'guide', title: '構成スタイルガイド', collapsed: false },
     { id: 'settings', title: 'プロット基礎設定', collapsed: false },
     { id: 'assistant', title: 'AI提案アシスタント', collapsed: false },
     { id: 'progress', title: '完成度', collapsed: false },
+    { id: 'aiLogs', title: 'AIログ', collapsed: false },
   ]);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
   const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
@@ -66,19 +81,19 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
 
   // 折りたたみ状態管理
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-  
-  
+
+
   // 一貫性チェック結果
   const [consistencyCheck, setConsistencyCheck] = useState<{
     hasIssues: boolean;
     issues: string[];
   } | null>(null);
-  
+
   // 履歴管理
   const historyRef = useRef<HistoryState[]>([]);
   const historyIndexRef = useRef(-1);
   const maxHistorySize = 50;
-  
+
   // 履歴に状態を保存
   const saveToHistory = useCallback((data: typeof formData, structure: typeof plotStructure) => {
     const newState: HistoryState = {
@@ -86,13 +101,13 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
       plotStructure: structure,
       timestamp: Date.now(),
     };
-    
+
     // 現在の位置より後ろの履歴を削除（分岐した履歴を削除）
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-    
+
     // 新しい状態を追加
     historyRef.current.push(newState);
-    
+
     // 履歴サイズ制限
     if (historyRef.current.length > maxHistorySize) {
       historyRef.current.shift();
@@ -100,7 +115,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
       historyIndexRef.current++;
     }
   }, [maxHistorySize]);
-  
+
   // Undo機能
   const handleUndo = useCallback(() => {
     if (historyIndexRef.current > 0) {
@@ -110,7 +125,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
       setPlotStructure(previousState.plotStructure);
     }
   }, []);
-  
+
   // Redo機能
   const handleRedo = useCallback(() => {
     if (historyIndexRef.current < historyRef.current.length - 1) {
@@ -120,7 +135,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
       setPlotStructure(nextState.plotStructure);
     }
   }, []);
-  
+
   // 初期状態を履歴に保存
   useEffect(() => {
     if (currentProject) {
@@ -175,10 +190,10 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
       if (historyRef.current.length > 0) {
         // 現在の状態と最後の履歴を比較して、変更がある場合のみ保存
         const lastState = historyRef.current[historyIndexRef.current];
-        const hasChanged = 
+        const hasChanged =
           JSON.stringify(formData) !== JSON.stringify(lastState.formData) ||
           plotStructure !== lastState.plotStructure;
-        
+
         if (hasChanged) {
           saveToHistory(formData, plotStructure);
         }
@@ -216,11 +231,73 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenuId]);
 
+  // AIログをコピー
+  const handleCopyLog = (log: AILogEntry) => {
+    const typeLabels = {
+      supplement: '補完',
+      consistency: '一貫性チェック',
+      generateStructure: '構造生成',
+    };
+    const logText = `【AIログ - ${typeLabels[log.type]}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.fieldLabel ? `フィールド: ${log.fieldLabel}\n` : ''}
+${log.structureType ? `構造タイプ: ${log.structureType}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}`;
+
+    navigator.clipboard.writeText(logText);
+    showSuccess('ログをクリップボードにコピーしました');
+  };
+
+  // AIログをダウンロード
+  const handleDownloadLogs = () => {
+    const typeLabels = {
+      supplement: '補完',
+      consistency: '一貫性チェック',
+      generateStructure: '構造生成',
+    };
+    const logsText = aiLogs.map(log =>
+      `【AIログ - ${typeLabels[log.type]}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.fieldLabel ? `フィールド: ${log.fieldLabel}\n` : ''}
+${log.structureType ? `構造タイプ: ${log.structureType}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${'='.repeat(80)}`
+    ).join('\n\n');
+
+    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plot_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showSuccess('ログをダウンロードしました');
+  };
+
   // サイドバーセクションの折りたたみ切り替え
   const toggleSidebarSection = useCallback((sectionId: string) => {
-    setSidebarSections(prev => 
-      prev.map(section => 
-        section.id === sectionId 
+    setSidebarSections(prev =>
+      prev.map(section =>
+        section.id === sectionId
           ? { ...section, collapsed: !section.collapsed }
           : section
       )
@@ -251,7 +328,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
   // ドロップ
   const handleDrop = useCallback((e: React.DragEvent, targetSectionId: string) => {
     e.preventDefault();
-    
+
     if (!draggedSectionId || draggedSectionId === targetSectionId) {
       setDraggedSectionId(null);
       setDragOverSectionId(null);
@@ -262,15 +339,15 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
       const newSections = [...prev];
       const draggedIndex = newSections.findIndex(s => s.id === draggedSectionId);
       const targetIndex = newSections.findIndex(s => s.id === targetSectionId);
-      
+
       if (draggedIndex === -1 || targetIndex === -1) return prev;
-      
+
       const [removed] = newSections.splice(draggedIndex, 1);
       newSections.splice(targetIndex, 0, removed);
-      
+
       return newSections;
     });
-    
+
     setDraggedSectionId(null);
     setDragOverSectionId(null);
     showSuccess('サイドバー項目の並び順を変更しました');
@@ -329,7 +406,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     }
 
     setIsGenerating(`supplement-${fieldKey}`);
-    
+
     try {
       const context = getProjectContext();
       if (!context) {
@@ -338,32 +415,34 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
       }
 
       const currentText = formData[fieldKey];
-      const prompt = `以下の情報に基づいて、${fieldLabel}の内容を補完・改善してください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-メインジャンル: ${context.mainGenre || context.genre}
-テーマ: ${context.projectTheme}
-
-【プロット基礎設定】
-メインテーマ: ${currentProject?.plot?.theme || '未設定'}
-舞台設定: ${currentProject?.plot?.setting || '未設定'}
-主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
-
-【現在の${fieldLabel}の内容】
-${currentText || '未記入'}
-
-【指示】
-上記の内容を参考に、${fieldLabel}の内容を500文字以内で補完・改善してください。既存の内容がある場合は、それを活かしながら改善してください。JSON形式で出力してください：
-{
-  "${fieldLabel}": "補完・改善された内容（500文字以内）"
-}`;
+      const prompt = aiService.buildPrompt('plot', 'supplement', {
+        fieldLabel: fieldLabel,
+        title: context.title,
+        mainGenre: context.mainGenre || context.genre,
+        projectTheme: context.projectTheme,
+        plotTheme: currentProject?.plot?.theme || '未設定',
+        plotSetting: currentProject?.plot?.setting || '未設定',
+        protagonistGoal: currentProject?.plot?.protagonistGoal || '未設定',
+        currentText: currentText || '未記入',
+      });
 
       const response = await aiService.generateContent({
         prompt,
         type: 'plot',
         settings,
       });
+
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'supplement',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+        fieldLabel: fieldLabel,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
 
       if (response.error) {
         alert(`AI生成エラー: ${response.error}`);
@@ -398,7 +477,7 @@ ${currentText || '未記入'}
     }
 
     setIsGenerating('consistency');
-    
+
     try {
       const context = getProjectContext();
       if (!context) {
@@ -406,20 +485,20 @@ ${currentText || '未記入'}
         return;
       }
 
-      const structureFields = plotStructure === 'kishotenketsu' 
+      const structureFields = plotStructure === 'kishotenketsu'
         ? [
-            { key: 'ki', label: '起', value: formData.ki },
-            { key: 'sho', label: '承', value: formData.sho },
-            { key: 'ten', label: '転', value: formData.ten },
-            { key: 'ketsu', label: '結', value: formData.ketsu },
-          ]
+          { key: 'ki', label: '起', value: formData.ki },
+          { key: 'sho', label: '承', value: formData.sho },
+          { key: 'ten', label: '転', value: formData.ten },
+          { key: 'ketsu', label: '結', value: formData.ketsu },
+        ]
         : plotStructure === 'three-act'
-        ? [
+          ? [
             { key: 'act1', label: '第1幕', value: formData.act1 },
             { key: 'act2', label: '第2幕', value: formData.act2 },
             { key: 'act3', label: '第3幕', value: formData.act3 },
           ]
-        : [
+          : [
             { key: 'fourAct1', label: '第1幕', value: formData.fourAct1 },
             { key: 'fourAct2', label: '第2幕', value: formData.fourAct2 },
             { key: 'fourAct3', label: '第3幕', value: formData.fourAct3 },
@@ -428,41 +507,33 @@ ${currentText || '未記入'}
 
       const structureText = structureFields.map(f => `${f.label}: ${f.value}`).join('\n\n');
 
-      const prompt = `以下のプロット構成の一貫性をチェックしてください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-メインジャンル: ${context.mainGenre || context.genre}
-テーマ: ${context.projectTheme}
-
-【プロット基礎設定】
-メインテーマ: ${currentProject?.plot?.theme || '未設定'}
-舞台設定: ${currentProject?.plot?.setting || '未設定'}
-主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
-主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
-
-【現在のプロット構成】
-${structureText}
-
-【指示】
-上記のプロット構成について、以下の観点から一貫性をチェックしてください：
-1. 各段階間の流れが自然か
-2. 基礎設定（テーマ、舞台、目標、障害）との整合性
-3. キャラクターの行動や動機の一貫性
-4. 物語の論理的な展開
-
-問題があれば具体的に指摘し、改善提案をしてください。JSON形式で出力してください：
-{
-  "hasIssues": true/false,
-  "issues": ["問題点1", "問題点2", ...],
-  "suggestions": ["改善提案1", "改善提案2", ...]
-}`;
+      const prompt = aiService.buildPrompt('plot', 'consistency', {
+        title: context.title,
+        mainGenre: context.mainGenre || context.genre,
+        projectTheme: context.projectTheme,
+        plotTheme: currentProject?.plot?.theme || '未設定',
+        plotSetting: currentProject?.plot?.setting || '未設定',
+        protagonistGoal: currentProject?.plot?.protagonistGoal || '未設定',
+        mainObstacle: currentProject?.plot?.mainObstacle || '未設定',
+        structureText: structureText,
+      });
 
       const response = await aiService.generateContent({
         prompt,
         type: 'plot',
         settings,
       });
+
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'consistency',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
 
       if (response.error) {
         alert(`AI生成エラー: ${response.error}`);
@@ -494,10 +565,10 @@ ${structureText}
   // 自動保存機能（デバウンス付き）
   useEffect(() => {
     if (!currentProject) return;
-    
+
     const timeoutId = setTimeout(async () => {
       // フォームデータが変更されている場合のみ保存
-      const hasChanges = 
+      const hasChanges =
         formData.ki !== (currentProject.plot?.ki || '') ||
         formData.sho !== (currentProject.plot?.sho || '') ||
         formData.ten !== (currentProject.plot?.ten || '') ||
@@ -509,12 +580,12 @@ ${structureText}
         formData.fourAct2 !== (currentProject.plot?.fourAct2 || '') ||
         formData.fourAct3 !== (currentProject.plot?.fourAct3 || '') ||
         formData.fourAct4 !== (currentProject.plot?.fourAct4 || '');
-      
+
       if (hasChanges) {
         // 直接保存処理を実行
         setIsSaving(true);
         setSaveStatus('saving');
-        
+
         try {
           // 既存のplotデータを保持しつつ、構成詳細のみを更新
           const updatedPlot = {
@@ -541,21 +612,21 @@ ${structureText}
           await updateProject({
             plot: updatedPlot,
           });
-          
+
           setSaveStatus('saved');
           setLastSavedTime(new Date());
           console.log('Plot structure data auto-saved successfully:', formData);
-          
+
           // 3秒後にステータスをリセット
           setTimeout(() => {
             setSaveStatus('idle');
           }, 3000);
-          
+
         } catch (error) {
           console.error('Auto-save error:', error);
           setSaveStatus('error');
           showError('自動保存に失敗しました');
-          
+
           // 5秒後にステータスをリセット
           setTimeout(() => {
             setSaveStatus('idle');
@@ -571,10 +642,10 @@ ${structureText}
 
   const handleSave = useCallback(async () => {
     if (!currentProject) return;
-    
+
     setIsSaving(true);
     setSaveStatus('saving');
-    
+
     try {
       // 既存のplotデータを保持しつつ、構成詳細のみを更新
       const updatedPlot = {
@@ -627,22 +698,22 @@ ${structureText}
       await updateProject({
         plot: updatedPlot,
       }, true);
-      
+
       setSaveStatus('saved');
       setLastSavedTime(new Date());
       showSuccess('保存しました');
       console.log('Plot structure data saved successfully:', formData);
-      
+
       // 3秒後にステータスをリセット
       setTimeout(() => {
         setSaveStatus('idle');
       }, 3000);
-      
+
     } catch (error) {
       console.error('Save error:', error);
       setSaveStatus('error');
       showError('保存に失敗しました。もう一度お試しください。');
-      
+
       // 5秒後にステータスをリセット
       setTimeout(() => {
         setSaveStatus('idle');
@@ -654,8 +725,8 @@ ${structureText}
 
   // プロット構成部分のみをリセット
   const handleResetPlotStructure = () => {
-    const structureName = plotStructure === 'kishotenketsu' ? '起承転結' : 
-                         plotStructure === 'three-act' ? '三幕構成' : '四幕構成';
+    const structureName = plotStructure === 'kishotenketsu' ? '起承転結' :
+      plotStructure === 'three-act' ? '三幕構成' : '四幕構成';
     if (confirm(`${structureName}の内容をすべてリセットしますか？`)) {
       if (plotStructure === 'kishotenketsu') {
         setFormData(prev => ({
@@ -693,7 +764,7 @@ ${structureText}
     }
 
     setIsGenerating('structure');
-    
+
     try {
       // プロジェクトの詳細情報を取得
       const context = getProjectContext();
@@ -703,127 +774,56 @@ ${structureText}
       }
 
       // キャラクター情報の文字列化
-      const charactersInfo = context.characters.length > 0 
+      const charactersInfo = context.characters.length > 0
         ? context.characters.map(c => `・${c.name} (${c.role})\n  性格: ${c.personality}\n  背景: ${c.background}`).join('\n')
         : 'キャラクター未設定';
 
 
-      // 構成スタイルに応じたプロンプト生成
-      let prompt = '';
-      
-      if (plotStructure === 'kishotenketsu') {
-        prompt = `以下の情報に基づいて物語プロット構成の詳細を提案してください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-メインジャンル: ${context.mainGenre || context.genre}
-サブジャンル: ${context.subGenre || '未設定'}
-テーマ: ${context.projectTheme}
-構成: 起承転結構成（起・承・転・結）
-
-【キャラクター情報】
-${charactersInfo}
-
-【プロット基礎設定（重要）】
-メインテーマ: ${currentProject?.plot?.theme || '未設定'}
-舞台設定: ${currentProject?.plot?.setting || '未設定'}
-フック要素: ${currentProject?.plot?.hook || '未設定'}
-主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
-主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
-${currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : ''}
-
-${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Oriented Prompting）】
+      // 構成スタイルに応じたプロンプト変数の構築
+      const ending = currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : '';
+      const reversePrompting = currentProject?.plot?.ending 
+        ? `【逆算プロンプティング（Goal-Oriented Prompting）】
 上記の「物語の結末」から逆算して、その結末に至るための物語構成を構築してください。
-結末を目標として、そこに到達するための起承転結の各段階を設計してください。
-結末に自然に繋がるように、各段階で必要な要素や展開を配置してください。` : '【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。'}
-基礎設定の内容を活かしながら、起承転結の各段階でどのように展開するかを具体的に記述してください。
+結末を目標として、そこに到達するための{structureType}の各段階を設計してください。
+結末に自然に繋がるように、各段階で必要な要素や展開を配置してください。`
+        : '【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。';
 
-起承転結の構成について：
+      let structureType = '';
+      let structureDescription = '';
+      let outputFormat = '';
+
+      if (plotStructure === 'kishotenketsu') {
+        structureType = '起承転結';
+        structureDescription = `起承転結の構成について：
 - 起：物語の始まり、登場人物の紹介、日常の描写、事件の発端
 - 承：事件の発展、状況の変化、新たな登場人物、問題の詳細化
 - 転：大きな転換点、予想外の展開、クライマックス、物語の核心
-- 結：問題の解決、物語の終結、キャラクターの成長、新たな始まり
-
-以下のJSON形式で出力してください：
-{
+- 結：問題の解決、物語の終結、キャラクターの成長、新たな始まり`;
+        outputFormat = `{
   "起（導入）": "起（導入）を500文字以内で記述",
   "承（展開）": "承（展開）を500文字以内で記述",
   "転（転換）": "転（転換）を500文字以内で記述",
   "結（結末）": "結（結末）を500文字以内で記述"
 }`;
       } else if (plotStructure === 'three-act') {
-        prompt = `以下の情報に基づいて物語プロット構成の詳細を提案してください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-メインジャンル: ${context.mainGenre || context.genre}
-サブジャンル: ${context.subGenre || '未設定'}
-テーマ: ${context.projectTheme}
-構成: 三幕構成（第1幕・第2幕・第3幕）
-
-【キャラクター情報】
-${charactersInfo}
-
-【プロット基礎設定（重要）】
-メインテーマ: ${currentProject?.plot?.theme || '未設定'}
-舞台設定: ${currentProject?.plot?.setting || '未設定'}
-フック要素: ${currentProject?.plot?.hook || '未設定'}
-主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
-主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
-${currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : ''}
-
-${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Oriented Prompting）】
-上記の「物語の結末」から逆算して、その結末に至るための物語構成を構築してください。
-結末を目標として、そこに到達するための三幕構成の各段階を設計してください。
-結末に自然に繋がるように、各段階で必要な要素や展開を配置してください。` : '【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。'}
-基礎設定の内容を活かしながら、三幕構成の各段階でどのように展開するかを具体的に記述してください。
-
-三幕構成について：
+        structureType = '三幕構成';
+        structureDescription = `三幕構成について：
 - 第1幕：導入、設定、事件の発端、登場人物の紹介、世界観の設定
 - 第2幕：展開、対立の激化、主人公の試練、クライマックスへの準備、物語の核心部分
-- 第3幕：クライマックス、問題の解決、物語の結末、キャラクターの成長、最終的な解決
-
-以下のJSON形式で出力してください：
-{
+- 第3幕：クライマックス、問題の解決、物語の結末、キャラクターの成長、最終的な解決`;
+        outputFormat = `{
   "第1幕（導入）": "第1幕を500文字以内で記述",
   "第2幕（展開）": "第2幕を500文字以内で記述",
   "第3幕（結末）": "第3幕を500文字以内で記述"
 }`;
       } else if (plotStructure === 'four-act') {
-        prompt = `以下の情報に基づいて物語プロット構成の詳細を提案してください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-メインジャンル: ${context.mainGenre || context.genre}
-サブジャンル: ${context.subGenre || '未設定'}
-テーマ: ${context.projectTheme}
-構成: 四幕構成（第1幕・第2幕・第3幕・第4幕）
-
-【キャラクター情報】
-${charactersInfo}
-
-【プロット基礎設定（重要）】
-メインテーマ: ${currentProject?.plot?.theme || '未設定'}
-舞台設定: ${currentProject?.plot?.setting || '未設定'}
-フック要素: ${currentProject?.plot?.hook || '未設定'}
-主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
-主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
-${currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : ''}
-
-${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Oriented Prompting）】
-上記の「物語の結末」から逆算して、その結末に至るための物語構成を構築してください。
-結末を目標として、そこに到達するための四幕構成の各段階を設計してください。
-結末に自然に繋がるように、各段階で必要な要素や展開を配置してください。` : '【重要】上記のプロット基礎設定を必ず反映し、一貫性のある物語構成を提案してください。'}
-基礎設定の内容を活かしながら、四幕構成の各段階でどのように展開するかを具体的に記述してください。
-
-四幕構成（ダン・ハーモンの秩序と混沌の対比）について：
+        structureType = '四幕構成';
+        structureDescription = `四幕構成（ダン・ハーモンの秩序と混沌の対比）について：
 - 第1幕（秩序）：日常の確立、キャラクター紹介、世界観の設定、平穏な状態
 - 第2幕（混沌）：問題の発生、状況の悪化、困難の増大、秩序の崩壊
 - 第3幕（秩序）：解決への取り組み、希望の光、状況の改善、秩序の回復への努力
-- 第4幕（混沌）：最終的な試練、真の解決、物語の結末、新しい秩序の確立
-
-以下のJSON形式で出力してください：
-{
+- 第4幕（混沌）：最終的な試練、真の解決、物語の結末、新しい秩序の確立`;
+        outputFormat = `{
   "第1幕（秩序）": "第1幕（秩序）を500文字以内で記述",
   "第2幕（混沌）": "第2幕（混沌）を500文字以内で記述",
   "第3幕（秩序）": "第3幕（秩序）を500文字以内で記述",
@@ -831,11 +831,41 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
 }`;
       }
 
+      const prompt = aiService.buildPrompt('plot', 'generateStructure', {
+        structureType: structureType,
+        title: context.title,
+        mainGenre: context.mainGenre || context.genre,
+        subGenre: context.subGenre || '未設定',
+        projectTheme: context.projectTheme,
+        charactersInfo: charactersInfo,
+        plotTheme: currentProject?.plot?.theme || '未設定',
+        plotSetting: currentProject?.plot?.setting || '未設定',
+        plotHook: currentProject?.plot?.hook || '未設定',
+        protagonistGoal: currentProject?.plot?.protagonistGoal || '未設定',
+        mainObstacle: currentProject?.plot?.mainObstacle || '未設定',
+        ending: ending,
+        reversePrompting: reversePrompting.replace('{structureType}', structureType),
+        structureDescription: structureDescription,
+        outputFormat: outputFormat,
+      });
+
       const response = await aiService.generateContent({
         prompt,
         type: 'plot',
         settings,
       });
+
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'generateStructure',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+        structureType: structureType,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
 
       if (response.error) {
         alert(`AI生成エラー: ${response.error}`);
@@ -848,7 +878,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
-          
+
           // フォームデータを更新（構成スタイルに応じて）
           if (plotStructure === 'kishotenketsu') {
             setFormData(prev => ({
@@ -893,7 +923,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
   // プロジェクトの詳細情報を取得する関数
   const getProjectContext = () => {
     if (!currentProject) return null;
-    
+
     return {
       title: currentProject.title,
       description: currentProject.description,
@@ -914,10 +944,10 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
   // 最終保存時刻の表示
   const getLastSavedText = useCallback(() => {
     if (!lastSavedTime) return '未保存';
-    
+
     const now = new Date();
     const diff = Math.floor((now.getTime() - lastSavedTime.getTime()) / 1000);
-    
+
     if (diff < 10) return '数秒前に保存';
     if (diff < 60) return `${diff}秒前に保存`;
     if (diff < 3600) return `${Math.floor(diff / 60)}分前に保存`;
@@ -932,31 +962,31 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
 
   // 任意のフィールドが制限超過しているかチェック
   const hasAnyOverLimit = useCallback(() => {
-    const fieldsToCheck = plotStructure === 'kishotenketsu' 
+    const fieldsToCheck = plotStructure === 'kishotenketsu'
       ? ['ki', 'sho', 'ten', 'ketsu']
       : plotStructure === 'three-act'
-      ? ['act1', 'act2', 'act3']
-      : ['fourAct1', 'fourAct2', 'fourAct3', 'fourAct4'];
-    
+        ? ['act1', 'act2', 'act3']
+        : ['fourAct1', 'fourAct2', 'fourAct3', 'fourAct4'];
+
     return fieldsToCheck.some(field => isOverLimit(field as keyof typeof formData));
   }, [plotStructure, isOverLimit]);
 
   // プロット構成完成度を計算する関数
   const calculateStructureProgress = () => {
-    const structureFields = plotStructure === 'kishotenketsu' 
+    const structureFields = plotStructure === 'kishotenketsu'
       ? [
-          { key: 'ki', label: '起 - 導入', value: formData.ki },
-          { key: 'sho', label: '承 - 展開', value: formData.sho },
-          { key: 'ten', label: '転 - 転換', value: formData.ten },
-          { key: 'ketsu', label: '結 - 結末', value: formData.ketsu },
-        ]
+        { key: 'ki', label: '起 - 導入', value: formData.ki },
+        { key: 'sho', label: '承 - 展開', value: formData.sho },
+        { key: 'ten', label: '転 - 転換', value: formData.ten },
+        { key: 'ketsu', label: '結 - 結末', value: formData.ketsu },
+      ]
       : plotStructure === 'three-act'
-      ? [
+        ? [
           { key: 'act1', label: '第1幕 - 導入', value: formData.act1 },
           { key: 'act2', label: '第2幕 - 展開', value: formData.act2 },
           { key: 'act3', label: '第3幕 - 結末', value: formData.act3 },
         ]
-      : [
+        : [
           { key: 'fourAct1', label: '第1幕 - 秩序', value: formData.fourAct1 },
           { key: 'fourAct2', label: '第2幕 - 混沌', value: formData.fourAct2 },
           { key: 'fourAct3', label: '第3幕 - 秩序', value: formData.fourAct3 },
@@ -1018,39 +1048,36 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
               <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-lg flex space-x-1">
                 <button
                   onClick={() => setPlotStructure('kishotenketsu')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${
-                    plotStructure === 'kishotenketsu'
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${plotStructure === 'kishotenketsu'
                       ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
+                    }`}
                   title="日本伝統の4段階構成"
                 >
                   起承転結
                 </button>
                 <button
                   onClick={() => setPlotStructure('three-act')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${
-                    plotStructure === 'three-act'
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${plotStructure === 'three-act'
                       ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
+                    }`}
                   title="西洋古典の3段階構成"
                 >
                   三幕構成
                 </button>
                 <button
                   onClick={() => setPlotStructure('four-act')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${
-                    plotStructure === 'four-act'
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${plotStructure === 'four-act'
                       ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
+                    }`}
                   title="秩序と混沌の対比を重視した現代的な4段階構成"
                 >
                   四幕構成
                 </button>
               </div>
-              
+
               {/* 3段目: 履歴管理、一貫性チェック、構成提案ボタン */}
               <div className="flex items-center justify-end space-x-3">
                 {/* 履歴管理ボタン */}
@@ -1102,25 +1129,22 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                 </button>
               </div>
             </div>
-            
+
             {/* 一貫性チェック結果表示 */}
             {consistencyCheck && (
-              <div className={`p-4 rounded-lg border ${
-                consistencyCheck.hasIssues 
-                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
+              <div className={`p-4 rounded-lg border ${consistencyCheck.hasIssues
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
                   : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-              }`}>
+                }`}>
                 <div className="flex items-center space-x-2 mb-2">
-                  <AlertCircle className={`h-5 w-5 ${
-                    consistencyCheck.hasIssues 
-                      ? 'text-amber-600 dark:text-amber-400' 
+                  <AlertCircle className={`h-5 w-5 ${consistencyCheck.hasIssues
+                      ? 'text-amber-600 dark:text-amber-400'
                       : 'text-green-600 dark:text-green-400'
-                  }`} />
-                  <h4 className={`font-semibold font-['Noto_Sans_JP'] ${
-                    consistencyCheck.hasIssues 
-                      ? 'text-amber-800 dark:text-amber-200' 
+                    }`} />
+                  <h4 className={`font-semibold font-['Noto_Sans_JP'] ${consistencyCheck.hasIssues
+                      ? 'text-amber-800 dark:text-amber-200'
                       : 'text-green-800 dark:text-green-200'
-                  }`}>
+                    }`}>
                     {consistencyCheck.hasIssues ? '一貫性の問題が見つかりました' : '一貫性チェック完了：問題なし'}
                   </h4>
                 </div>
@@ -1133,7 +1157,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                 )}
               </div>
             )}
-            
+
             {/* 起承転結、三幕構成、または四幕構成の表示 */}
             {plotStructure === 'kishotenketsu' ? (
               <>
@@ -1216,11 +1240,10 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                         onChange={(e) => setFormData({ ...formData, ki: e.target.value })}
                         placeholder="登場人物の紹介、日常の描写、事件の発端..."
                         rows={8}
-                        className={`w-full px-4 py-3 rounded-lg border ${
-                          isOverLimit('ki') 
-                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
+                        className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('ki')
+                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
                             : 'border-blue-300 dark:border-blue-600 focus:ring-blue-500'
-                        } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`}
+                          } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`}
                       />
                       <div className="mt-2 space-y-2">
                         {/* 文字数超過警告 */}
@@ -1813,7 +1836,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
               <RotateCcw className="h-4 w-4" />
               <span>入力内容をリセット</span>
             </button>
-            
+
             <div className="flex items-center space-x-4">
               {saveStatus === 'saved' && (
                 <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
@@ -1837,13 +1860,12 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                   }
                 }}
                 disabled={isSaving}
-                className={`px-6 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] ${
-                  isSaving
+                className={`px-6 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] ${isSaving
                     ? 'bg-gray-400 cursor-not-allowed'
                     : hasAnyOverLimit()
-                    ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:scale-105'
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-105'
-                } text-white flex items-center space-x-2`}
+                      ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:scale-105'
+                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-105'
+                  } text-white flex items-center space-x-2`}
               >
                 {hasAnyOverLimit() && !isSaving && <AlertCircle className="h-5 w-5" />}
                 <span>{isSaving ? '保存中...' : '保存する'}</span>
@@ -1858,7 +1880,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
             const isCollapsed = section.collapsed;
             const isDragging = draggedSectionId === section.id;
             const isDragOver = dragOverSectionId === section.id;
-            
+
             // 構成スタイルガイド
             if (section.id === 'guide') {
               return (
@@ -1870,20 +1892,19 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl border transition-all duration-200 ${
-                    isDragging
+                  className={`bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl border transition-all duration-200 ${isDragging
                       ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                       : isDragOver
                         ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                         : 'border-indigo-200 dark:border-indigo-800 cursor-move hover:shadow-xl'
-                  }`}
+                    }`}
                 >
-                  <div 
+                  <div
                     className="flex items-center justify-between p-4 cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 rounded-t-2xl transition-colors"
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
-                      <div 
+                      <div
                         className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -1930,7 +1951,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                             </ul>
                           </div>
                         )}
-                        
+
                         {plotStructure === 'three-act' && (
                           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700">
                             <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2 font-['Noto_Sans_JP']">
@@ -1946,7 +1967,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                             </ul>
                           </div>
                         )}
-                        
+
                         {plotStructure === 'four-act' && (
                           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700">
                             <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2 font-['Noto_Sans_JP']">
@@ -1974,7 +1995,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                 </div>
               );
             }
-            
+
             // プロット基礎設定
             if (section.id === 'settings') {
               return (
@@ -1986,20 +2007,19 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl border transition-all duration-200 ${
-                    isDragging
+                  className={`bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl border transition-all duration-200 ${isDragging
                       ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                       : isDragOver
                         ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                         : 'border-amber-200 dark:border-amber-800 cursor-move hover:shadow-xl'
-                  }`}
+                    }`}
                 >
-                  <div 
+                  <div
                     className="flex items-center justify-between p-4 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/30 rounded-t-2xl transition-colors"
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
-                      <div 
+                      <div
                         className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -2039,7 +2059,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                             {currentProject?.plot?.theme || '未設定'}
                           </p>
                         </div>
-                        
+
                         {/* 舞台設定 */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
@@ -2049,7 +2069,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                             {currentProject?.plot?.setting || '未設定'}
                           </p>
                         </div>
-                        
+
                         {/* フック要素 */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
@@ -2090,7 +2110,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                           </p>
                         </div>
                       </div>
-                      
+
                       <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
                         {currentProject?.plot?.theme && currentProject?.plot?.setting && currentProject?.plot?.hook && currentProject?.plot?.protagonistGoal && currentProject?.plot?.mainObstacle ? (
                           <p className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
@@ -2110,7 +2130,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                 </div>
               );
             }
-            
+
             // AI提案アシスタント
             if (section.id === 'assistant') {
               return (
@@ -2122,20 +2142,19 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${
-                    isDragging
+                  className={`bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${isDragging
                       ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                       : isDragOver
                         ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                         : 'border-purple-200 dark:border-purple-800 cursor-move hover:shadow-xl'
-                  }`}
+                    }`}
                 >
-                  <div 
+                  <div
                     className="flex items-center justify-between p-4 cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-900/30 rounded-t-2xl transition-colors"
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
-                      <div 
+                      <div
                         className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -2168,7 +2187,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                       <p className="text-gray-700 dark:text-gray-300 mb-4 font-['Noto_Sans_JP']">
                         一貫性のある物語構成を生成します：
                       </p>
-                      
+
                       <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
                         <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">{plotStructure === 'kishotenketsu' ? '起承転結提案' : plotStructure === 'three-act' ? '三幕構成提案' : '四幕構成提案'}</span>：{plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}の内容をAI提案</li>
                         <li>• キャラクター設定との連携強化</li>
@@ -2191,7 +2210,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                             <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">逆算プロンプティング</span>：結末から逆算して物語を構築（Goal-Oriented Prompting）</li>
                           )}
                         </ul>
-                        
+
                         <button
                           onClick={handleStructureAIGenerate}
                           disabled={isGenerating === 'structure'}
@@ -2215,7 +2234,7 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                 </div>
               );
             }
-            
+
             // 完成度
             if (section.id === 'progress') {
               return (
@@ -2227,20 +2246,19 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
-                    isDragging
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${isDragging
                       ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                       : isDragOver
                         ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                         : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
-                  }`}
+                    }`}
                 >
-                  <div 
+                  <div
                     className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors"
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
-                      <div 
+                      <div
                         className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -2279,21 +2297,19 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                                 </span>
                               </div>
                               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                <div 
-                                  className={`h-2 rounded-full transition-all duration-500 ${
-                                    progress.percentage === 100 
-                                      ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                                <div
+                                  className={`h-2 rounded-full transition-all duration-500 ${progress.percentage === 100
+                                      ? 'bg-gradient-to-r from-green-500 to-emerald-500'
                                       : 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                  }`}
+                                    }`}
                                   style={{ width: `${progress.percentage}%` }}
                                 />
                               </div>
                               <div className="text-center">
-                                <span className={`text-sm font-semibold ${
-                                  progress.percentage === 100 
-                                    ? 'text-green-600 dark:text-green-400' 
+                                <span className={`text-sm font-semibold ${progress.percentage === 100
+                                    ? 'text-green-600 dark:text-green-400'
                                     : 'text-gray-900 dark:text-white'
-                                }`}>
+                                  }`}>
                                   {progress.percentage.toFixed(0)}%
                                 </span>
                               </div>
@@ -2302,16 +2318,14 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                             <div className="mt-4 space-y-2 text-sm">
                               {progress.fields.map((field) => (
                                 <div key={field.key} className="flex items-center space-x-2">
-                                  <div className={`w-2 h-2 rounded-full ${
-                                    field.completed 
-                                      ? 'bg-green-500' 
+                                  <div className={`w-2 h-2 rounded-full ${field.completed
+                                      ? 'bg-green-500'
                                       : 'bg-gray-300 dark:bg-gray-600'
-                                  }`} />
-                                  <span className={`font-['Noto_Sans_JP'] ${
-                                    field.completed 
-                                      ? 'text-gray-700 dark:text-gray-300' 
+                                    }`} />
+                                  <span className={`font-['Noto_Sans_JP'] ${field.completed
+                                      ? 'text-gray-700 dark:text-gray-300'
                                       : 'text-gray-500 dark:text-gray-500'
-                                  }`}>
+                                    }`}>
                                     {field.label}
                                   </span>
                                   {field.completed && (
@@ -2342,7 +2356,162 @@ ${currentProject?.plot?.ending ? `【逆算プロンプティング（Goal-Orien
                 </div>
               );
             }
-            
+
+            // AIログセクション
+            if (section.id === 'aiLogs') {
+              return (
+                <div
+                  key={section.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, section.id)}
+                  onDragOver={(e) => handleDragOver(e, section.id)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, section.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${isDragging
+                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                    : isDragOver
+                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
+                    }`}
+                >
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer"
+                    onClick={() => toggleSidebarSection(section.id)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        AIログ
+                      </h3>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {!section.collapsed && aiLogs.length > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadLogs();
+                          }}
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="ログをダウンロード"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      )}
+                      {section.collapsed ? (
+                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      ) : (
+                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      )}
+                    </div>
+                  </div>
+
+                  {!section.collapsed && (
+                    <div className="px-4 pb-4 space-y-3">
+                      {aiLogs.length === 0 ? (
+                        <div className="text-center py-8">
+                          <FileText className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-['Noto_Sans_JP']">
+                            AIログがありません
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                            AI生成を実行すると、ここにログが表示されます
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={handleDownloadLogs}
+                              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="ログをダウンロード"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {aiLogs.map((log) => {
+                          const typeLabels = {
+                            supplement: '補完',
+                            consistency: '一貫性チェック',
+                            generateStructure: '構造生成',
+                          };
+                          return (
+                            <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center space-x-2">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${log.type === 'supplement'
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                    : log.type === 'consistency'
+                                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                    }`}>
+                                    {typeLabels[log.type]}
+                                  </span>
+                                  {log.fieldLabel && (
+                                    <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                      {log.fieldLabel}
+                                    </span>
+                                  )}
+                                  {log.structureType && (
+                                    <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                      {log.structureType}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {log.timestamp.toLocaleString('ja-JP', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                  <button
+                                    onClick={() => handleCopyLog(log)}
+                                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                    title="ログをコピー"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {log.error ? (
+                                <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                                  <strong>エラー:</strong> {log.error}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                                  <div className="mb-2">
+                                    <strong>プロンプト:</strong>
+                                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                      {log.prompt.substring(0, 200)}...
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <strong>応答:</strong>
+                                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                      {log.response.substring(0, 300)}...
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return null;
           })}
         </div>

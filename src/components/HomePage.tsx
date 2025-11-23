@@ -1,14 +1,243 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { Plus, BookOpen, Calendar, TrendingUp, Image, Edit3, Save, X, Upload, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { NewProjectModal } from './NewProjectModal';
-import { databaseService } from '../services/databaseService';
+import { ProjectSettingsModal } from './ProjectSettingsModal';
 import { Project } from '../contexts/ProjectContext';
 import { useToast } from './Toast';
 import { getUserFriendlyError } from '../utils/errorHandler';
 import { useGlobalShortcuts } from '../hooks/useKeyboardNavigation';
 import { ContextHelp } from './ContextHelp';
+import { OptimizedImage } from './OptimizedImage';
+
+// プロジェクトカードコンポーネント（メモ化）
+interface ProjectCardProps {
+  project: Project;
+  progress: { percentage: number; completedSteps: number; totalSteps: number };
+  onSelect: (project: Project) => void;
+  onEdit: (e: React.MouseEvent, project: Project) => void;
+  onDuplicate: (e: React.MouseEvent, projectId: string) => void;
+  onDelete: (e: React.MouseEvent, projectId: string) => void;
+  isLoading: boolean;
+}
+
+const ProjectCard = React.memo<ProjectCardProps>(({ 
+  project, 
+  progress, 
+  onSelect, 
+  onEdit, 
+  onDuplicate, 
+  onDelete, 
+  isLoading 
+}) => {
+  return (
+    <div
+      className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-xl relative group"
+    >
+      {/* プロジェクト操作ボタン */}
+      <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
+        <button
+          onClick={(e) => onEdit(e, project)}
+          className="p-2 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+          title="プロジェクトを編集"
+        >
+          <Edit3 className="h-4 w-4" />
+        </button>
+        <button
+          onClick={(e) => onDuplicate(e, project.id)}
+          className="p-2 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+          title="プロジェクトを複製"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </button>
+        <button
+          onClick={(e) => onDelete(e, project.id)}
+          className="p-2 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+          title="プロジェクトを削除"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+
+      {/* 表紙画像 */}
+      {project.coverImage && (
+        <div className="mb-4">
+          <div 
+            onClick={() => onSelect(project)}
+            className="cursor-pointer"
+          >
+            <OptimizedImage
+              src={project.coverImage}
+              alt={project.title}
+              className="w-full h-32 rounded-lg"
+              lazy={true}
+              quality={0.8}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="mb-4">
+        <div 
+          onClick={() => onSelect(project)}
+          className="cursor-pointer"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex-1 font-['Noto_Sans_JP']">
+              {project.title}
+            </h3>
+            <span className="ml-2 inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full">
+              {progress.percentage.toFixed(0)}%
+            </span>
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 font-['Noto_Sans_JP']">
+            {project.description}
+          </p>
+        </div>
+      </div>
+
+      {/* 進捗バー */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1 font-['Noto_Sans_JP']">
+          <span>進捗: {progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
+          <span className="flex items-center space-x-1">
+            <CheckCircle2 className="h-3 w-3 text-green-500" />
+            <span>{progress.completedSteps}完了</span>
+          </span>
+        </div>
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          <div 
+            className={`h-2 rounded-full transition-all duration-300 ${
+              progress.percentage === 100 
+                ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                : progress.percentage >= 50
+                ? 'bg-gradient-to-r from-indigo-500 to-purple-500'
+                : 'bg-gradient-to-r from-yellow-400 to-orange-500'
+            }`}
+            style={{ width: `${progress.percentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* ジャンル表示 */}
+      {(project.mainGenre || project.genre) && (
+        <div className="mb-3 flex flex-wrap gap-1">
+          {project.mainGenre && (
+            <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 text-xs rounded-full font-['Noto_Sans_JP']">
+              メイン: {project.mainGenre}
+            </span>
+          )}
+          {!project.mainGenre && project.genre && (
+            <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 text-xs rounded-full font-['Noto_Sans_JP']">
+              メイン: {project.genre}
+            </span>
+          )}
+          {project.subGenre && (
+            <span className="inline-block px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs rounded-full font-['Noto_Sans_JP']">
+              サブ: {project.subGenre}
+            </span>
+          )}
+        </div>
+      )}
+      
+      <div className="mt-4 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span>作成: {project.createdAt instanceof Date ? project.createdAt.toLocaleDateString('ja-JP') : new Date(project.createdAt).toLocaleDateString('ja-JP')}</span>
+        <span>更新: {project.updatedAt instanceof Date ? project.updatedAt.toLocaleDateString('ja-JP') : new Date(project.updatedAt).toLocaleDateString('ja-JP')}</span>
+      </div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+        画像: {project.imageBoard.length} 枚
+      </div>
+
+      {/* ローディング表示 */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-2xl flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      )}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数：プロジェクトの主要プロパティが変更された場合のみ再レンダリング
+  return (
+    prevProps.project.id === nextProps.project.id &&
+    prevProps.project.title === nextProps.project.title &&
+    prevProps.project.description === nextProps.project.description &&
+    prevProps.project.coverImage === nextProps.project.coverImage &&
+    prevProps.project.mainGenre === nextProps.project.mainGenre &&
+    prevProps.project.genre === nextProps.project.genre &&
+    prevProps.project.subGenre === nextProps.project.subGenre &&
+    prevProps.project.imageBoard.length === nextProps.project.imageBoard.length &&
+    prevProps.progress.percentage === nextProps.progress.percentage &&
+    prevProps.progress.completedSteps === nextProps.progress.completedSteps &&
+    prevProps.progress.totalSteps === nextProps.progress.totalSteps &&
+    prevProps.isLoading === nextProps.isLoading
+  );
+});
+
+ProjectCard.displayName = 'ProjectCard';
+
+// 最近使用したプロジェクトカードコンポーネント（メモ化）
+interface RecentProjectCardProps {
+  project: Project;
+  progress: { percentage: number; completedSteps: number; totalSteps: number };
+  onSelect: (project: Project) => void;
+}
+
+const RecentProjectCard = React.memo<RecentProjectCardProps>(({ project, progress, onSelect }) => {
+  return (
+    <div
+      onClick={() => onSelect(project)}
+      className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-lg cursor-pointer"
+    >
+      {project.coverImage && (
+        <OptimizedImage
+          src={project.coverImage}
+          alt={project.title}
+          className="w-full h-24 rounded-lg mb-2"
+          lazy={true}
+          quality={0.8}
+        />
+      )}
+      <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1 line-clamp-1 font-['Noto_Sans_JP']">
+        {project.title}
+      </h3>
+      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+        <span>{progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
+        <span>{progress.percentage.toFixed(0)}%</span>
+      </div>
+      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+        <div 
+          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-300" 
+          style={{ width: `${progress.percentage}%` }}
+        />
+      </div>
+      {project.lastAccessed && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 font-['Noto_Sans_JP']">
+          {project.lastAccessed instanceof Date 
+            ? project.lastAccessed.toLocaleDateString('ja-JP')
+            : new Date(project.lastAccessed).toLocaleDateString('ja-JP')}
+        </p>
+      )}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数：プロジェクトの主要プロパティが変更された場合のみ再レンダリング
+  return (
+    prevProps.project.id === nextProps.project.id &&
+    prevProps.project.title === nextProps.project.title &&
+    prevProps.project.coverImage === nextProps.project.coverImage &&
+    prevProps.progress.percentage === nextProps.progress.percentage &&
+    prevProps.progress.completedSteps === nextProps.progress.completedSteps &&
+    prevProps.progress.totalSteps === nextProps.progress.totalSteps
+  );
+});
+
+RecentProjectCard.displayName = 'RecentProjectCard';
 
 interface HomePageProps {
   onNavigateToStep: (step: Step) => void;
@@ -16,45 +245,17 @@ interface HomePageProps {
 
 // ジャンル選択オプション
 const GENRES = [
-  '一般小説', '恋愛小説', 'ミステリー', 'SF', 'ファンタジー', 'ホラー', '歴史小説',  
-  '青春小説', 'ビジネス小説', 'スポーツ小説', 'コメディ', 'アクション', 'サスペンス', 'その他'
-];
-
-// ターゲット読者選択オプション
-const TARGET_READERS = [
-  '10代', '20代', '30代', '40代', '50代以上', '全年齢', 'その他'
-];
-
-// テーマ選択オプション
-const THEMES = [
-  '成長・自己発見', '友情・絆', '恋愛・愛', '家族・親子', '正義・道徳', 
-  '復讐・救済', '冒険・探検', '戦争・平和', '死・生', '希望・夢', '孤独・疎外感', 'その他'
+  '一般小説', '恋愛小説', 'ミステリー', 'SF', 'ファンタジー', 'ホラー', 'コメディ', 'アクション', 'サスペンス', 'その他'
 ];
 
 type SortOption = 'updatedDesc' | 'updatedAsc' | 'createdDesc' | 'createdAsc' | 'titleAsc' | 'titleDesc' | 'progressDesc' | 'progressAsc' | 'lastAccessedDesc';
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
-  const { projects, setProjects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
+  const { projects, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
   const { showError, showSuccess } = useToast();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showContextHelp, setShowContextHelp] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
-  const [editFormData, setEditFormData] = useState({
-    title: '',
-    description: '',
-    genre: '',
-    mainGenre: '',
-    subGenre: '',
-    targetReader: '',
-    projectTheme: '',
-    coverImage: '',
-    customMainGenre: '',
-    customSubGenre: '',
-    customTargetReader: '',
-    customTheme: ''
-  });
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 検索・フィルタリング・ソート用の状態
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,155 +295,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     }
   };
 
-  // ファイルをBase64に変換
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  // ファイル選択処理
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // ファイルタイプとサイズの検証
-    if (!file.type.startsWith('image/')) {
-      showError('画像ファイルを選択してください。', 5000, {
-        title: 'ファイル形式エラー',
-        details: 'サポートされている形式: JPG, PNG, GIF, WebP',
-      });
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) { // 10MB制限
-      showError('ファイルサイズは10MB以下にしてください。', 5000, {
-        title: 'ファイルサイズエラー',
-        details: `現在のファイルサイズ: ${(file.size / 1024 / 1024).toFixed(2)}MB\n最大サイズ: 10MB`,
-      });
-      return;
-    }
-
-    const base64 = await fileToBase64(file);
-    setPreviewUrl(base64);
-    setEditFormData(prev => ({ ...prev, coverImage: base64 }));
-  };
-
-  // ファイル選択ボタンクリック
-  const handleSelectFile = () => {
-    fileInputRef.current?.click();
-  };
-
-  // ファイルクリア
-  const handleClearFile = () => {
-    setPreviewUrl(null);
-    setEditFormData(prev => ({ ...prev, coverImage: '' }));
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
   // 編集開始
   const handleEditProject = (e: React.MouseEvent, project: Project) => {
     e.stopPropagation();
     setEditingProject(project.id);
-    
-    // カスタムフィールドの値を適切に復元
-    const mainGenre = project.mainGenre || project.genre || '';
-    const subGenre = project.subGenre || '';
-    const targetReader = project.targetReader || '';
-    const projectTheme = project.projectTheme || '';
-    
-    // カスタムフィールドが存在する場合は、それを使用して「その他」を選択状態にする
-    const customMainGenre = project.customMainGenre || '';
-    const customSubGenre = project.customSubGenre || '';
-    const customTargetReader = project.customTargetReader || '';
-    const customTheme = project.customTheme || '';
-    
-    setEditFormData({
-      title: project.title,
-      description: project.description,
-      genre: mainGenre,
-      mainGenre: customMainGenre ? 'その他' : mainGenre,
-      subGenre: customSubGenre ? 'その他' : subGenre,
-      targetReader: customTargetReader ? 'その他' : targetReader,
-      projectTheme: customTheme ? 'その他' : projectTheme,
-      coverImage: project.coverImage || '',
-      customMainGenre: customMainGenre,
-      customSubGenre: customSubGenre,
-      customTargetReader: customTargetReader,
-      customTheme: customTheme
-    });
-    setPreviewUrl(project.coverImage || null);
   };
 
-  // 編集保存
-  const handleSaveEdit = async () => {
-    if (!editingProject) return;
-    
-    try {
-      // 編集対象のプロジェクトを取得
-      const projectToUpdate = projects.find(p => p.id === editingProject);
-      if (!projectToUpdate) {
-        showError('プロジェクトが見つかりません。', 5000, {
-          title: 'プロジェクト取得エラー',
-          details: 'プロジェクトが削除されたか、データが破損している可能性があります。',
-        });
-        return;
-      }
-
-      // プロジェクトを更新
-      const updatedProject = {
-        ...projectToUpdate,
-        title: editFormData.title,
-        description: editFormData.description,
-        genre: editFormData.mainGenre === 'その他' ? editFormData.customMainGenre : editFormData.mainGenre, // 後方互換性のため
-        mainGenre: editFormData.mainGenre === 'その他' ? editFormData.customMainGenre : editFormData.mainGenre,
-        subGenre: editFormData.subGenre === 'その他' ? editFormData.customSubGenre : editFormData.subGenre,
-        targetReader: editFormData.targetReader === 'その他' ? editFormData.customTargetReader : editFormData.targetReader,
-        projectTheme: editFormData.projectTheme === 'その他' ? editFormData.customTheme : editFormData.projectTheme,
-        coverImage: editFormData.coverImage,
-        customMainGenre: editFormData.customMainGenre,
-        customSubGenre: editFormData.customSubGenre,
-        customTargetReader: editFormData.customTargetReader,
-        customTheme: editFormData.customTheme,
-        updatedAt: new Date(),
-      };
-
-      // データベースに保存
-      await databaseService.saveProject(updatedProject);
-      
-      // プロジェクト一覧を更新
-      const updatedProjects = projects.map((p: Project) => p.id === updatedProject.id ? updatedProject : p);
-      setProjects(updatedProjects);
-      
-      // 現在のプロジェクトが編集対象の場合は更新
-      if (currentProject?.id === editingProject) {
-        setCurrentProject(updatedProject);
-      }
-      
-      setEditingProject(null);
-      setEditFormData({ title: '', description: '', genre: '', mainGenre: '', subGenre: '', targetReader: '', projectTheme: '', coverImage: '', customMainGenre: '', customSubGenre: '', customTargetReader: '', customTheme: '' });
-      setPreviewUrl(null);
-      
-      showSuccess('プロジェクトを更新しました。', 3000);
-    } catch (error) {
-      console.error('Update error:', error);
-      showError('更新に失敗しました。', 7000, {
-        title: '保存エラー',
-        details: error instanceof Error ? error.message : '不明なエラーが発生しました。',
-      });
-    }
-  };
-
-  // 編集キャンセル
-  const handleCancelEdit = () => {
+  // 編集モーダルを閉じる
+  const handleCloseEditModal = () => {
     setEditingProject(null);
-    setEditFormData({ title: '', description: '', genre: '', mainGenre: '', subGenre: '', targetReader: '', projectTheme: '', coverImage: '', customMainGenre: '', customSubGenre: '', customTargetReader: '', customTheme: '' });
-    setPreviewUrl(null);
   };
 
   // プロジェクト進捗を計算する関数（ProjectContextの関数を使用）
@@ -437,39 +498,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
               {recentProjects.map((project) => {
                 const progress = getProjectProgress(project);
                 return (
-                  <div
+                  <RecentProjectCard
                     key={project.id}
-                    onClick={() => handleProjectSelect(project)}
-                    className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-lg cursor-pointer"
-                  >
-                    {project.coverImage && (
-                      <img 
-                        src={project.coverImage} 
-                        alt={project.title}
-                        className="w-full h-24 object-cover rounded-lg mb-2"
-                      />
-                    )}
-                    <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1 line-clamp-1 font-['Noto_Sans_JP']">
-                      {project.title}
-                    </h3>
-                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      <span>{progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
-                      <span>{progress.percentage.toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                      <div 
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-300" 
-                        style={{ width: `${progress.percentage}%` }}
-                      />
-                    </div>
-                    {project.lastAccessed && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 font-['Noto_Sans_JP']">
-                        {project.lastAccessed instanceof Date 
-                          ? project.lastAccessed.toLocaleDateString('ja-JP')
-                          : new Date(project.lastAccessed).toLocaleDateString('ja-JP')}
-                      </p>
-                    )}
-                  </div>
+                    project={project}
+                    progress={progress}
+                    onSelect={handleProjectSelect}
+                  />
                 );
               })}
             </div>
@@ -562,133 +596,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
               {filteredAndSortedProjects.map((project) => {
                 const progress = getProjectProgress(project);
                 return (
-                <div
-                  key={project.id}
-                  className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-xl relative group"
-                >
-                  {/* プロジェクト操作ボタン */}
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
-                    <button
-                      onClick={(e) => handleEditProject(e, project)}
-                      className="p-2 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
-                      title="プロジェクトを編集"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDuplicateProject(e, project.id)}
-                      className="p-2 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-                      title="プロジェクトを複製"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteProject(e, project.id)}
-                      className="p-2 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
-                      title="プロジェクトを削除"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* 表紙画像 */}
-                  {project.coverImage && (
-                    <div className="mb-4">
-                      <div 
-                        onClick={() => handleProjectSelect(project as Project)}
-                        className="cursor-pointer"
-                      >
-                        <img 
-                          src={project.coverImage} 
-                          alt={project.title}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mb-4">
-                    <div 
-                      onClick={() => handleProjectSelect(project as Project)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex-1 font-['Noto_Sans_JP']">
-                          {project.title}
-                        </h3>
-                        <span className="ml-2 inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full">
-                          {progress.percentage.toFixed(0)}%
-                        </span>
-                      </div>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 font-['Noto_Sans_JP']">
-                        {project.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 進捗バー */}
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1 font-['Noto_Sans_JP']">
-                      <span>進捗: {progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
-                      <span className="flex items-center space-x-1">
-                        <CheckCircle2 className="h-3 w-3 text-green-500" />
-                        <span>{progress.completedSteps}完了</span>
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          progress.percentage === 100 
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                            : progress.percentage >= 50
-                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500'
-                            : 'bg-gradient-to-r from-yellow-400 to-orange-500'
-                        }`}
-                        style={{ width: `${progress.percentage}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* ジャンル表示 */}
-                  {(project.mainGenre || project.genre) && (
-                    <div className="mb-3 flex flex-wrap gap-1">
-                      {project.mainGenre && (
-                        <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 text-xs rounded-full font-['Noto_Sans_JP']">
-                          メイン: {project.mainGenre}
-                        </span>
-                      )}
-                      {!project.mainGenre && project.genre && (
-                        <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 text-xs rounded-full font-['Noto_Sans_JP']">
-                          メイン: {project.genre}
-                        </span>
-                      )}
-                      {project.subGenre && (
-                        <span className="inline-block px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs rounded-full font-['Noto_Sans_JP']">
-                          サブ: {project.subGenre}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div className="mt-4 flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>作成: {project.createdAt instanceof Date ? project.createdAt.toLocaleDateString('ja-JP') : new Date(project.createdAt).toLocaleDateString('ja-JP')}</span>
-                    <span>更新: {project.updatedAt instanceof Date ? project.updatedAt.toLocaleDateString('ja-JP') : new Date(project.updatedAt).toLocaleDateString('ja-JP')}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    画像: {project.imageBoard.length} 枚
-                  </div>
-
-                  {/* ローディング表示 */}
-                  {isLoading && (
-                    <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-2xl flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                    </div>
-                  )}
-                </div>
+                  <ProjectCard
+                    key={project.id}
+                    project={project as Project}
+                    progress={progress}
+                    onSelect={handleProjectSelect}
+                    onEdit={handleEditProject}
+                    onDuplicate={handleDuplicateProject}
+                    onDelete={handleDeleteProject}
+                    isLoading={isLoading}
+                  />
                 );
               })}
             </div>
@@ -743,299 +660,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         onClose={() => setShowContextHelp(false)}
       />
 
-      {/* Edit Project Modal */}
-      {editingProject && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={handleCancelEdit}
-        >
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2 rounded-lg">
-                    <Edit3 className="h-6 w-6 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                    プロジェクト編集
-                  </h2>
-                </div>
-                <button
-                  onClick={handleCancelEdit}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* プロジェクトタイトル */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                  プロジェクトタイトル
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.title}
-                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP']"
-                  placeholder="プロジェクトのタイトルを入力"
-                />
-              </div>
-
-              {/* プロジェクト説明 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                  プロジェクト説明
-                </label>
-                <textarea
-                  value={editFormData.description}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP']"
-                  placeholder="プロジェクトの説明を入力"
-                />
-              </div>
-
-              {/* メインジャンル選択 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-                  メインジャンル <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {GENRES.map((genre) => (
-                    <button
-                      key={genre}
-                      onClick={() => {
-                        if (editFormData.mainGenre !== genre) {
-                          setEditFormData({ ...editFormData, mainGenre: genre, customMainGenre: '' });
-                        }
-                      }}
-                      className={`p-2 rounded-lg text-sm transition-colors ${
-                        editFormData.mainGenre === genre
-                          ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/50'
-                      }`}
-                    >
-                      {genre}
-                    </button>
-                  ))}
-                </div>
-                {editFormData.mainGenre === 'その他' && (
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      value={editFormData.customMainGenre}
-                      onChange={(e) => setEditFormData({ ...editFormData, customMainGenre: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
-                      placeholder="カスタムジャンルを入力してください"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* サブジャンル選択 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-                  サブジャンル <span className="text-gray-500">（任意）</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {GENRES.map((genre) => (
-                    <button
-                      key={genre}
-                      onClick={() => {
-                        if (editFormData.subGenre === genre) {
-                          setEditFormData({ ...editFormData, subGenre: '', customSubGenre: '' });
-                        } else {
-                          setEditFormData({ ...editFormData, subGenre: genre, customSubGenre: '' });
-                        }
-                      }}
-                      className={`p-2 rounded-lg text-sm transition-colors ${
-                        editFormData.subGenre === genre
-                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/50'
-                      }`}
-                    >
-                      {genre}
-                    </button>
-                  ))}
-                </div>
-                {editFormData.subGenre === 'その他' && (
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      value={editFormData.customSubGenre}
-                      onChange={(e) => setEditFormData({ ...editFormData, customSubGenre: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP']"
-                      placeholder="カスタムサブジャンルを入力してください"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* ターゲット読者選択 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-                  ターゲット読者
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {TARGET_READERS.map((target) => (
-                    <button
-                      key={target}
-                      onClick={() => {
-                        if (editFormData.targetReader === target) {
-                          setEditFormData({ ...editFormData, targetReader: '', customTargetReader: '' });
-                        } else {
-                          setEditFormData({ ...editFormData, targetReader: target, customTargetReader: '' });
-                        }
-                      }}
-                      className={`p-2 rounded-lg text-sm transition-colors ${
-                        editFormData.targetReader === target
-                          ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/50'
-                      }`}
-                    >
-                      {target}
-                    </button>
-                  ))}
-                </div>
-                {editFormData.targetReader === 'その他' && (
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      value={editFormData.customTargetReader}
-                      onChange={(e) => setEditFormData({ ...editFormData, customTargetReader: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP']"
-                      placeholder="カスタムターゲット読者を入力してください"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* テーマ選択 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-                  テーマ
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {THEMES.map((theme) => (
-                    <button
-                      key={theme}
-                      onClick={() => {
-                        if (editFormData.projectTheme === theme) {
-                          setEditFormData({ ...editFormData, projectTheme: '', customTheme: '' });
-                        } else {
-                          setEditFormData({ ...editFormData, projectTheme: theme, customTheme: '' });
-                        }
-                      }}
-                      className={`p-2 rounded-lg text-sm transition-colors ${
-                        editFormData.projectTheme === theme
-                          ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/50'
-                      }`}
-                    >
-                      {theme}
-                    </button>
-                  ))}
-                </div>
-                {editFormData.projectTheme === 'その他' && (
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      value={editFormData.customTheme}
-                      onChange={(e) => setEditFormData({ ...editFormData, customTheme: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP']"
-                      placeholder="カスタムテーマを入力してください"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 表紙画像 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                  表紙画像
-                </label>
-                
-                {/* ファイル選択エリア */}
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  
-                  {previewUrl ? (
-                    <div className="space-y-3">
-                      <img 
-                        src={previewUrl} 
-                        alt="プレビュー" 
-                        className="w-full h-32 object-cover rounded-lg mx-auto"
-                      />
-                      <div className="flex space-x-2 justify-center">
-                        <button
-                          onClick={handleSelectFile}
-                          className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors text-sm"
-                        >
-                          <Upload className="h-4 w-4 inline mr-1" />
-                          変更
-                        </button>
-                        <button
-                          onClick={handleClearFile}
-                          className="px-3 py-1 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors text-sm"
-                        >
-                          <X className="h-4 w-4 inline mr-1" />
-                          削除
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <Image className="h-12 w-12 text-gray-400 mx-auto" />
-                      <div>
-                        <button
-                          onClick={handleSelectFile}
-                          className="px-4 py-2 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
-                        >
-                          <Upload className="h-4 w-4 inline mr-2" />
-                          画像を選択
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        JPG, PNG, GIF (最大10MB)
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleCancelEdit}
-                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-['Noto_Sans_JP']"
-                >
-                  <Save className="h-4 w-4 inline mr-2" />
-                  保存
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Project Settings Modal */}
+      <ProjectSettingsModal
+        isOpen={editingProject !== null}
+        project={editingProject ? projects.find(p => p.id === editingProject) || null : null}
+        onClose={handleCloseEditModal}
+      />
     </div>
   );
 };

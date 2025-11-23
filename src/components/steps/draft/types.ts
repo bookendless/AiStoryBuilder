@@ -38,7 +38,7 @@ export type GenerationAction =
 
 export type AIStatusTone = 'emerald' | 'blue' | 'purple';
 
-export type SecondaryTab = 'ai' | 'display' | 'history' | 'project';
+export type SecondaryTab = 'ai' | 'display' | 'history' | 'project' | 'aiLogs';
 
 export interface SuggestionPromptPayload {
   selectedText: string;

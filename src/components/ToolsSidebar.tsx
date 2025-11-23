@@ -17,6 +17,60 @@ import { TimelineViewer } from './tools/TimelineViewer';
 import { ChatAssistant } from './tools/ChatAssistant';
 import { WorldSettingsManager } from './tools/WorldSettingsManager';
 
+// ツールボタンコンポーネント（メモ化）
+interface ToolButtonProps {
+  tool: {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    color: string;
+  };
+  isDisabled: boolean;
+  isCollapsed: boolean;
+  onClick: () => void;
+}
+
+const ToolButton = React.memo<ToolButtonProps>(({ tool, isDisabled, isCollapsed, onClick }) => {
+  const Icon = tool.icon;
+  
+  return (
+    <button
+      onClick={onClick}
+      disabled={isDisabled}
+      className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+        isCollapsed 
+          ? 'justify-center px-2 py-3' 
+          : 'space-x-3 px-4 py-3 text-left'
+      } ${
+        isDisabled
+          ? 'opacity-50 cursor-not-allowed'
+          : tool.color
+      }`}
+      role="listitem"
+      aria-label={tool.label}
+      title={isDisabled ? 'プロジェクトが必要です' : tool.label}
+    >
+      <div className="relative flex-shrink-0">
+        <Icon className="h-5 w-5" />
+      </div>
+      {!isCollapsed && (
+        <span className="font-medium font-['Noto_Sans_JP'] flex-1">
+          {tool.label}
+        </span>
+      )}
+    </button>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数：ツールの状態が変更された場合のみ再レンダリング
+  return (
+    prevProps.tool.id === nextProps.tool.id &&
+    prevProps.isDisabled === nextProps.isDisabled &&
+    prevProps.isCollapsed === nextProps.isCollapsed
+  );
+});
+
+ToolButton.displayName = 'ToolButton';
+
 const MEMO_TABS = [
   { id: 'ideas', label: '1' },
   { id: 'tasks', label: '2' },
@@ -173,36 +227,16 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
           {/* ツールリスト */}
           <nav className="flex-1 overflow-y-auto p-4 space-y-2" role="list" aria-label="ツール一覧">
             {tools.map((tool) => {
-              const Icon = tool.icon;
               const isDisabled = !tool.available;
               
               return (
-                <button
+                <ToolButton
                   key={tool.id}
+                  tool={tool}
+                  isDisabled={isDisabled}
+                  isCollapsed={isCollapsed}
                   onClick={tool.onClick}
-                  disabled={isDisabled}
-                  className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                    isCollapsed 
-                      ? 'justify-center px-2 py-3' 
-                      : 'space-x-3 px-4 py-3 text-left'
-                  } ${
-                    isDisabled
-                      ? 'opacity-50 cursor-not-allowed'
-                      : tool.color
-                  }`}
-                  role="listitem"
-                  aria-label={tool.label}
-                  title={isDisabled ? 'プロジェクトが必要です' : tool.label}
-                >
-                  <div className="relative flex-shrink-0">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  {!isCollapsed && (
-                    <span className="font-medium font-['Noto_Sans_JP'] flex-1">
-                      {tool.label}
-                    </span>
-                  )}
-                </button>
+                />
               );
             })}
           </nav>

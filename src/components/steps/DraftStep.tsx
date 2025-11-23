@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
-import { PenTool, Sparkles, BookOpen, FileText, ChevronDown, ChevronUp, AlignLeft, AlignJustify } from 'lucide-react';
+import { PenTool, Sparkles, BookOpen, FileText, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Copy, Download } from 'lucide-react';
 import { diffLines, type Change } from 'diff';
-import { aiService } from '../../services/aiService';
+import { aiService, SYSTEM_PROMPT } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
@@ -97,6 +97,71 @@ export const DraftStep: React.FC = () => {
   // トースト通知用の状態
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  
+  // AIログ管理
+  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+
+  // AIログをコピー
+  const handleCopyLog = (log: AILogEntry) => {
+    const typeLabels = {
+      generateSingle: '章生成',
+      continue: '続き生成',
+      suggestions: '提案生成',
+    };
+    const logText = `【AIログ - ${typeLabels[log.type]}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.chapterId ? `章ID: ${log.chapterId}\n` : ''}
+${log.suggestionType ? `提案タイプ: ${log.suggestionType}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}`;
+
+    navigator.clipboard.writeText(logText);
+    setToastMessage('ログをクリップボードにコピーしました');
+  };
+
+  // AIログをダウンロード
+  const handleDownloadLogs = () => {
+    const typeLabels = {
+      generateSingle: '章生成',
+      continue: '続き生成',
+      suggestions: '提案生成',
+    };
+    const logsText = aiLogs.map(log =>
+      `【AIログ - ${typeLabels[log.type]}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.chapterId ? `章ID: ${log.chapterId}\n` : ''}
+${log.suggestionType ? `提案タイプ: ${log.suggestionType}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${'='.repeat(80)}`
+    ).join('\n\n');
+
+    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `draft_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setToastMessage('ログをダウンロードしました');
+  };
   
   // ドロップダウンメニュー用の状態
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -522,8 +587,14 @@ useEffect(() => {
         disabled: false,
         disabledReason: ''
       },
+      { 
+        id: 'aiLogs' as SecondaryTab, 
+        label: 'AIログ', 
+        disabled: aiLogs.length === 0,
+        disabledReason: 'AI生成を実行するとログが表示されます'
+      },
     ],
-    [selectedChapter]
+    [selectedChapter, aiLogs.length]
   );
 
   useEffect(() => {
@@ -957,6 +1028,112 @@ useEffect(() => {
   };
   */
 
+  const renderAiLogsTab = (): React.ReactNode => {
+    if (aiLogs.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <FileText className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+          <p className="text-xl text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
+            AIログがありません
+          </p>
+          <p className="text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+            AI生成を実行すると、ここにログが表示されます
+          </p>
+        </div>
+      );
+    }
+
+    const typeLabels = {
+      generateSingle: '章生成',
+      continue: '続き生成',
+      suggestions: '提案生成',
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            AIログ
+          </h3>
+          <button
+            onClick={handleDownloadLogs}
+            className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors font-['Noto_Sans_JP']"
+            title="ログをダウンロード"
+          >
+            <Download className="h-4 w-4" />
+            <span>ダウンロード</span>
+          </button>
+        </div>
+        <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto">
+          {aiLogs.map((log) => (
+            <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${log.type === 'generateSingle'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                    : log.type === 'continue'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                    }`}>
+                    {typeLabels[log.type]}
+                  </span>
+                  {log.chapterId && (
+                    <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                      {currentProject?.chapters.find(c => c.id === log.chapterId)?.title || log.chapterId}
+                    </span>
+                  )}
+                  {log.suggestionType && (
+                    <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                      {log.suggestionType}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {log.timestamp.toLocaleString('ja-JP', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                  <button
+                    onClick={() => handleCopyLog(log)}
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    title="ログをコピー"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {log.error ? (
+                <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                  <strong>エラー:</strong> {log.error}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] space-y-2">
+                  <div>
+                    <strong>プロンプト:</strong>
+                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-32 overflow-y-auto">
+                      {log.prompt.substring(0, 300)}...
+                    </div>
+                  </div>
+                  <div>
+                    <strong>応答:</strong>
+                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-32 overflow-y-auto">
+                      {log.response.substring(0, 500)}...
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderProjectTab = (): React.ReactNode => {
     if (!currentProject) {
       return (
@@ -1133,6 +1310,8 @@ useEffect(() => {
         return renderHistoryTab();
       case 'project':
         return renderProjectTab();
+      case 'aiLogs':
+        return renderAiLogsTab();
       default:
         return null;
     }
@@ -1356,6 +1535,19 @@ useEffect(() => {
           type: 'draft',
           settings,
         });
+
+        // AIログに記録
+        const logEntry: AILogEntry = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          type: 'suggestions',
+          prompt,
+          response: response.content || '',
+          error: response.error,
+          chapterId: selectedChapter || undefined,
+          suggestionType: type,
+        };
+        setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
 
         if (!response || !response.content) {
           throw new Error('AIからの応答が空でした。');
@@ -1614,85 +1806,71 @@ useEffect(() => {
     previousChapterEnd: string = '',
     contextInfo: { worldSettings: string; glossary: string; relationships: string; plotInfo: string } = { worldSettings: '', glossary: '', relationships: '', plotInfo: '' }
   ) => {
-    const basePrompt = `以下の章の情報を基に、会話を重視し、読者に臨場感のある魅力的な小説の章を執筆してください。
+    // 文体設定の取得（プロジェクト設定から、またはデフォルト値）
+    const writingStyle = currentProject?.writingStyle || {};
+    const style = writingStyle.style || '現代小説風';
+    const perspective = writingStyle.perspective || '';
+    const formality = writingStyle.formality || '';
+    const rhythm = writingStyle.rhythm || '';
+    const metaphor = writingStyle.metaphor || '';
+    const dialogue = writingStyle.dialogue || '';
+    const emotion = writingStyle.emotion || '';
+    const tone = writingStyle.tone || '';
 
-【最重要：章情報】
-章タイトル: ${currentChapter.title}
-章の概要: ${currentChapter.summary}
+    // 文体の詳細指示を構築
+    const styleDetailsArray: string[] = [];
+    if (perspective || formality || rhythm || metaphor || dialogue || emotion || tone) {
+      styleDetailsArray.push('【文体の詳細指示】');
+      if (perspective) styleDetailsArray.push(`- **人称**: ${perspective} （一人称 / 三人称 / 神の視点）`);
+      if (formality) styleDetailsArray.push(`- **硬軟**: ${formality} （硬め / 柔らかめ / 口語的 / 文語的）`);
+      if (rhythm) styleDetailsArray.push(`- **リズム**: ${rhythm} （短文中心 / 長短混合 / 流れるような長文）`);
+      if (metaphor) styleDetailsArray.push(`- **比喩表現**: ${metaphor} （多用 / 控えめ / 詩的 / 写実的）`);
+      if (dialogue) styleDetailsArray.push(`- **会話比率**: ${dialogue} （会話多め / 描写重視 / バランス型）`);
+      if (emotion) styleDetailsArray.push(`- **感情描写**: ${emotion} （内面重視 / 行動で示す / 抑制的）`);
+      if (tone) {
+        styleDetailsArray.push('');
+        styleDetailsArray.push(`【参考となるトーン】`);
+        styleDetailsArray.push(`${tone} （緊張感 / 穏やか / 希望 / 切なさ / 謎めいた）`);
+      }
+    }
+    const styleDetails = styleDetailsArray.length > 0 ? styleDetailsArray.join('\n') + '\n' : '';
 
-【これまでの物語（前章までの流れ）】
-${previousStory || 'これが最初の章です。'}
-${previousChapterEnd ? `
-【直前の章のラストシーン（接続用）】
-以下の文章は、直前の章の終わりの部分です。この流れを汲んで、自然に接続するように新しい章を書き始めてください。
----
-${previousChapterEnd}
----` : ''}
+    // 物語の全体構成を構築
+    let plotStructure = '';
+    if (currentProject?.plot?.structure === 'kishotenketsu') {
+      plotStructure = `起承転結構成\n起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`;
+    } else if (currentProject?.plot?.structure === 'three-act') {
+      plotStructure = `三幕構成\n第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`;
+    } else if (currentProject?.plot?.structure === 'four-act') {
+      plotStructure = `四幕構成\n第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`;
+    } else {
+      plotStructure = contextInfo.plotInfo || '未設定';
+    }
 
-【章の詳細設定】
-設定・場所: ${chapterDetails.setting}
-雰囲気・ムード: ${chapterDetails.mood}
-重要な出来事: ${chapterDetails.keyEvents}
-登場キャラクター: ${chapterDetails.characters}
-
-【プロジェクト基本情報】
-作品タイトル: ${currentProject?.title}
-メインジャンル: ${currentProject?.mainGenre || '未設定'}
-サブジャンル: ${currentProject?.subGenre || '未設定'}
-ターゲット読者: ${currentProject?.targetReader || '未設定'}
-プロジェクトテーマ: ${currentProject?.projectTheme || '未設定'}
-
-【プロット基本設定】
-テーマ: ${currentProject?.plot?.theme || '未設定'}
-舞台設定: ${currentProject?.plot?.setting || '未設定'}
-フック: ${currentProject?.plot?.hook || '未設定'}
-主人公の目標: ${currentProject?.plot?.protagonistGoal || '未設定'}
-主要な障害: ${currentProject?.plot?.mainObstacle || '未設定'}
-
-【物語の全体構成】
-${contextInfo.plotInfo}
-
-【キャラクター情報】
-${projectCharacters}
-
-【キャラクター相関図】
-${contextInfo.relationships}
-
-【設定資料・世界観】
-${contextInfo.worldSettings}
-
-【重要用語集】
-${contextInfo.glossary}
-
-【執筆指示】
-1. **文字数**: 3000-4000文字程度で執筆してください
-2. **会話重視**: キャラクター同士の会話を豊富に含め、自然で生き生きとした対話を心がけてください
-3. **臨場感**: 読者がその場にいるような感覚を与える詳細な情景描写を入れてください
-4. **感情表現**: キャラクターの心理状態や感情を丁寧に描写してください
-5. **五感の活用**: 視覚、聴覚、触覚、嗅覚、味覚を意識した描写を入れてください
-6. **章の目的**: 章の概要に沿った内容で、物語を前進させてください
-7. **一貫性**: キャラクターの性格や設定を一貫して保ってください。特に「設定資料・世界観」や「重要用語集」の内容と矛盾しないようにしてください
-8. **関係性の反映**: 「キャラクター相関図」の関係性に基づいた会話や態度を描写してください
-
-【文体の特徴】
-- 現代的な日本語小説の文体
-- 読み手が感情移入しやすい表現
-- 適度な改行と段落分け（会話の前後、場面転換時など）
-- 会話は「」で囲み、自然な話し方で
-- 情景描写は詩的で美しい表現を
-- 改行は自然な文章の流れに従って適切に行う
-
-【改行の指示】
-- 会話の前後で改行する
-- 場面転換時に改行する
-- 段落の区切りで改行する
-- 長い文章は読みやすく適度に改行する
-- 改行は通常の改行文字（\n）で表現する
-
-章の内容を執筆してください。`;
+    const basePrompt = aiService.buildPrompt('draft', 'generateSingle', {
+      chapterTitle: currentChapter.title,
+      chapterSummary: currentChapter.summary,
+      characters: chapterDetails.characters,
+      setting: chapterDetails.setting,
+      mood: chapterDetails.mood,
+      keyEvents: chapterDetails.keyEvents,
+      projectTitle: currentProject?.title || '未設定',
+      mainGenre: currentProject?.mainGenre || '未設定',
+      subGenre: currentProject?.subGenre || '未設定',
+      targetReader: currentProject?.targetReader || '未設定',
+      previousStory: previousStory || 'これが最初の章です。',
+      previousChapterEnd: previousChapterEnd ? `\n【直前の章のラストシーン（接続用）】\n以下の文章は、直前の章の終わりの部分です。この流れを汲んで、自然に接続するように新しい章を書き始めてください。\n---\n${previousChapterEnd}\n---` : '',
+      projectCharacters: `${projectCharacters}\n\n【キャラクター相関図】\n${contextInfo.relationships}\n\n【設定資料・世界観】\n${contextInfo.worldSettings}\n\n【重要用語集】\n${contextInfo.glossary}`,
+      plotTheme: currentProject?.plot?.theme || '未設定',
+      plotSetting: currentProject?.plot?.setting || '未設定',
+      plotStructure: plotStructure,
+      style: style,
+      styleDetails: styleDetails,
+      customPrompt: useCustomPrompt && customPrompt.trim() ? `\n\n【カスタム執筆指示】\n${customPrompt}` : '',
+    });
 
     if (useCustomPrompt && customPrompt.trim()) {
-      return `${basePrompt}\n\n【カスタム執筆指示】\n${customPrompt}`;
+      return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${customPrompt}`;
     }
     
     return basePrompt;
@@ -1761,6 +1939,18 @@ ${contextInfo.glossary}
         type: 'draft',
         settings
       });
+
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'generateSingle',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+        chapterId: selectedChapter || undefined,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
       
       if (response && response.content) {
         setDraft(response.content);
@@ -1798,36 +1988,54 @@ ${contextInfo.glossary}
       // 設定情報の取得
       const contextInfo = getProjectContextInfo();
 
-      const prompt = `以下の章の続きを執筆してください。
+      // 文体設定の取得（プロジェクト設定から、またはデフォルト値）
+      const writingStyle = currentProject.writingStyle || {};
+      const style = writingStyle.style || '現代小説風';
+      const perspective = writingStyle.perspective || '';
+      const formality = writingStyle.formality || '';
+      const rhythm = writingStyle.rhythm || '';
+      const metaphor = writingStyle.metaphor || '';
+      const dialogue = writingStyle.dialogue || '';
+      const emotion = writingStyle.emotion || '';
+      const tone = writingStyle.tone || '';
 
-【章情報】
-章タイトル: ${currentChapter?.title}
-章の概要: ${currentChapter?.summary}
+      // プロット情報の整理
+      const plotStructure = currentProject.plot?.structure 
+        ? (currentProject.plot.structure === 'kishotenketsu' 
+            ? `起承転結構成\n起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`
+            : currentProject.plot.structure === 'three-act'
+            ? `三幕構成\n第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`
+            : `四幕構成\n第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`)
+        : '未設定';
 
-【プロジェクト基本情報】
-作品タイトル: ${currentProject?.title}
-テーマ: ${currentProject?.plot?.theme || '未設定'}
-舞台設定: ${currentProject?.plot?.setting || '未設定'}
+      // buildPromptを使用してプロンプトを構築
+      const prompt = aiService.buildPrompt('draft', 'continue', {
+        currentText: draft,
+        chapterTitle: currentChapter?.title || '未設定',
+        chapterSummary: currentChapter?.summary || '未設定',
+        projectCharacters: projectCharacters || '未設定',
+        plotTheme: currentProject?.plot?.theme || '未設定',
+        plotSetting: currentProject?.plot?.setting || '未設定',
+        plotStructure: plotStructure,
+        style: style,
+        perspective: perspective,
+        formality: formality,
+        rhythm: rhythm,
+        metaphor: metaphor,
+        dialogue: dialogue,
+        emotion: emotion,
+        tone: tone,
+      });
 
-【物語の全体構成】
-${contextInfo.plotInfo}
+      // 追加のコンテキスト情報をプロンプトに追加
+      const enhancedPrompt = `${prompt}
 
-【キャラクター情報】
-${projectCharacters}
+【追加コンテキスト情報（参考）】
+${contextInfo.relationships ? `【キャラクター相関図】\n${contextInfo.relationships}\n` : ''}
+${contextInfo.worldSettings ? `【設定資料・世界観】\n${contextInfo.worldSettings}\n` : ''}
+${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''}
 
-【キャラクター相関図】
-${contextInfo.relationships}
-
-【設定資料・世界観】
-${contextInfo.worldSettings}
-
-【重要用語集】
-${contextInfo.glossary}
-
-【現在の文章】
-${draft}
-
-【続きの執筆指示】
+【追加の執筆指示】
 - 上記の文章の自然な続きを書いてください
 - キャラクターの性格や設定を一貫して保ってください
 - 特に「設定資料・世界観」や「重要用語集」の内容と矛盾しないようにしてください
@@ -1836,15 +2044,25 @@ ${draft}
 - 1000-1500文字程度で続きを執筆してください
 - 章の目的に沿った内容で物語を前進させてください
 - 適度な改行と段落分けを行ってください
-- 改行は通常の改行文字（\n）で表現してください
-
-続きを執筆してください：`;
+- 改行は通常の改行文字（\n）で表現してください`;
 
       const response = await aiService.generateContent({
-        prompt,
+        prompt: enhancedPrompt,
         type: 'draft',
         settings
       });
+
+      // AIログに記録
+      const logEntry: AILogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        type: 'continue',
+        prompt: enhancedPrompt,
+        response: response.content || '',
+        error: response.error,
+        chapterId: selectedChapter || undefined,
+      };
+      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
       
       if (response && response.content) {
         const newContent = draft + '\n\n' + response.content;
@@ -1873,21 +2091,9 @@ ${draft}
     setCurrentGenerationAction('description');
     setIsGenerating(true);
     try {
-      const prompt = `以下の文章の描写をより詳細で魅力的に強化してください。
-
-【現在の文章】
-${draft}
-
-【強化指示】
-- 情景描写をより詳細に
-- キャラクターの感情表現を豊かに
-- 五感を使った表現を追加
-- 会話の自然さを保ちつつ、心理描写を強化
-- 文章の長さは元の1.2-1.5倍程度に
-- 適度な改行と段落分けを行ってください
-- 改行は通常の改行文字（\n）で表現してください
-
-強化された文章：`;
+      const prompt = aiService.buildPrompt('draft', 'enhanceDescription', {
+        currentText: draft,
+      });
 
       const response = await aiService.generateContent({
         prompt,
@@ -1921,20 +2127,9 @@ ${draft}
     setCurrentGenerationAction('style');
     setIsGenerating(true);
     try {
-      const prompt = `以下の文章の文体を調整し、より読みやすく魅力的にしてください。
-
-【現在の文章】
-${draft}
-
-【調整指示】
-- 文章のリズムを整える
-- 冗長な表現を簡潔に
-- 読みやすい改行と段落分け
-- 自然で現代的な日本語に
-- 内容は変えずに表現のみ改善
-- 改行は通常の改行文字（\n）で表現してください
-
-調整された文章：`;
+      const prompt = aiService.buildPrompt('draft', 'adjustStyle', {
+        currentText: draft,
+      });
 
       const response = await aiService.generateContent({
         prompt,
@@ -1968,21 +2163,9 @@ ${draft}
     setCurrentGenerationAction('shorten');
     setIsGenerating(true);
     try {
-      const prompt = `以下の文章を簡潔にまとめ、冗長な部分を削除してください。
-
-【現在の文章】
-${draft}
-
-【短縮指示】
-- 重要な内容は保持
-- 冗長な表現を削除
-- 文章の流れを保つ
-- 約70-80%の長さに短縮
-- 読みやすさを維持
-- 適度な改行と段落分けを行ってください
-- 改行は通常の改行文字（\n）で表現してください
-
-短縮された文章：`;
+      const prompt = aiService.buildPrompt('draft', 'shorten', {
+        currentText: draft,
+      });
 
       const response = await aiService.generateContent({
         prompt,
@@ -2082,53 +2265,21 @@ ${draft}
       }).join('\n\n');
 
       // 全章生成用のプロンプトを作成
-      const fullPrompt = `以下のプロジェクト全体の情報を基に、一貫性のある魅力的な小説の全章を執筆してください。
-
-【プロジェクト基本情報】
-作品タイトル: ${projectInfo.title}
-メインジャンル: ${projectInfo.mainGenre}
-サブジャンル: ${projectInfo.subGenre}
-ターゲット読者: ${projectInfo.targetReader}
-プロジェクトテーマ: ${projectInfo.projectTheme}
-
-【プロット基本設定】
-テーマ: ${plotInfo.theme}
-舞台設定: ${plotInfo.setting}
-フック: ${plotInfo.hook}
-主人公の目標: ${plotInfo.protagonistGoal}
-主要な障害: ${plotInfo.mainObstacle}
-
-【物語構造の詳細】
-${structureDetails}
-
-【キャラクター情報】
-${charactersInfo}
-
-【章立て構成】
-${chaptersInfo}
-
-【執筆指示】
-1. **全章の一貫性**: キャラクターの性格、設定、物語の流れを全章を通して一貫させてください
-2. **文字数**: 各章3000-4000文字程度で執筆してください
-3. **会話重視**: キャラクター同士の会話を豊富に含め、自然で生き生きとした対話を心がけてください
-4. **臨場感**: 読者がその場にいるような感覚を与える詳細な情景描写を入れてください
-5. **感情表現**: キャラクターの心理状態や感情を丁寧に描写してください
-6. **五感の活用**: 視覚、聴覚、触覚、嗅覚、味覚を意識した描写を入れてください
-7. **章の目的**: 各章の概要に沿った内容で、物語を前進させてください
-8. **文体の統一**: 現代的な日本語小説の文体で、読み手が感情移入しやすい表現を使用してください
-
-【出力形式】
-以下の形式で各章の草案を出力してください：
-
-=== 第1章: [章タイトル] ===
-[章の草案内容]
-
-=== 第2章: [章タイトル] ===
-[章の草案内容]
-
-[以下、全章分続く]
-
-各章の草案を執筆してください。`;
+      const fullPrompt = aiService.buildPrompt('draft', 'generateFull', {
+        title: projectInfo.title,
+        mainGenre: projectInfo.mainGenre,
+        subGenre: projectInfo.subGenre,
+        targetReader: projectInfo.targetReader,
+        projectTheme: projectInfo.projectTheme,
+        plotTheme: plotInfo.theme,
+        plotSetting: plotInfo.setting,
+        plotHook: plotInfo.hook,
+        protagonistGoal: plotInfo.protagonistGoal,
+        mainObstacle: plotInfo.mainObstacle,
+        structureDetails: structureDetails,
+        charactersInfo: charactersInfo,
+        chaptersInfo: chaptersInfo,
+      });
 
       setGenerationStatus('AI生成中...（全章の一貫性を保ちながら執筆中）');
       const response = await aiService.generateContent({
@@ -2401,38 +2552,12 @@ ${chaptersInfo}
     setCurrentGenerationAction('improve');
     setIsGenerating(true);
     try {
-      const prompt = `以下の章の草案を総合的に改善してください。
-
-【章情報】
-章タイトル: ${currentChapter?.title}
-章の概要: ${currentChapter?.summary}
-
-【現在の草案】
-${draft}
-
-【改善指示】
-1. **描写の強化**
-   - 情景描写をより詳細で魅力的に
-   - キャラクターの感情表現を豊かに
-   - 五感を使った表現を追加
-   - 会話の自然さを保ちつつ、心理描写を強化
-
-2. **文体の調整**
-   - 文章のリズムを整える
-   - 冗長な表現を簡潔に
-   - 読みやすい改行と段落分け
-   - 自然で現代的な日本語に
-
-3. **文字数と内容**
-   - 現在の文字数（${draft.length}文字）を維持または3,000-4,000文字程度に調整
-   - 重要な内容は保持しつつ、表現を改善
-   - 章の目的に沿った内容を維持
-
-4. **改行の指示**
-   - 適度な改行と段落分けを行ってください
-   - 改行は通常の改行文字（\n）で表現してください
-
-改善された草案：`;
+      const prompt = aiService.buildPrompt('draft', 'improve', {
+        chapterTitle: currentChapter?.title || '未設定',
+        chapterSummary: currentChapter?.summary || '未設定',
+        currentText: draft,
+        currentLength: draft.length.toString(),
+      });
 
       const response = await aiService.generateContent({
         prompt,
@@ -2473,49 +2598,12 @@ ${draft}
     
     try {
       // フェーズ1：批評フェーズ（弱点の特定と修正案の生成）
-      const critiquePrompt = `あなたは辛口で知られるプロの文芸編集者です。以下の文章を、構成、キャラクターの一貫性、描写、文体、感情表現の各側面で客観的に評価してください。
-
-【章情報】
-作品タイトル: ${currentProject?.title || '未設定'}
-章タイトル: ${currentChapter?.title || '未設定'}
-章の概要: ${currentChapter?.summary || '未設定'}
-
-【評価対象の文章】
-${draft}
-
-【評価基準（各項目10点満点で採点）】
-1. **プロットの一貫性**：物語に矛盾や論理的な飛躍がないか？
-2. **キャラクターの深み**：登場人物は多面的で、行動に説得力があるか？
-3. **描写の具体性**：五感に訴えかける具体的な描写がなされているか？
-4. **読者共感度**：読者が感情移入できる感情的な真正性があるか？
-5. **文体の完成度**：文章のリズムが整い、読みやすいか？
-
-【出力形式】
-以下のJSON形式で出力してください（余計な文章は書かないこと）:
-{
-  "scores": {
-    "plot": 点数（0-10の整数）,
-    "character": 点数（0-10の整数）,
-    "description": 点数（0-10の整数）,
-    "empathy": 点数（0-10の整数）,
-    "style": 点数（0-10の整数）
-  },
-  "weaknesses": [
-    {
-      "aspect": "評価項目名（例：プロットの一貫性）",
-      "score": 点数,
-      "problem": "具体的な問題点の説明",
-      "solutions": [
-        "改善策1（具体的な修正案）",
-        "改善策2（具体的な修正案）",
-        "改善策3（具体的な修正案）"
-      ]
-    }
-  ],
-  "summary": "全体的な評価と最も重要な改善点の要約（200文字程度）"
-}
-
-7点以下の項目について、特に詳しく分析してください。`;
+      const critiquePrompt = aiService.buildPrompt('draft', 'critique', {
+        projectTitle: currentProject?.title || '未設定',
+        chapterTitle: currentChapter?.title || '未設定',
+        chapterSummary: currentChapter?.summary || '未設定',
+        currentText: draft,
+      });
 
       const critiqueResponse = await aiService.generateContent({
         prompt: critiquePrompt,

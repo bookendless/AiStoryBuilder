@@ -1,8 +1,186 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Image, X, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { ImageItem } from '../types/ai';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
+import { useToast } from './Toast';
+import { OptimizedImage } from './OptimizedImage';
+
+// 画像カードコンポーネント（メモ化）
+interface ImageCardProps {
+  image: ImageItem;
+  categoryInfo: { id: string; label: string; color: string };
+  onView: (image: ImageItem) => void;
+  onEdit: (image: ImageItem) => void;
+  onDelete: (id: string) => void;
+}
+
+const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onEdit, onDelete }) => {
+  return (
+    <div className="bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 group">
+      <div className="aspect-square relative overflow-hidden">
+        <OptimizedImage
+          src={image.url}
+          alt={image.title}
+          className="w-full h-full group-hover:scale-105 transition-transform duration-200"
+          lazy={true}
+          quality={0.8}
+          onError={(error) => {
+            console.error('画像読み込みエラー:', error);
+          }}
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => onView(image)}
+              className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
+              title="画像を表示"
+            >
+              <Eye className="h-4 w-4 text-gray-700" />
+            </button>
+            <button
+              onClick={() => onEdit(image)}
+              className="p-2 bg-blue-500/90 rounded-full hover:bg-blue-500 transition-colors"
+              title="画像を編集"
+            >
+              <Edit3 className="h-4 w-4 text-white" />
+            </button>
+            <button
+              onClick={() => onDelete(image.id)}
+              className="p-2 bg-red-500/90 rounded-full hover:bg-red-500 transition-colors"
+              title="画像を削除"
+            >
+              <Trash2 className="h-4 w-4 text-white" />
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate font-['Noto_Sans_JP']">
+            {image.title}
+          </h4>
+          <span className={`px-2 py-1 rounded-full text-xs text-white ${categoryInfo.color}`}>
+            <Tag className="h-3 w-3 inline mr-1" />
+            {categoryInfo.label}
+          </span>
+        </div>
+        {image.description && (
+          <p className="text-gray-600 dark:text-gray-400 text-xs line-clamp-2 font-['Noto_Sans_JP']">
+            {image.description}
+          </p>
+        )}
+        <div className="text-xs text-gray-500 dark:text-gray-500 mt-2 font-['Noto_Sans_JP']">
+          {image.addedAt.toLocaleDateString('ja-JP')}
+        </div>
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数：画像の主要プロパティが変更された場合のみ再レンダリング
+  return (
+    prevProps.image.id === nextProps.image.id &&
+    prevProps.image.title === nextProps.image.title &&
+    prevProps.image.description === nextProps.image.description &&
+    prevProps.image.category === nextProps.image.category &&
+    prevProps.image.url === nextProps.image.url &&
+    prevProps.categoryInfo.id === nextProps.categoryInfo.id
+  );
+});
+
+ImageCard.displayName = 'ImageCard';
+
+// グリッド用仮想スクロールコンポーネント
+interface VirtualGridProps<T> {
+  items: T[];
+  columns: number; // グリッドの列数
+  itemHeight: number; // 各アイテムの高さ（概算）
+  gap: number; // グリッドのギャップ
+  containerHeight: number; // コンテナの高さ
+  renderItem: (item: T, index: number) => React.ReactNode;
+  className?: string;
+}
+
+function VirtualGrid<T>({
+  items,
+  columns,
+  itemHeight,
+  gap,
+  containerHeight,
+  renderItem,
+  className = ''
+}: VirtualGridProps<T>) {
+  const [scrollTop, setScrollTop] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 行の高さを計算（アイテムの高さ + ギャップ）
+  const rowHeight = itemHeight + gap;
+  
+  // 総行数を計算
+  const totalRows = Math.ceil(items.length / columns);
+  
+  // 表示する行の範囲を計算
+  const visibleRange = useMemo(() => {
+    const startRow = Math.floor(scrollTop / rowHeight);
+    const endRow = Math.min(
+      startRow + Math.ceil(containerHeight / rowHeight) + 2, // 上下に1行ずつ余分に表示
+      totalRows
+    );
+    
+    const startIndex = startRow * columns;
+    const endIndex = Math.min(endRow * columns, items.length);
+    
+    return {
+      startRow,
+      endRow,
+      startIndex,
+      endIndex,
+      visibleItems: items.slice(startIndex, endIndex),
+      totalHeight: totalRows * rowHeight,
+      offsetY: startRow * rowHeight
+    };
+  }, [scrollTop, rowHeight, containerHeight, items, columns, totalRows]);
+
+  // スクロールイベントハンドラー
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const newScrollTop = e.currentTarget.scrollTop;
+    setScrollTop(newScrollTop);
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`overflow-auto ${className}`}
+      style={{ height: containerHeight }}
+      onScroll={handleScroll}
+    >
+      <div style={{ height: visibleRange.totalHeight, position: 'relative' }}>
+        <div
+          style={{
+            transform: `translateY(${visibleRange.offsetY}px)`,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            padding: `0 ${gap / 2}px`
+          }}
+        >
+          <div 
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+            style={{ gap: `${gap}px` }}
+          >
+            {visibleRange.visibleItems.map((item, index) => (
+              <div key={visibleRange.startIndex + index}>
+                {renderItem(item, visibleRange.startIndex + index)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface ImageBoardProps {
   isOpen: boolean;
@@ -19,6 +197,7 @@ const categories = [
 
 export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { showError, showSuccess } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -34,6 +213,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 画像ビューアー関連の状態
@@ -52,6 +232,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     category: 'reference' as ImageItem['category'],
   });
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [gridContainerHeight, setGridContainerHeight] = useState(600); // デフォルト高さ
 
   // 自動保存機能
   const autoSaveImage = useCallback(async (imageData: { url: string; title: string; description: string; category: ImageItem['category'] }) => {
@@ -104,37 +286,110 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     });
   };
 
-  // ファイル選択ハンドラー
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  // ファイル処理関数（単一ファイル用）
+  const processFile = async (file: File): Promise<string | null> => {
     // ファイルタイプの検証
     if (!file.type.startsWith('image/')) {
-      alert('画像ファイルを選択してください。');
-      return;
+      showError('画像ファイルを選択してください。');
+      return null;
     }
 
     // ファイルサイズの検証（10MB制限）
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      alert('ファイルサイズが大きすぎます。10MB以下の画像を選択してください。');
-      return;
+      showError('ファイルサイズが大きすぎます。10MB以下の画像を選択してください。');
+      return null;
     }
-
-    setSelectedFile(file);
-    setIsUploading(true);
 
     try {
       const base64 = await fileToBase64(file);
-      setPreviewUrl(base64);
-      setFormData(prev => ({ ...prev, url: base64 }));
+      return base64;
     } catch (error) {
       console.error('ファイル読み込みエラー:', error);
-      alert('ファイルの読み込みに失敗しました。');
+      showError('ファイルの読み込みに失敗しました。');
+      return null;
+    }
+  };
+
+  // 複数ファイル処理関数
+  const processMultipleFiles = async (files: FileList | File[]) => {
+    if (!currentProject) return;
+
+    const fileArray = Array.from(files);
+    const validFiles: Array<{ file: File; base64: string }> = [];
+    const errors: string[] = [];
+
+    setIsUploading(true);
+
+    // すべてのファイルを処理
+    for (const file of fileArray) {
+      const base64 = await processFile(file);
+      if (base64) {
+        validFiles.push({ file, base64 });
+      } else {
+        errors.push(file.name);
+      }
+    }
+
+    if (validFiles.length === 0) {
+      setIsUploading(false);
+      if (errors.length > 0) {
+        showError(`${errors.length}個のファイルの処理に失敗しました。`);
+      }
+      return;
+    }
+
+    // 複数ファイルを一括追加
+    const newImages: ImageItem[] = validFiles.map(({ file, base64 }, index) => ({
+      id: (Date.now() + index).toString(),
+      url: base64,
+      title: file.name.replace(/\.[^/.]+$/, ''), // 拡張子を除いたファイル名
+      description: '',
+      category: 'reference' as ImageItem['category'],
+      addedAt: new Date(),
+    }));
+
+    try {
+      await updateProject({
+        imageBoard: [...(currentProject.imageBoard || []), ...newImages],
+      });
+      
+      showSuccess(`${validFiles.length}個の画像を追加しました${errors.length > 0 ? `（${errors.length}個のファイルはスキップされました）` : ''}`);
+    } catch (error) {
+      console.error('画像追加エラー:', error);
+      showError('画像の追加に失敗しました。');
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // ファイル選択ハンドラー
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    // 複数ファイルの場合は一括処理
+    if (files.length > 1) {
+      await processMultipleFiles(files);
+      // ファイル入力をリセット
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    // 単一ファイルの処理
+    const file = files[0];
+    setSelectedFile(file);
+    setIsUploading(true);
+
+    const base64 = await processFile(file);
+    if (base64) {
+      setPreviewUrl(base64);
+      setFormData(prev => ({ ...prev, url: base64 }));
+    }
+
+    setIsUploading(false);
   };
 
   // ファイル選択ダイアログを開く
@@ -149,6 +404,71 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     setFormData(prev => ({ ...prev, url: '' }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  // ドラッグ&ドロップハンドラー
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 子要素への移動を除外
+    if (e.currentTarget === e.target) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    // 複数ファイルの場合は一括処理
+    if (files.length > 1) {
+      await processMultipleFiles(files);
+      return;
+    }
+
+    // 単一ファイルの処理（フォームが開いている場合のみ）
+    if (showAddForm) {
+      const file = files[0];
+      setSelectedFile(file);
+      setIsUploading(true);
+
+      const base64 = await processFile(file);
+      if (base64) {
+        setPreviewUrl(base64);
+        setFormData(prev => ({ ...prev, url: base64 }));
+      }
+
+      setIsUploading(false);
+    } else {
+      // フォームが開いていない場合は、フォームを開いてから処理
+      setShowAddForm(true);
+      const file = files[0];
+      setSelectedFile(file);
+      setIsUploading(true);
+
+      const base64 = await processFile(file);
+      if (base64) {
+        setPreviewUrl(base64);
+        setFormData(prev => ({ ...prev, url: base64, title: file.name.replace(/\.[^/.]+$/, '') }));
+      }
+
+      setIsUploading(false);
     }
   };
 
@@ -304,6 +624,25 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
   }, [showImageViewer]);
 
+  // グリッドコンテナの高さを計算
+  useEffect(() => {
+    if (!isOpen || !gridContainerRef.current) return;
+    
+    const updateHeight = () => {
+      if (gridContainerRef.current) {
+        const rect = gridContainerRef.current.getBoundingClientRect();
+        setGridContainerHeight(rect.height);
+      }
+    };
+    
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [isOpen, showAddForm]);
+
   // すべてのHooksの呼び出し後に早期リターンを配置
   if (!isOpen || !currentProject) return null;
 
@@ -409,28 +748,52 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                       画像ファイル *
                     </label>
                     
-                    {/* ファイル選択ボタン */}
+                    {/* ファイル選択ボタン（ドロップゾーン） */}
                     <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={handleSelectFile}
-                        disabled={isUploading}
-                        className="w-full p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                      <div
+                        onDragEnter={handleDragEnter}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`w-full p-6 border-2 border-dashed rounded-lg transition-all duration-200 ${
+                          isDraggingOver
+                            ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.02]'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400'
+                        }`}
                       >
-                        <div className="text-center">
-                          {isUploading ? (
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
-                          ) : (
-                            <Upload className="h-8 w-8 text-gray-400 group-hover:text-indigo-500 mx-auto mb-2" />
-                          )}
-                          <p className="text-gray-600 dark:text-gray-400 group-hover:text-indigo-500 font-['Noto_Sans_JP']">
-                            {isUploading ? '読み込み中...' : '画像ファイルを選択'}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 font-['Noto_Sans_JP']">
-                            JPG, PNG, GIF, WebP (最大10MB)
-                          </p>
-                        </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={handleSelectFile}
+                          disabled={isUploading}
+                          className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="text-center">
+                            {isUploading ? (
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+                            ) : (
+                              <Upload className={`h-8 w-8 mx-auto mb-2 transition-colors ${
+                                isDraggingOver
+                                  ? 'text-indigo-500 dark:text-indigo-400'
+                                  : 'text-gray-400 group-hover:text-indigo-500'
+                              }`} />
+                            )}
+                            <p className={`font-['Noto_Sans_JP'] transition-colors ${
+                              isDraggingOver
+                                ? 'text-indigo-600 dark:text-indigo-400 font-semibold'
+                                : 'text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {isUploading 
+                                ? '読み込み中...' 
+                                : isDraggingOver 
+                                  ? 'ここにドロップしてアップロード' 
+                                  : '画像ファイルを選択またはドラッグ&ドロップ'}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 font-['Noto_Sans_JP']">
+                              JPG, PNG, GIF, WebP (最大10MB) - 複数ファイル対応
+                            </p>
+                          </div>
+                        </button>
+                      </div>
                       
                       {/* 選択されたファイル情報 */}
                       {selectedFile && (
@@ -456,11 +819,12 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                       )}
                     </div>
                     
-                    {/* 隠しファイル入力 */}
+                    {/* 隠しファイル入力（複数ファイル対応） */}
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={handleFileSelect}
                       className="hidden"
                     />
@@ -567,90 +931,110 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
               </div>
             </div>
           ) : (
-            /* Image Grid */
-            <div className="p-6 h-full overflow-y-auto">
+            /* Image Grid with Virtual Scroll */
+            <div 
+              ref={gridContainerRef}
+              className="p-6 h-full relative"
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               {filteredImages.length === 0 ? (
-                <div className="text-center py-16">
-                  <Image className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-                    {selectedCategory === 'all' ? 'まだ画像がありません' : `${getCategoryInfo(selectedCategory).label}の画像がありません`}
+                <div className={`text-center py-16 rounded-lg border-2 border-dashed transition-all duration-200 ${
+                  isDraggingOver
+                    ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'border-transparent'
+                }`}>
+                  <Image className={`h-16 w-16 mx-auto mb-4 transition-colors ${
+                    isDraggingOver
+                      ? 'text-indigo-500 dark:text-indigo-400'
+                      : 'text-gray-400 dark:text-gray-500'
+                  }`} />
+                  <h3 className={`text-xl font-bold mb-4 font-['Noto_Sans_JP'] transition-colors ${
+                    isDraggingOver
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-gray-900 dark:text-white'
+                  }`}>
+                    {isDraggingOver 
+                      ? 'ここにドロップして画像を追加' 
+                      : selectedCategory === 'all' 
+                        ? 'まだ画像がありません' 
+                        : `${getCategoryInfo(selectedCategory).label}の画像がありません`}
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400 mb-6 font-['Noto_Sans_JP']">
-                    インスピレーションとなる画像を追加して、創作の参考にしましょう
+                    {isDraggingOver 
+                      ? '複数の画像を一度にドロップできます' 
+                      : 'インスピレーションとなる画像を追加して、創作の参考にしましょう'}
                   </p>
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
-                  >
-                    <Plus className="h-5 w-5" />
-                    <span>最初の画像を追加</span>
-                  </button>
+                  {!isDraggingOver && (
+                    <button
+                      onClick={() => setShowAddForm(true)}
+                      className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span>最初の画像を追加</span>
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filteredImages.map((image) => {
-                    const categoryInfo = getCategoryInfo(image.category);
-                    return (
-                      <div key={image.id} className="bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 group">
-                        <div className="aspect-square relative overflow-hidden">
-                          <img
-                            src={image.url}
-                            alt={image.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            onError={(e) => {
-                              e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgNzBMMTMwIDEwMEg3MEwxMDAgNzBaIiBmaWxsPSIjOUI5QkEwIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNDAiIHN0cm9rZT0iIzlCOUJBMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTQwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOUI5QkEwIiBmb250LXNpemU9IjEyIj7nlLvlg4/jgpLoqq3jgb/ovrzjgoHjgb7jgZvjgpPjgafjgZfjgZ88L3RleHQ+Cjwvc3ZnPgo=';
-                            }}
-                          />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <div className="flex space-x-2">
-                              <button 
-                                onClick={() => handleViewImage(image)}
-                                className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
-                                title="画像を表示"
-                              >
-                                <Eye className="h-4 w-4 text-gray-700" />
-                              </button>
-                              <button
-                                onClick={() => handleEditImage(image)}
-                                className="p-2 bg-blue-500/90 rounded-full hover:bg-blue-500 transition-colors"
-                                title="画像を編集"
-                              >
-                                <Edit3 className="h-4 w-4 text-white" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteImage(image.id)}
-                                className="p-2 bg-red-500/90 rounded-full hover:bg-red-500 transition-colors"
-                                title="画像を削除"
-                              >
-                                <Trash2 className="h-4 w-4 text-white" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate font-['Noto_Sans_JP']">
-                              {image.title}
-                            </h4>
-                            <span className={`px-2 py-1 rounded-full text-xs text-white ${categoryInfo.color}`}>
-                              <Tag className="h-3 w-3 inline mr-1" />
-                              {categoryInfo.label}
-                            </span>
-                          </div>
-                          {image.description && (
-                            <p className="text-gray-600 dark:text-gray-400 text-xs line-clamp-2 font-['Noto_Sans_JP']">
-                              {image.description}
-                            </p>
-                          )}
-                          <div className="text-xs text-gray-500 dark:text-gray-500 mt-2 font-['Noto_Sans_JP']">
-                            {image.addedAt.toLocaleDateString('ja-JP')}
-                          </div>
-                        </div>
+                <>
+                  {isDraggingOver && (
+                    <div className="absolute inset-0 z-10 border-4 border-dashed border-indigo-500 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center pointer-events-none">
+                      <div className="text-center">
+                        <Upload className="h-12 w-12 text-indigo-500 dark:text-indigo-400 mx-auto mb-2" />
+                        <p className="text-lg font-semibold text-indigo-600 dark:text-indigo-400 font-['Noto_Sans_JP']">
+                          ここにドロップして画像を追加
+                        </p>
+                        <p className="text-sm text-indigo-500 dark:text-indigo-300 font-['Noto_Sans_JP']">
+                          複数の画像を一度にドロップできます
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  )}
+                  {/* 仮想スクロールを適用（50枚以上の画像の場合のみ） */}
+                  {filteredImages.length >= 50 ? (
+                    <VirtualGrid
+                      items={filteredImages}
+                      columns={4} // lg:grid-cols-4
+                      itemHeight={320} // 画像カードの概算高さ（aspect-square + padding）
+                      gap={16} // gap-4 = 16px
+                      containerHeight={gridContainerHeight - 48} // padding分を引く
+                      renderItem={(image) => {
+                        const categoryInfo = getCategoryInfo(image.category);
+                        return (
+                          <ImageCard
+                            key={image.id}
+                            image={image}
+                            categoryInfo={categoryInfo}
+                            onView={handleViewImage}
+                            onEdit={handleEditImage}
+                            onDelete={handleDeleteImage}
+                          />
+                        );
+                      }}
+                      className={isDraggingOver ? 'opacity-75' : ''}
+                    />
+                  ) : (
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 relative ${
+                      isDraggingOver ? 'opacity-75' : ''
+                    }`}>
+                      {filteredImages.map((image) => {
+                        const categoryInfo = getCategoryInfo(image.category);
+                        return (
+                          <ImageCard
+                            key={image.id}
+                            image={image}
+                            categoryInfo={categoryInfo}
+                            onView={handleViewImage}
+                            onEdit={handleEditImage}
+                            onDelete={handleDeleteImage}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

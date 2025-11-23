@@ -21,7 +21,7 @@ interface AILogEntry {
   prompt: string;
   response: string;
   error?: string;
-  parsedChapters?: Array<{id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}>;
+  parsedChapters?: Array<{ id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }>;
 }
 
 interface ChapterHistory {
@@ -42,7 +42,7 @@ export const ChapterStep: React.FC = () => {
   const { currentProject, updateProject, deleteChapter } = useProject();
   const { settings, isConfigured } = useAI();
   const { showSuccess } = useToast();
-  
+
   // 状態管理
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -51,7 +51,6 @@ export const ChapterStep: React.FC = () => {
   const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
-  const [showLogs, setShowLogs] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     summary: '',
@@ -74,27 +73,27 @@ export const ChapterStep: React.FC = () => {
     climax: false,
     conclusion: false,
   });
-  
+
   // 折りたたみ機能の状態管理
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
-  
+
   // 検索機能の状態管理
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // ジャンプ機能用のref
   const chapterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  
+
   // 履歴管理の状態
   const [chapterHistories, setChapterHistories] = useState<{ [chapterId: string]: ChapterHistory[] }>({});
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
 
   // 右サイドバーセクションの管理
-  type SidebarSectionId = 'tableOfContents' | 'aiAssistant' | 'structureProgress';
-  
+  type SidebarSectionId = 'tableOfContents' | 'aiAssistant' | 'structureProgress' | 'aiLogs';
+
   // セクションの並び順（デフォルト）
-  const defaultSectionOrder: SidebarSectionId[] = ['tableOfContents', 'aiAssistant', 'structureProgress'];
-  
+  const defaultSectionOrder: SidebarSectionId[] = ['tableOfContents', 'aiAssistant', 'structureProgress', 'aiLogs'];
+
   // localStorageから並び順を読み込む
   const loadSectionOrder = (): SidebarSectionId[] => {
     try {
@@ -118,7 +117,7 @@ export const ChapterStep: React.FC = () => {
 
   // セクションの並び順の状態
   const [sectionOrder, setSectionOrder] = useState<SidebarSectionId[]>(loadSectionOrder());
-  
+
   // セクションの展開状態（localStorageから読み込む）
   const loadExpandedSections = (): Set<SidebarSectionId> => {
     try {
@@ -207,7 +206,7 @@ export const ChapterStep: React.FC = () => {
     const newOrder = [...sectionOrder];
     const [removed] = newOrder.splice(draggedSectionIndex, 1);
     newOrder.splice(dropIndex, 0, removed);
-    
+
     setSectionOrder(newOrder);
     saveSectionOrder(newOrder);
     setDraggedSectionIndex(null);
@@ -314,9 +313,9 @@ export const ChapterStep: React.FC = () => {
     // プロット構成の詳細情報を構築（章づくりを意識した形式）
     const buildStructureDetails = () => {
       if (!currentProject.plot) return '';
-      
+
       const { structure, ki, sho, ten, ketsu, act1, act2, act3, fourAct1, fourAct2, fourAct3, fourAct4 } = currentProject.plot;
-      
+
       if (structure === 'kishotenketsu') {
         const parts = [];
         if (ki) parts.push(`【起】導入部（1-2章程度）: ${ki}`);
@@ -338,7 +337,7 @@ export const ChapterStep: React.FC = () => {
         if (fourAct4) parts.push(`【第4幕】混沌（9-10章程度）: ${fourAct4}`);
         return parts.join('\n');
       }
-      
+
       return '';
     };
 
@@ -346,7 +345,7 @@ export const ChapterStep: React.FC = () => {
       // 基本情報
       title: currentProject.title || '無題',
       description: currentProject.description || '一般小説',
-      
+
       // プロット情報
       plot: {
         theme: currentProject.plot?.theme || '',
@@ -355,7 +354,7 @@ export const ChapterStep: React.FC = () => {
         hook: currentProject.plot?.hook || '',
         structureDetails: buildStructureDetails(),
       },
-      
+
       // キャラクター情報（正確なプロパティ参照）
       characters: currentProject.characters.map(c => ({
         name: c.name,
@@ -365,7 +364,7 @@ export const ChapterStep: React.FC = () => {
         background: c.background,
         image: c.image ? '画像あり' : '画像なし'
       })),
-      
+
       // 既存の章情報
       existingChapters: currentProject.chapters.map(c => ({
         title: c.title,
@@ -387,19 +386,10 @@ export const ChapterStep: React.FC = () => {
     setAiLogs(prev => [newLog, ...prev].slice(0, 10)); // 最新10件まで保持
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert('クリップボードにコピーしました');
-    } catch (err) {
-      console.error('コピーに失敗しました:', err);
-      alert('コピーに失敗しました');
-    }
-  };
-
-  const downloadLog = (log: AILogEntry) => {
-    const content = `AI生成ログ - ${log.timestamp.toLocaleString()}
-タイプ: ${log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}
+  // AIログをコピー
+  const handleCopyLog = (log: AILogEntry) => {
+    const logText = `【AIログ - ${log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
 
 【プロンプト】
 ${log.prompt}
@@ -407,24 +397,58 @@ ${log.prompt}
 【AI応答】
 ${log.response}
 
-${log.error ? `【エラー】\n${log.error}` : ''}
+${log.error ? `【エラー】
+${log.error}` : ''}
 
-${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章数】\n${log.parsedChapters.length}章\n\n【解析された章の詳細】\n${log.parsedChapters.map((ch, i) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}`;
+${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章数】
+${log.parsedChapters.length}章
 
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+【解析された章の詳細】
+${log.parsedChapters.map((ch, i) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}`;
+
+    navigator.clipboard.writeText(logText);
+    showSuccess('ログをクリップボードにコピーしました');
+  };
+
+  // AIログをダウンロード
+  const handleDownloadLogs = () => {
+    const logsText = aiLogs.map(log =>
+      `【AIログ - ${log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章数】
+${log.parsedChapters.length}章
+
+【解析された章の詳細】
+${log.parsedChapters.map((ch, i) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}
+
+${'='.repeat(80)}`
+    ).join('\n\n');
+
+    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ai-log-${log.timestamp.toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+    a.download = `chapter_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    showSuccess('ログをダウンロードしました');
   };
 
   const parseAIResponse = (content: string) => {
     // フォールバック: 基本的な解析処理（強化版）
-    const newChapters: Array<{id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}> = [];
+    const newChapters: Array<{ id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }> = [];
     const lines = content.split('\n').filter(line => line.trim());
     let currentChapter: {
       id: string;
@@ -458,7 +482,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 
     for (const line of lines) {
       const trimmedLine = line.trim();
-      
+
       // 章の開始を検出（複数パターンを試行）
       let chapterMatch: RegExpMatchArray | null = null;
       let chapterTitle = '';
@@ -471,7 +495,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
           break;
         }
       }
-      
+
       if (chapterMatch) {
         if (currentChapter) {
           newChapters.push(currentChapter);
@@ -550,12 +574,12 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
         }
 
         // 詳細情報が見つからず、概要も空の場合は最初の説明文を概要として使用
-        if (!detailFound && !currentChapter.summary && 
-            !trimmedLine.startsWith('役割:') && 
-            !trimmedLine.startsWith('ペース:') &&
-            !trimmedLine.includes('【') &&
-            !trimmedLine.includes('】') &&
-            trimmedLine.length > 10) {
+        if (!detailFound && !currentChapter.summary &&
+          !trimmedLine.startsWith('役割:') &&
+          !trimmedLine.startsWith('ペース:') &&
+          !trimmedLine.includes('【') &&
+          !trimmedLine.includes('】') &&
+          trimmedLine.length > 10) {
           currentChapter.summary = trimmedLine;
         }
       }
@@ -575,7 +599,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
       [section]: !structureProgress[section],
     };
     setStructureProgress(newProgress);
-    
+
     // プロジェクトに保存
     if (currentProject) {
       updateProject({
@@ -651,7 +675,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
     deleteChapter(id);
   };
 
-  const handleEditChapter = (chapter: {id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}) => {
+  const handleEditChapter = (chapter: { id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
     setEditingId(chapter.id);
     setEditFormData({
       title: chapter.title,
@@ -664,7 +688,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
     setShowEditForm(true);
   };
 
-  const handleDoubleClickChapter = (chapter: {id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}) => {
+  const handleDoubleClickChapter = (chapter: { id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
     handleEditChapter(chapter);
   };
 
@@ -688,12 +712,12 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
     };
 
     updateProject({
-      chapters: currentProject.chapters.map(c => 
-        c.id === editingId 
-          ? { 
-              ...c, 
-              ...updatedChapter
-            }
+      chapters: currentProject.chapters.map(c =>
+        c.id === editingId
+          ? {
+            ...c,
+            ...updatedChapter
+          }
           : c
       ),
     });
@@ -714,7 +738,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
-    
+
     if (!currentProject || draggedIndex === null || draggedIndex === dropIndex) {
       setDraggedIndex(null);
       return;
@@ -722,17 +746,17 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 
     const newChapters = [...currentProject.chapters];
     const draggedChapter = newChapters[draggedIndex];
-    
+
     // ドラッグされた章を削除
     newChapters.splice(draggedIndex, 1);
-    
+
     // 新しい位置に挿入
     newChapters.splice(dropIndex, 0, draggedChapter);
-    
+
     updateProject({
       chapters: newChapters,
     });
-    
+
     setDraggedIndex(null);
   };
 
@@ -742,7 +766,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
     const newChapters = [...currentProject.chapters];
     const [movedChapter] = newChapters.splice(fromIndex, 1);
     newChapters.splice(toIndex, 0, movedChapter);
-    
+
     updateProject({
       chapters: newChapters,
     });
@@ -774,31 +798,31 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
   // 検索フィルタリング関数
   const filterChapters = (chapters: NonNullable<typeof currentProject>['chapters']) => {
     if (!searchQuery.trim() || !currentProject) return chapters;
-    
+
     const query = searchQuery.toLowerCase();
     return chapters.filter(chapter => {
       // タイトルで検索
       if (chapter.title.toLowerCase().includes(query)) return true;
-      
+
       // 概要で検索
       if (chapter.summary.toLowerCase().includes(query)) return true;
-      
+
       // 設定・場所で検索
       if (chapter.setting?.toLowerCase().includes(query)) return true;
-      
+
       // 雰囲気・ムードで検索
       if (chapter.mood?.toLowerCase().includes(query)) return true;
-      
+
       // 重要な出来事で検索
       if (chapter.keyEvents?.some(event => event.toLowerCase().includes(query))) return true;
-      
+
       // キャラクター名で検索
       if (chapter.characters?.some(characterId => {
         const character = currentProject.characters.find(c => c.id === characterId);
         const characterName = character ? character.name : characterId;
         return characterName.toLowerCase().includes(query);
       })) return true;
-      
+
       return false;
     });
   };
@@ -817,7 +841,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
   };
 
   // 章の履歴を保存する関数
-  const saveChapterHistory = useCallback((chapter: {id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]}) => {
+  const saveChapterHistory = useCallback((chapter: { id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
     const history: ChapterHistory = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       chapterId: chapter.id,
@@ -851,14 +875,14 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
       chapters: currentProject.chapters.map(c =>
         c.id === history.chapterId
           ? {
-              ...c,
-              title: history.data.title,
-              summary: history.data.summary,
-              characters: history.data.characters,
-              setting: history.data.setting,
-              mood: history.data.mood,
-              keyEvents: history.data.keyEvents,
-            }
+            ...c,
+            title: history.data.title,
+            summary: history.data.summary,
+            characters: history.data.characters,
+            setting: history.data.setting,
+            mood: history.data.mood,
+            keyEvents: history.data.keyEvents,
+          }
           : c
       ),
     });
@@ -885,7 +909,24 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
   // AI生成関数
   const buildAIPrompt = (type: 'basic' | 'structure') => {
     const context = getProjectContext();
-    
+    if (!context) return '';
+
+    // 既存の章情報をフォーマット
+    const existingChapters = context.existingChapters.map((ch: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }, index: number) => {
+      let chapterInfo = `${index + 1}. ${ch.title}: ${ch.summary}`;
+      if (ch.setting) chapterInfo += `\n   設定・場所: ${ch.setting}`;
+      if (ch.mood) chapterInfo += `\n   雰囲気・ムード: ${ch.mood}`;
+      if (ch.keyEvents && ch.keyEvents.length > 0) {
+        chapterInfo += `\n   重要な出来事: ${ch.keyEvents.join(', ')}`;
+      }
+      return chapterInfo;
+    }).join('\n') || '既存の章はありません';
+
+    // キャラクター情報をフォーマット
+    const characters = context.characters.map((c: { name: string; role: string; appearance: string; personality: string; background: string }) =>
+      `・${c.name} (${c.role})\n  外見: ${c.appearance}\n  性格: ${c.personality}\n  背景: ${c.background}`
+    ).join('\n') || 'キャラクターが設定されていません';
+
     if (type === 'structure') {
       const incompleteStructures = [];
       if (!structureProgress.introduction) incompleteStructures.push('導入部');
@@ -893,297 +934,23 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
       if (!structureProgress.climax) incompleteStructures.push('クライマックス');
       if (!structureProgress.conclusion) incompleteStructures.push('結末部');
 
-      if (settings.provider === 'local') {
-        return `以下のプロジェクト情報に基づいて、未完了の構成要素「${incompleteStructures.join('、')}」に対応する章立てを提案してください。
-
-【プロジェクト基本情報】
-作品タイトル: ${context.title}
-メインジャンル: ${currentProject?.mainGenre || '未設定'}
-
-【最重要】構成詳細
-${context.plot?.structureDetails || '構成詳細が設定されていません'}
-
-【キャラクター】
-${context.characters.slice(0, 3).map((c: { name: string; role: string }) => `${c.name}(${c.role})`).join(', ')}
-
-【既存章構成】
-${context.existingChapters.map((ch: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }, index: number) => {
-  let chapterInfo = `${index + 1}. ${ch.title}: ${ch.summary}`;
-  if (ch.setting) chapterInfo += `\n   設定・場所: ${ch.setting}`;
-  if (ch.mood) chapterInfo += `\n   雰囲気・ムード: ${ch.mood}`;
-  if (ch.keyEvents && ch.keyEvents.length > 0) {
-    chapterInfo += `\n   重要な出来事: ${ch.keyEvents.join(', ')}`;
-  }
-  return chapterInfo;
-}).join('\n')}
-
-【未完了構成要素】
-${incompleteStructures.join('、')}
-
-【必須出力形式】（この形式を厳密に守ってください）
-第1章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-第2章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-（以下同様に続く）
-
-【出力制約】
-- 最低4章以上作成すること
-- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
-- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
-- 章番号は「第X章:」の形式を使用すること
-- 各章の概要は200文字以内に収めること
-- 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
-
-【最重要指示】
-1. 構成詳細の情報を最優先で従い、逸脱しない
-2. 未完了の構成要素に焦点を当てた章立てを作成
-3. メインジャンルに適した章構成
-4. 既存の章との整合性を保つ
-5. 登場キャラクターの提案：
-   - 主要キャラクターを尊重し、各章に適切に配置
-   - 章の内容に必要であれば、新しいキャラクターを追加提案
-   - キャラクターの関係性や役割を考慮した登場タイミング`;
-      } else {
-        return `以下のプロジェクト情報に基づいて、未完了の構成要素「${incompleteStructures.join('、')}」に対応する章立てを提案してください。
-
-【プロジェクト基本情報】
-作品タイトル: ${context.title}
-メインジャンル: ${currentProject?.mainGenre || '未設定'}
-
-【最重要】構成詳細
-${context.plot?.structureDetails || '構成詳細が設定されていません'}
-
-【キャラクター情報】
-${context.characters.map((c: { name: string; role: string; appearance: string; personality: string; background: string }) => 
-  `・${c.name} (${c.role})
-  外見: ${c.appearance}
-  性格: ${c.personality}
-  背景: ${c.background}`
-).join('\n')}
-
-【既存章構成】
-${context.existingChapters.map((ch: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }, index: number) => {
-  let chapterInfo = `${index + 1}. ${ch.title}: ${ch.summary}`;
-  if (ch.setting) chapterInfo += `\n   設定・場所: ${ch.setting}`;
-  if (ch.mood) chapterInfo += `\n   雰囲気・ムード: ${ch.mood}`;
-  if (ch.keyEvents && ch.keyEvents.length > 0) {
-    chapterInfo += `\n   重要な出来事: ${ch.keyEvents.join(', ')}`;
-  }
-  return chapterInfo;
-}).join('\n')}
-
-【未完了構成要素】
-${incompleteStructures.join('、')}
-
-【必須出力形式】（この形式を厳密に守ってください）
-第1章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-第2章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-（以下同様に続く）
-
-【出力制約】
-- 最低4章以上作成すること
-- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
-- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
-- 章番号は「第X章:」の形式を使用すること
-- 各章の概要は200文字以内に収めること
-- 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
-
-【最重要指示】
-1. **構成詳細の情報を最優先で従い、逸脱しない**
-   - 起承転結、三幕構成、四幕構成の詳細に厳密に従う
-   - 各段階の役割と配置を正確に反映
-
-2. **未完了の構成要素に焦点を当てた章立て**
-   - 「${incompleteStructures.join('、')}」の要素を重点的に補完
-   - 構成詳細に基づいた適切な配置
-
-3. **メインジャンルに適した章構成**
-   - メインジャンルの特徴を活かした章の配置とペース
-   - ジャンル特有の構成パターンを考慮
-
-4. **キャラクターの役割と性格を考慮**
-   - 各キャラクターの個性を活かした章の内容
-   - キャラクター関係性の発展を考慮
-   - 役割に応じた登場タイミング
-
-5. **既存の章との整合性**
-   - 既存の章構成との整合性を保つ
-   - 物語の流れを自然に構成
-   - 一貫性のある展開
-
-6. **登場キャラクターの提案**
-   - 主要キャラクターを尊重し、各章に適切に配置
-   - 章の内容に必要であれば、新しいキャラクターを追加提案
-   - キャラクターの関係性や役割を考慮した登場タイミング
-   - 既存キャラクターの性格・背景を活かした章の内容
-   - 物語の展開に必要なサブキャラクターの適切な配置`;
-      }
+      return aiService.buildPrompt('chapter', 'generateStructure', {
+        title: context.title,
+        mainGenre: currentProject?.mainGenre || '未設定',
+        structureDetails: context.plot?.structureDetails || '構成詳細が設定されていません',
+        characters: characters,
+        existingChapters: existingChapters,
+        incompleteStructures: incompleteStructures.join('、'),
+      });
     } else {
       // 基本AI生成用のプロンプト
-      if (settings.provider === 'local') {
-        return `作品: ${context.title}
-メインジャンル: ${currentProject?.mainGenre || '未設定'}
-
-【最重要】構成詳細（必ず従う）:
-${context.plot.structureDetails || '構成詳細が設定されていません'}
-
-主要キャラクター: ${context.characters.length > 0 ? context.characters.slice(0, 3).map((c: { name: string; role: string }) => `${c.name}(${c.role})`).join(', ') : 'キャラクターが設定されていません'}
-
-【既存章構成】
-${context.existingChapters.map((ch: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }, index: number) => {
-  let chapterInfo = `${index + 1}. ${ch.title}: ${ch.summary}`;
-  if (ch.setting) chapterInfo += `\n   設定・場所: ${ch.setting}`;
-  if (ch.mood) chapterInfo += `\n   雰囲気・ムード: ${ch.mood}`;
-  if (ch.keyEvents && ch.keyEvents.length > 0) {
-    chapterInfo += `\n   重要な出来事: ${ch.keyEvents.join(', ')}`;
-  }
-  return chapterInfo;
-}).join('\n') || '既存の章はありません'}
-
-【必須出力形式】（この形式を厳密に守ってください）
-第1章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-第2章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-（以下同様に続く）
-
-【出力制約】
-- 最低4章以上作成すること
-- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
-- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
-- 章番号は「第X章:」の形式を使用すること
-- 各章の概要は200文字以内に収めること
-- 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
-
-【最重要指示】
-1. 構成詳細の情報を最優先で従い、逸脱しない
-2. メインジャンルに適した章構成
-3. キャラクターの役割と性格を考慮
-4. 既存の章との整合性を保つ
-5. 登場キャラクターの提案：
-   - 主要キャラクターを尊重し、各章に適切に配置
-   - 章の内容に必要であれば、新しいキャラクターを追加提案
-   - キャラクターの関係性や役割を考慮した登場タイミング
-   - 既存キャラクターの性格・背景を活かした章の内容`;
-      } else {
-        return `以下のプロジェクト情報に基づいて、物語の章立てを提案してください。
-
-【プロジェクト基本情報】
-作品タイトル: ${context.title}
-メインジャンル: ${currentProject?.mainGenre || '未設定'}
-
-【最重要】構成詳細
-${context.plot.structureDetails || '構成詳細が設定されていません'}
-
-【主要キャラクター】
-${context.characters.map(c => `・${c.name} (${c.role})
-  外見: ${c.appearance}
-  性格: ${c.personality}
-  背景: ${c.background}`).join('\n') || 'キャラクターが設定されていません'}
-
-【既存の章】
-${context.existingChapters.map((c: { title: string; summary: string; setting?: string; mood?: string; keyEvents?: string[] }) => {
-  let chapterInfo = `・${c.title}: ${c.summary}`;
-  if (c.setting) chapterInfo += `\n  設定・場所: ${c.setting}`;
-  if (c.mood) chapterInfo += `\n  雰囲気・ムード: ${c.mood}`;
-  if (c.keyEvents && c.keyEvents.length > 0) {
-    chapterInfo += `\n  重要な出来事: ${c.keyEvents.join(', ')}`;
-  }
-  return chapterInfo;
-}).join('\n\n') || '既存の章はありません'}
-
-【必須出力形式】（この形式を厳密に守ってください）
-第1章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-第2章: [章タイトル]
-概要: [章の概要（200文字以内）]
-設定・場所: [章の舞台となる場所や設定]
-雰囲気・ムード: [章の雰囲気やムード]
-重要な出来事: [重要な出来事1, 重要な出来事2, 重要な出来事3]
-登場キャラクター: [登場するキャラクター名1, 登場するキャラクター名2]
-
-（以下同様に続く）
-
-【出力制約】
-- 最低4章以上作成すること
-- 各章は必ず上記の6項目（章タイトル、概要、設定・場所、雰囲気・ムード、重要な出来事、登場キャラクター）を含むこと
-- 項目名は「概要:」「設定・場所:」等の形式を厳密に守ること
-- 章番号は「第X章:」の形式を使用すること
-- 各章の概要は200文字以内に収めること
-- 会話内容や詳細な描写は避け、章の目的と内容のみを簡潔に記述すること
-- 重要な出来事は3つ以上、登場キャラクターは2つ以上含めること
-
-【最重要指示】
-1. **構成詳細の情報を最優先で従い、逸脱しない**
-   - 起承転結、三幕構成、四幕構成の詳細に厳密に従う
-   - 各段階の役割と配置を正確に反映
-
-2. **メインジャンルに適した章構成**
-   - メインジャンルの特徴を活かした章の配置とペース
-   - ジャンル特有の構成パターンを考慮
-
-3. **キャラクターの役割と性格を考慮**
-   - 各キャラクターの個性を活かした章の内容
-   - キャラクター関係性の発展を考慮
-   - 役割に応じた登場タイミング
-
-4. **既存の章との整合性**
-   - 既存の章がある場合は、それらとの流れを保つ
-   - 物語の一貫性を維持
-
-5. **章数と配置の最適化**
-   - 構成詳細に基づいた適切な章数
-   - 各段階の比重に応じた章の長さ配分
-   - クライマックスの適切な配置
-
-6. **登場キャラクターの提案**
-   - 主要キャラクターを尊重し、各章に適切に配置
-   - 章の内容に必要であれば、新しいキャラクターを追加提案
-   - キャラクターの関係性や役割を考慮した登場タイミング
-   - 既存キャラクターの性格・背景を活かした章の内容
-   - 物語の展開に必要なサブキャラクターの適切な配置`;
-      }
+      return aiService.buildPrompt('chapter', 'generateBasic', {
+        title: context.title,
+        mainGenre: currentProject?.mainGenre || '未設定',
+        structureDetails: context.plot?.structureDetails || '構成詳細が設定されていません',
+        characters: characters,
+        existingChapters: existingChapters,
+      });
     }
   };
 
@@ -1194,7 +961,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
     }
 
     setIsGenerating(true);
-    
+
     try {
       const prompt = buildAIPrompt('basic');
       const response = await aiService.generateContent({
@@ -1213,33 +980,32 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
       });
 
       if (response.error) {
-        alert(`AI生成エラー: ${response.error}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
-        setShowLogs(true);
+        alert(`AI生成エラー: ${response.error}\n\nログを確認するにはサイドバーの「AIログ」セクションを確認してください。`);
         return;
       }
 
       const newChapters = parseAIResponse(response.content);
-      
+
       // 解析結果をログに追加
       if (aiLogs.length > 0) {
         const latestLog = aiLogs[0];
-        setAiLogs(prev => prev.map(log => 
-          log.id === latestLog.id 
+        setAiLogs(prev => prev.map(log =>
+          log.id === latestLog.id
             ? { ...log, parsedChapters: newChapters }
             : log
         ));
       }
-      
+
       if (newChapters.length > 0) {
         updateProject({
           chapters: [...currentProject!.chapters, ...newChapters],
         });
-        
+
         // AI生成で追加された章の履歴を保存
         newChapters.forEach(chapter => {
           saveChapterHistory(chapter);
         });
-        
+
         // 不完全な章があるかチェック
         const incompleteChapters = newChapters.filter((ch: {
           id: string;
@@ -1249,20 +1015,19 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
           setting?: string;
           mood?: string;
           keyEvents?: string[];
-        }) => 
+        }) =>
           !ch.summary || !ch.setting || !ch.mood || !ch.keyEvents?.length || !ch.characters?.length
         );
-        
+
         if (incompleteChapters.length > 0) {
           alert(`AI構成提案で${newChapters.length}章を追加しました。\n\n注意: ${incompleteChapters.length}章で情報が不完全です。必要に応じて手動で編集してください。`);
         } else {
           alert(`AI構成提案で${newChapters.length}章を追加しました。`);
         }
       } else {
-        alert('章立ての解析に失敗しました。\n\n考えられる原因:\n1. AI出力の形式が期待と異なる\n2. 章の開始パターンが見つからない\n3. 必要な情報が不足している\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
-        setShowLogs(true);
+        alert('章立ての解析に失敗しました。\n\n考えられる原因:\n1. AI出力の形式が期待と異なる\n2. 章の開始パターンが見つからない\n3. 必要な情報が不足している\n\nAIの応答内容を確認するにはサイドバーの「AIログ」セクションを確認してください。');
       }
-      
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '不明なエラー';
       addAILog({
@@ -1271,8 +1036,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         response: '',
         error: errorMessage
       });
-      alert(`AI生成中にエラーが発生しました: ${errorMessage}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
-      setShowLogs(true);
+      alert(`AI生成中にエラーが発生しました: ${errorMessage}\n\nログを確認するにはサイドバーの「AIログ」セクションを確認してください。`);
     } finally {
       setIsGenerating(false);
     }
@@ -1321,8 +1085,8 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         // 解析結果をログに追加
         if (aiLogs.length > 0) {
           const latestLog = aiLogs[0];
-          setAiLogs(prev => prev.map(log => 
-            log.id === latestLog.id 
+          setAiLogs(prev => prev.map(log =>
+            log.id === latestLog.id
               ? { ...log, parsedChapters: newChapters }
               : log
           ));
@@ -1332,12 +1096,12 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
           updateProject({
             chapters: [...currentProject.chapters, ...newChapters],
           });
-          
+
           // AI生成で追加された章の履歴を保存
           newChapters.forEach(chapter => {
             saveChapterHistory(chapter);
           });
-          
+
           // 不完全な章があるかチェック
           const incompleteChapters = newChapters.filter((ch: {
             id: string;
@@ -1347,22 +1111,20 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
             setting?: string;
             mood?: string;
             keyEvents?: string[];
-          }) => 
+          }) =>
             !ch.summary || !ch.setting || !ch.mood || !ch.keyEvents?.length || !ch.characters?.length
           );
-          
+
           if (incompleteChapters.length > 0) {
             alert(`構成バランスAI提案で${newChapters.length}章を追加しました。\n対象: ${incompleteStructures.join('、')}\n\n注意: ${incompleteChapters.length}章で情報が不完全です。必要に応じて手動で編集してください。`);
           } else {
             alert(`構成バランスAI提案で${newChapters.length}章を追加しました。\n対象: ${incompleteStructures.join('、')}`);
           }
         } else {
-          alert('章立ての解析に失敗しました。\n\n考えられる原因:\n1. AI出力の形式が期待と異なる\n2. 章の開始パターンが見つからない\n3. 必要な情報が不足している\n\nAIの応答内容を確認するには「AIログ」ボタンをクリックしてください。');
-          setShowLogs(true);
+          alert('章立ての解析に失敗しました。\n\n考えられる原因:\n1. AI出力の形式が期待と異なる\n2. 章の開始パターンが見つからない\n3. 必要な情報が不足している\n\nAIの応答内容を確認するにはサイドバーの「AIログ」セクションを確認してください。');
         }
       } else {
-        alert(`AI生成に失敗しました: ${response.error || '不明なエラー'}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
-        setShowLogs(true);
+        alert(`AI生成に失敗しました: ${response.error || '不明なエラー'}\n\nログを確認するにはサイドバーの「AIログ」セクションを確認してください。`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '不明なエラー';
@@ -1373,8 +1135,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         error: errorMessage
       });
       console.error('Structure-based AI generation error:', error);
-      alert(`AI生成中にエラーが発生しました: ${errorMessage}\n\nログを確認するには「AIログ」ボタンをクリックしてください。`);
-      setShowLogs(true);
+      alert(`AI生成中にエラーが発生しました: ${errorMessage}\n\nログを確認するにはサイドバーの「AIログ」セクションを確認してください。`);
     } finally {
       setIsGeneratingStructure(false);
     }
@@ -1424,18 +1185,6 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
 
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => setShowLogs(true)}
-                    className="flex items-center space-x-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
-                  >
-                    <FileText className="h-4 w-4" />
-                    <span>AIログ</span>
-                    {aiLogs.length > 0 && (
-                      <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] h-[18px] flex items-center justify-center">
-                        {aiLogs.length}
-                      </span>
-                    )}
-                  </button>
-                  <button
                     onClick={() => setShowAddForm(true)}
                     className="flex items-center space-x-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors text-sm"
                   >
@@ -1444,7 +1193,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                   </button>
                 </div>
               </div>
-              
+
               {/* 検索バー */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -1464,7 +1213,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                   </button>
                 )}
               </div>
-              
+
               {/* 折りたたみコントロール */}
               {currentProject.chapters.length > 0 && (
                 <div className="mt-3 flex items-center justify-between">
@@ -1503,7 +1252,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                   {(() => {
                     const filteredChapters = filterChapters(currentProject.chapters);
                     const originalIndices = new Map(filteredChapters.map(ch => [ch.id, currentProject.chapters.findIndex(c => c.id === ch.id)]));
-                    
+
                     return filteredChapters.length === 0 ? (
                       <div className="text-center py-12">
                         <Search className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
@@ -1518,23 +1267,22 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                       filteredChapters.map((chapter) => {
                         const originalIndex = originalIndices.get(chapter.id) ?? 0;
                         const isExpanded = expandedChapters.has(chapter.id);
-                        
+
                         return (
-                          <div 
+                          <div
                             key={chapter.id}
                             ref={(el) => {
                               chapterRefs.current[chapter.id] = el;
                             }}
-                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                              draggedIndex === originalIndex ? 'opacity-50 scale-95' : ''
-                            }`}
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-600 ${draggedIndex === originalIndex ? 'opacity-50 scale-95' : ''
+                              }`}
                             draggable
                             onDragStart={(e) => handleDragStart(e, originalIndex)}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDrop(e, originalIndex)}
                           >
                             {/* 章ヘッダー（常に表示） */}
-                            <div 
+                            <div
                               className="p-6 cursor-pointer"
                               onClick={() => toggleChapterExpansion(chapter.id)}
                               onDoubleClick={(e) => {
@@ -1598,7 +1346,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                     )}
                                   </div>
                                 </div>
-                                
+
                                 <div className="flex items-center space-x-2 ml-4">
                                   <div className="flex flex-col space-y-1">
                                     <button
@@ -1657,7 +1405,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* 章の詳細（折りたたみ可能） */}
                             {isExpanded && (
                               <div className="px-6 pb-6 pt-0 border-t border-gray-200 dark:border-gray-600">
@@ -1665,7 +1413,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                   <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
                                     {chapter.summary}
                                   </p>
-                                  
+
                                   {/* 設定・場所 */}
                                   {chapter.setting && (
                                     <div>
@@ -1677,7 +1425,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                       </p>
                                     </div>
                                   )}
-                                  
+
                                   {/* 雰囲気・ムード */}
                                   {chapter.mood && (
                                     <div>
@@ -1689,7 +1437,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                       </p>
                                     </div>
                                   )}
-                                  
+
                                   {/* 重要な出来事 */}
                                   {chapter.keyEvents && chapter.keyEvents.length > 0 && (
                                     <div>
@@ -1705,7 +1453,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                       </div>
                                     </div>
                                   )}
-                                  
+
                                   {/* 登場キャラクター */}
                                   {chapter.characters && chapter.characters.length > 0 && (
                                     <div className="flex flex-wrap gap-1">
@@ -1757,18 +1505,17 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                       {currentProject.chapters.map((chapter, chIndex) => {
                         const isChapterExpanded = expandedChapters.has(chapter.id);
                         const isVisible = !searchQuery || filterChapters(currentProject.chapters).some(ch => ch.id === chapter.id);
-                        
+
                         if (!isVisible) return null;
-                        
+
                         return (
                           <button
                             key={chapter.id}
                             onClick={() => scrollToChapter(chapter.id)}
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm font-['Noto_Sans_JP'] ${
-                              isChapterExpanded
+                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm font-['Noto_Sans_JP'] ${isChapterExpanded
                                 ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
                                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center space-x-2">
                               <span className="font-semibold text-indigo-600 dark:text-indigo-400">
@@ -1779,7 +1526,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                           </button>
                         );
                       })}
-                      
+
                       {searchQuery && (
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                           <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -1812,7 +1559,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                           </p>
                         </div>
                       </div>
-                      
+
                       <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
                         <div className="flex items-center space-x-2 mb-2">
                           <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -1846,8 +1593,8 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-gradient-to-r from-blue-500 to-teal-500 h-2 rounded-full transition-all duration-500" 
+                          <div
+                            className="bg-gradient-to-r from-blue-500 to-teal-500 h-2 rounded-full transition-all duration-500"
                             style={{ width: `${Math.min((currentProject.chapters.length / 10) * 100, 100)}%` }}
                           />
                         </div>
@@ -1876,11 +1623,10 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                 </button>
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">導入部</span>
                               </div>
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                structureProgress.introduction 
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                              <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.introduction
+                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
                                   : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
-                              }`}>
+                                }`}>
                                 {structureProgress.introduction ? '完了' : '未完了'}
                               </span>
                             </div>
@@ -1906,11 +1652,10 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                 </button>
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">展開部</span>
                               </div>
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                structureProgress.development 
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                              <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.development
+                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
                                   : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
-                              }`}>
+                                }`}>
                                 {structureProgress.development ? '完了' : '未完了'}
                               </span>
                             </div>
@@ -1936,11 +1681,10 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                 </button>
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">クライマックス</span>
                               </div>
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                structureProgress.climax 
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                              <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.climax
+                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
                                   : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
-                              }`}>
+                                }`}>
                                 {structureProgress.climax ? '完了' : '未完了'}
                               </span>
                             </div>
@@ -1966,11 +1710,10 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                                 </button>
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">結末部</span>
                               </div>
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                structureProgress.conclusion 
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                              <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.conclusion
+                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
                                   : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
-                              }`}>
+                                }`}>
                                 {structureProgress.conclusion ? '完了' : '未完了'}
                               </span>
                             </div>
@@ -1989,8 +1732,8 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                             </span>
                           </div>
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                            <div 
-                              className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500" 
+                            <div
+                              className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
                               style={{ width: `${(Object.values(structureProgress).filter(Boolean).length / 4) * 100}%` }}
                             />
                           </div>
@@ -2012,8 +1755,8 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                             >
                               <Sparkles className={`h-4 w-4 ${isGeneratingStructure ? 'animate-spin' : ''}`} />
                               <span>
-                                {isGeneratingStructure 
-                                  ? '生成中...' 
+                                {isGeneratingStructure
+                                  ? '生成中...'
                                   : Object.values(structureProgress).every(Boolean)
                                     ? 'すべて完了済み'
                                     : '構成バランス提案'
@@ -2040,6 +1783,100 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                         </div>
                       </div>
                     </>
+                  );
+
+                case 'aiLogs':
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                          AIログ
+                        </h3>
+                        {aiLogs.length > 0 && (
+                          <button
+                            onClick={handleDownloadLogs}
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            title="ログをダウンロード"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {aiLogs.length === 0 ? (
+                        <div className="text-center py-8">
+                          <FileText className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-['Noto_Sans_JP']">
+                            AIログがありません
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                            AI章立て提案を実行すると、ここにログが表示されます
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                          {aiLogs.map((log) => (
+                          <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${log.type === 'basic'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                  : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                  }`}>
+                                  {log.type === 'basic' ? '基本提案' : '構成提案'}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {log.timestamp.toLocaleString('ja-JP', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                                <button
+                                  onClick={() => handleCopyLog(log)}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                  title="ログをコピー"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {log.error ? (
+                              <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                                <strong>エラー:</strong> {log.error}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                                <div className="mb-2">
+                                  <strong>プロンプト:</strong>
+                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                    {log.prompt.substring(0, 200)}...
+                                  </div>
+                                </div>
+                                <div>
+                                  <strong>応答:</strong>
+                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                                    {log.response.substring(0, 300)}...
+                                  </div>
+                                </div>
+                                {log.parsedChapters && log.parsedChapters.length > 0 && (
+                                  <div className="mt-2">
+                                    <strong>解析された章 ({log.parsedChapters.length}章):</strong>
+                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                      {log.parsedChapters.map(c => c.title).join(', ')}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        </div>
+                      )}
+                    </div>
                   );
 
                 default:
@@ -2077,6 +1914,15 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                     iconBgClass: 'bg-gradient-to-br from-green-500 to-emerald-600',
                     maxHeight: ''
                   };
+                case 'aiLogs':
+                  return {
+                    title: 'AIログ',
+                    icon: FileText,
+                    bgClass: 'bg-white dark:bg-gray-800',
+                    borderClass: 'border-gray-100 dark:border-gray-700',
+                    iconBgClass: 'bg-gradient-to-br from-green-500 to-emerald-600',
+                    maxHeight: ''
+                  };
               }
             };
 
@@ -2098,13 +1944,12 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                 onDragLeave={handleSectionDragLeave}
                 onDrop={(e) => handleSectionDrop(e, index)}
                 onDragEnd={handleSectionDragEnd}
-                className={`${sectionInfo.bgClass} rounded-2xl shadow-lg border transition-all duration-200 ${
-                  isDragging
+                className={`${sectionInfo.bgClass} rounded-2xl shadow-lg border transition-all duration-200 ${isDragging
                     ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
                     : isDragOver
                       ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
                       : `${sectionInfo.borderClass} cursor-move hover:shadow-xl`
-                }`}
+                  }`}
               >
                 {/* ヘッダー */}
                 <div
@@ -2147,7 +1992,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
 
       {/* Add Chapter Modal */}
       {showAddForm && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -2169,7 +2014,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               <div className="space-y-6">
                 <div>
@@ -2197,13 +2042,12 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                     className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
                   />
                   <div className="mt-1 text-right">
-                    <span className={`text-xs font-['Noto_Sans_JP'] ${
-                      formData.summary.length > 300 
-                        ? 'text-red-500 dark:text-red-400' 
-                        : formData.summary.length > 200 
-                          ? 'text-yellow-500 dark:text-yellow-400' 
+                    <span className={`text-xs font-['Noto_Sans_JP'] ${formData.summary.length > 300
+                        ? 'text-red-500 dark:text-red-400'
+                        : formData.summary.length > 200
+                          ? 'text-yellow-500 dark:text-yellow-400'
                           : 'text-gray-500 dark:text-gray-400'
-                    }`}>
+                      }`}>
                       {formData.summary.length} 文字
                     </span>
                   </div>
@@ -2247,11 +2091,10 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                           <button
                             key={character.id}
                             onClick={() => handleCharacterToggle(character.id)}
-                            className={`px-3 py-1 rounded-full text-sm transition-all ${
-                              formData.characters.includes(character.id)
+                            className={`px-3 py-1 rounded-full text-sm transition-all ${formData.characters.includes(character.id)
                                 ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-2 border-indigo-500'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
+                              }`}
                           >
                             {character.name}
                           </button>
@@ -2264,7 +2107,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                         </p>
                       </div>
                     )}
-                    
+
                     {/* 選択されたキャラクター表示 */}
                     {formData.characters.length > 0 && (
                       <div className="flex flex-wrap gap-2">
@@ -2287,7 +2130,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                         })}
                       </div>
                     )}
-                    
+
                     {/* 手動入力 */}
                     <div className="flex space-x-2">
                       <input
@@ -2387,7 +2230,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
 
       {/* Edit Chapter Modal */}
       {showEditForm && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -2409,7 +2252,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               <div className="space-y-6">
                 <div>
@@ -2437,13 +2280,12 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                     className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
                   />
                   <div className="mt-1 text-right">
-                    <span className={`text-xs font-['Noto_Sans_JP'] ${
-                      editFormData.summary.length > 300 
-                        ? 'text-red-500 dark:text-red-400' 
-                        : editFormData.summary.length > 200 
-                          ? 'text-yellow-500 dark:text-yellow-400' 
+                    <span className={`text-xs font-['Noto_Sans_JP'] ${editFormData.summary.length > 300
+                        ? 'text-red-500 dark:text-red-400'
+                        : editFormData.summary.length > 200
+                          ? 'text-yellow-500 dark:text-yellow-400'
                           : 'text-gray-500 dark:text-gray-400'
-                    }`}>
+                      }`}>
                       {editFormData.summary.length} 文字
                     </span>
                   </div>
@@ -2487,11 +2329,10 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                           <button
                             key={character.id}
                             onClick={() => handleCharacterToggle(character.id, true)}
-                            className={`px-3 py-1 rounded-full text-sm transition-all ${
-                              editFormData.characters.includes(character.id)
+                            className={`px-3 py-1 rounded-full text-sm transition-all ${editFormData.characters.includes(character.id)
                                 ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-2 border-indigo-500'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
+                              }`}
                           >
                             {character.name}
                           </button>
@@ -2504,7 +2345,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                         </p>
                       </div>
                     )}
-                    
+
                     {/* 選択されたキャラクター表示 */}
                     {editFormData.characters.length > 0 && (
                       <div className="flex flex-wrap gap-2">
@@ -2527,7 +2368,7 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                         })}
                       </div>
                     )}
-                    
+
                     {/* 手動入力 */}
                     <div className="flex space-x-2">
                       <input
@@ -2624,160 +2465,10 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
         </div>
       )}
 
-      {/* AI Logs Modal */}
-      {showLogs && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowLogs(false);
-            }
-          }}
-        >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                  AI生成ログ
-                </h3>
-                <button
-                  onClick={() => setShowLogs(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {aiLogs.length === 0 ? (
-                <div className="text-center py-12">
-                  <FileText className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-                  <p className="text-xl text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
-                    AIログがありません
-                  </p>
-                  <p className="text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
-                    AI章立て提案を実行すると、ここにログが表示されます
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {aiLogs.map((log) => (
-                    <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            log.type === 'basic' 
-                              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                              : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
-                          }`}>
-                            {log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}
-                          </div>
-                          <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                            {log.timestamp.toLocaleString()}
-                          </span>
-                          {log.error && (
-                            <span className="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-full text-xs font-medium">
-                              エラー
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => copyToClipboard(log.response)}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                            title="応答をコピー"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => downloadLog(log)}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                            title="ログをダウンロード"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* エラー表示 */}
-                      {log.error && (
-                        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                          <h4 className="font-semibold text-red-800 dark:text-red-300 mb-2 font-['Noto_Sans_JP']">
-                            エラー内容
-                          </h4>
-                          <p className="text-red-700 dark:text-red-300 font-['Noto_Sans_JP'] text-sm">
-                            {log.error}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* プロンプト表示 */}
-                      <div className="mb-4">
-                        <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 font-['Noto_Sans_JP']">
-                          プロンプト
-                        </h4>
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
-                          <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP'] overflow-x-auto">
-                            {log.prompt}
-                          </pre>
-                        </div>
-                      </div>
-
-                      {/* AI応答表示 */}
-                      <div className="mb-4">
-                        <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 font-['Noto_Sans_JP']">
-                          AI応答
-                        </h4>
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
-                          <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP'] overflow-x-auto">
-                            {log.response || '応答なし'}
-                          </pre>
-                        </div>
-                      </div>
-
-                      {/* 解析結果表示 */}
-                      {log.parsedChapters && log.parsedChapters.length > 0 && (
-                        <div>
-                          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 font-['Noto_Sans_JP']">
-                            解析された章 ({log.parsedChapters.length}章)
-                          </h4>
-                          <div className="space-y-2">
-                            {log.parsedChapters.map((chapter, index) => (
-                              <div key={index} className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
-                                <div className="font-medium text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                  {index + 1}. {chapter.title}
-                                </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
-                                  {chapter.summary}
-                                </div>
-                                {chapter.setting && (
-                                  <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP'] mt-1">
-                                    設定: {chapter.setting}
-                                  </div>
-                                )}
-                                {chapter.mood && (
-                                  <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
-                                    ムード: {chapter.mood}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Chapter History Modal */}
       {showHistoryModal && selectedChapterId && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -2815,12 +2506,12 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               {(() => {
                 const histories = chapterHistories[selectedChapterId] || [];
                 const currentChapter = currentProject?.chapters.find(c => c.id === selectedChapterId);
-                
+
                 if (histories.length === 0) {
                   return (
                     <div className="text-center py-12">
@@ -2867,8 +2558,8 @@ ${context.existingChapters.map((c: { title: string; summary: string; setting?: s
                         過去の履歴 ({histories.length}件)
                       </h4>
                       {histories.map((history, index) => (
-                        <div 
-                          key={history.id} 
+                        <div
+                          key={history.id}
                           className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
                         >
                           <div className="flex items-center justify-between mb-3">

@@ -136,6 +136,16 @@ export interface Project {
   relationships?: CharacterRelationship[];
   timeline?: TimelineEvent[];
   worldSettings?: WorldSetting[];
+  writingStyle?: {
+    style?: string; // 基本文体（例：「現代小説風」「文語調」など）
+    perspective?: string; // 人称（一人称 / 三人称 / 神の視点）
+    formality?: string; // 硬軟（硬め / 柔らかめ / 口語的 / 文語的）
+    rhythm?: string; // リズム（短文中心 / 長短混合 / 流れるような長文）
+    metaphor?: string; // 比喩表現（多用 / 控えめ / 詩的 / 写実的）
+    dialogue?: string; // 会話比率（会話多め / 描写重視 / バランス型）
+    emotion?: string; // 感情描写（内面重視 / 行動で示す / 抑制的）
+    tone?: string; // トーン（緊張感 / 穏やか / 希望 / 切なさ / 謎めいた）
+  };
 }
 
 export interface StepProgress {
@@ -157,7 +167,7 @@ interface ProjectContextType {
   projects: Project[];
   setProjects: (projects: Project[]) => void;
   updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
-  createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string) => Project;
+  createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle']) => Project;
   saveProject: () => Promise<void>;
   createManualBackup: (description?: string) => Promise<void>;
   loadProject: (id: string) => Promise<void>;
@@ -198,7 +208,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       };
       setCurrentProjectState(updatedProject);
       // プロジェクト一覧も更新
-      setProjects(prev => prev.map(p => 
+      setProjects(prev => prev.map(p =>
         p.id === updatedProject.id ? updatedProject : p
       ));
       // データベースにも保存（非同期だがエラーは無視）
@@ -221,7 +231,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         // エラーが発生してもアプリケーションは動作し続ける
       }
     };
-    
+
     initializeProjects();
   }, []);
 
@@ -257,16 +267,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const updateProject = async (updates: Partial<Project>, immediate: boolean = false) => {
     if (!currentProject) return;
-    
+
     const updatedProject = {
       ...currentProject,
       ...updates,
       updatedAt: new Date(),
     };
-    
+
     setCurrentProject(updatedProject);
     setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-    
+
     if (immediate) {
       // 即座に保存（手動保存時など）
       try {
@@ -284,7 +294,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  const createNewProject = (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string): Project => {
+  const createNewProject = (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle']): Project => {
     const newProject: Project = {
       id: Date.now().toString(),
       title,
@@ -337,25 +347,26 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       glossary: [],
       relationships: [],
       timeline: [],
+      writingStyle: writingStyle,
       worldSettings: [],
     };
-    
+
     setProjects(prev => [...prev, newProject]);
     setCurrentProject(newProject);
-    
+
     return newProject;
   };
 
   const saveProject = async (): Promise<void> => {
     if (!currentProject) return;
-    
+
     setIsLoading(true);
     try {
       await databaseService.saveProject(currentProject);
       setLastSaved(new Date());
-      
+
       // プロジェクト一覧も更新
-      setProjects(prev => prev.map(p => 
+      setProjects(prev => prev.map(p =>
         p.id === currentProject.id ? currentProject : p
       ));
       setIsLoading(false); // 成功時にもローディング状態を解除
@@ -368,7 +379,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const createManualBackup = async (description: string = '手動バックアップ'): Promise<void> => {
     if (!currentProject) return;
-    
+
     setIsLoading(true);
     try {
       await databaseService.createManualBackup(currentProject, description);
@@ -405,7 +416,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         };
         setCurrentProject(normalizedProject);
         // プロジェクト一覧のlastAccessedも更新
-        setProjects(prev => prev.map(p => 
+        setProjects(prev => prev.map(p =>
           p.id === normalizedProject.id ? normalizedProject : p
         ));
         // データベースにも保存
@@ -431,7 +442,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     try {
       await databaseService.deleteProject(id);
       setProjects(prev => prev.filter(p => p.id !== id));
-      
+
       if (currentProject?.id === id) {
         setCurrentProject(null);
       }
@@ -489,10 +500,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   // 章削除関数（草案データも含めて削除）
   const deleteChapter = (chapterId: string): void => {
     if (!currentProject) return;
-    
+
     // 章を削除
     const updatedChapters = currentProject.chapters.filter(c => c.id !== chapterId);
-    
+
     updateProject({
       chapters: updatedChapters,
     });
