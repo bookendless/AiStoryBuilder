@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Sparkles, Check, Loader2, BookOpen, Eye, Wand2, GripVertical, RotateCcw, ChevronRight, ChevronDown, ChevronUp, FileText, X, AlertCircle, RefreshCw, Clock } from 'lucide-react';
+import { Sparkles, Check, Loader2, BookOpen, Eye, Wand2, GripVertical, RotateCcw, ChevronRight, FileText, X, AlertCircle, RefreshCw, Clock } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
+import { useAutoSave } from '../common/hooks/useAutoSave';
+import { DraggableSidebar } from '../common/DraggableSidebar';
 
 type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
@@ -17,10 +19,6 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
   const { showError, showSuccess, showWarning } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingField, setGeneratingField] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     theme: currentProject?.plot?.theme || '',
     setting: currentProject?.plot?.setting || '',
@@ -52,12 +50,23 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
   const [showTemplates, setShowTemplates] = useState<Record<string, boolean>>({});
   const [showDependencies, setShowDependencies] = useState<Record<string, boolean>>({});
 
-  // サイドバー項目の管理
-  type SidebarItemId = 'aiAssistant' | 'preview' | 'progress';
-  const [sidebarItemOrder, setSidebarItemOrder] = useState<SidebarItemId[]>(['aiAssistant', 'progress', 'preview']);
-  const [expandedSidebarItems, setExpandedSidebarItems] = useState<Set<SidebarItemId>>(new Set(['aiAssistant', 'progress']));
-  const [draggedSidebarIndex, setDraggedSidebarIndex] = useState<number | null>(null);
-  const [dragOverSidebarIndex, setDragOverSidebarIndex] = useState<number | null>(null);
+  // 自動保存
+  const { isSaving, saveStatus, lastSaved, handleSave } = useAutoSave(
+    formData,
+    async (value: typeof formData) => {
+      if (!currentProject) return;
+      const updatedPlot = {
+        ...currentProject.plot,
+        theme: value.theme,
+        setting: value.setting,
+        hook: value.hook,
+        protagonistGoal: value.protagonistGoal,
+        mainObstacle: value.mainObstacle,
+        ending: value.ending,
+      };
+      await updateProject({ plot: updatedPlot }, false);
+    }
+  );
 
   // 入力履歴を保存する関数
   const saveToHistory = useCallback((data: typeof formData) => {
@@ -133,100 +142,6 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     return () => clearTimeout(timeoutId);
   }, [formData, saveToHistory]);
 
-  // 自動保存機能（デバウンス付き）
-  useEffect(() => {
-    if (!currentProject) return;
-    
-    const timeoutId = setTimeout(async () => {
-      // フォームデータが変更されている場合のみ保存
-      const hasChanges = 
-        formData.theme !== (currentProject.plot?.theme || '') ||
-        formData.setting !== (currentProject.plot?.setting || '') ||
-        formData.hook !== (currentProject.plot?.hook || '') ||
-        formData.protagonistGoal !== (currentProject.plot?.protagonistGoal || '') ||
-        formData.mainObstacle !== (currentProject.plot?.mainObstacle || '') ||
-        formData.ending !== (currentProject.plot?.ending || '');
-      
-      if (hasChanges) {
-        // 直接保存処理を実行
-        setIsSaving(true);
-        setSaveStatus('saving');
-        
-        try {
-          // 既存のplotデータを保持しつつ、基本設定のみを更新
-          const updatedPlot = {
-            ...currentProject.plot,
-            theme: formData.theme,
-            setting: formData.setting,
-            hook: formData.hook,
-            protagonistGoal: formData.protagonistGoal,
-            mainObstacle: formData.mainObstacle,
-            ending: formData.ending,
-          };
-
-          await updateProject({
-            plot: updatedPlot,
-          });
-          
-          setSaveStatus('saved');
-          setLastSavedTime(new Date());
-          setSaveError(null);
-          console.log('Plot basic data auto-saved successfully:', formData);
-          
-        } catch (error) {
-          console.error('Auto-save error:', error);
-          const errorMessage = error instanceof Error ? error.message : '自動保存に失敗しました';
-          setSaveStatus('error');
-          setSaveError(errorMessage);
-          showError(`自動保存に失敗しました: ${errorMessage}`, 5000);
-        } finally {
-          setIsSaving(false);
-        }
-      }
-    }, 2000); // 2秒後に自動保存
-
-    return () => clearTimeout(timeoutId);
-  }, [formData, currentProject, updateProject]);
-
-  const handleSave = useCallback(async () => {
-    if (!currentProject) return;
-    
-    setIsSaving(true);
-    setSaveStatus('saving');
-    
-    try {
-      // 既存のplotデータを保持しつつ、基本設定のみを更新
-      const updatedPlot = {
-        ...currentProject.plot,
-        theme: formData.theme,
-        setting: formData.setting,
-        hook: formData.hook,
-        protagonistGoal: formData.protagonistGoal,
-        mainObstacle: formData.mainObstacle,
-        ending: formData.ending,
-      };
-
-      // 即座に保存
-      await updateProject({
-        plot: updatedPlot,
-      }, true);
-      
-      setSaveStatus('saved');
-      setLastSavedTime(new Date());
-      setSaveError(null);
-      showSuccess('保存が完了しました', 3000);
-      console.log('Plot basic data saved successfully:', formData);
-      
-    } catch (error) {
-      console.error('Save error:', error);
-      const errorMessage = error instanceof Error ? error.message : '保存に失敗しました';
-      setSaveStatus('error');
-      setSaveError(errorMessage);
-      showError(`保存に失敗しました: ${errorMessage}`, 5000);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [currentProject, updateProject, formData]);
 
   // フォームデータをリセットする関数
   const handleReset = () => {
@@ -387,68 +302,6 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     }
   }, []);
 
-  // サイドバー項目の展開/折りたたみ
-  const toggleSidebarExpansion = (itemId: SidebarItemId) => {
-    setExpandedSidebarItems(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
-      return newSet;
-    });
-  };
-
-  // サイドバー項目のドラッグ開始
-  const handleSidebarDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedSidebarIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  // サイドバー項目のドラッグ中
-  const handleSidebarDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (draggedSidebarIndex !== null && draggedSidebarIndex !== index) {
-      setDragOverSidebarIndex(index);
-    }
-  };
-
-  // サイドバー項目のドラッグ離脱
-  const handleSidebarDragLeave = () => {
-    setDragOverSidebarIndex(null);
-  };
-
-  // サイドバー項目のドロップ
-  const handleSidebarDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    
-    if (draggedSidebarIndex === null || draggedSidebarIndex === dropIndex) {
-      setDragOverSidebarIndex(null);
-      return;
-    }
-
-    const items = [...sidebarItemOrder];
-    const draggedItem = items[draggedSidebarIndex];
-    
-    // ドラッグされた項目を削除
-    items.splice(draggedSidebarIndex, 1);
-    
-    // 新しい位置に挿入
-    items.splice(dropIndex, 0, draggedItem);
-    
-    setSidebarItemOrder(items);
-    setDraggedSidebarIndex(null);
-    setDragOverSidebarIndex(null);
-    showSuccess('サイドバー項目の並び順を変更しました');
-  };
-
-  // サイドバー項目のドラッグ終了
-  const handleSidebarDragEnd = () => {
-    setDraggedSidebarIndex(null);
-    setDragOverSidebarIndex(null);
-  };
 
   // 文字数制限に基づいて内容を成形する関数
   const formatContentToFit = (content: string, maxLength: number, fieldName: string): string => {
@@ -1261,10 +1114,10 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                   <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
                     <Check className="h-4 w-4" />
                     <span className="text-sm font-['Noto_Sans_JP']">保存完了</span>
-                    {lastSavedTime && (
+                    {lastSaved && (
                       <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] flex items-center space-x-1">
                         <Clock className="h-3 w-3" />
-                        <span>{lastSavedTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>{lastSaved.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</span>
                       </span>
                     )}
                   </div>
@@ -1272,12 +1125,7 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                 {saveStatus === 'error' && (
                   <div className="flex items-center space-x-2 text-red-600 dark:text-red-400">
                     <AlertCircle className="h-4 w-4" />
-                    <div className="flex flex-col">
-                      <span className="text-sm font-['Noto_Sans_JP']">保存エラー</span>
-                      {saveError && (
-                        <span className="text-xs text-red-500 dark:text-red-400 font-['Noto_Sans_JP']">{saveError}</span>
-                      )}
-                    </div>
+                    <span className="text-sm font-['Noto_Sans_JP']">保存エラー</span>
                     <button
                       onClick={handleSave}
                       disabled={isSaving}
@@ -1311,275 +1159,160 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
         </div>
 
         {/* AI Assistant Panel */}
-        <div className="space-y-6">
-          {sidebarItemOrder.map((itemId, index) => {
-            const isExpanded = expandedSidebarItems.has(itemId);
-            const isDragged = draggedSidebarIndex === index;
-            const isDragOver = dragOverSidebarIndex === index;
-
-            // AI提案アシスタント項目
-            if (itemId === 'aiAssistant') {
-              return (
-                <div
-                  key={itemId}
-                  draggable
-                  onDragStart={(e) => handleSidebarDragStart(e, index)}
-                  onDragOver={(e) => handleSidebarDragOver(e, index)}
-                  onDragLeave={handleSidebarDragLeave}
-                  onDrop={(e) => handleSidebarDrop(e, index)}
-                  onDragEnd={handleSidebarDragEnd}
-                  className={`bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${
-                    isDragged
-                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                      : isDragOver
-                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                        : 'border-purple-200 dark:border-purple-800 cursor-move hover:shadow-xl'
-                  }`}
-                >
-                  <div
-                    className="flex items-center justify-between p-6 cursor-pointer"
-                    onClick={() => toggleSidebarExpansion(itemId)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-5 w-5" />
-                      </div>
-                      <div className="bg-gradient-to-br from-purple-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
-                        <Sparkles className="h-5 w-5 text-white" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        AI提案アシスタント
-                      </h3>
-                    </div>
-                    {isExpanded ? (
-                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    )}
-                  </div>
+        <DraggableSidebar
+          items={[
+            {
+              id: 'aiAssistant',
+              title: 'AI提案アシスタント',
+              icon: Sparkles,
+              iconBgClass: 'bg-gradient-to-br from-purple-500 to-purple-600',
+              defaultExpanded: false,
+              className: 'bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800',
+              content: (
+                <div className="space-y-4">
+                  <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                    一貫性のある基本設定を生成します：
+                  </p>
                   
-                  {isExpanded && (
-                    <div className="px-6 pb-6 space-y-4">
-                      <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                        一貫性のある基本設定を生成します：
-                      </p>
-                      
-                      <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                          <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">基本設定提案</span>：メインテーマ、舞台設定、フック要素、結末を独立して提案</li>
-                        <li>• キャラクター設定との連携強化</li>
-                        <li>• ジャンルに適した設定パターン</li>
-                        <li>• 文字数制限による適切なボックスサイズ対応</li>
-                        <li>• 結末から逆算して物語を構築する機能（PlotStep2で利用可能）</li>
-                      </ul>
+                  <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">基本設定提案</span>：メインテーマ、舞台設定、フック要素、結末を独立して提案</li>
+                    <li>• キャラクター設定との連携強化</li>
+                    <li>• ジャンルに適した設定パターン</li>
+                    <li>• 文字数制限による適切なボックスサイズ対応</li>
+                    <li>• 結末から逆算して物語を構築する機能（PlotStep2で利用可能）</li>
+                  </ul>
 
-                      <div className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
-                        <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-3 font-['Noto_Sans_JP']">
-                          AI基本設定提案について
-                        </h4>
-                        <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-3">
-                          プロジェクトの設定（ジャンル、テーマ、キャラクターなど）に基づいて、一貫性のある物語の基本設定を自動生成します。
-                        </p>
-                        <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mb-4">
-                          <li>• メインテーマ、舞台設定、フック要素、主人公の目標、主要な障害、物語の結末を設定</li>
-                          <li>• キャラクター設定と連携した一貫性のある物語基盤を構築</li>
-                          <li>• ジャンルに適した設定パターンと文字数制限を考慮</li>
-                          <li>• 結末を設定することで、PlotStep2で逆算プロンプティング機能が利用可能</li>
-                        </ul>
-                        
-                        <button
-                          onClick={handleBasicAIGenerate}
-                          disabled={isGenerating}
-                          className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
-                        >
-                          {isGenerating ? (
-                            <>
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                              <span>生成中...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="h-5 w-5" />
-                              <span>基本設定をAI提案</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            // プレビュー・要約パネル項目
-            if (itemId === 'preview') {
-              if (!generatePreview) return null;
-              
-              return (
-                <div
-                  key={itemId}
-                  draggable
-                  onDragStart={(e) => handleSidebarDragStart(e, index)}
-                  onDragOver={(e) => handleSidebarDragOver(e, index)}
-                  onDragLeave={handleSidebarDragLeave}
-                  onDrop={(e) => handleSidebarDrop(e, index)}
-                  onDragEnd={handleSidebarDragEnd}
-                  className={`bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl border transition-all duration-200 ${
-                    isDragged
-                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                      : isDragOver
-                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                        : 'border-indigo-200 dark:border-indigo-800 cursor-move hover:shadow-xl'
-                  }`}
-                >
-                  <div
-                    className="flex items-center justify-between p-6 cursor-pointer"
-                    onClick={() => toggleSidebarExpansion(itemId)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-5 w-5" />
-                      </div>
-                      <div className="bg-gradient-to-br from-indigo-500 to-blue-600 w-10 h-10 rounded-full flex items-center justify-center">
-                        <Eye className="h-5 w-5 text-white" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        プレビュー・要約
-                      </h3>
-                    </div>
-                    {isExpanded ? (
-                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    )}
-                  </div>
-                  
-                  {isExpanded && (
-                    <div className="px-6 pb-6">
-                      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700 max-h-96 overflow-y-auto">
-                        <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] leading-relaxed">
-                          {generatePreview}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            // 基本設定完成度項目
-            if (itemId === 'progress') {
-              const progress = calculateBasicProgress();
-              
-              return (
-                <div
-                  key={itemId}
-                  draggable
-                  onDragStart={(e) => handleSidebarDragStart(e, index)}
-                  onDragOver={(e) => handleSidebarDragOver(e, index)}
-                  onDragLeave={handleSidebarDragLeave}
-                  onDrop={(e) => handleSidebarDrop(e, index)}
-                  onDragEnd={handleSidebarDragEnd}
-                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${
-                    isDragged
-                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                      : isDragOver
-                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                        : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
-                  }`}
-                >
-                  <div
-                    className="flex items-center justify-between p-6 cursor-pointer"
-                    onClick={() => toggleSidebarExpansion(itemId)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-5 w-5" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        基本設定完成度
-                      </h3>
-                    </div>
-                    {isExpanded ? (
-                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    )}
-                  </div>
-                  
-                  {isExpanded && (
-                    <div className="px-6 pb-6 space-y-4">
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">設定項目</span>
-                          <span className="font-semibold text-gray-900 dark:text-white">
-                            {progress.completed} / {progress.total}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              progress.percentage === 100 
-                                ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
-                                : 'bg-gradient-to-r from-blue-500 to-cyan-500'
-                            }`}
-                            style={{ width: `${progress.percentage}%` }}
-                          />
-                        </div>
-                        <div className="text-center">
-                          <span className={`text-sm font-semibold ${
-                            progress.percentage === 100 
-                              ? 'text-green-600 dark:text-green-400' 
-                              : 'text-gray-900 dark:text-white'
-                          }`}>
-                            {progress.percentage.toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 text-sm">
-                        {progress.fields.map((field) => (
-                          <div key={field.key} className="flex items-center space-x-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              field.completed 
-                                ? 'bg-green-500' 
-                                : 'bg-gray-300 dark:bg-gray-600'
-                            }`} />
-                            <span className={`font-['Noto_Sans_JP'] ${
-                              field.completed 
-                                ? 'text-gray-700 dark:text-gray-300' 
-                                : 'text-gray-500 dark:text-gray-500'
-                            }`}>
-                              {field.label}
-                            </span>
-                            {field.completed && (
-                              <Check className="h-3 w-3 text-green-500 ml-auto" />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {progress.percentage === 100 && (
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                          <div className="flex items-center space-x-2">
-                            <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            <span className="text-sm font-semibold text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
-                              基本設定完成！
-                            </span>
-                          </div>
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-['Noto_Sans_JP']">
-                            すべての基本設定項目が設定されました。次のステップに進むことができます。
-                          </p>
-                        </div>
+                  <div className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
+                    <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-3 font-['Noto_Sans_JP']">
+                      AI基本設定提案について
+                    </h4>
+                    <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-3">
+                      プロジェクトの設定（ジャンル、テーマ、キャラクターなど）に基づいて、一貫性のある物語の基本設定を自動生成します。
+                    </p>
+                    <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mb-4">
+                      <li>• メインテーマ、舞台設定、フック要素、主人公の目標、主要な障害、物語の結末を設定</li>
+                      <li>• キャラクター設定と連携した一貫性のある物語基盤を構築</li>
+                      <li>• ジャンルに適した設定パターンと文字数制限を考慮</li>
+                      <li>• 結末を設定することで、PlotStep2で逆算プロンプティング機能が利用可能</li>
+                    </ul>
+                    
+                    <button
+                      onClick={handleBasicAIGenerate}
+                      disabled={isGenerating}
+                      className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>生成中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-5 w-5" />
+                          <span>基本設定をAI提案</span>
+                        </>
                       )}
-                    </div>
-                  )}
+                    </button>
+                  </div>
                 </div>
-              );
-            }
+              ),
+            },
+            {
+              id: 'progress',
+              title: '基本設定完成度',
+              icon: Check,
+              iconBgClass: 'bg-gradient-to-br from-green-500 to-emerald-500',
+              defaultExpanded: false,
+              content: (() => {
+                const progress = calculateBasicProgress();
+                return (
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">設定項目</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                          {progress.completed} / {progress.total}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            progress.percentage === 100 
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                              : 'bg-gradient-to-r from-blue-500 to-cyan-500'
+                          }`}
+                          style={{ width: `${progress.percentage}%` }}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <span className={`text-sm font-semibold ${
+                          progress.percentage === 100 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : 'text-gray-900 dark:text-white'
+                        }`}>
+                          {progress.percentage.toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
 
-            return null;
-          })}
-        </div>
+                    <div className="space-y-2 text-sm">
+                      {progress.fields.map((field) => (
+                        <div key={field.key} className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            field.completed 
+                              ? 'bg-green-500' 
+                              : 'bg-gray-300 dark:bg-gray-600'
+                          }`} />
+                          <span className={`font-['Noto_Sans_JP'] ${
+                            field.completed 
+                              ? 'text-gray-700 dark:text-gray-300' 
+                              : 'text-gray-500 dark:text-gray-500'
+                          }`}>
+                            {field.label}
+                          </span>
+                          {field.completed && (
+                            <Check className="h-3 w-3 text-green-500 ml-auto" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {progress.percentage === 100 && (
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                        <div className="flex items-center space-x-2">
+                          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          <span className="text-sm font-semibold text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
+                            基本設定完成！
+                          </span>
+                        </div>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-['Noto_Sans_JP']">
+                          すべての基本設定項目が設定されました。次のステップに進むことができます。
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })(),
+            },
+            {
+              id: 'preview',
+              title: 'プレビュー・要約',
+              icon: Eye,
+              iconBgClass: 'bg-gradient-to-br from-indigo-500 to-blue-600',
+              content: generatePreview ? (
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700 max-h-96 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] leading-relaxed">
+                    {generatePreview}
+                  </pre>
+                </div>
+              ) : null,
+              className: 'bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border-indigo-200 dark:border-indigo-800',
+            },
+          ]}
+          defaultOrder={['aiAssistant', 'progress', 'preview']}
+          storageKey="plotStep1_sidebarOrder"
+          onOrderChange={() => showSuccess('サイドバー項目の並び順を変更しました')}
+        />
       </div>
     </div>
   );

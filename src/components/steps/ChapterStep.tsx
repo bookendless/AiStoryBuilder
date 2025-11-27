@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { List, Plus, Sparkles, Edit3, Trash2, ChevronUp, ChevronDown, Check, X, FileText, Copy, Download, Search, ChevronRight, BookOpen, History, RotateCcw, GripVertical } from 'lucide-react';
+import { List, Plus, Sparkles, Edit3, Trash2, ChevronUp, ChevronDown, Check, X, FileText, Search, ChevronRight, BookOpen, History, RotateCcw, GripVertical } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
+import { useAILog } from '../common/hooks/useAILog';
+import { AILogPanel } from '../common/AILogPanel';
 
 // ProjectContextの型を使用するため、ローカルのChapterインターフェースは削除
 
@@ -12,16 +14,6 @@ interface StructureProgress {
   development: boolean;
   climax: boolean;
   conclusion: boolean;
-}
-
-interface AILogEntry {
-  id: string;
-  timestamp: Date;
-  type: 'basic' | 'structure';
-  prompt: string;
-  response: string;
-  error?: string;
-  parsedChapters?: Array<{ id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }>;
 }
 
 interface ChapterHistory {
@@ -50,7 +42,9 @@ export const ChapterStep: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+  
+  // AIログ管理
+  const { aiLogs, addLog } = useAILog();
   const [formData, setFormData] = useState({
     title: '',
     summary: '',
@@ -376,19 +370,14 @@ export const ChapterStep: React.FC = () => {
     };
   };
 
-  // AIログ関連のユーティリティ関数
-  const addAILog = (logEntry: Omit<AILogEntry, 'id' | 'timestamp'>) => {
-    const newLog: AILogEntry = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      timestamp: new Date(),
-      ...logEntry
+  // AIログをコピー（ChapterStep特有の形式に対応）
+  const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
+    const typeLabels: Record<string, string> = {
+      basic: '基本AI章立て提案',
+      structure: '構成バランスAI提案',
     };
-    setAiLogs(prev => [newLog, ...prev].slice(0, 10)); // 最新10件まで保持
-  };
-
-  // AIログをコピー
-  const handleCopyLog = (log: AILogEntry) => {
-    const logText = `【AIログ - ${log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}】
+    const typeLabel = typeLabels[log.type] || log.type;
+    const logText = `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
 
 【プロンプト】
@@ -404,16 +393,21 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 ${log.parsedChapters.length}章
 
 【解析された章の詳細】
-${log.parsedChapters.map((ch, i) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}`;
+${log.parsedChapters.map((ch: any, i: number) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}`;
 
     navigator.clipboard.writeText(logText);
     showSuccess('ログをクリップボードにコピーしました');
-  };
+  }, [showSuccess]);
 
-  // AIログをダウンロード
-  const handleDownloadLogs = () => {
-    const logsText = aiLogs.map(log =>
-      `【AIログ - ${log.type === 'basic' ? '基本AI章立て提案' : '構成バランスAI提案'}】
+  // AIログをダウンロード（ChapterStep特有の形式に対応）
+  const handleDownloadLogs = useCallback(() => {
+    const typeLabels: Record<string, string> = {
+      basic: '基本AI章立て提案',
+      structure: '構成バランスAI提案',
+    };
+    const logsText = aiLogs.map(log => {
+      const typeLabel = typeLabels[log.type] || log.type;
+      return `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
 
 【プロンプト】
@@ -429,10 +423,10 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 ${log.parsedChapters.length}章
 
 【解析された章の詳細】
-${log.parsedChapters.map((ch, i) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}
+${log.parsedChapters.map((ch: any, i: number) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}
 
-${'='.repeat(80)}`
-    ).join('\n\n');
+${'='.repeat(80)}`;
+    }).join('\n\n');
 
     const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -444,7 +438,7 @@ ${'='.repeat(80)}`
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showSuccess('ログをダウンロードしました');
-  };
+  }, [aiLogs, showSuccess]);
 
   const parseAIResponse = (content: string) => {
     // フォールバック: 基本的な解析処理（強化版）
@@ -970,31 +964,29 @@ ${'='.repeat(80)}`
         settings,
       });
 
-      // ログを保存
-      addAILog({
-        type: 'basic',
-        prompt,
-        response: response.content || '',
-        error: response.error,
-        parsedChapters: []
-      });
-
       if (response.error) {
+        // エラーの場合はログを保存
+        addLog({
+          type: 'basic',
+          prompt,
+          response: response.content || '',
+          error: response.error,
+          parsedChapters: []
+        });
         alert(`AI生成エラー: ${response.error}\n\nログを確認するにはサイドバーの「AIログ」セクションを確認してください。`);
         return;
       }
 
       const newChapters = parseAIResponse(response.content);
 
-      // 解析結果をログに追加
-      if (aiLogs.length > 0) {
-        const latestLog = aiLogs[0];
-        setAiLogs(prev => prev.map(log =>
-          log.id === latestLog.id
-            ? { ...log, parsedChapters: newChapters }
-            : log
-        ));
-      }
+      // 解析結果を含めてログを保存
+      addLog({
+        type: 'basic',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+        parsedChapters: newChapters
+      });
 
       if (newChapters.length > 0) {
         updateProject({
@@ -1030,7 +1022,7 @@ ${'='.repeat(80)}`
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '不明なエラー';
-      addAILog({
+      addLog({
         type: 'basic',
         prompt: buildAIPrompt('basic'),
         response: '',
@@ -1070,27 +1062,17 @@ ${'='.repeat(80)}`
         settings: settings,
       });
 
-      // ログを保存
-      addAILog({
-        type: 'structure',
-        prompt,
-        response: response.content || '',
-        error: response.error,
-        parsedChapters: []
-      });
-
       if (response.content && !response.error) {
         const newChapters = parseAIResponse(response.content);
 
-        // 解析結果をログに追加
-        if (aiLogs.length > 0) {
-          const latestLog = aiLogs[0];
-          setAiLogs(prev => prev.map(log =>
-            log.id === latestLog.id
-              ? { ...log, parsedChapters: newChapters }
-              : log
-          ));
-        }
+        // 解析結果を含めてログを保存
+        addLog({
+          type: 'structure',
+          prompt,
+          response: response.content || '',
+          error: response.error,
+          parsedChapters: newChapters
+        });
 
         if (newChapters.length > 0) {
           updateProject({
@@ -1128,7 +1110,7 @@ ${'='.repeat(80)}`
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '不明なエラー';
-      addAILog({
+      addLog({
         type: 'structure',
         prompt: buildAIPrompt('structure'),
         response: '',
@@ -1513,8 +1495,8 @@ ${'='.repeat(80)}`
                             key={chapter.id}
                             onClick={() => scrollToChapter(chapter.id)}
                             className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm font-['Noto_Sans_JP'] ${isChapterExpanded
-                                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
-                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                               }`}
                           >
                             <div className="flex items-center space-x-2">
@@ -1624,8 +1606,8 @@ ${'='.repeat(80)}`
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">導入部</span>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.introduction
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                                  : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
+                                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
                                 }`}>
                                 {structureProgress.introduction ? '完了' : '未完了'}
                               </span>
@@ -1653,8 +1635,8 @@ ${'='.repeat(80)}`
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">展開部</span>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.development
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                                  : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
+                                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
                                 }`}>
                                 {structureProgress.development ? '完了' : '未完了'}
                               </span>
@@ -1682,8 +1664,8 @@ ${'='.repeat(80)}`
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">クライマックス</span>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.climax
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                                  : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
+                                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
                                 }`}>
                                 {structureProgress.climax ? '完了' : '未完了'}
                               </span>
@@ -1711,8 +1693,8 @@ ${'='.repeat(80)}`
                                 <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">結末部</span>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${structureProgress.conclusion
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                                  : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
+                                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
                                 }`}>
                                 {structureProgress.conclusion ? '完了' : '未完了'}
                               </span>
@@ -1787,96 +1769,28 @@ ${'='.repeat(80)}`
 
                 case 'aiLogs':
                   return (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                          AIログ
-                        </h3>
-                        {aiLogs.length > 0 && (
-                          <button
-                            onClick={handleDownloadLogs}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            title="ログをダウンロード"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      {aiLogs.length === 0 ? (
-                        <div className="text-center py-8">
-                          <FileText className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-['Noto_Sans_JP']">
-                            AIログがありません
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
-                            AI章立て提案を実行すると、ここにログが表示されます
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {aiLogs.map((log) => (
-                          <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center space-x-2">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${log.type === 'basic'
-                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                  : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                                  }`}>
-                                  {log.type === 'basic' ? '基本提案' : '構成提案'}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {log.timestamp.toLocaleString('ja-JP', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                                <button
-                                  onClick={() => handleCopyLog(log)}
-                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                  title="ログをコピー"
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </button>
+                    <AILogPanel
+                      logs={aiLogs}
+                      onCopyLog={handleCopyLog}
+                      onDownloadLogs={handleDownloadLogs}
+                      typeLabels={{
+                        basic: '基本提案',
+                        structure: '構成提案',
+                      }}
+                      maxHeight="max-h-96"
+                      renderLogContent={(log) => (
+                        <>
+                          {log.parsedChapters && log.parsedChapters.length > 0 && (
+                            <div className="mt-2">
+                              <strong>解析された章 ({log.parsedChapters.length}章):</strong>
+                              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                {log.parsedChapters.map((c: any) => c.title).join(', ')}
                               </div>
                             </div>
-
-                            {log.error ? (
-                              <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
-                                <strong>エラー:</strong> {log.error}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                                <div className="mb-2">
-                                  <strong>プロンプト:</strong>
-                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                                    {log.prompt.substring(0, 200)}...
-                                  </div>
-                                </div>
-                                <div>
-                                  <strong>応答:</strong>
-                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                                    {log.response.substring(0, 300)}...
-                                  </div>
-                                </div>
-                                {log.parsedChapters && log.parsedChapters.length > 0 && (
-                                  <div className="mt-2">
-                                    <strong>解析された章 ({log.parsedChapters.length}章):</strong>
-                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                                      {log.parsedChapters.map(c => c.title).join(', ')}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                        </div>
+                          )}
+                        </>
                       )}
-                    </div>
+                    />
                   );
 
                 default:
@@ -1945,10 +1859,10 @@ ${'='.repeat(80)}`
                 onDrop={(e) => handleSectionDrop(e, index)}
                 onDragEnd={handleSectionDragEnd}
                 className={`${sectionInfo.bgClass} rounded-2xl shadow-lg border transition-all duration-200 ${isDragging
-                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                    : isDragOver
-                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                      : `${sectionInfo.borderClass} cursor-move hover:shadow-xl`
+                  ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                  : isDragOver
+                    ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                    : `${sectionInfo.borderClass} cursor-move hover:shadow-xl`
                   }`}
               >
                 {/* ヘッダー */}
@@ -1993,29 +1907,30 @@ ${'='.repeat(80)}`
       {/* Add Chapter Modal */}
       {showAddForm && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 glass-overlay flex items-center justify-center z-50 p-4 transition-opacity duration-300"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               handleCloseModal();
             }
           }}
         >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
+            <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                   新しい章を追加
                 </h3>
                 <button
                   onClick={handleCloseModal}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-white/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-2 focus:ring-offset-transparent"
+                  aria-label="閉じる"
                 >
                   <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto custom-scrollbar">
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
@@ -2043,10 +1958,10 @@ ${'='.repeat(80)}`
                   />
                   <div className="mt-1 text-right">
                     <span className={`text-xs font-['Noto_Sans_JP'] ${formData.summary.length > 300
-                        ? 'text-red-500 dark:text-red-400'
-                        : formData.summary.length > 200
-                          ? 'text-yellow-500 dark:text-yellow-400'
-                          : 'text-gray-500 dark:text-gray-400'
+                      ? 'text-red-500 dark:text-red-400'
+                      : formData.summary.length > 200
+                        ? 'text-yellow-500 dark:text-yellow-400'
+                        : 'text-gray-500 dark:text-gray-400'
                       }`}>
                       {formData.summary.length} 文字
                     </span>
@@ -2092,8 +2007,8 @@ ${'='.repeat(80)}`
                             key={character.id}
                             onClick={() => handleCharacterToggle(character.id)}
                             className={`px-3 py-1 rounded-full text-sm transition-all ${formData.characters.includes(character.id)
-                                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-2 border-indigo-500'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-2 border-indigo-500'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                           >
                             {character.name}
@@ -2208,11 +2123,11 @@ ${'='.repeat(80)}`
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+            <div className="p-6 border-t border-white/20 dark:border-white/10 bg-white/30 dark:bg-gray-700/30 shrink-0">
               <div className="flex space-x-3">
                 <button
                   onClick={handleCloseModal}
-                  className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP'] font-medium"
+                  className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors font-['Noto_Sans_JP'] font-medium"
                 >
                   キャンセル
                 </button>
@@ -2231,29 +2146,30 @@ ${'='.repeat(80)}`
       {/* Edit Chapter Modal */}
       {showEditForm && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 glass-overlay flex items-center justify-center z-50 p-4 transition-opacity duration-300"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               handleCloseEditModal();
             }
           }}
         >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
+            <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                   章を編集
                 </h3>
                 <button
                   onClick={handleCloseEditModal}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-white/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-2 focus:ring-offset-transparent"
+                  aria-label="閉じる"
                 >
                   <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto custom-scrollbar">
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
@@ -2281,10 +2197,10 @@ ${'='.repeat(80)}`
                   />
                   <div className="mt-1 text-right">
                     <span className={`text-xs font-['Noto_Sans_JP'] ${editFormData.summary.length > 300
-                        ? 'text-red-500 dark:text-red-400'
-                        : editFormData.summary.length > 200
-                          ? 'text-yellow-500 dark:text-yellow-400'
-                          : 'text-gray-500 dark:text-gray-400'
+                      ? 'text-red-500 dark:text-red-400'
+                      : editFormData.summary.length > 200
+                        ? 'text-yellow-500 dark:text-yellow-400'
+                        : 'text-gray-500 dark:text-gray-400'
                       }`}>
                       {editFormData.summary.length} 文字
                     </span>
@@ -2330,8 +2246,8 @@ ${'='.repeat(80)}`
                             key={character.id}
                             onClick={() => handleCharacterToggle(character.id, true)}
                             className={`px-3 py-1 rounded-full text-sm transition-all ${editFormData.characters.includes(character.id)
-                                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-2 border-indigo-500'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-2 border-indigo-500'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                           >
                             {character.name}
@@ -2445,11 +2361,11 @@ ${'='.repeat(80)}`
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+            <div className="p-6 border-t border-white/20 dark:border-white/10 bg-white/30 dark:bg-gray-700/30 shrink-0">
               <div className="flex space-x-3">
                 <button
                   onClick={handleCloseEditModal}
-                  className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP'] font-medium"
+                  className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors font-['Noto_Sans_JP'] font-medium"
                 >
                   キャンセル
                 </button>
@@ -2469,7 +2385,7 @@ ${'='.repeat(80)}`
       {/* Chapter History Modal */}
       {showHistoryModal && selectedChapterId && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 glass-overlay flex items-center justify-center z-50 p-4 transition-opacity duration-300"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowHistoryModal(false);
@@ -2477,8 +2393,8 @@ ${'='.repeat(80)}`
             }
           }}
         >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
+            <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
@@ -2500,14 +2416,15 @@ ${'='.repeat(80)}`
                     setShowHistoryModal(false);
                     setSelectedChapterId(null);
                   }}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-white/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-2 focus:ring-offset-transparent"
+                  aria-label="閉じる"
                 >
                   <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto custom-scrollbar">
               {(() => {
                 const histories = chapterHistories[selectedChapterId] || [];
                 const currentChapter = currentProject?.chapters.find(c => c.id === selectedChapterId);

@@ -46,15 +46,16 @@ http://localhost:5173
 
 ## ✅ AI機能のテスト
 
-### Option A: クラウドAI（OpenAI推奨）
+### Option A: クラウドAI（OpenAI/Claude/Gemini対応）
 
 1. **OpenAI APIキーを取得**
    - [OpenAI Platform](https://platform.openai.com/api-keys) でAPIキーを作成
+   - ※ Anthropic Claude を利用する場合は [Claude Console](https://console.anthropic.com/settings/keys)、Google Gemini を利用する場合は [AI Studio](https://aistudio.google.com/app/apikey) からAPIキーを取得してください
 
 2. **アプリケーションで設定**
    - 右上の設定アイコン → AI設定
-   - プロバイダー: **OpenAI GPT**
-   - モデル: **GPT-4o Mini**（コスト効率が良い）
+   - プロバイダー: **OpenAI GPT**（または利用したいクラウドAI）
+   - モデル: **GPT-4.1 Mini**（最新のバランスモデル）
    - APIキー: `sk-...` （あなたのAPIキー）
    - 「接続をテスト」をクリック
 

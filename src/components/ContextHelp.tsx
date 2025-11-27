@@ -1,7 +1,7 @@
 import React from 'react';
-import { HelpCircle, X, BookOpen, Users, FileText, List, PenTool, Download, Layers, Sparkles } from 'lucide-react';
-import { useModalNavigation } from '../hooks/useKeyboardNavigation';
+import { HelpCircle, BookOpen, Users, FileText, List, PenTool, Download, Layers, Sparkles } from 'lucide-react';
 import { Step } from '../App';
+import { Modal } from './common/Modal';
 
 interface ContextHelpProps {
   step: Step;
@@ -222,112 +222,83 @@ const helpContents: Record<Step, HelpContent> = {
 };
 
 export const ContextHelp: React.FC<ContextHelpProps> = ({ step, isOpen, onClose }) => {
-  const { modalRef } = useModalNavigation({
-    isOpen,
-    onClose,
-  });
 
   if (!isOpen) return null;
 
   const content = helpContents[step];
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="context-help-title"
-    >
-      <div
-        ref={modalRef}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ヘッダー */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
-                <HelpCircle className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h2
-                  id="context-help-title"
-                  className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']"
-                >
-                  {content.title} - ヘルプ
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  {content.description}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-md p-1"
-              aria-label="閉じる"
-            >
-              <X className="h-6 w-6" />
-            </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        <div className="flex items-center space-x-3">
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
+            <HelpCircle className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <span className="block text-xl font-bold">{content.title} - ヘルプ</span>
+            <span className="block text-sm font-normal text-gray-500 dark:text-gray-400">
+              {content.description}
+            </span>
           </div>
         </div>
-
-        {/* コンテンツ */}
-        <div className="p-6 space-y-6">
-          {content.sections.map((section, index) => (
-            <div
-              key={index}
-              className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-5 border border-gray-200 dark:border-gray-600"
-            >
-              <div className="flex items-center space-x-3 mb-3">
-                {section.icon}
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                  {section.title}
-                </h3>
-              </div>
-              {Array.isArray(section.content) ? (
-                <ul className="space-y-2 ml-8">
-                  {section.content.map((item, itemIndex) => (
-                    <li
-                      key={itemIndex}
-                      className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] list-disc"
-                    >
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] ml-8">
-                  {section.content}
-                </p>
-              )}
+      }
+      size="lg"
+    >
+      {/* コンテンツ */}
+      <div className="space-y-6">
+        {content.sections.map((section, index) => (
+          <div
+            key={index}
+            className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-5 border border-gray-200 dark:border-gray-600"
+          >
+            <div className="flex items-center space-x-3 mb-3">
+              {section.icon}
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                {section.title}
+              </h3>
             </div>
-          ))}
-
-          {content.tips && content.tips.length > 0 && (
-            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-5 border border-indigo-200 dark:border-indigo-800">
-              <div className="flex items-center space-x-2 mb-3">
-                <Sparkles className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-200 font-['Noto_Sans_JP']">
-                  ヒント
-                </h3>
-              </div>
-              <ul className="space-y-2 ml-7">
-                {content.tips.map((tip, tipIndex) => (
+            {Array.isArray(section.content) ? (
+              <ul className="space-y-2 ml-8">
+                {section.content.map((item, itemIndex) => (
                   <li
-                    key={tipIndex}
-                    className="text-indigo-800 dark:text-indigo-200 font-['Noto_Sans_JP'] list-disc"
+                    key={itemIndex}
+                    className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] list-disc"
                   >
-                    {tip}
+                    {item}
                   </li>
                 ))}
               </ul>
+            ) : (
+              <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] ml-8">
+                {section.content}
+              </p>
+            )}
+          </div>
+        ))}
+
+        {content.tips && content.tips.length > 0 && (
+          <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-5 border border-indigo-200 dark:border-indigo-800">
+            <div className="flex items-center space-x-2 mb-3">
+              <Sparkles className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-200 font-['Noto_Sans_JP']">
+                ヒント
+              </h3>
             </div>
-          )}
-        </div>
+            <ul className="space-y-2 ml-7">
+              {content.tips.map((tip, tipIndex) => (
+                <li
+                  key={tipIndex}
+                  className="text-indigo-800 dark:text-indigo-200 font-['Noto_Sans_JP'] list-disc"
+                >
+                  {tip}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };
-

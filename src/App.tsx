@@ -61,17 +61,17 @@ function App() {
   if (isLoading) {
     return (
       <div 
-        className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center"
+        className="min-h-screen bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200 dark:from-sumi-900 dark:via-sumi-800 dark:to-sumi-900 flex items-center justify-center"
         role="status"
         aria-live="polite"
         aria-label="アプリケーションを読み込み中"
       >
         <div className="text-center">
           <div 
-            className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"
+            className="animate-spin rounded-full h-12 w-12 border-b-2 border-ai-500 mx-auto mb-4"
             aria-hidden="true"
           ></div>
-          <p className="text-gray-600 dark:text-gray-300 font-['Noto_Sans_JP']">読み込み中...</p>
+          <p className="text-sumi-600 dark:text-usuzumi-300 font-['Noto_Sans_JP']">読み込み中...</p>
         </div>
       </div>
     );
@@ -209,10 +209,10 @@ const AppContent: React.FC = () => {
           メインコンテンツにスキップ
         </a>
         
-        <div 
-          className={`min-h-screen transition-colors duration-300 ${
-            isDarkMode ? 'dark bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-          }`}
+      <div 
+        className={`min-h-screen transition-colors duration-300 ${
+          isDarkMode ? 'dark bg-sumi-900' : 'bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200'
+        }`}
           role="application"
           aria-label="AI小説創作支援アプリケーション"
         >

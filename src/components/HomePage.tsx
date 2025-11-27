@@ -10,6 +10,7 @@ import { getUserFriendlyError } from '../utils/errorHandler';
 import { useGlobalShortcuts } from '../hooks/useKeyboardNavigation';
 import { ContextHelp } from './ContextHelp';
 import { OptimizedImage } from './OptimizedImage';
+import { Card } from './common/Card';
 
 // プロジェクトカードコンポーネント（メモ化）
 interface ProjectCardProps {
@@ -22,31 +23,32 @@ interface ProjectCardProps {
   isLoading: boolean;
 }
 
-const ProjectCard = React.memo<ProjectCardProps>(({ 
-  project, 
-  progress, 
-  onSelect, 
-  onEdit, 
-  onDuplicate, 
-  onDelete, 
-  isLoading 
+const ProjectCard = React.memo<ProjectCardProps>(({
+  project,
+  progress,
+  onSelect,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  isLoading
 }) => {
   return (
-    <div
-      className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-xl relative group"
+    <Card
+      className="p-6 hover:scale-105 transition-all duration-200 relative group border-usuzumi-200 dark:border-usuzumi-700"
+      hoverEffect={true}
     >
       {/* プロジェクト操作ボタン */}
       <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
         <button
           onClick={(e) => onEdit(e, project)}
-          className="p-2 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+          className="p-2 bg-wakagusa-100 dark:bg-wakagusa-900 text-wakagusa-600 dark:text-wakagusa-400 rounded-lg hover:bg-wakagusa-200 dark:hover:bg-wakagusa-800 transition-colors"
           title="プロジェクトを編集"
         >
           <Edit3 className="h-4 w-4" />
         </button>
         <button
           onClick={(e) => onDuplicate(e, project.id)}
-          className="p-2 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+          className="p-2 bg-mizu-100 dark:bg-mizu-900 text-mizu-600 dark:text-mizu-400 rounded-lg hover:bg-mizu-200 dark:hover:bg-mizu-800 transition-colors"
           title="プロジェクトを複製"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,7 +57,7 @@ const ProjectCard = React.memo<ProjectCardProps>(({
         </button>
         <button
           onClick={(e) => onDelete(e, project.id)}
-          className="p-2 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+          className="p-2 bg-sakura-100 dark:bg-sakura-900 text-sakura-600 dark:text-sakura-400 rounded-lg hover:bg-sakura-200 dark:hover:bg-sakura-800 transition-colors"
           title="プロジェクトを削除"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -67,7 +69,7 @@ const ProjectCard = React.memo<ProjectCardProps>(({
       {/* 表紙画像 */}
       {project.coverImage && (
         <div className="mb-4">
-          <div 
+          <div
             onClick={() => onSelect(project)}
             className="cursor-pointer"
           >
@@ -83,19 +85,19 @@ const ProjectCard = React.memo<ProjectCardProps>(({
       )}
 
       <div className="mb-4">
-        <div 
+        <div
           onClick={() => onSelect(project)}
           className="cursor-pointer"
         >
           <div className="flex items-start justify-between mb-2">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex-1 font-['Noto_Sans_JP']">
+            <h3 className="text-lg font-bold text-sumi-900 dark:text-usuzumi-50 flex-1 font-['Noto_Sans_JP']">
               {project.title}
             </h3>
-            <span className="ml-2 inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full">
+            <span className="ml-2 inline-flex items-center px-2 py-1 bg-ai-100 dark:bg-ai-900 text-ai-600 dark:text-ai-400 text-xs font-bold rounded-full">
               {progress.percentage.toFixed(0)}%
             </span>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 font-['Noto_Sans_JP']">
+          <p className="text-sumi-600 dark:text-usuzumi-400 text-sm line-clamp-2 font-['Noto_Sans_JP']">
             {project.description}
           </p>
         </div>
@@ -103,22 +105,21 @@ const ProjectCard = React.memo<ProjectCardProps>(({
 
       {/* 進捗バー */}
       <div className="mb-3">
-        <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1 font-['Noto_Sans_JP']">
+        <div className="flex items-center justify-between text-xs text-sumi-600 dark:text-usuzumi-400 mb-1 font-['Noto_Sans_JP']">
           <span>進捗: {progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
           <span className="flex items-center space-x-1">
-            <CheckCircle2 className="h-3 w-3 text-green-500" />
+            <CheckCircle2 className="h-3 w-3 text-wakagusa-500" />
             <span>{progress.completedSteps}完了</span>
           </span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div 
-            className={`h-2 rounded-full transition-all duration-300 ${
-              progress.percentage === 100 
-                ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                : progress.percentage >= 50
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-500'
-                : 'bg-gradient-to-r from-yellow-400 to-orange-500'
-            }`}
+        <div className="w-full bg-usuzumi-200 dark:bg-usuzumi-700 rounded-full h-2">
+          <div
+            className={`h-2 rounded-full transition-all duration-300 ${progress.percentage === 100
+              ? 'bg-gradient-to-r from-wakagusa-500 to-wakagusa-600'
+              : progress.percentage >= 50
+                ? 'bg-gradient-to-r from-ai-500 to-ai-600'
+                : 'bg-gradient-to-r from-yamabuki-400 to-yamabuki-500'
+              }`}
             style={{ width: `${progress.percentage}%` }}
           />
         </div>
@@ -128,38 +129,38 @@ const ProjectCard = React.memo<ProjectCardProps>(({
       {(project.mainGenre || project.genre) && (
         <div className="mb-3 flex flex-wrap gap-1">
           {project.mainGenre && (
-            <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 text-xs rounded-full font-['Noto_Sans_JP']">
+            <span className="inline-block px-2 py-1 bg-mizu-100 dark:bg-mizu-900 text-mizu-600 dark:text-mizu-400 text-xs rounded-full font-['Noto_Sans_JP']">
               メイン: {project.mainGenre}
             </span>
           )}
           {!project.mainGenre && project.genre && (
-            <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 text-xs rounded-full font-['Noto_Sans_JP']">
+            <span className="inline-block px-2 py-1 bg-mizu-100 dark:bg-mizu-900 text-mizu-600 dark:text-mizu-400 text-xs rounded-full font-['Noto_Sans_JP']">
               メイン: {project.genre}
             </span>
           )}
           {project.subGenre && (
-            <span className="inline-block px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs rounded-full font-['Noto_Sans_JP']">
+            <span className="inline-block px-2 py-1 bg-ai-100 dark:bg-ai-900 text-ai-600 dark:text-ai-400 text-xs rounded-full font-['Noto_Sans_JP']">
               サブ: {project.subGenre}
             </span>
           )}
         </div>
       )}
-      
-      <div className="mt-4 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+
+      <div className="mt-4 flex justify-between text-xs text-sumi-500 dark:text-usuzumi-400">
         <span>作成: {project.createdAt instanceof Date ? project.createdAt.toLocaleDateString('ja-JP') : new Date(project.createdAt).toLocaleDateString('ja-JP')}</span>
         <span>更新: {project.updatedAt instanceof Date ? project.updatedAt.toLocaleDateString('ja-JP') : new Date(project.updatedAt).toLocaleDateString('ja-JP')}</span>
       </div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+      <div className="text-xs text-sumi-500 dark:text-usuzumi-400 font-['Noto_Sans_JP']">
         画像: {project.imageBoard.length} 枚
       </div>
 
       {/* ローディング表示 */}
       {isLoading && (
-        <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-2xl flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="absolute inset-0 bg-unohana-50/50 dark:bg-sumi-800/50 rounded-2xl flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ai-600"></div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }, (prevProps, nextProps) => {
   // カスタム比較関数：プロジェクトの主要プロパティが変更された場合のみ再レンダリング
@@ -190,9 +191,10 @@ interface RecentProjectCardProps {
 
 const RecentProjectCard = React.memo<RecentProjectCardProps>(({ project, progress, onSelect }) => {
   return (
-    <div
+    <Card
       onClick={() => onSelect(project)}
-      className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 hover:scale-105 transition-all duration-200 hover:shadow-lg cursor-pointer"
+      className="p-4 hover:scale-105 transition-all duration-200 cursor-pointer border-usuzumi-200 dark:border-usuzumi-700"
+      hoverEffect={true}
     >
       {project.coverImage && (
         <OptimizedImage
@@ -203,27 +205,27 @@ const RecentProjectCard = React.memo<RecentProjectCardProps>(({ project, progres
           quality={0.8}
         />
       )}
-      <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1 line-clamp-1 font-['Noto_Sans_JP']">
+      <h3 className="text-sm font-bold text-sumi-900 dark:text-usuzumi-50 mb-1 line-clamp-1 font-['Noto_Sans_JP']">
         {project.title}
       </h3>
-      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+      <div className="flex items-center justify-between text-xs text-sumi-500 dark:text-usuzumi-400 mb-2">
         <span>{progress.completedSteps}/{progress.totalSteps} ステップ完了</span>
         <span>{progress.percentage.toFixed(0)}%</span>
       </div>
-      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-        <div 
-          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-300" 
+      <div className="w-full bg-usuzumi-200 dark:bg-usuzumi-700 rounded-full h-1.5">
+        <div
+          className="bg-gradient-to-r from-ai-500 to-ai-600 h-1.5 rounded-full transition-all duration-300"
           style={{ width: `${progress.percentage}%` }}
         />
       </div>
       {project.lastAccessed && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 font-['Noto_Sans_JP']">
-          {project.lastAccessed instanceof Date 
+        <p className="text-xs text-usuzumi-400 dark:text-usuzumi-500 mt-2 font-['Noto_Sans_JP']">
+          {project.lastAccessed instanceof Date
             ? project.lastAccessed.toLocaleDateString('ja-JP')
             : new Date(project.lastAccessed).toLocaleDateString('ja-JP')}
         </p>
       )}
-    </div>
+    </Card>
   );
 }, (prevProps, nextProps) => {
   // カスタム比較関数：プロジェクトの主要プロパティが変更された場合のみ再レンダリング
@@ -256,7 +258,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showContextHelp, setShowContextHelp] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
-  
+
   // 検索・フィルタリング・ソート用の状態
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGenre, setFilterGenre] = useState<string>('all');
@@ -355,7 +357,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     // 検索フィルタ
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.title.toLowerCase().includes(query) ||
         p.description.toLowerCase().includes(query) ||
         (p.mainGenre || p.genre || '').toLowerCase().includes(query) ||
@@ -365,8 +367,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
     // ジャンルフィルタ
     if (filterGenre !== 'all') {
-      filtered = filtered.filter(p => 
-        (p.mainGenre || p.genre || '') === filterGenre || 
+      filtered = filtered.filter(p =>
+        (p.mainGenre || p.genre || '') === filterGenre ||
         p.subGenre === filterGenre
       );
     }
@@ -414,13 +416,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     return sorted;
   }, [projects, searchQuery, filterGenre, sortOption]);
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200 dark:from-sumi-900 dark:via-sumi-800 dark:to-sumi-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Hero Section */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-4 mb-6">
-            <h1 className="text-4xl sm:text-6xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-              <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl sm:text-6xl font-bold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
+              <span className="bg-gradient-to-r from-ai-500 to-ai-600 bg-clip-text text-transparent">
                 AIと共創する
               </span>
               <br />
@@ -428,20 +430,20 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
             </h1>
             <button
               onClick={() => setShowContextHelp(true)}
-              className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              className="p-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-600 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
               aria-label="ヘルプを表示"
               title="ヘルプ"
             >
               <HelpCircle className="h-6 w-6" />
             </button>
           </div>
-          <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 font-['Noto_Sans_JP']">
+          <p className="text-xl text-sumi-600 dark:text-usuzumi-300 mb-8 font-['Noto_Sans_JP']">
             80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう
           </p>
-          
+
           <button
             onClick={() => setShowNewProjectModal(true)}
-            className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+            className="inline-flex items-center space-x-2 bg-gradient-to-r from-ai-500 to-ai-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
           >
             <Plus className="h-6 w-6" />
             <span>新しいプロジェクトを作成</span>
@@ -450,37 +452,37 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
         {/* Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+          <Card className="p-6 border-usuzumi-200 dark:border-usuzumi-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{projects.length}</p>
-                <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">総プロジェクト数</p>
+                <p className="text-2xl font-bold text-sumi-900 dark:text-usuzumi-50">{projects.length}</p>
+                <p className="text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">総プロジェクト数</p>
               </div>
-              <BookOpen className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+              <BookOpen className="h-8 w-8 text-ai-600 dark:text-ai-400" />
             </div>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+          </Card>
+
+          <Card className="p-6 border-usuzumi-200 dark:border-usuzumi-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">6</p>
-                <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">制作ステップ</p>
+                <p className="text-2xl font-bold text-sumi-900 dark:text-usuzumi-50">6</p>
+                <p className="text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">制作ステップ</p>
               </div>
-              <TrendingUp className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <TrendingUp className="h-8 w-8 text-wakagusa-600 dark:text-wakagusa-400" />
             </div>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+          </Card>
+
+          <Card className="p-6 border-usuzumi-200 dark:border-usuzumi-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-sumi-900 dark:text-usuzumi-50">
                   {projects.length > 0 ? new Date().toLocaleDateString('ja-JP') : '---'}
                 </p>
-                <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">最終更新</p>
+                <p className="text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">最終更新</p>
               </div>
-              <Calendar className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+              <Calendar className="h-8 w-8 text-mizu-600 dark:text-mizu-400" />
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* 最近使用したプロジェクト */}
@@ -488,8 +490,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
           <div className="mb-12">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-2">
-                <Clock className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                <Clock className="h-6 w-6 text-ai-600 dark:text-ai-400" />
+                <h2 className="text-2xl font-bold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
                   最近使用したプロジェクト
                 </h2>
               </div>
@@ -513,33 +515,33 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         {/* Projects Section */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            <h2 className="text-2xl font-bold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
               プロジェクト一覧
             </h2>
           </div>
 
           {/* 検索・フィルタリング・ソート */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 mb-6">
+          <Card className="p-4 mb-6 border-usuzumi-200 dark:border-usuzumi-700">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* 検索バー */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-usuzumi-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="プロジェクトを検索..."
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-usuzumi-200 dark:border-usuzumi-600 bg-unohana-50 dark:bg-sumi-800 text-sumi-900 dark:text-usuzumi-50 focus:ring-2 focus:ring-ai-500 focus:border-transparent font-['Noto_Sans_JP']"
                 />
               </div>
 
               {/* ジャンルフィルタ */}
               <div className="relative">
-                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-usuzumi-400" />
                 <select
                   value={filterGenre}
                   onChange={(e) => setFilterGenre(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none"
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-usuzumi-200 dark:border-usuzumi-600 bg-unohana-50 dark:bg-sumi-800 text-sumi-900 dark:text-usuzumi-50 focus:ring-2 focus:ring-ai-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none"
                 >
                   <option value="all">すべてのジャンル</option>
                   {GENRES.map(genre => (
@@ -550,11 +552,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
               {/* ソート */}
               <div className="relative">
-                <ArrowUpDown className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <ArrowUpDown className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-usuzumi-400" />
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as SortOption)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none"
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-usuzumi-200 dark:border-usuzumi-600 bg-unohana-50 dark:bg-sumi-800 text-sumi-900 dark:text-usuzumi-50 focus:ring-2 focus:ring-ai-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none"
                 >
                   <option value="lastAccessedDesc">最近使用した順</option>
                   <option value="updatedDesc">更新日時（新しい順）</option>
@@ -568,29 +570,29 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                 </select>
               </div>
             </div>
-          </div>
-          
+          </Card>
+
           {filteredAndSortedProjects.length === 0 ? (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-12 text-center">
-              <BookOpen className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-              <p className="text-xl text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
+            <Card className="p-12 text-center border-usuzumi-200 dark:border-usuzumi-700">
+              <BookOpen className="h-16 w-16 text-usuzumi-400 dark:text-usuzumi-500 mx-auto mb-4" />
+              <p className="text-xl text-sumi-600 dark:text-usuzumi-400 mb-4 font-['Noto_Sans_JP']">
                 {searchQuery || filterGenre !== 'all' ? '該当するプロジェクトが見つかりません' : 'まだプロジェクトがありません'}
               </p>
-              <p className="text-gray-500 dark:text-gray-500 mb-6 font-['Noto_Sans_JP']">
-                {searchQuery || filterGenre !== 'all' 
+              <p className="text-sumi-500 dark:text-usuzumi-500 mb-6 font-['Noto_Sans_JP']">
+                {searchQuery || filterGenre !== 'all'
                   ? '検索条件を変更して再度お試しください'
                   : '新しいプロジェクトを作成して、AI支援による創作を始めましょう'}
               </p>
               {(!searchQuery && filterGenre === 'all') && (
                 <button
                   onClick={() => setShowNewProjectModal(true)}
-                  className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                  className="inline-flex items-center space-x-2 bg-ai-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-ai-700 transition-colors"
                 >
                   <Plus className="h-5 w-5" />
                   <span>最初のプロジェクトを作成</span>
                 </button>
               )}
-            </div>
+            </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredAndSortedProjects.map((project) => {
@@ -613,37 +615,37 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         </div>
 
         {/* Features Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 font-['Noto_Sans_JP']">
+        <Card className="p-8 border-usuzumi-200 dark:border-usuzumi-700">
+          <h2 className="text-2xl font-bold text-sumi-900 dark:text-usuzumi-50 mb-6 font-['Noto_Sans_JP']">
             主な機能
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="bg-pink-100 dark:bg-pink-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="bg-sakura-100 dark:bg-sakura-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-2xl">👥</span>
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">キャラクター設計</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">AIが背景や性格を補完</p>
+              <h3 className="font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">キャラクター設計</h3>
+              <p className="text-sm text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">AIが背景や性格を補完</p>
             </div>
-            
+
             <div className="text-center">
-              <div className="bg-purple-100 dark:bg-purple-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="bg-mizu-100 dark:bg-mizu-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-2xl">📖</span>
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">プロット生成</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">物語構造の自動展開</p>
+              <h3 className="font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">プロット生成</h3>
+              <p className="text-sm text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">物語構造の自動展開</p>
             </div>
-            
+
             <div className="text-center">
-              <div className="bg-green-100 dark:bg-green-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="bg-wakagusa-100 dark:bg-wakagusa-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-2xl">✍️</span>
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">草案執筆支援</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">AIによる文章ドラフト</p>
+              <h3 className="font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">草案執筆支援</h3>
+              <p className="text-sm text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">AIによる文章ドラフト</p>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* New Project Modal */}

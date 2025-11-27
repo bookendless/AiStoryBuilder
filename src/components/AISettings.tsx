@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { X, Settings, Key, Server, Zap } from 'lucide-react';
+import { Settings, Key, Server, Zap } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
 import { AI_PROVIDERS } from '../services/aiService';
 import { useToast } from './Toast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
+import { Modal } from './common/Modal';
 
 interface AISettingsProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const LATENCY_LABELS: Record<'standard' | 'fast' | 'reasoning', string> = {
+  standard: '標準（数秒）',
+  fast: '高速（サブ秒〜数秒）',
+  reasoning: '推論特化（応答まで時間がかかります）',
+};
 
 export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings } = useAI();
@@ -41,7 +48,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
   const validateApiKey = (provider: string, apiKey: string): string => {
     if (!apiKey) return '';
-    
+
     switch (provider) {
       case 'openai':
         if (!apiKey.startsWith('sk-')) {
@@ -82,13 +89,13 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       });
       return;
     }
-    
+
     // ローカルLLMの場合はlocalEndpointを確実に設定
     const saveData = { ...formData };
     if (saveData.provider === 'local' && !saveData.localEndpoint) {
       saveData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
     }
-    
+
     console.log('Saving AI settings:', JSON.stringify(saveData, null, 2));
     updateSettings(saveData);
     onClose();
@@ -101,10 +108,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     try {
       // テスト用の簡単なプロンプト
       const testPrompt = "こんにちは。これは接続テストです。";
-      
+
       // httpServiceを使用してテストを実行
       const { httpService } = await import('../services/httpService');
-      
+
       if (formData.provider === 'openai') {
         const response = await httpService.post('https://api.openai.com/v1/chat/completions', {
           model: formData.model,
@@ -166,11 +173,11 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         if (response.status >= 400) {
           const errorData = response.data as { error?: { message?: string; code?: number } };
           const errorMessage = errorData.error?.message || response.statusText;
-          
+
           // 429エラーの場合、より詳細なメッセージを提供
           if (response.status === 429) {
             let detailedMessage = `API エラー (429): ${errorMessage}`;
-            
+
             if (errorMessage.includes('Resource has been exhausted') || errorMessage.includes('quota')) {
               detailedMessage += '\n\n【考えられる原因】\n';
               detailedMessage += '1. リージョンのリソース制限: 特定のリージョンでリソースが一時的に枯渇している可能性があります\n';
@@ -183,15 +190,15 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               detailedMessage += '- Google Cloud Consoleでクォータとレート制限を確認してください\n';
               detailedMessage += '- プロビジョニングされたスループットの購入を検討してください';
             }
-            
+
             throw new Error(detailedMessage);
           }
-          
+
           throw new Error(`API エラー (${response.status}): ${errorMessage}`);
         }
       } else if (formData.provider === 'local') {
         let endpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
-        
+
         // エンドポイントにパスが含まれていない場合は追加
         if (!endpoint.includes('/v1/chat/completions') && !endpoint.includes('/api/') && !endpoint.includes('/chat')) {
           if (endpoint.endsWith('/')) {
@@ -200,11 +207,11 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             endpoint = endpoint + '/v1/chat/completions';
           }
         }
-        
+
         // Tauri環境チェック（Tauri 2対応）
-        const isTauriEnv = typeof window !== 'undefined' && 
+        const isTauriEnv = typeof window !== 'undefined' &&
           ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-        
+
         // 開発環境でブラウザの場合のみプロキシ経由（CORS回避）
         let apiEndpoint = endpoint;
         if (!isTauriEnv && import.meta.env.DEV) {
@@ -216,14 +223,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           }
         }
         // Tauri環境では常に元のエンドポイントを使用（HTTPプラグインがlocalhostにアクセス可能）
-        
+
         console.log('Testing local LLM connection:', {
           originalEndpoint: endpoint,
           apiEndpoint,
           isTauriEnv,
           isDev: import.meta.env.DEV
         });
-        
+
         const response = await httpService.post(apiEndpoint, {
           model: formData.model || 'local-model',
           messages: [
@@ -236,7 +243,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         }, {
           timeout: 60000,
         });
-        
+
         console.log('Local LLM test response:', {
           status: response.status,
           statusText: response.statusText
@@ -268,291 +275,334 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const selectedModel = selectedProvider?.models.find(m => m.id === formData.model);
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div 
-        ref={modalRef}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
-      >
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-2 rounded-lg">
-                <Settings className="h-6 w-6 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                AI設定
-              </h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        <div className="flex items-center space-x-3">
+          <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-2 rounded-lg">
+            <Settings className="h-6 w-6 text-white" />
           </div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+            AI設定
+          </h2>
         </div>
+      }
+      size="lg"
+      ref={modalRef}
+    >
+      {/* Content */}
+      <div className="space-y-6">
+        {/* Provider Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+            AIプロバイダー
+          </label>
+          <div className="grid grid-cols-1 gap-3">
+            {AI_PROVIDERS.map((provider) => (
+              <button
+                key={provider.id}
+                onClick={() => {
+                  const newModel = provider.models[0].id;
+                  const newModelData = provider.models[0];
+                  const updateData = {
+                    ...formData,
+                    provider: provider.id,
+                    model: newModel,
+                    maxTokens: Math.min(formData.maxTokens, newModelData.maxTokens)
+                  };
 
-        {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Provider Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-              AIプロバイダー
-            </label>
-            <div className="grid grid-cols-1 gap-3">
-              {AI_PROVIDERS.map((provider) => (
-                <button
-                  key={provider.id}
-                  onClick={() => {
-                    const newModel = provider.models[0].id;
-                    const newModelData = provider.models[0];
-                    const updateData = { 
-                      ...formData, 
-                      provider: provider.id,
-                      model: newModel,
-                      maxTokens: Math.min(formData.maxTokens, newModelData.maxTokens)
-                    };
-                    
-                    // ローカルLLMの場合はlocalEndpointを設定
-                    if (provider.isLocal) {
-                      updateData.localEndpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
-                    }
-                    
-                    setFormData(updateData);
-                  }}
-                  className={`p-4 rounded-lg border-2 transition-all text-left ${
-                    formData.provider === provider.id
-                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-lg ${
-                      provider.isLocal ? 'bg-green-100 dark:bg-green-900' : 'bg-blue-100 dark:bg-blue-900'
-                    }`}>
-                      {provider.isLocal ? (
-                        <Server className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <Zap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        {provider.name}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        {provider.isLocal ? 'ローカル実行' : 'クラウドAPI'}
-                        {provider.requiresApiKey && ' • APIキー必要'}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+                  // ローカルLLMの場合はlocalEndpointを設定
+                  if (provider.isLocal) {
+                    updateData.localEndpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
+                  }
 
-          {/* Model Selection */}
-          {selectedProvider && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                モデル
-              </label>
-              <select
-                value={formData.model}
-                onChange={(e) => {
-                  const selectedModel = selectedProvider?.models.find(m => m.id === e.target.value);
-                  setFormData({ 
-                    ...formData, 
-                    model: e.target.value,
-                    maxTokens: selectedModel ? Math.min(formData.maxTokens, selectedModel.maxTokens) : formData.maxTokens
-                  });
+                  setFormData(updateData);
                 }}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
+                className={`p-4 rounded-lg border-2 transition-all text-left ${formData.provider === provider.id
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-700'
+                  }`}
               >
-                {selectedProvider.models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} - {model.description}
-                  </option>
-                ))}
-              </select>
-              {selectedModel && (
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  最大トークン数: {selectedModel.maxTokens.toLocaleString()}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* API Key */}
-          {selectedProvider?.requiresApiKey && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                <Key className="h-4 w-4 inline mr-1" />
-                APIキー
-              </label>
-              
-              {/* 環境変数の状態表示 */}
-              {hasEnvApiKey && (
-                <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">
-                      環境変数からAPIキーが利用可能です
-                    </p>
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2 rounded-lg ${provider.isLocal ? 'bg-green-100 dark:bg-green-900' : 'bg-blue-100 dark:bg-blue-900'
+                    }`}>
+                    {provider.isLocal ? (
+                      <Server className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <Zap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    )}
                   </div>
-                  <p className="mt-1 text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">
-                    手動入力のAPIキーが優先されます
+                  <div>
+                    <div className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                      {provider.name}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                      {provider.isLocal ? 'ローカル実行' : 'クラウドAPI'}
+                      {provider.requiresApiKey && ' • APIキー必要'}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          {selectedProvider && (
+            <div className="mt-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
+              <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                {selectedProvider.description}
+              </p>
+              {selectedProvider.recommendedUses && selectedProvider.recommendedUses.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 font-['Noto_Sans_JP']">
+                    推奨ユースケース
                   </p>
+                  <ul className="mt-1 list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
+                    {selectedProvider.recommendedUses.map((useCase) => (
+                      <li key={useCase}>{useCase}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
-              
-              <input
-                type="password"
-                value={formData.apiKey || ''}
-                onChange={(e) => handleApiKeyChange(e.target.value)}
-                placeholder={hasEnvApiKey ? "環境変数が利用可能（手動入力で上書き可能）" : "APIキーを入力してください"}
-                className={`w-full px-4 py-3 rounded-lg border ${
-                  apiKeyError 
-                    ? 'border-red-500 dark:border-red-400' 
-                    : 'border-gray-300 dark:border-gray-600'
-                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']`}
-              />
-              {apiKeyError && (
-                <p className="mt-2 text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
-                  {apiKeyError}
+              {selectedProvider.regions && selectedProvider.regions.length > 0 && (
+                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                  提供リージョン: {selectedProvider.regions.join(' / ')}
                 </p>
               )}
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                {hasEnvApiKey 
-                  ? '環境変数と手動入力の両方が利用可能です。手動入力が優先されます。'
-                  : 'APIキーは安全に保存され、外部に送信されることはありません'
-                }
-              </p>
+              {selectedProvider.apiDocsUrl && (
+                <div className="mt-3">
+                  <a
+                    href={selectedProvider.apiDocsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center text-xs text-purple-600 dark:text-purple-300 hover:underline font-['Noto_Sans_JP']"
+                  >
+                    APIドキュメントを開く
+                    <span aria-hidden="true" className="ml-1">↗</span>
+                  </a>
+                </div>
+              )}
             </div>
           )}
+        </div>
 
-          {/* Local Endpoint */}
-          {selectedProvider?.isLocal && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                <Server className="h-4 w-4 inline mr-1" />
-                ローカルエンドポイント
-              </label>
-              <input
-                type="url"
-                value={formData.localEndpoint || 'http://localhost:1234/v1/chat/completions'}
-                onChange={(e) => setFormData({ ...formData, localEndpoint: e.target.value })}
-                placeholder="http://localhost:1234/v1/chat/completions"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
-              />
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                LM Studio、Ollama等のローカルLLMサーバーのエンドポイント
-              </p>
-              <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className="text-sm text-blue-800 dark:text-blue-200 font-['Noto_Sans_JP']">
-                  <strong>正しいエンドポイント例：</strong>
-                </p>
-                <ul className="mt-1 text-xs text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP'] space-y-1">
-                  <li>• LM Studio: <code>http://localhost:1234/v1/chat/completions</code></li>
-                  <li>• Ollama: <code>http://localhost:11434/v1/chat/completions</code></li>
-                  <li>• リモートサーバー: <code>http://192.168.0.7:1234/v1/chat/completions</code></li>
-                </ul>
-                <p className="mt-2 text-xs text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">
-                  パスが含まれていない場合は自動的に追加されます
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Advanced Settings */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                Temperature (創造性)
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={formData.temperature}
-                onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
-                <span>保守的 (0.0)</span>
-                <span className="font-semibold">{formData.temperature}</span>
-                <span>創造的 (1.0)</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                最大トークン数
-              </label>
-              <input
-                type="number"
-                min="100"
-                max={selectedModel?.maxTokens || 2000000}
-                value={formData.maxTokens}
-                onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
-              />
-            </div>
-          </div>
-
-          {/* Connection Test */}
-          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-            <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
-              接続テスト
-            </h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
-              設定が正しく動作するかテストできます
-            </p>
-            
-            <button 
-              onClick={handleTestConnection}
-              disabled={isTesting || !formData.apiKey && formData.provider !== 'local'}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
+        {/* Model Selection */}
+        {selectedProvider && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              モデル
+            </label>
+            <select
+              value={formData.model}
+              onChange={(e) => {
+                const selectedModel = selectedProvider?.models.find(m => m.id === e.target.value);
+                setFormData({
+                  ...formData,
+                  model: e.target.value,
+                  maxTokens: selectedModel ? Math.min(formData.maxTokens, selectedModel.maxTokens) : formData.maxTokens
+                });
+              }}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
             >
-              {isTesting ? 'テスト中...' : '接続をテスト'}
-            </button>
-            
-            {testResult && (
-              <div className={`mt-3 p-3 rounded-lg ${
-                testResult.success 
-                  ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200' 
-                  : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200'
-              }`}>
-                <p className="text-sm font-['Noto_Sans_JP']">{testResult.message}</p>
+              {selectedProvider.models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name} - {model.description}
+                </option>
+              ))}
+            </select>
+            {selectedModel && (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                  最大トークン数: {selectedModel.maxTokens.toLocaleString()}
+                </p>
+                {selectedModel.capabilities && selectedModel.capabilities.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedModel.capabilities.map((capability) => (
+                      <span
+                        key={capability}
+                        className="px-2 py-1 text-xs rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-200 font-['Noto_Sans_JP']"
+                      >
+                        {capability}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {selectedModel.recommendedUse && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    推奨用途: {selectedModel.recommendedUse}
+                  </p>
+                )}
+                {selectedModel.latencyClass && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    レイテンシ: {LATENCY_LABELS[selectedModel.latencyClass]}
+                  </p>
+                )}
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
-            >
-              キャンセル
-            </button>
-            <button
-              onClick={handleSave}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-['Noto_Sans_JP']"
-            >
-              設定を保存
-            </button>
+        {/* API Key */}
+        {selectedProvider?.requiresApiKey && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              <Key className="h-4 w-4 inline mr-1" />
+              APIキー
+            </label>
+
+            {/* 環境変数の状態表示 */}
+            {hasEnvApiKey && (
+              <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">
+                    環境変数からAPIキーが利用可能です
+                  </p>
+                </div>
+                <p className="mt-1 text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">
+                  手動入力のAPIキーが優先されます
+                </p>
+              </div>
+            )}
+
+            <input
+              type="password"
+              value={formData.apiKey || ''}
+              onChange={(e) => handleApiKeyChange(e.target.value)}
+              placeholder={hasEnvApiKey ? "環境変数が利用可能（手動入力で上書き可能）" : "APIキーを入力してください"}
+              className={`w-full px-4 py-3 rounded-lg border ${apiKeyError
+                  ? 'border-red-500 dark:border-red-400'
+                  : 'border-gray-300 dark:border-gray-600'
+                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']`}
+            />
+            {apiKeyError && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                {apiKeyError}
+              </p>
+            )}
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+              {hasEnvApiKey
+                ? '環境変数と手動入力の両方が利用可能です。手動入力が優先されます。'
+                : 'APIキーは安全に保存され、外部に送信されることはありません'
+              }
+            </p>
+          </div>
+        )}
+
+        {/* Local Endpoint */}
+        {selectedProvider?.isLocal && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              <Server className="h-4 w-4 inline mr-1" />
+              ローカルエンドポイント
+            </label>
+            <input
+              type="url"
+              value={formData.localEndpoint || 'http://localhost:1234/v1/chat/completions'}
+              onChange={(e) => setFormData({ ...formData, localEndpoint: e.target.value })}
+              placeholder="http://localhost:1234/v1/chat/completions"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
+            />
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+              LM Studio、Ollama等のローカルLLMサーバーのエンドポイント
+            </p>
+            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-200 font-['Noto_Sans_JP']">
+                <strong>正しいエンドポイント例：</strong>
+              </p>
+              <ul className="mt-1 text-xs text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP'] space-y-1">
+                <li>• LM Studio: <code>http://localhost:1234/v1/chat/completions</code></li>
+                <li>• Ollama: <code>http://localhost:11434/v1/chat/completions</code></li>
+                <li>• リモートサーバー: <code>http://192.168.0.7:1234/v1/chat/completions</code></li>
+              </ul>
+              <p className="mt-2 text-xs text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">
+                パスが含まれていない場合は自動的に追加されます
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Advanced Settings */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              Temperature (創造性)
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={formData.temperature}
+              onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
+              <span>保守的 (0.0)</span>
+              <span className="font-semibold">{formData.temperature}</span>
+              <span>創造的 (1.0)</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              最大トークン数
+            </label>
+            <input
+              type="number"
+              min="100"
+              max={selectedModel?.maxTokens || 2000000}
+              value={formData.maxTokens}
+              onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
+            />
           </div>
         </div>
+
+        {/* Connection Test */}
+        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
+            接続テスト
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
+            設定が正しく動作するかテストできます
+          </p>
+
+          <button
+            onClick={handleTestConnection}
+            disabled={isTesting || !formData.apiKey && formData.provider !== 'local'}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isTesting ? 'テスト中...' : '接続をテスト'}
+          </button>
+
+          {testResult && (
+            <div className={`mt-3 p-3 rounded-lg ${testResult.success
+                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200'
+                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200'
+              }`}>
+              <p className="text-sm font-['Noto_Sans_JP']">{testResult.message}</p>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Footer */}
+      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex space-x-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
+          >
+            キャンセル
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-['Noto_Sans_JP']"
+          >
+            設定を保存
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 };

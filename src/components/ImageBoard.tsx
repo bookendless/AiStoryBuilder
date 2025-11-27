@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Image, X, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save } from 'lucide-react';
+import { Plus, Image, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save, X } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { ImageItem } from '../types/ai';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
@@ -31,7 +31,7 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
         />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
           <div className="flex space-x-2">
-            <button 
+            <button
               onClick={() => onView(image)}
               className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
               title="画像を表示"
@@ -55,7 +55,7 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
           </div>
         </div>
       </div>
-      
+
       <div className="p-4">
         <div className="flex items-center justify-between mb-2">
           <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate font-['Noto_Sans_JP']">
@@ -116,10 +116,10 @@ function VirtualGrid<T>({
 
   // 行の高さを計算（アイテムの高さ + ギャップ）
   const rowHeight = itemHeight + gap;
-  
+
   // 総行数を計算
   const totalRows = Math.ceil(items.length / columns);
-  
+
   // 表示する行の範囲を計算
   const visibleRange = useMemo(() => {
     const startRow = Math.floor(scrollTop / rowHeight);
@@ -127,10 +127,10 @@ function VirtualGrid<T>({
       startRow + Math.ceil(containerHeight / rowHeight) + 2, // 上下に1行ずつ余分に表示
       totalRows
     );
-    
+
     const startIndex = startRow * columns;
     const endIndex = Math.min(endRow * columns, items.length);
-    
+
     return {
       startRow,
       endRow,
@@ -166,7 +166,7 @@ function VirtualGrid<T>({
             padding: `0 ${gap / 2}px`
           }}
         >
-          <div 
+          <div
             className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
             style={{ gap: `${gap}px` }}
           >
@@ -215,14 +215,14 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // 画像ビューアー関連の状態
   const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [showImageInfo, setShowImageInfo] = useState(false);
-  
+
   // 編集関連の状態
   const [editingImage, setEditingImage] = useState<ImageItem | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -240,7 +240,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     if (!imageData.url.trim() || !imageData.title.trim()) return;
 
     setIsAutoSaving(true);
-    
+
     const newImage = {
       id: Date.now().toString(),
       url: imageData.url.trim(),
@@ -254,7 +254,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       await updateProject({
         imageBoard: [...(currentProject?.imageBoard || []), newImage]
       });
-      
+
       // 成功メッセージを短時間表示
       setTimeout(() => {
         setIsAutoSaving(false);
@@ -353,7 +353,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       await updateProject({
         imageBoard: [...(currentProject.imageBoard || []), ...newImages],
       });
-      
+
       showSuccess(`${validFiles.length}個の画像を追加しました${errors.length > 0 ? `（${errors.length}個のファイルはスキップされました）` : ''}`);
     } catch (error) {
       console.error('画像追加エラー:', error);
@@ -541,7 +541,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
   const handleDownloadImage = () => {
     if (!selectedImage) return;
-    
+
     const link = document.createElement('a');
     link.href = selectedImage.url;
     link.download = `${selectedImage.title || 'image'}.png`;
@@ -572,12 +572,12 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     const updatedImages = currentProject.imageBoard.map(img =>
       img.id === editingImage.id
         ? {
-            ...img,
-            title: editFormData.title.trim(),
-            description: editFormData.description.trim(),
-            category: editFormData.category,
-            updatedAt: new Date(),
-          }
+          ...img,
+          title: editFormData.title.trim(),
+          description: editFormData.description.trim(),
+          category: editFormData.category,
+          updatedAt: new Date(),
+        }
         : img
     );
 
@@ -627,17 +627,17 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   // グリッドコンテナの高さを計算
   useEffect(() => {
     if (!isOpen || !gridContainerRef.current) return;
-    
+
     const updateHeight = () => {
       if (gridContainerRef.current) {
         const rect = gridContainerRef.current.getBoundingClientRect();
         setGridContainerHeight(rect.height);
       }
     };
-    
+
     updateHeight();
     window.addEventListener('resize', updateHeight);
-    
+
     return () => {
       window.removeEventListener('resize', updateHeight);
     };
@@ -646,8 +646,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   // すべてのHooksの呼び出し後に早期リターンを配置
   if (!isOpen || !currentProject) return null;
 
-  const filteredImages = selectedCategory === 'all' 
-    ? currentProject.imageBoard 
+  const filteredImages = selectedCategory === 'all'
+    ? currentProject.imageBoard
     : currentProject.imageBoard.filter(img => img.category === selectedCategory);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -658,17 +658,17 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+    <div
+      className="fixed inset-0 glass-overlay flex items-center justify-center z-50 transition-opacity duration-300"
       onClick={handleOverlayClick}
     >
-      <div 
+      <div
         ref={modalRef}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-6xl w-full mx-4 h-[90vh] flex flex-col"
+        className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-6xl w-full mx-4 h-[90vh] flex flex-col transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
@@ -693,7 +693,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
               </button>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-white/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-2 focus:ring-offset-transparent"
+                aria-label="閉じる"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -704,11 +705,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
           <div className="flex items-center space-x-2 mt-4">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                selectedCategory === 'all'
+              className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === 'all'
                   ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50'
-              }`}
+                }`}
             >
               すべて ({currentProject.imageBoard.length})
             </button>
@@ -718,11 +718,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                    selectedCategory === category.id
+                  className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === category.id
                       ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50'
-                  }`}
+                    }`}
                 >
                   {category.label} ({count})
                 </button>
@@ -740,14 +739,14 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 font-['Noto_Sans_JP']">
                   新しい画像を追加
                 </h3>
-                
+
                 <div className="space-y-4">
                   {/* ファイル選択エリア */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
                       画像ファイル *
                     </label>
-                    
+
                     {/* ファイル選択ボタン（ドロップゾーン） */}
                     <div className="space-y-3">
                       <div
@@ -755,11 +754,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`w-full p-6 border-2 border-dashed rounded-lg transition-all duration-200 ${
-                          isDraggingOver
+                        className={`w-full p-6 border-2 border-dashed rounded-lg transition-all duration-200 ${isDraggingOver
                             ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.02]'
                             : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400'
-                        }`}
+                          }`}
                       >
                         <button
                           type="button"
@@ -771,21 +769,19 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                             {isUploading ? (
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
                             ) : (
-                              <Upload className={`h-8 w-8 mx-auto mb-2 transition-colors ${
-                                isDraggingOver
+                              <Upload className={`h-8 w-8 mx-auto mb-2 transition-colors ${isDraggingOver
                                   ? 'text-indigo-500 dark:text-indigo-400'
                                   : 'text-gray-400 group-hover:text-indigo-500'
-                              }`} />
+                                }`} />
                             )}
-                            <p className={`font-['Noto_Sans_JP'] transition-colors ${
-                              isDraggingOver
+                            <p className={`font-['Noto_Sans_JP'] transition-colors ${isDraggingOver
                                 ? 'text-indigo-600 dark:text-indigo-400 font-semibold'
                                 : 'text-gray-600 dark:text-gray-400'
-                            }`}>
-                              {isUploading 
-                                ? '読み込み中...' 
-                                : isDraggingOver 
-                                  ? 'ここにドロップしてアップロード' 
+                              }`}>
+                              {isUploading
+                                ? '読み込み中...'
+                                : isDraggingOver
+                                  ? 'ここにドロップしてアップロード'
                                   : '画像ファイルを選択またはドラッグ&ドロップ'}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 font-['Noto_Sans_JP']">
@@ -794,7 +790,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                           </div>
                         </button>
                       </div>
-                      
+
                       {/* 選択されたファイル情報 */}
                       {selectedFile && (
                         <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -818,7 +814,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* 隠しファイル入力（複数ファイル対応） */}
                     <input
                       ref={fileInputRef}
@@ -932,7 +928,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
             </div>
           ) : (
             /* Image Grid with Virtual Scroll */
-            <div 
+            <div
               ref={gridContainerRef}
               className="p-6 h-full relative"
               onDragEnter={handleDragEnter}
@@ -941,30 +937,27 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
               onDrop={handleDrop}
             >
               {filteredImages.length === 0 ? (
-                <div className={`text-center py-16 rounded-lg border-2 border-dashed transition-all duration-200 ${
-                  isDraggingOver
+                <div className={`text-center py-16 rounded-lg border-2 border-dashed transition-all duration-200 ${isDraggingOver
                     ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
                     : 'border-transparent'
-                }`}>
-                  <Image className={`h-16 w-16 mx-auto mb-4 transition-colors ${
-                    isDraggingOver
+                  }`}>
+                  <Image className={`h-16 w-16 mx-auto mb-4 transition-colors ${isDraggingOver
                       ? 'text-indigo-500 dark:text-indigo-400'
                       : 'text-gray-400 dark:text-gray-500'
-                  }`} />
-                  <h3 className={`text-xl font-bold mb-4 font-['Noto_Sans_JP'] transition-colors ${
-                    isDraggingOver
+                    }`} />
+                  <h3 className={`text-xl font-bold mb-4 font-['Noto_Sans_JP'] transition-colors ${isDraggingOver
                       ? 'text-indigo-600 dark:text-indigo-400'
                       : 'text-gray-900 dark:text-white'
-                  }`}>
-                    {isDraggingOver 
-                      ? 'ここにドロップして画像を追加' 
-                      : selectedCategory === 'all' 
-                        ? 'まだ画像がありません' 
+                    }`}>
+                    {isDraggingOver
+                      ? 'ここにドロップして画像を追加'
+                      : selectedCategory === 'all'
+                        ? 'まだ画像がありません'
                         : `${getCategoryInfo(selectedCategory).label}の画像がありません`}
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400 mb-6 font-['Noto_Sans_JP']">
-                    {isDraggingOver 
-                      ? '複数の画像を一度にドロップできます' 
+                    {isDraggingOver
+                      ? '複数の画像を一度にドロップできます'
                       : 'インスピレーションとなる画像を追加して、創作の参考にしましょう'}
                   </p>
                   {!isDraggingOver && (
@@ -1016,9 +1009,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                       className={isDraggingOver ? 'opacity-75' : ''}
                     />
                   ) : (
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 relative ${
-                      isDraggingOver ? 'opacity-75' : ''
-                    }`}>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 relative ${isDraggingOver ? 'opacity-75' : ''
+                      }`}>
                       {filteredImages.map((image) => {
                         const categoryInfo = getCategoryInfo(image.category);
                         return (
@@ -1043,17 +1035,17 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
       {/* 画像編集モーダル */}
       {showEditForm && editingImage && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70]"
+        <div
+          className="fixed inset-0 glass-overlay flex items-center justify-center z-[70] transition-opacity duration-300"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               handleCancelEdit();
             }
           }}
         >
-          <div 
+          <div
             ref={editModalRef}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+            className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
@@ -1073,7 +1065,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                 </div>
                 <button
                   onClick={handleCancelEdit}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-white/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-transparent"
+                  aria-label="閉じる"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -1164,21 +1157,21 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
       {/* 画像ビューアーモーダル */}
       {showImageViewer && selectedImage && (
-        <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[60]"
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] transition-opacity duration-300"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowImageViewer(false);
             }
           }}
         >
-          <div 
+          <div
             ref={viewerModalRef}
             className="relative w-full h-full flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ヘッダー */}
-            <div className="flex items-center justify-between p-4 bg-black/50 text-white">
+            <div className="flex items-center justify-between p-4 bg-black/60 backdrop-blur-lg text-white border-b border-white/10">
               <div className="flex items-center space-x-4">
                 <h3 className="text-lg font-semibold font-['Noto_Sans_JP']">
                   {selectedImage.title}
@@ -1188,7 +1181,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                   {getCategoryInfo(selectedImage.category).label}
                 </span>
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 {/* ズームコントロール */}
                 <div className="flex items-center space-x-1 bg-black/30 rounded-lg p-1">

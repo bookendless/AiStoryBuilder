@@ -21,9 +21,9 @@ interface HeaderProps {
   currentStep?: Step;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
-  isDarkMode, 
-  onToggleTheme, 
+export const Header: React.FC<HeaderProps> = ({
+  isDarkMode,
+  onToggleTheme,
   onHomeClick,
   isSidebarCollapsed = false,
   isToolsSidebarCollapsed = false,
@@ -79,239 +79,237 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-    <header 
-      className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors"
-      role="banner"
-      aria-label="アプリケーションヘッダー"
-    >
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={onHomeClick}
-              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-md"
-              aria-label="ホームページに戻る"
-            >
-              <Home className="h-6 w-6" aria-hidden="true" />
-              <span className="hidden sm:inline">ホーム</span>
-            </button>
-            
-            <div className="hidden sm:flex items-center space-x-4 flex-1">
-              <div className="flex items-center space-x-2">
-                <BookOpen className="h-6 w-6 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                  AIと共創するストーリービルダー
-                </h1>
-              </div>
-              
-              {/* 進捗バー */}
-              {currentProject && projectProgress && (
-                <div className="flex-1 max-w-md ml-4">
-                  <div 
-                    className="relative cursor-pointer group"
-                    onClick={() => setShowProgressDetails(!showProgressDetails)}
-                    onMouseEnter={() => setShowProgressDetails(true)}
-                    onMouseLeave={() => setShowProgressDetails(false)}
-                  >
-                    <div className="flex items-center space-x-2 mb-1">
-                      <TrendingUp className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        {projectProgress.completedSteps}/{projectProgress.totalSteps} ステップ完了
-                      </span>
-                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                        {projectProgress.percentage.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          projectProgress.percentage === 100 
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                            : projectProgress.percentage >= 50
-                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500'
-                            : 'bg-gradient-to-r from-yellow-400 to-orange-500'
-                        }`}
-                        style={{ width: `${projectProgress.percentage}%` }}
-                      />
-                    </div>
-                    
-                    {/* 進捗詳細ツールチップ */}
-                    {showProgressDetails && (
-                      <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 z-50">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-                            <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                              プロジェクト進捗
-                            </span>
-                            <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                              {projectProgress.percentage.toFixed(0)}%
-                            </span>
-                          </div>
-                          {projectProgress.steps.map((stepProgress) => {
-                            const stepLabels: Record<string, string> = {
-                              character: 'キャラクター',
-                              plot1: 'プロット基本設定',
-                              plot2: 'プロット構成詳細',
-                              synopsis: 'あらすじ',
-                              chapter: '章立て',
-                              draft: '草案',
-                            };
-                            return (
-                              <div key={stepProgress.step} className="flex items-center justify-between text-sm">
-                                <div className="flex items-center space-x-2">
-                                  {stepProgress.completed ? (
-                                    <Check className="h-4 w-4 text-green-500" />
-                                  ) : (
-                                    <div className="h-4 w-4 rounded-full border-2 border-gray-300 dark:border-gray-600" />
-                                  )}
-                                  <span className={`font-['Noto_Sans_JP'] ${
-                                    stepProgress.completed 
-                                      ? 'text-gray-700 dark:text-gray-300' 
-                                      : 'text-gray-400 dark:text-gray-500'
-                                  }`}>
-                                    {stepLabels[stepProgress.step] || stepProgress.step}
+      <header
+        className="sticky top-0 z-20 glass border-b transition-colors"
+        role="banner"
+        aria-label="アプリケーションヘッダー"
+      >
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={onHomeClick}
+                className="flex items-center space-x-2 text-sumi-700 dark:text-usuzumi-300 hover:text-ai-600 dark:hover:text-ai-400 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2 rounded-md"
+                aria-label="ホームページに戻る"
+              >
+                <Home className="h-6 w-6" aria-hidden="true" />
+                <span className="hidden sm:inline">ホーム</span>
+              </button>
+
+              <div className="hidden sm:flex items-center space-x-4 flex-1">
+                <div className="flex items-center space-x-2">
+                  <BookOpen className="h-6 w-6 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                  <h1 className="text-xl font-bold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
+                    AIと共創するストーリービルダー
+                  </h1>
+                </div>
+
+                {/* 進捗バー */}
+                {currentProject && projectProgress && (
+                  <div className="flex-1 max-w-md ml-4">
+                    <div
+                      className="relative cursor-pointer group"
+                      onClick={() => setShowProgressDetails(!showProgressDetails)}
+                      onMouseEnter={() => setShowProgressDetails(true)}
+                      onMouseLeave={() => setShowProgressDetails(false)}
+                    >
+                      <div className="flex items-center space-x-2 mb-1">
+                        <TrendingUp className="h-4 w-4 text-ai-600 dark:text-ai-400" />
+                        <span className="text-xs text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">
+                          {projectProgress.completedSteps}/{projectProgress.totalSteps} ステップ完了
+                        </span>
+                        <span className="text-xs font-semibold text-ai-600 dark:text-ai-400">
+                          {projectProgress.percentage.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-usuzumi-200 dark:bg-usuzumi-700 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-300 ${projectProgress.percentage === 100
+                              ? 'bg-gradient-to-r from-wakagusa-500 to-wakagusa-600'
+                              : projectProgress.percentage >= 50
+                                ? 'bg-gradient-to-r from-ai-500 to-ai-600'
+                                : 'bg-gradient-to-r from-yamabuki-400 to-yamabuki-500'
+                            }`}
+                          style={{ width: `${projectProgress.percentage}%` }}
+                        />
+                      </div>
+
+                      {/* 進捗詳細ツールチップ */}
+                      {showProgressDetails && (
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-unohana-50 dark:bg-sumi-800 rounded-lg shadow-xl border border-usuzumi-200 dark:border-usuzumi-700 p-4 z-50">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-usuzumi-200 dark:border-usuzumi-700">
+                              <span className="font-semibold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
+                                プロジェクト進捗
+                              </span>
+                              <span className="text-sm font-bold text-ai-600 dark:text-ai-400">
+                                {projectProgress.percentage.toFixed(0)}%
+                              </span>
+                            </div>
+                            {projectProgress.steps.map((stepProgress) => {
+                              const stepLabels: Record<string, string> = {
+                                character: 'キャラクター',
+                                plot1: 'プロット基本設定',
+                                plot2: 'プロット構成詳細',
+                                synopsis: 'あらすじ',
+                                chapter: '章立て',
+                                draft: '草案',
+                              };
+                              return (
+                                <div key={stepProgress.step} className="flex items-center justify-between text-sm">
+                                  <div className="flex items-center space-x-2">
+                                    {stepProgress.completed ? (
+                                      <Check className="h-4 w-4 text-wakagusa-500" />
+                                    ) : (
+                                      <div className="h-4 w-4 rounded-full border-2 border-usuzumi-300 dark:border-usuzumi-600" />
+                                    )}
+                                    <span className={`font-['Noto_Sans_JP'] ${stepProgress.completed
+                                        ? 'text-sumi-700 dark:text-usuzumi-300'
+                                        : 'text-usuzumi-400 dark:text-usuzumi-500'
+                                      }`}>
+                                      {stepLabels[stepProgress.step] || stepProgress.step}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {projectProgress.nextStep && (
+                              <div className="mt-3 pt-3 border-t border-usuzumi-200 dark:border-usuzumi-700">
+                                <div className="flex items-center space-x-2 text-sm text-ai-600 dark:text-ai-400">
+                                  <ChevronRight className="h-4 w-4" />
+                                  <span className="font-['Noto_Sans_JP']">
+                                    次: {projectProgress.nextStep}
                                   </span>
                                 </div>
                               </div>
-                            );
-                          })}
-                          {projectProgress.nextStep && (
-                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                              <div className="flex items-center space-x-2 text-sm text-indigo-600 dark:text-indigo-400">
-                                <ChevronRight className="h-4 w-4" />
-                                <span className="font-['Noto_Sans_JP']">
-                                  次: {projectProgress.nextStep}
-                                </span>
-                              </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-              
-              {showSidebarControls && onToggleBothSidebars && (
-                <button
-                  onClick={onToggleBothSidebars}
-                  className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                  aria-label={areBothCollapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
-                  title={areBothCollapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
-                >
-                  {areBothCollapsed ? (
-                    <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
-                  ) : (
-                    <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <nav className="flex items-center space-x-4" role="navigation" aria-label="メインナビゲーション">
-            {currentProject && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={handleManualSave}
-                  disabled={isLoading}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400 transition-all duration-200 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                  aria-label={isLoading ? '保存中です' : 'プロジェクトを手動保存'}
-                  aria-describedby="save-status"
-                >
-                  <Save className={`h-5 w-5 text-green-600 dark:text-green-400 ${isLoading ? 'animate-pulse' : ''}`} aria-hidden="true" />
-                  <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
-                    {isLoading ? '保存中...' : lastSaved ? `保存済み ${lastSaved.toLocaleTimeString('ja-JP')}` : '保存'}
-                  </span>
-                </button>
-                <span id="save-status" className="sr-only">
-                  {isLoading ? 'プロジェクトを保存中です' : lastSaved ? `最後の保存: ${lastSaved.toLocaleTimeString('ja-JP')}` : 'まだ保存されていません'}
-                </span>
-              </div>
-            )}
-            
-            <button
-              onClick={() => setShowDataManager(true)}
-              className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-              aria-label="データ管理を開く"
-              title="データ管理"
-            >
-              <div className="relative">
-                <Database className="h-5 w-5 text-purple-600 dark:text-purple-400" aria-hidden="true" />
-              </div>
-              <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
-                データ管理
-              </span>
-            </button>
-            
-            <button
-              onClick={() => setShowAISettings(true)}
-              className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 relative"
-              aria-label="AI設定を開く"
-              title="AI設定"
-            >
-              <div className="relative">
-                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-                {!isConfigured && (
-                  <span 
-                    className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"
-                    aria-label="設定が必要"
-                  />
+                )}
+
+                {showSidebarControls && onToggleBothSidebars && (
+                  <button
+                    onClick={onToggleBothSidebars}
+                    className="p-2 rounded-lg text-sumi-700 dark:text-usuzumi-300 hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                    aria-label={areBothCollapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
+                    title={areBothCollapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
+                  >
+                    {areBothCollapsed ? (
+                      <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
+                    ) : (
+                      <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
+                    )}
+                  </button>
                 )}
               </div>
-              <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
-                AI設定
-              </span>
-            </button>
-            
-            {/* コンテキストヘルプボタン */}
-            {currentStep !== 'home' && (
+            </div>
+
+            <nav className="flex items-center space-x-4" role="navigation" aria-label="メインナビゲーション">
+              {currentProject && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleManualSave}
+                    disabled={isLoading}
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-wakagusa-100 dark:bg-wakagusa-900/30 hover:bg-wakagusa-200 dark:hover:bg-wakagusa-900/50 text-wakagusa-700 dark:text-wakagusa-400 transition-all duration-200 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-wakagusa-500 focus:ring-offset-2"
+                    aria-label={isLoading ? '保存中です' : 'プロジェクトを手動保存'}
+                    aria-describedby="save-status"
+                  >
+                    <Save className={`h-5 w-5 text-wakagusa-600 dark:text-wakagusa-400 ${isLoading ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                    <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
+                      {isLoading ? '保存中...' : lastSaved ? `保存済み ${lastSaved.toLocaleTimeString('ja-JP')}` : '保存'}
+                    </span>
+                  </button>
+                  <span id="save-status" className="sr-only">
+                    {isLoading ? 'プロジェクトを保存中です' : lastSaved ? `最後の保存: ${lastSaved.toLocaleTimeString('ja-JP')}` : 'まだ保存されていません'}
+                  </span>
+                </div>
+              )}
+
               <button
-                onClick={() => setShowContextHelp(true)}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                aria-label="ヘルプを表示"
-                title="ヘルプ"
+                onClick={() => setShowDataManager(true)}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-mizu-100 dark:bg-mizu-900/30 hover:bg-mizu-200 dark:hover:bg-mizu-900/50 text-mizu-700 dark:text-mizu-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-mizu-500 focus:ring-offset-2"
+                aria-label="データ管理を開く"
+                title="データ管理"
               >
-                <HelpCircle className="h-5 w-5 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+                <div className="relative">
+                  <Database className="h-5 w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
+                </div>
                 <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
-                  ヘルプ
+                  データ管理
                 </span>
               </button>
-            )}
-            
-            <button
-              onClick={onToggleTheme}
-              className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
-              aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
-            >
-              {isDarkMode ? (
-                <Sun className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              ) : (
-                <Moon className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+
+              <button
+                onClick={() => setShowAISettings(true)}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2 relative"
+                aria-label="AI設定を開く"
+                title="AI設定"
+              >
+                <div className="relative">
+                  <Settings className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                  {!isConfigured && (
+                    <span
+                      className="absolute -top-1 -right-1 w-2 h-2 bg-sakura-500 rounded-full"
+                      aria-label="設定が必要"
+                    />
+                  )}
+                </div>
+                <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
+                  AI設定
+                </span>
+              </button>
+
+              {/* コンテキストヘルプボタン */}
+              {currentStep !== 'home' && (
+                <button
+                  onClick={() => setShowContextHelp(true)}
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                  aria-label="ヘルプを表示"
+                  title="ヘルプ"
+                >
+                  <HelpCircle className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                  <span className="hidden sm:inline text-sm font-['Noto_Sans_JP']">
+                    ヘルプ
+                  </span>
+                </button>
               )}
-            </button>
-          </nav>
+
+              <button
+                onClick={onToggleTheme}
+                className="p-2 rounded-lg bg-yamabuki-100 dark:bg-yamabuki-900/30 hover:bg-yamabuki-200 dark:hover:bg-yamabuki-900/50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yamabuki-500 focus:ring-offset-2"
+                aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
+              >
+                {isDarkMode ? (
+                  <Sun className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
+                ) : (
+                  <Moon className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
+                )}
+              </button>
+            </nav>
+          </div>
         </div>
-      </div>
-    </header>
-    
-    {/* モーダル */}
-    <DataManager 
-      isOpen={showDataManager} 
-      onClose={() => setShowDataManager(false)} 
-    />
-    
-    <AISettings 
-      isOpen={showAISettings} 
-      onClose={() => setShowAISettings(false)} 
-    />
-    
-    {/* コンテキストヘルプ */}
-    <ContextHelp
-      step={currentStep}
-      isOpen={showContextHelp}
-      onClose={() => setShowContextHelp(false)}
-    />
+      </header>
+
+      {/* モーダル */}
+      <DataManager
+        isOpen={showDataManager}
+        onClose={() => setShowDataManager(false)}
+      />
+
+      <AISettings
+        isOpen={showAISettings}
+        onClose={() => setShowAISettings(false)}
+      />
+
+      {/* コンテキストヘルプ */}
+      <ContextHelp
+        step={currentStep}
+        isOpen={showContextHelp}
+        onClose={() => setShowContextHelp(false)}
+      />
     </>
   );
 };

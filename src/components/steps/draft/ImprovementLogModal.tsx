@@ -31,16 +31,19 @@ export const ImprovementLogModal: React.FC<ImprovementLogModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
-        {/* オーバーレイ */}
+        {/* オーバーレイ: Glassmorphism効果 */}
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          className="fixed inset-0 glass-overlay transition-opacity duration-300"
           onClick={onClose}
         />
 
-        {/* モーダルコンテンツ */}
-        <div ref={modalRef} className="relative w-full max-w-5xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
+        {/* モーダルコンテンツ: 強化されたGlassmorphism */}
+        <div 
+          ref={modalRef} 
+          className="relative w-full max-w-5xl glass-strong glass-shimmer rounded-2xl transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95"
+        >
           {/* モーダルヘッダー */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 border-b border-white/20 dark:border-white/10 gap-3 shrink-0">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-br from-amber-500 to-orange-600 w-8 h-8 rounded-full flex items-center justify-center">
                 <ListChecks className="h-4 w-4 text-white" />
@@ -57,14 +60,15 @@ export const ImprovementLogModal: React.FC<ImprovementLogModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-white/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-transparent"
+              aria-label="閉じる"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* モーダルボディ */}
-          <div className="p-4 max-h-[70vh] overflow-y-auto">
+          <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
             <div className="space-y-4">
               {logs.map((log, index) => {
                 const isSelected = selectedLogId === log.id;
@@ -173,7 +177,7 @@ export const ImprovementLogModal: React.FC<ImprovementLogModalProps> = ({
           </div>
 
           {/* モーダルフッター */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+          <div className="p-6 border-t border-white/20 dark:border-white/10 flex justify-end shrink-0">
             <button
               onClick={onClose}
               className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-['Noto_Sans_JP']"

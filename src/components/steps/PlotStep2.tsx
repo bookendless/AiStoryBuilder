@@ -1,20 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Sparkles, Check, Play, Zap, Target, Heart, RotateCcw, Loader2, Layers, ChevronDown, ChevronUp, Copy, Trash2, AlertCircle, Undo2, Redo2, MoreVertical, Clock, GripVertical, Download, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
-
-interface AILogEntry {
-  id: string;
-  timestamp: Date;
-  type: 'supplement' | 'consistency' | 'generateStructure';
-  prompt: string;
-  response: string;
-  error?: string;
-  fieldLabel?: string;
-  structureType?: string;
-}
+import { useAILog } from '../common/hooks/useAILog';
+import { useAutoSave } from '../common/hooks/useAutoSave';
+import { AILogPanel } from '../common/AILogPanel';
 
 type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
@@ -44,27 +36,14 @@ interface HistoryState {
 export const PlotStep2: React.FC<PlotStep2Props> = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
-  const { showSuccess, showError, showWarning } = useToast();
+  const { showSuccess, showWarning } = useToast();
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [plotStructure, setPlotStructure] = useState<'kishotenketsu' | 'three-act' | 'four-act'>('kishotenketsu');
-  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // AIログ管理
-  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+  const { aiLogs, addLog } = useAILog();
 
-  // サイドバーセクションの折りたたみ状態と順序管理
-  const [sidebarSections, setSidebarSections] = useState([
-    { id: 'guide', title: '構成スタイルガイド', collapsed: false },
-    { id: 'settings', title: 'プロット基礎設定', collapsed: false },
-    { id: 'assistant', title: 'AI提案アシスタント', collapsed: false },
-    { id: 'progress', title: '完成度', collapsed: false },
-    { id: 'aiLogs', title: 'AIログ', collapsed: false },
-  ]);
-  const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
-  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     ki: currentProject?.plot?.ki || '',
     sho: currentProject?.plot?.sho || '',
@@ -79,8 +58,121 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     fourAct4: currentProject?.plot?.fourAct4 || '',
   });
 
+  // 自動保存用の統合データ
+  const saveData = useMemo(() => ({
+    formData,
+    plotStructure,
+  }), [formData, plotStructure]);
+
+  // 自動保存
+  const { isSaving, saveStatus, lastSaved } = useAutoSave(
+    saveData,
+    async (value: typeof saveData) => {
+      if (!currentProject) return;
+      const updatedPlot = {
+        ...currentProject.plot,
+        structure: value.plotStructure,
+      };
+
+      if (value.plotStructure === 'kishotenketsu') {
+        updatedPlot.ki = value.formData.ki;
+        updatedPlot.sho = value.formData.sho;
+        updatedPlot.ten = value.formData.ten;
+        updatedPlot.ketsu = value.formData.ketsu;
+      } else if (value.plotStructure === 'three-act') {
+        updatedPlot.act1 = value.formData.act1;
+        updatedPlot.act2 = value.formData.act2;
+        updatedPlot.act3 = value.formData.act3;
+      } else if (value.plotStructure === 'four-act') {
+        updatedPlot.fourAct1 = value.formData.fourAct1;
+        updatedPlot.fourAct2 = value.formData.fourAct2;
+        updatedPlot.fourAct3 = value.formData.fourAct3;
+        updatedPlot.fourAct4 = value.formData.fourAct4;
+      }
+
+      await updateProject({ plot: updatedPlot }, false);
+    }
+  );
+
   // 折りたたみ状態管理
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  // サイドバーセクションの折りたたみ状態と順序管理
+  const [sidebarSections, setSidebarSections] = useState([
+    { id: 'guide', title: '構成スタイルガイド', collapsed: true },
+    { id: 'settings', title: 'プロット基礎設定', collapsed: true },
+    { id: 'assistant', title: 'AI提案アシスタント', collapsed: true },
+    { id: 'progress', title: '完成度', collapsed: true },
+    { id: 'aiLogs', title: 'AIログ', collapsed: true },
+  ]);
+  const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
+  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
+
+  // サイドバーセクションの折りたたみ切り替え
+  const toggleSidebarSection = useCallback((sectionId: string) => {
+    setSidebarSections(prev =>
+      prev.map(section =>
+        section.id === sectionId
+          ? { ...section, collapsed: !section.collapsed }
+          : section
+      )
+    );
+  }, []);
+
+  // ドラッグ開始
+  const handleDragStart = useCallback((e: React.DragEvent, sectionId: string) => {
+    setDraggedSectionId(sectionId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', sectionId);
+  }, []);
+
+  // ドラッグオーバー
+  const handleDragOver = useCallback((e: React.DragEvent, sectionId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedSectionId !== null && draggedSectionId !== sectionId) {
+      setDragOverSectionId(sectionId);
+    }
+  }, [draggedSectionId]);
+
+  // ドラッグ離脱
+  const handleDragLeave = useCallback(() => {
+    setDragOverSectionId(null);
+  }, []);
+
+  // ドロップ
+  const handleDrop = useCallback((e: React.DragEvent, targetSectionId: string) => {
+    e.preventDefault();
+
+    if (!draggedSectionId || draggedSectionId === targetSectionId) {
+      setDraggedSectionId(null);
+      setDragOverSectionId(null);
+      return;
+    }
+
+    setSidebarSections(prev => {
+      const newSections = [...prev];
+      const draggedIndex = newSections.findIndex(s => s.id === draggedSectionId);
+      const targetIndex = newSections.findIndex(s => s.id === targetSectionId);
+
+      if (draggedIndex === -1 || targetIndex === -1) return prev;
+
+      const [removed] = newSections.splice(draggedIndex, 1);
+      newSections.splice(targetIndex, 0, removed);
+
+      return newSections;
+    });
+
+    setDraggedSectionId(null);
+    setDragOverSectionId(null);
+    showSuccess('サイドバー項目の並び順を変更しました');
+  }, [draggedSectionId, showSuccess]);
+
+  // ドラッグ終了
+  const handleDragEnd = useCallback(() => {
+    setDraggedSectionId(null);
+    setDragOverSectionId(null);
+  }, []);
 
 
   // 一貫性チェック結果
@@ -231,14 +323,15 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenuId]);
 
-  // AIログをコピー
-  const handleCopyLog = (log: AILogEntry) => {
-    const typeLabels = {
+  // AIログをコピー（PlotStep2特有の形式に対応）
+  const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
+    const typeLabels: Record<string, string> = {
       supplement: '補完',
       consistency: '一貫性チェック',
       generateStructure: '構造生成',
     };
-    const logText = `【AIログ - ${typeLabels[log.type]}】
+    const typeLabel = typeLabels[log.type] || log.type;
+    const logText = `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
 ${log.fieldLabel ? `フィールド: ${log.fieldLabel}\n` : ''}
 ${log.structureType ? `構造タイプ: ${log.structureType}\n` : ''}
@@ -254,17 +347,18 @@ ${log.error}` : ''}`;
 
     navigator.clipboard.writeText(logText);
     showSuccess('ログをクリップボードにコピーしました');
-  };
+  }, [showSuccess]);
 
-  // AIログをダウンロード
-  const handleDownloadLogs = () => {
-    const typeLabels = {
+  // AIログをダウンロード（PlotStep2特有の形式に対応）
+  const handleDownloadLogs = useCallback(() => {
+    const typeLabels: Record<string, string> = {
       supplement: '補完',
       consistency: '一貫性チェック',
       generateStructure: '構造生成',
     };
-    const logsText = aiLogs.map(log =>
-      `【AIログ - ${typeLabels[log.type]}】
+    const logsText = aiLogs.map(log => {
+      const typeLabel = typeLabels[log.type] || log.type;
+      return `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
 ${log.fieldLabel ? `フィールド: ${log.fieldLabel}\n` : ''}
 ${log.structureType ? `構造タイプ: ${log.structureType}\n` : ''}
@@ -278,8 +372,8 @@ ${log.response}
 ${log.error ? `【エラー】
 ${log.error}` : ''}
 
-${'='.repeat(80)}`
-    ).join('\n\n');
+${'='.repeat(80)}`;
+    }).join('\n\n');
 
     const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -291,73 +385,8 @@ ${'='.repeat(80)}`
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showSuccess('ログをダウンロードしました');
-  };
+  }, [aiLogs, showSuccess]);
 
-  // サイドバーセクションの折りたたみ切り替え
-  const toggleSidebarSection = useCallback((sectionId: string) => {
-    setSidebarSections(prev =>
-      prev.map(section =>
-        section.id === sectionId
-          ? { ...section, collapsed: !section.collapsed }
-          : section
-      )
-    );
-  }, []);
-
-  // ドラッグ開始
-  const handleDragStart = useCallback((e: React.DragEvent, sectionId: string) => {
-    setDraggedSectionId(sectionId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', sectionId);
-  }, []);
-
-  // ドラッグオーバー
-  const handleDragOver = useCallback((e: React.DragEvent, sectionId: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (draggedSectionId !== null && draggedSectionId !== sectionId) {
-      setDragOverSectionId(sectionId);
-    }
-  }, [draggedSectionId]);
-
-  // ドラッグ離脱
-  const handleDragLeave = useCallback(() => {
-    setDragOverSectionId(null);
-  }, []);
-
-  // ドロップ
-  const handleDrop = useCallback((e: React.DragEvent, targetSectionId: string) => {
-    e.preventDefault();
-
-    if (!draggedSectionId || draggedSectionId === targetSectionId) {
-      setDraggedSectionId(null);
-      setDragOverSectionId(null);
-      return;
-    }
-
-    setSidebarSections(prev => {
-      const newSections = [...prev];
-      const draggedIndex = newSections.findIndex(s => s.id === draggedSectionId);
-      const targetIndex = newSections.findIndex(s => s.id === targetSectionId);
-
-      if (draggedIndex === -1 || targetIndex === -1) return prev;
-
-      const [removed] = newSections.splice(draggedIndex, 1);
-      newSections.splice(targetIndex, 0, removed);
-
-      return newSections;
-    });
-
-    setDraggedSectionId(null);
-    setDragOverSectionId(null);
-    showSuccess('サイドバー項目の並び順を変更しました');
-  }, [draggedSectionId, showSuccess]);
-
-  // ドラッグ終了
-  const handleDragEnd = useCallback(() => {
-    setDraggedSectionId(null);
-    setDragOverSectionId(null);
-  }, []);
 
 
 
@@ -433,16 +462,13 @@ ${'='.repeat(80)}`
       });
 
       // AIログに記録
-      const logEntry: AILogEntry = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
+      addLog({
         type: 'supplement',
         prompt,
         response: response.content || '',
         error: response.error,
         fieldLabel: fieldLabel,
-      };
-      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
+      });
 
       if (response.error) {
         alert(`AI生成エラー: ${response.error}`);
@@ -525,15 +551,12 @@ ${'='.repeat(80)}`
       });
 
       // AIログに記録
-      const logEntry: AILogEntry = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
+      addLog({
         type: 'consistency',
         prompt,
         response: response.content || '',
         error: response.error,
-      };
-      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
+      });
 
       if (response.error) {
         alert(`AI生成エラー: ${response.error}`);
@@ -562,166 +585,60 @@ ${'='.repeat(80)}`
     }
   }, [isConfigured, formData, plotStructure, currentProject, settings]);
 
-  // 自動保存機能（デバウンス付き）
-  useEffect(() => {
+  // 手動保存（即座に保存し、他の構成のデータをクリア）
+  const handleManualSave = useCallback(async () => {
     if (!currentProject) return;
 
-    const timeoutId = setTimeout(async () => {
-      // フォームデータが変更されている場合のみ保存
-      const hasChanges =
-        formData.ki !== (currentProject.plot?.ki || '') ||
-        formData.sho !== (currentProject.plot?.sho || '') ||
-        formData.ten !== (currentProject.plot?.ten || '') ||
-        formData.ketsu !== (currentProject.plot?.ketsu || '') ||
-        formData.act1 !== (currentProject.plot?.act1 || '') ||
-        formData.act2 !== (currentProject.plot?.act2 || '') ||
-        formData.act3 !== (currentProject.plot?.act3 || '') ||
-        formData.fourAct1 !== (currentProject.plot?.fourAct1 || '') ||
-        formData.fourAct2 !== (currentProject.plot?.fourAct2 || '') ||
-        formData.fourAct3 !== (currentProject.plot?.fourAct3 || '') ||
-        formData.fourAct4 !== (currentProject.plot?.fourAct4 || '');
+    const updatedPlot = {
+      ...currentProject.plot,
+      structure: plotStructure,
+    };
 
-      if (hasChanges) {
-        // 直接保存処理を実行
-        setIsSaving(true);
-        setSaveStatus('saving');
-
-        try {
-          // 既存のplotデータを保持しつつ、構成詳細のみを更新
-          const updatedPlot = {
-            ...currentProject.plot,
-            structure: plotStructure,
-          };
-
-          if (plotStructure === 'kishotenketsu') {
-            updatedPlot.ki = formData.ki;
-            updatedPlot.sho = formData.sho;
-            updatedPlot.ten = formData.ten;
-            updatedPlot.ketsu = formData.ketsu;
-          } else if (plotStructure === 'three-act') {
-            updatedPlot.act1 = formData.act1;
-            updatedPlot.act2 = formData.act2;
-            updatedPlot.act3 = formData.act3;
-          } else if (plotStructure === 'four-act') {
-            updatedPlot.fourAct1 = formData.fourAct1;
-            updatedPlot.fourAct2 = formData.fourAct2;
-            updatedPlot.fourAct3 = formData.fourAct3;
-            updatedPlot.fourAct4 = formData.fourAct4;
-          }
-
-          await updateProject({
-            plot: updatedPlot,
-          });
-
-          setSaveStatus('saved');
-          setLastSavedTime(new Date());
-          console.log('Plot structure data auto-saved successfully:', formData);
-
-          // 3秒後にステータスをリセット
-          setTimeout(() => {
-            setSaveStatus('idle');
-          }, 3000);
-
-        } catch (error) {
-          console.error('Auto-save error:', error);
-          setSaveStatus('error');
-          showError('自動保存に失敗しました');
-
-          // 5秒後にステータスをリセット
-          setTimeout(() => {
-            setSaveStatus('idle');
-          }, 5000);
-        } finally {
-          setIsSaving(false);
-        }
-      }
-    }, 2000); // 2秒後に自動保存
-
-    return () => clearTimeout(timeoutId);
-  }, [formData, currentProject, plotStructure, updateProject]);
-
-  const handleSave = useCallback(async () => {
-    if (!currentProject) return;
-
-    setIsSaving(true);
-    setSaveStatus('saving');
-
-    try {
-      // 既存のplotデータを保持しつつ、構成詳細のみを更新
-      const updatedPlot = {
-        ...currentProject.plot,
-        structure: plotStructure,
-      };
-
-      if (plotStructure === 'kishotenketsu') {
-        updatedPlot.ki = formData.ki;
-        updatedPlot.sho = formData.sho;
-        updatedPlot.ten = formData.ten;
-        updatedPlot.ketsu = formData.ketsu;
-        // 他の構成のデータはクリア
-        updatedPlot.act1 = '';
-        updatedPlot.act2 = '';
-        updatedPlot.act3 = '';
-        updatedPlot.fourAct1 = '';
-        updatedPlot.fourAct2 = '';
-        updatedPlot.fourAct3 = '';
-        updatedPlot.fourAct4 = '';
-      } else if (plotStructure === 'three-act') {
-        updatedPlot.act1 = formData.act1;
-        updatedPlot.act2 = formData.act2;
-        updatedPlot.act3 = formData.act3;
-        // 他の構成のデータはクリア
-        updatedPlot.ki = '';
-        updatedPlot.sho = '';
-        updatedPlot.ten = '';
-        updatedPlot.ketsu = '';
-        updatedPlot.fourAct1 = '';
-        updatedPlot.fourAct2 = '';
-        updatedPlot.fourAct3 = '';
-        updatedPlot.fourAct4 = '';
-      } else if (plotStructure === 'four-act') {
-        updatedPlot.fourAct1 = formData.fourAct1;
-        updatedPlot.fourAct2 = formData.fourAct2;
-        updatedPlot.fourAct3 = formData.fourAct3;
-        updatedPlot.fourAct4 = formData.fourAct4;
-        // 他の構成のデータはクリア
-        updatedPlot.ki = '';
-        updatedPlot.sho = '';
-        updatedPlot.ten = '';
-        updatedPlot.ketsu = '';
-        updatedPlot.act1 = '';
-        updatedPlot.act2 = '';
-        updatedPlot.act3 = '';
-      }
-
-      // 即座に保存
-      await updateProject({
-        plot: updatedPlot,
-      }, true);
-
-      setSaveStatus('saved');
-      setLastSavedTime(new Date());
-      showSuccess('保存しました');
-      console.log('Plot structure data saved successfully:', formData);
-
-      // 3秒後にステータスをリセット
-      setTimeout(() => {
-        setSaveStatus('idle');
-      }, 3000);
-
-    } catch (error) {
-      console.error('Save error:', error);
-      setSaveStatus('error');
-      showError('保存に失敗しました。もう一度お試しください。');
-
-      // 5秒後にステータスをリセット
-      setTimeout(() => {
-        setSaveStatus('idle');
-      }, 5000);
-    } finally {
-      setIsSaving(false);
+    if (plotStructure === 'kishotenketsu') {
+      updatedPlot.ki = formData.ki;
+      updatedPlot.sho = formData.sho;
+      updatedPlot.ten = formData.ten;
+      updatedPlot.ketsu = formData.ketsu;
+      // 他の構成のデータはクリア
+      updatedPlot.act1 = '';
+      updatedPlot.act2 = '';
+      updatedPlot.act3 = '';
+      updatedPlot.fourAct1 = '';
+      updatedPlot.fourAct2 = '';
+      updatedPlot.fourAct3 = '';
+      updatedPlot.fourAct4 = '';
+    } else if (plotStructure === 'three-act') {
+      updatedPlot.act1 = formData.act1;
+      updatedPlot.act2 = formData.act2;
+      updatedPlot.act3 = formData.act3;
+      // 他の構成のデータはクリア
+      updatedPlot.ki = '';
+      updatedPlot.sho = '';
+      updatedPlot.ten = '';
+      updatedPlot.ketsu = '';
+      updatedPlot.fourAct1 = '';
+      updatedPlot.fourAct2 = '';
+      updatedPlot.fourAct3 = '';
+      updatedPlot.fourAct4 = '';
+    } else if (plotStructure === 'four-act') {
+      updatedPlot.fourAct1 = formData.fourAct1;
+      updatedPlot.fourAct2 = formData.fourAct2;
+      updatedPlot.fourAct3 = formData.fourAct3;
+      updatedPlot.fourAct4 = formData.fourAct4;
+      // 他の構成のデータはクリア
+      updatedPlot.ki = '';
+      updatedPlot.sho = '';
+      updatedPlot.ten = '';
+      updatedPlot.ketsu = '';
+      updatedPlot.act1 = '';
+      updatedPlot.act2 = '';
+      updatedPlot.act3 = '';
     }
-  }, [currentProject, updateProject, formData, plotStructure, showSuccess, showError]);
+
+    // 即座に保存
+    await updateProject({ plot: updatedPlot }, true);
+    showSuccess('保存しました');
+  }, [currentProject, updateProject, formData, plotStructure, showSuccess]);
 
   // プロット構成部分のみをリセット
   const handleResetPlotStructure = () => {
@@ -856,16 +773,13 @@ ${'='.repeat(80)}`
       });
 
       // AIログに記録
-      const logEntry: AILogEntry = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
+      addLog({
         type: 'generateStructure',
         prompt,
         response: response.content || '',
         error: response.error,
         structureType: structureType,
-      };
-      setAiLogs(prev => [logEntry, ...prev.slice(0, 9)]); // 最新10件を保持
+      });
 
       if (response.error) {
         alert(`AI生成エラー: ${response.error}`);
@@ -943,17 +857,17 @@ ${'='.repeat(80)}`
 
   // 最終保存時刻の表示
   const getLastSavedText = useCallback(() => {
-    if (!lastSavedTime) return '未保存';
+    if (!lastSaved) return '未保存';
 
     const now = new Date();
-    const diff = Math.floor((now.getTime() - lastSavedTime.getTime()) / 1000);
+    const diff = Math.floor((now.getTime() - lastSaved.getTime()) / 1000);
 
     if (diff < 10) return '数秒前に保存';
     if (diff < 60) return `${diff}秒前に保存`;
     if (diff < 3600) return `${Math.floor(diff / 60)}分前に保存`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}時間前に保存`;
-    return lastSavedTime.toLocaleDateString('ja-JP');
-  }, [lastSavedTime]);
+    return lastSaved.toLocaleDateString('ja-JP');
+  }, [lastSaved]);
 
   // 文字数が制限を超えているかチェック
   const isOverLimit = useCallback((fieldKey: keyof typeof formData, limit: number = 500) => {
@@ -1853,10 +1767,10 @@ ${'='.repeat(80)}`
                 onClick={() => {
                   if (hasAnyOverLimit()) {
                     if (confirm('⚠️ 一部のセクションで文字数が上限を超えています。\nこのまま保存しますか？')) {
-                      handleSave();
+                      handleManualSave();
                     }
                   } else {
-                    handleSave();
+                    handleManualSave();
                   }
                 }}
                 disabled={isSaving}
@@ -1904,13 +1818,6 @@ ${'='.repeat(80)}`
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
-                      <div
-                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <GripVertical className="h-5 w-5" />
-                      </div>
                       <div className="bg-gradient-to-br from-indigo-500 to-blue-600 w-10 h-10 rounded-full flex items-center justify-center">
                         <Target className="h-5 w-5 text-white" />
                       </div>
@@ -1918,19 +1825,29 @@ ${'='.repeat(80)}`
                         {section.title}
                       </h3>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSidebarSection(section.id);
-                      }}
-                      className="p-1 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors"
-                    >
-                      {isCollapsed ? (
-                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      ) : (
-                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      )}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSidebarSection(section.id);
+                        }}
+                        className="p-1 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors"
+                        aria-label={isCollapsed ? 'セクションを展開' : 'セクションを折りたたむ'}
+                      >
+                        {isCollapsed ? (
+                          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        ) : (
+                          <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   {!isCollapsed && (
                     <div className="p-6 pt-0">
@@ -2019,13 +1936,6 @@ ${'='.repeat(80)}`
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
-                      <div
-                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <GripVertical className="h-5 w-5" />
-                      </div>
                       <div className="bg-gradient-to-br from-amber-500 to-orange-600 w-10 h-10 rounded-full flex items-center justify-center">
                         <Target className="h-5 w-5 text-white" />
                       </div>
@@ -2033,19 +1943,29 @@ ${'='.repeat(80)}`
                         {section.title}
                       </h3>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSidebarSection(section.id);
-                      }}
-                      className="p-1 rounded hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
-                    >
-                      {isCollapsed ? (
-                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      ) : (
-                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      )}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSidebarSection(section.id);
+                        }}
+                        className="p-1 rounded hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
+                        aria-label={isCollapsed ? 'セクションを展開' : 'セクションを折りたたむ'}
+                      >
+                        {isCollapsed ? (
+                          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        ) : (
+                          <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   {!isCollapsed && (
                     <div className="p-6 pt-0">
@@ -2154,13 +2074,6 @@ ${'='.repeat(80)}`
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
-                      <div
-                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <GripVertical className="h-5 w-5" />
-                      </div>
                       <div className="bg-gradient-to-br from-purple-900 to-purple-800 w-10 h-10 rounded-full flex items-center justify-center">
                         <Sparkles className="h-5 w-5 text-white" />
                       </div>
@@ -2168,19 +2081,29 @@ ${'='.repeat(80)}`
                         {section.title}
                       </h3>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSidebarSection(section.id);
-                      }}
-                      className="p-1 rounded hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors"
-                    >
-                      {isCollapsed ? (
-                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      ) : (
-                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      )}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSidebarSection(section.id);
+                        }}
+                        className="p-1 rounded hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors"
+                        aria-label={isCollapsed ? 'セクションを展開' : 'セクションを折りたたむ'}
+                      >
+                        {isCollapsed ? (
+                          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        ) : (
+                          <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   {!isCollapsed && (
                     <div className="p-6 pt-0">
@@ -2258,6 +2181,14 @@ ${'='.repeat(80)}`
                     onClick={() => toggleSidebarSection(section.id)}
                   >
                     <div className="flex items-center space-x-3 flex-1">
+                      <div className="bg-gradient-to-br from-green-500 to-emerald-600 w-10 h-10 rounded-full flex items-center justify-center">
+                        <Check className="h-5 w-5 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        {plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}{section.title}
+                      </h3>
+                    </div>
+                    <div className="flex items-center space-x-2">
                       <div
                         className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         onClick={(e) => e.stopPropagation()}
@@ -2265,23 +2196,21 @@ ${'='.repeat(80)}`
                       >
                         <GripVertical className="h-5 w-5" />
                       </div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        {plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}{section.title}
-                      </h3>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSidebarSection(section.id);
+                        }}
+                        className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        aria-label={isCollapsed ? 'セクションを展開' : 'セクションを折りたたむ'}
+                      >
+                        {isCollapsed ? (
+                          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        ) : (
+                          <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSidebarSection(section.id);
-                      }}
-                      className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      {isCollapsed ? (
-                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      ) : (
-                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      )}
-                    </button>
                   </div>
                   {!isCollapsed && (
                     <div className="p-6 pt-0">
@@ -2379,9 +2308,9 @@ ${'='.repeat(80)}`
                     className="flex items-center justify-between p-4 cursor-pointer"
                     onClick={() => toggleSidebarSection(section.id)}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-5 w-5" />
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-white" />
                       </div>
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                         AIログ
@@ -2400,112 +2329,43 @@ ${'='.repeat(80)}`
                           <Download className="h-4 w-4" />
                         </button>
                       )}
-                      {section.collapsed ? (
-                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      ) : (
-                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      )}
+                      <div
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <GripVertical className="h-5 w-5" />
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSidebarSection(section.id);
+                        }}
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        aria-label={section.collapsed ? 'セクションを展開' : 'セクションを折りたたむ'}
+                      >
+                        {section.collapsed ? (
+                          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        ) : (
+                          <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
                   {!section.collapsed && (
-                    <div className="px-4 pb-4 space-y-3">
-                      {aiLogs.length === 0 ? (
-                        <div className="text-center py-8">
-                          <FileText className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-['Noto_Sans_JP']">
-                            AIログがありません
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
-                            AI生成を実行すると、ここにログが表示されます
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-end space-x-2">
-                            <button
-                              onClick={handleDownloadLogs}
-                              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                              title="ログをダウンロード"
-                            >
-                              <Download className="h-4 w-4" />
-                            </button>
-                          </div>
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {aiLogs.map((log) => {
-                          const typeLabels = {
-                            supplement: '補完',
-                            consistency: '一貫性チェック',
-                            generateStructure: '構造生成',
-                          };
-                          return (
-                            <div key={log.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center space-x-2">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${log.type === 'supplement'
-                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                    : log.type === 'consistency'
-                                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                                    }`}>
-                                    {typeLabels[log.type]}
-                                  </span>
-                                  {log.fieldLabel && (
-                                    <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                      {log.fieldLabel}
-                                    </span>
-                                  )}
-                                  {log.structureType && (
-                                    <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                      {log.structureType}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {log.timestamp.toLocaleString('ja-JP', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </span>
-                                  <button
-                                    onClick={() => handleCopyLog(log)}
-                                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                    title="ログをコピー"
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {log.error ? (
-                                <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
-                                  <strong>エラー:</strong> {log.error}
-                                </div>
-                              ) : (
-                                <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                                  <div className="mb-2">
-                                    <strong>プロンプト:</strong>
-                                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                                      {log.prompt.substring(0, 200)}...
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <strong>応答:</strong>
-                                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                                      {log.response.substring(0, 300)}...
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                          </div>
-                        </>
-                      )}
+                    <div className="px-4 pb-4">
+                      <AILogPanel
+                        logs={aiLogs}
+                        onCopyLog={handleCopyLog}
+                        onDownloadLogs={handleDownloadLogs}
+                        typeLabels={{
+                          supplement: '補完',
+                          consistency: '一貫性チェック',
+                          generateStructure: '構造生成',
+                        }}
+                        maxHeight="max-h-96"
+                      />
                     </div>
                   )}
                 </div>

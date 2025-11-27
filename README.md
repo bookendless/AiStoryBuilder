@@ -47,7 +47,18 @@ AI Story Builderは、AI技術を活用して小説創作を支援するデス�
 ### 🔒 プライバシー重視
 - **ローカル基盤**: 基本機能はローカル環境で動作
 - **データ保護**: あなたの作品はすべてローカルに保存
-- **柔軟なAI選択**: ローカルLLM (Ollama) とクラウドAI (Gemini/OpenAI) を用途に応じて使い分け
+- **柔軟なAI選択**: ローカルLLM (Ollama) とクラウドAI (OpenAI/Claude/Gemini) を用途に応じて使い分け
+
+## ☁️ クラウドAI API対応状況
+
+| プロバイダー | 推奨モデル | 特徴 |
+| --- | --- | --- |
+| **OpenAI GPT** | GPT-4.1 / GPT-4.1 Mini / GPT-4o / o1 | 最新のResponses APIに対応。マルチモーダルとReasoning系（o1/o1-mini）をサポート。 |
+| **Anthropic Claude** | Claude 3.5 Sonnet / Claude 3.5 Haiku / Claude 3 Opus | 長文処理と整合性チェックに強み。Messages API対応。 |
+| **Google Gemini** | Gemini 2.5 Pro / Gemini 2.5 Flash / Gemini 2.0 Flash | 最大200万トークンの超長文コンテキスト。画像・音声入力も可能。 |
+| **ローカルLLM** | 任意のOpenAI互換モデル | LM Studio や Ollama を経由して完全オフラインで利用可能。 |
+
+> 各モデルの最大トークン数や推奨ユースケースは、アプリ内「AI設定」モーダルで確認できます。
 
 ## 📚 ドキュメント
 
@@ -72,7 +83,7 @@ AI Story Builderは、AI技術を活用して小説創作を支援するデス�
 
 **3. AIの設定**
 - **ローカルAI (Ollama)**: プライバシー重視、オフライン利用
-- **クラウドAI (Gemini/OpenAI)**: 高度な推論、画像分析機能
+- **クラウドAI (OpenAI/Claude/Gemini)**: 高度な推論、画像分析機能
 
 ## 👨‍💻 開発者向け情報
 

@@ -31,16 +31,19 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
-        {/* オーバーレイ */}
+        {/* オーバーレイ: Glassmorphism効果 */}
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          className="fixed inset-0 glass-overlay transition-opacity duration-300"
           onClick={onClose}
         />
 
-        {/* モーダルコンテンツ */}
-        <div ref={modalRef} className="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
+        {/* モーダルコンテンツ: 強化されたGlassmorphism */}
+        <div 
+          ref={modalRef} 
+          className="relative w-full max-w-4xl glass-strong glass-shimmer rounded-2xl transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95"
+        >
           {/* モーダルヘッダー */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-6 border-b border-white/20 dark:border-white/10 shrink-0">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-br from-purple-500 to-pink-600 w-8 h-8 rounded-full flex items-center justify-center">
                 <PenTool className="h-4 w-4 text-white" />
@@ -57,14 +60,15 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-white/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-transparent"
+              aria-label="閉じる"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* モーダルボディ */}
-          <div className="p-6">
+          <div className="p-6 overflow-y-auto custom-scrollbar">
             <div className="space-y-6">
               {/* カスタムプロンプト使用の切り替え */}
               <div className="flex items-center space-x-3">
@@ -130,7 +134,7 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({
           </div>
 
           {/* モーダルフッター */}
-          <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-6 border-t border-white/20 dark:border-white/10 shrink-0">
             <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
               {useCustomPrompt ? 'カスタムプロンプトが有効です' : 'デフォルトプロンプトを使用します'}
             </div>

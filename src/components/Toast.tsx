@@ -44,17 +44,17 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 5000, options?: Partial<Toast>) => {
     const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    const newToast: Toast = { 
-      id, 
-      message, 
-      type, 
+    const newToast: Toast = {
+      id,
+      message,
+      type,
       duration: options?.persistent ? 0 : (options?.duration ?? duration),
       title: options?.title,
       details: options?.details,
       action: options?.action,
       persistent: options?.persistent,
     };
-    
+
     setToasts(prev => [...prev, newToast]);
 
     if (newToast.duration && newToast.duration > 0) {
@@ -110,7 +110,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onRemove }) => 
   if (toasts.length === 0) return null;
 
   return (
-    <div 
+    <div
       className="fixed top-4 right-4 z-[100] space-y-2 max-w-md w-full pointer-events-none"
       aria-live="polite"
       aria-atomic="true"
@@ -153,10 +153,10 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
   };
 
   const bgColorMap = {
-    success: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
-    error: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
-    info: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
-    warning: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800',
+    success: 'bg-green-50/90 dark:bg-green-900/30 border-green-200/50 dark:border-green-800/50 backdrop-blur-md',
+    error: 'bg-red-50/90 dark:bg-red-900/30 border-red-200/50 dark:border-red-800/50 backdrop-blur-md',
+    info: 'bg-blue-50/90 dark:bg-blue-900/30 border-blue-200/50 dark:border-blue-800/50 backdrop-blur-md',
+    warning: 'bg-yellow-50/90 dark:bg-yellow-900/30 border-yellow-200/50 dark:border-yellow-800/50 backdrop-blur-md',
   };
 
   const textColorMap = {
@@ -171,11 +171,12 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       className={`
         ${bgColorMap[toast.type]} 
         ${textColorMap[toast.type]}
-        border rounded-lg shadow-lg p-4 pointer-events-auto
+        border rounded-lg shadow-xl p-4 pointer-events-auto
         transition-all duration-300 ease-in-out
         ${isExiting ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0'}
         animate-slide-in
         max-w-md
+        ring-1 ring-black/5 dark:ring-white/10
       `}
       role="alert"
     >
@@ -218,7 +219,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
                 }}
                 className={`
                   px-3 py-1.5 rounded-md text-xs font-semibold transition-colors font-['Noto_Sans_JP']
-                  ${toast.action.variant === 'primary' 
+                  ${toast.action.variant === 'primary'
                     ? 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600'
                     : 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
                   }

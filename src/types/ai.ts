@@ -4,6 +4,10 @@ export interface AIProvider {
   models: AIModel[];
   requiresApiKey: boolean;
   isLocal?: boolean;
+  description?: string;
+  apiDocsUrl?: string;
+  recommendedUses?: string[];
+  regions?: string[];
 }
 
 export interface AIModel {
@@ -11,6 +15,9 @@ export interface AIModel {
   name: string;
   description: string;
   maxTokens: number;
+  capabilities?: string[];
+  recommendedUse?: string;
+  latencyClass?: 'standard' | 'fast' | 'reasoning';
 }
 
 export interface AISettings {

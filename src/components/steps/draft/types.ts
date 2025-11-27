@@ -47,4 +47,6 @@ export interface SuggestionPromptPayload {
   projectTitle?: string;
 }
 
+export type AILogType = 'generateSingle' | 'continue' | 'suggestions';
+
 
