@@ -37,35 +37,6 @@ const ProjectCard = React.memo<ProjectCardProps>(({
       className="p-6 hover:scale-105 transition-all duration-200 relative group border-usuzumi-200 dark:border-usuzumi-700"
       hoverEffect={true}
     >
-      {/* プロジェクト操作ボタン */}
-      <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
-        <button
-          onClick={(e) => onEdit(e, project)}
-          className="p-2 bg-wakagusa-100 dark:bg-wakagusa-900 text-wakagusa-600 dark:text-wakagusa-400 rounded-lg hover:bg-wakagusa-200 dark:hover:bg-wakagusa-800 transition-colors"
-          title="プロジェクトを編集"
-        >
-          <Edit3 className="h-4 w-4" />
-        </button>
-        <button
-          onClick={(e) => onDuplicate(e, project.id)}
-          className="p-2 bg-mizu-100 dark:bg-mizu-900 text-mizu-600 dark:text-mizu-400 rounded-lg hover:bg-mizu-200 dark:hover:bg-mizu-800 transition-colors"
-          title="プロジェクトを複製"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-        </button>
-        <button
-          onClick={(e) => onDelete(e, project.id)}
-          className="p-2 bg-sakura-100 dark:bg-sakura-900 text-sakura-600 dark:text-sakura-400 rounded-lg hover:bg-sakura-200 dark:hover:bg-sakura-800 transition-colors"
-          title="プロジェクトを削除"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
-      </div>
-
       {/* 表紙画像 */}
       {project.coverImage && (
         <div className="mb-4">
@@ -73,13 +44,15 @@ const ProjectCard = React.memo<ProjectCardProps>(({
             onClick={() => onSelect(project)}
             className="cursor-pointer"
           >
-            <OptimizedImage
-              src={project.coverImage}
-              alt={project.title}
-              className="w-full h-32 rounded-lg"
-              lazy={true}
-              quality={0.8}
-            />
+            <div className="w-full h-36 rounded-lg bg-usuzumi-100 dark:bg-sumi-800 flex items-center justify-center overflow-hidden">
+              <OptimizedImage
+                src={project.coverImage}
+                alt={project.title}
+                className="max-h-full max-w-full object-contain"
+                lazy={true}
+                quality={0.8}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -152,6 +125,35 @@ const ProjectCard = React.memo<ProjectCardProps>(({
       </div>
       <div className="text-xs text-sumi-500 dark:text-usuzumi-400 font-['Noto_Sans_JP']">
         画像: {project.imageBoard.length} 枚
+      </div>
+
+      {/* プロジェクト操作ボタン（下部アクションバー） */}
+      <div className="mt-4 pt-4 border-t border-usuzumi-200 dark:border-usuzumi-700 flex justify-end gap-2">
+        <button
+          onClick={(e) => onEdit(e, project)}
+          className="p-2 bg-wakagusa-100 dark:bg-wakagusa-900 text-wakagusa-600 dark:text-wakagusa-400 rounded-lg hover:bg-wakagusa-200 dark:hover:bg-wakagusa-800 transition-colors"
+          title="プロジェクトを編集"
+        >
+          <Edit3 className="h-4 w-4" />
+        </button>
+        <button
+          onClick={(e) => onDuplicate(e, project.id)}
+          className="p-2 bg-mizu-100 dark:bg-mizu-900 text-mizu-600 dark:text-mizu-400 rounded-lg hover:bg-mizu-200 dark:hover:bg-mizu-800 transition-colors"
+          title="プロジェクトを複製"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </button>
+        <button
+          onClick={(e) => onDelete(e, project.id)}
+          className="p-2 bg-sakura-100 dark:bg-sakura-900 text-sakura-600 dark:text-sakura-400 rounded-lg hover:bg-sakura-200 dark:hover:bg-sakura-800 transition-colors"
+          title="プロジェクトを削除"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
       </div>
 
       {/* ローディング表示 */}

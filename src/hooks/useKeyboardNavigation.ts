@@ -44,6 +44,23 @@ export const useKeyboardNavigation = (options: KeyboardNavigationOptions = {}) =
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (!enabled) return;
 
+    // 入力フィールド内では通常の文字編集操作を優先
+    const target = event.target as HTMLElement | null;
+    if (target) {
+      const tagName = target.tagName;
+      const isInputElement =
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.getAttribute('role') === 'textbox';
+
+      if (isInputElement) {
+        // ここでは一切ショートカット処理を行わず、ブラウザ標準の挙動に任せる
+        // （Backspace/Delete/Space/Enter などの編集キーをブロックしない）
+        return;
+      }
+    }
+
     // 修飾キーが押されている場合は無視
     if (event.ctrlKey || event.metaKey || event.altKey) return;
 

@@ -6,11 +6,21 @@ import { databaseService } from '../services/databaseService';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
 
-// ジャンル選択オプション
+// ジャンル選択オプション（新規作成画面と共通）
 const GENRES = [
-  'ファンタジー', 'SF', 'ミステリー', '恋愛', 'ホラー',
-  '歴史', '現代ドラマ', 'コメディ', 'アクション', '冒険',
-  '青春', '童話', 'エッセイ', 'その他'
+  '一般小説', '恋愛小説', 'ミステリー', 'SF', 'ファンタジー', 'ホラー',
+  'コメディ', 'アクション', 'サスペンス', 'その他'
+];
+
+// ターゲット読者オプション
+const TARGET_READERS = [
+  '10代', '20代', '30代', '40代以上', '全年齢', 'その他'
+];
+
+// テーマオプション
+const THEMES = [
+  '成長・自己発見', '友情・絆', '恋愛・愛', '家族・親子', '正義・道徳',
+  '復讐・救済', '冒険・探検', '戦争・平和', '死・生', '希望・夢', '孤独・疎外感', 'その他'
 ];
 
 // 文体オプション
@@ -62,8 +72,15 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    genre: '',
     coverImage: undefined as string | undefined,
+    mainGenre: '',
+    subGenre: '',
+    targetReader: '',
+    projectTheme: '',
+    customMainGenre: '',
+    customSubGenre: '',
+    customTargetReader: '',
+    customTheme: '',
   });
 
   const [styleData, setStyleData] = useState({
@@ -77,13 +94,56 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
     tone: '',
   });
 
+  const resolveSelection = (
+    value: string | undefined,
+    options: string[],
+    customValue?: string
+  ) => {
+    const actualValue = customValue || value || '';
+    if (!actualValue) {
+      return { selected: '', custom: '' };
+    }
+    if (options.includes(actualValue)) {
+      return { selected: actualValue, custom: '' };
+    }
+    return { selected: 'その他', custom: actualValue };
+  };
+
   useEffect(() => {
     if (isOpen && targetProject) {
+      const main = resolveSelection(
+        targetProject.mainGenre || targetProject.genre,
+        GENRES,
+        targetProject.customMainGenre
+      );
+      const sub = resolveSelection(
+        targetProject.subGenre,
+        GENRES,
+        targetProject.customSubGenre
+      );
+      const target = resolveSelection(
+        targetProject.targetReader,
+        TARGET_READERS,
+        targetProject.customTargetReader
+      );
+      const theme = resolveSelection(
+        targetProject.projectTheme,
+        THEMES,
+        targetProject.customTheme
+      );
+
       setFormData({
         title: targetProject.title,
         description: targetProject.description,
-        genre: targetProject.genre || '',
         coverImage: targetProject.coverImage,
+        mainGenre: main.selected,
+        subGenre: sub.selected,
+        targetReader: target.selected,
+        projectTheme: theme.selected,
+        customMainGenre: main.custom,
+        customSubGenre: sub.custom,
+        customTargetReader: target.custom,
+        customTheme: theme.custom,
       });
       setPreviewUrl(targetProject.coverImage || null);
 
@@ -98,9 +158,28 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           emotion: targetProject.writingStyle.emotion || '',
           tone: targetProject.writingStyle.tone || '',
         });
+      } else {
+        setStyleData({
+          style: '',
+          perspective: '',
+          formality: '',
+          rhythm: '',
+          metaphor: '',
+          dialogue: '',
+          emotion: '',
+          tone: '',
+        });
       }
     }
   }, [isOpen, targetProject]);
+
+  const computeFinalValue = (selected: string, custom: string) => {
+    if (!selected) return undefined;
+    if (selected === 'その他') {
+      return custom.trim() || undefined;
+    }
+    return selected;
+  };
 
   const handleSave = async () => {
     if (!targetProject) return;
@@ -109,11 +188,44 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
       return;
     }
 
+    if (!formData.mainGenre) {
+      showError('メインジャンルを選択してください');
+      return;
+    }
+    if (formData.mainGenre === 'その他' && !formData.customMainGenre.trim()) {
+      showError('メインジャンルのカスタム値を入力してください');
+      return;
+    }
+    const finalMainGenre = computeFinalValue(formData.mainGenre, formData.customMainGenre);
+    const finalSubGenre = computeFinalValue(formData.subGenre, formData.customSubGenre);
+    const finalTargetReader = computeFinalValue(formData.targetReader, formData.customTargetReader);
+    const finalProjectTheme = computeFinalValue(formData.projectTheme, formData.customTheme);
+
     try {
+      const sanitizedStyleData = Object.entries(styleData).reduce((acc, [key, value]) => {
+        if (value && value.trim()) {
+          acc[key as keyof typeof styleData] = value;
+        }
+        return acc;
+      }, {} as typeof styleData);
+
+      const finalWritingStyle = Object.keys(sanitizedStyleData).length > 0 ? sanitizedStyleData : undefined;
+
       const updatedProject = {
         ...targetProject,
-        ...formData,
-        writingStyle: styleData,
+        title: formData.title.trim(),
+        description: formData.description,
+        coverImage: formData.coverImage,
+        genre: finalMainGenre || targetProject.genre || '',
+        mainGenre: finalMainGenre,
+        subGenre: finalSubGenre,
+        targetReader: finalTargetReader,
+        projectTheme: finalProjectTheme,
+        customMainGenre: formData.mainGenre === 'その他' ? formData.customMainGenre.trim() : '',
+        customSubGenre: formData.subGenre === 'その他' ? formData.customSubGenre.trim() : '',
+        customTargetReader: formData.targetReader === 'その他' ? formData.customTargetReader.trim() : '',
+        customTheme: formData.projectTheme === 'その他' ? formData.customTheme.trim() : '',
+        writingStyle: finalWritingStyle,
         updatedAt: new Date(),
       };
 
@@ -220,27 +332,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 <input
                   type="text"
                   value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
                   placeholder="例: 魔法使いの弟子"
                 />
-              </div>
-
-              {/* ジャンル */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                  ジャンル
-                </label>
-                <select
-                  value={formData.genre}
-                  onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
-                >
-                  <option value="">選択してください</option>
-                  {GENRES.map(genre => (
-                    <option key={genre} value={genre}>{genre}</option>
-                  ))}
-                </select>
               </div>
 
               {/* 概要 */}
@@ -250,11 +345,184 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 </label>
                 <textarea
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   rows={4}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
                   placeholder="物語の簡単なあらすじやアイデアを入力してください"
                 />
+              </div>
+
+              {/* メインジャンル */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+                  メインジャンル <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {GENRES.map((genreOption) => (
+                    <button
+                      key={genreOption}
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => {
+                          if (prev.mainGenre === genreOption) {
+                            return prev;
+                          }
+                          return {
+                            ...prev,
+                            mainGenre: genreOption,
+                            customMainGenre: '',
+                          };
+                        });
+                      }}
+                      className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.mainGenre === genreOption
+                          ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/50'
+                        }`}
+                    >
+                      {genreOption}
+                    </button>
+                  ))}
+                </div>
+                {formData.mainGenre === 'その他' && (
+                  <div className="mt-3">
+                    <input
+                      type="text"
+                      value={formData.customMainGenre}
+                      onChange={(e) => setFormData(prev => ({ ...prev, customMainGenre: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
+                      placeholder="カスタムジャンルを入力してください"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* サブジャンル */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+                  サブジャンル <span className="text-gray-500">（任意）</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {GENRES.map((genreOption) => (
+                    <button
+                      key={genreOption}
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => {
+                          const isSame = prev.subGenre === genreOption;
+                          const shouldClearCustom = genreOption !== 'その他' || isSame;
+                          return {
+                            ...prev,
+                            subGenre: isSame ? '' : genreOption,
+                            customSubGenre: shouldClearCustom ? '' : prev.customSubGenre,
+                          };
+                        });
+                      }}
+                      className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.subGenre === genreOption
+                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/50'
+                        }`}
+                    >
+                      {genreOption}
+                    </button>
+                  ))}
+                </div>
+                {formData.subGenre === 'その他' && (
+                  <div className="mt-3">
+                    <input
+                      type="text"
+                      value={formData.customSubGenre}
+                      onChange={(e) => setFormData(prev => ({ ...prev, customSubGenre: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP']"
+                      placeholder="カスタムサブジャンルを入力してください"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ターゲット読者 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+                  ターゲット読者
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {TARGET_READERS.map((targetOption) => (
+                    <button
+                      key={targetOption}
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => {
+                          const isSame = prev.targetReader === targetOption;
+                          const shouldClearCustom = targetOption !== 'その他' || isSame;
+                          return {
+                            ...prev,
+                            targetReader: isSame ? '' : targetOption,
+                            customTargetReader: shouldClearCustom ? '' : prev.customTargetReader,
+                          };
+                        });
+                      }}
+                      className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.targetReader === targetOption
+                          ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/50'
+                        }`}
+                    >
+                      {targetOption}
+                    </button>
+                  ))}
+                </div>
+                {formData.targetReader === 'その他' && (
+                  <div className="mt-3">
+                    <input
+                      type="text"
+                      value={formData.customTargetReader}
+                      onChange={(e) => setFormData(prev => ({ ...prev, customTargetReader: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP']"
+                      placeholder="カスタムターゲット読者を入力してください"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* テーマ */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+                  テーマ
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {THEMES.map((themeOption) => (
+                    <button
+                      key={themeOption}
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => {
+                          const isSame = prev.projectTheme === themeOption;
+                          const shouldClearCustom = themeOption !== 'その他' || isSame;
+                          return {
+                            ...prev,
+                            projectTheme: isSame ? '' : themeOption,
+                            customTheme: shouldClearCustom ? '' : prev.customTheme,
+                          };
+                        });
+                      }}
+                      className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.projectTheme === themeOption
+                          ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/50'
+                        }`}
+                    >
+                      {themeOption}
+                    </button>
+                  ))}
+                </div>
+                {formData.projectTheme === 'その他' && (
+                  <div className="mt-3">
+                    <input
+                      type="text"
+                      value={formData.customTheme}
+                      onChange={(e) => setFormData(prev => ({ ...prev, customTheme: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP']"
+                      placeholder="カスタムテーマを入力してください"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* 表紙画像 */}
@@ -271,27 +539,27 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     className="hidden"
                   />
                   {previewUrl ? (
-                    <div className="relative group">
+                    <div className="w-full space-y-4">
                       <OptimizedImage
                         src={previewUrl}
                         alt="Cover preview"
-                        className="h-48 w-auto object-cover rounded-lg shadow-md"
+                        className="h-48 w-auto object-cover rounded-lg shadow-md mx-auto"
                       />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center space-x-2">
+                      <div className="flex flex-wrap justify-center gap-3">
                         <button
                           type="button"
                           onClick={handleSelectFile}
-                          className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors text-sm font-['Noto_Sans_JP']"
+                          className="flex items-center gap-1 px-4 py-2 rounded-full bg-white shadow-md text-blue-600 border border-blue-200 hover:bg-blue-50 font-['Noto_Sans_JP'] text-sm transition-colors"
                         >
-                          <Upload className="h-4 w-4 inline mr-1" />
+                          <Upload className="h-4 w-4" />
                           変更
                         </button>
                         <button
                           type="button"
                           onClick={handleClearFile}
-                          className="px-3 py-1 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors text-sm font-['Noto_Sans_JP']"
+                          className="flex items-center gap-1 px-4 py-2 rounded-full bg-white shadow-md text-red-600 border border-red-200 hover:bg-red-50 font-['Noto_Sans_JP'] text-sm transition-colors"
                         >
-                          <X className="h-4 w-4 inline mr-1" />
+                          <X className="h-4 w-4" />
                           削除
                         </button>
                       </div>
