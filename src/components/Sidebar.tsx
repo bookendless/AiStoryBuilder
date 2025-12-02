@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, BookOpen, FileText, List, PenTool, Download, Check, Layers, ChevronLeft, ChevronRight, ArrowRight, Sparkles } from 'lucide-react';
+import { Users, BookOpen, FileText, List, PenTool, Download, Check, Layers, ChevronLeft, ChevronRight, ArrowRight, Sparkles, Search } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 
@@ -20,8 +20,8 @@ const StepButton = React.memo<StepButtonProps>(({ step, index, isActive, isCompl
     <button
       onClick={onClick}
       className={`w-full flex items-center rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isCollapsed
-          ? 'justify-center px-2 py-3'
-          : 'space-x-3 px-4 py-3 text-left'
+        ? 'justify-center px-2 py-3'
+        : 'space-x-3 px-4 py-3 text-left'
         } ${isActive
           ? `${step.color} text-white shadow-lg shadow-indigo-500/20 transform scale-105 ring-1 ring-white/20`
           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-700/50 hover:backdrop-blur-sm'
@@ -33,10 +33,10 @@ const StepButton = React.memo<StepButtonProps>(({ step, index, isActive, isCompl
       title={isCollapsed ? step.label : undefined}
     >
       <div className={`flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0 ${isActive
-          ? 'bg-white/20'
-          : isCompleted
-            ? 'bg-green-100 dark:bg-green-900'
-            : step.color
+        ? 'bg-white/20'
+        : isCompleted
+          ? 'bg-green-100 dark:bg-green-900'
+          : step.color
         }`}>
         {isCompleted ? (
           <Check className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden="true" />
@@ -103,6 +103,7 @@ const steps = [
   { key: 'synopsis' as Step, label: 'あらすじ', icon: FileText, color: 'bg-gradient-to-r from-indigo-400 to-blue-500' },
   { key: 'chapter' as Step, label: '章立て', icon: List, color: 'bg-gradient-to-r from-blue-400 to-cyan-500' },
   { key: 'draft' as Step, label: '草案', icon: PenTool, color: 'bg-gradient-to-r from-green-400 to-emerald-500' },
+  { key: 'review' as Step, label: '作品評価', icon: Search, color: 'bg-gradient-to-r from-teal-400 to-teal-600' },
   { key: 'export' as Step, label: 'エクスポート', icon: Download, color: 'bg-gradient-to-r from-orange-400 to-amber-500' },
 ];
 

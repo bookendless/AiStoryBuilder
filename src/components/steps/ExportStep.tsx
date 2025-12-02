@@ -20,6 +20,7 @@ export const ExportStep: React.FC = () => {
     relationships: true,
     timeline: true,
     worldSettings: true,
+    foreshadowings: true,
     memo: true,
   });
   
@@ -52,6 +53,7 @@ export const ExportStep: React.FC = () => {
     relationships: 'キャラクター相関図',
     timeline: 'タイムライン',
     worldSettings: '世界観設定',
+    foreshadowings: '伏線トラッカー',
     memo: 'クイックメモ',
   };
   
@@ -434,6 +436,56 @@ export const ExportStep: React.FC = () => {
       });
     }
     
+    if (exportOptions.foreshadowings && currentProject.foreshadowings && currentProject.foreshadowings.length > 0) {
+      const statusLabels: Record<string, string> = { planted: '設置済み', hinted: '進行中', resolved: '回収済み', abandoned: '破棄' };
+      const categoryLabels: Record<string, string> = { character: 'キャラクター', plot: 'プロット', world: '世界観', mystery: 'ミステリー', relationship: '人間関係', other: 'その他' };
+      const importanceLabels: Record<string, string> = { high: '★★★高', medium: '★★☆中', low: '★☆☆低' };
+      const pointTypeLabels: Record<string, string> = { plant: '📍設置', hint: '💡ヒント', payoff: '🎯回収' };
+      
+      content += '伏線トラッカー\n';
+      content += '-'.repeat(20) + '\n';
+      currentProject.foreshadowings.forEach(foreshadowing => {
+        content += `${foreshadowing.title} [${categoryLabels[foreshadowing.category] || foreshadowing.category}]\n`;
+        content += `ステータス: ${statusLabels[foreshadowing.status] || foreshadowing.status}\n`;
+        content += `重要度: ${importanceLabels[foreshadowing.importance] || foreshadowing.importance}\n`;
+        content += `説明: ${foreshadowing.description}\n`;
+        
+        if (foreshadowing.points && foreshadowing.points.length > 0) {
+          content += 'ポイント:\n';
+          foreshadowing.points.forEach(point => {
+            const chapter = currentProject.chapters.find(c => c.id === point.chapterId);
+            const chapterTitle = chapter?.title || '不明な章';
+            content += `  - ${pointTypeLabels[point.type] || point.type}: ${point.description} (${chapterTitle})\n`;
+            if (point.lineReference) content += `    引用: 「${point.lineReference}」\n`;
+          });
+        }
+        
+        if (foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0) {
+          const charNames = foreshadowing.relatedCharacterIds
+            .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .join(', ');
+          content += `関連キャラクター: ${charNames}\n`;
+        }
+        
+        if (foreshadowing.plannedPayoffChapterId) {
+          const chapter = currentProject.chapters.find(c => c.id === foreshadowing.plannedPayoffChapterId);
+          if (chapter) content += `回収予定章: ${chapter.title}\n`;
+          if (foreshadowing.plannedPayoffDescription) content += `回収予定方法: ${foreshadowing.plannedPayoffDescription}\n`;
+        }
+        
+        if (foreshadowing.tags && foreshadowing.tags.length > 0) {
+          content += `タグ: ${foreshadowing.tags.join(', ')}\n`;
+        }
+        if (foreshadowing.notes) content += `メモ: ${foreshadowing.notes}\n`;
+        content += '\n';
+      });
+      
+      // 伏線サマリー
+      const unresolvedCount = currentProject.foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length;
+      const resolvedCount = currentProject.foreshadowings.filter(f => f.status === 'resolved').length;
+      content += `【伏線サマリー】全${currentProject.foreshadowings.length}件 / 回収済み${resolvedCount}件 / 未回収${unresolvedCount}件\n\n`;
+    }
+    
     if (exportOptions.memo) {
       const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
       try {
@@ -602,6 +654,56 @@ export const ExportStep: React.FC = () => {
           content += `**タグ**: ${setting.tags.join(', ')}\n\n`;
         }
       });
+    }
+    
+    if (exportOptions.foreshadowings && currentProject.foreshadowings && currentProject.foreshadowings.length > 0) {
+      const statusLabels: Record<string, string> = { planted: '設置済み', hinted: '進行中', resolved: '回収済み', abandoned: '破棄' };
+      const categoryLabels: Record<string, string> = { character: 'キャラクター', plot: 'プロット', world: '世界観', mystery: 'ミステリー', relationship: '人間関係', other: 'その他' };
+      const importanceLabels: Record<string, string> = { high: '★★★高', medium: '★★☆中', low: '★☆☆低' };
+      const pointTypeLabels: Record<string, string> = { plant: '📍設置', hint: '💡ヒント', payoff: '🎯回収' };
+      
+      content += '## 伏線トラッカー\n\n';
+      currentProject.foreshadowings.forEach(foreshadowing => {
+        content += `### ${foreshadowing.title}\n\n`;
+        content += `**カテゴリ**: ${categoryLabels[foreshadowing.category] || foreshadowing.category}\n\n`;
+        content += `**ステータス**: ${statusLabels[foreshadowing.status] || foreshadowing.status}\n\n`;
+        content += `**重要度**: ${importanceLabels[foreshadowing.importance] || foreshadowing.importance}\n\n`;
+        content += `${foreshadowing.description}\n\n`;
+        
+        if (foreshadowing.points && foreshadowing.points.length > 0) {
+          content += '#### ポイント\n\n';
+          foreshadowing.points.forEach(point => {
+            const chapter = currentProject.chapters.find(c => c.id === point.chapterId);
+            const chapterTitle = chapter?.title || '不明な章';
+            content += `- **${pointTypeLabels[point.type] || point.type}**: ${point.description} (${chapterTitle})\n`;
+            if (point.lineReference) content += `  - 引用: 「${point.lineReference}」\n`;
+          });
+          content += '\n';
+        }
+        
+        if (foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0) {
+          const charNames = foreshadowing.relatedCharacterIds
+            .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .join(', ');
+          content += `**関連キャラクター**: ${charNames}\n\n`;
+        }
+        
+        if (foreshadowing.plannedPayoffChapterId) {
+          const chapter = currentProject.chapters.find(c => c.id === foreshadowing.plannedPayoffChapterId);
+          if (chapter) content += `**回収予定章**: ${chapter.title}\n\n`;
+          if (foreshadowing.plannedPayoffDescription) content += `**回収予定方法**: ${foreshadowing.plannedPayoffDescription}\n\n`;
+        }
+        
+        if (foreshadowing.tags && foreshadowing.tags.length > 0) {
+          content += `**タグ**: ${foreshadowing.tags.join(', ')}\n\n`;
+        }
+        if (foreshadowing.notes) content += `**メモ**: ${foreshadowing.notes}\n\n`;
+      });
+      
+      // 伏線サマリー
+      const unresolvedCount = currentProject.foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length;
+      const resolvedCount = currentProject.foreshadowings.filter(f => f.status === 'resolved').length;
+      content += `> **伏線サマリー**: 全${currentProject.foreshadowings.length}件 / 回収済み${resolvedCount}件 / 未回収${unresolvedCount}件\n\n`;
     }
     
     if (exportOptions.memo) {
@@ -958,6 +1060,95 @@ export const ExportStep: React.FC = () => {
       });
     }
     
+    if (exportOptions.foreshadowings && currentProject.foreshadowings && currentProject.foreshadowings.length > 0) {
+      const statusLabels: Record<string, string> = { planted: '設置済み', hinted: '進行中', resolved: '回収済み', abandoned: '破棄' };
+      const categoryLabels: Record<string, string> = { character: 'キャラクター', plot: 'プロット', world: '世界観', mystery: 'ミステリー', relationship: '人間関係', other: 'その他' };
+      const importanceLabels: Record<string, string> = { high: '★★★高', medium: '★★☆中', low: '★☆☆低' };
+      const pointTypeLabels: Record<string, string> = { plant: '📍設置', hint: '💡ヒント', payoff: '🎯回収' };
+      const statusColors: Record<string, string> = { planted: '#3498db', hinted: '#f39c12', resolved: '#27ae60', abandoned: '#7f8c8d' };
+      
+      content += `
+    <h2>伏線トラッカー</h2>`;
+      currentProject.foreshadowings.forEach(foreshadowing => {
+        content += `
+    <div class="character-card" style="border-left-color: ${statusColors[foreshadowing.status] || '#e74c3c'};">
+        <h3>${foreshadowing.title}</h3>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+            <span style="background-color: ${statusColors[foreshadowing.status] || '#e74c3c'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8em;">
+                ${statusLabels[foreshadowing.status] || foreshadowing.status}
+            </span>
+            <span style="background-color: #ecf0f1; padding: 2px 8px; border-radius: 4px; font-size: 0.8em;">
+                ${categoryLabels[foreshadowing.category] || foreshadowing.category}
+            </span>
+            <span style="font-size: 0.8em; color: ${foreshadowing.importance === 'high' ? '#e74c3c' : foreshadowing.importance === 'medium' ? '#f39c12' : '#7f8c8d'};">
+                ${importanceLabels[foreshadowing.importance] || foreshadowing.importance}
+            </span>
+        </div>
+        <p>${foreshadowing.description}</p>`;
+        
+        if (foreshadowing.points && foreshadowing.points.length > 0) {
+          content += `
+        <h4 style="margin-top: 15px;">ポイント</h4>
+        <ul style="list-style: none; padding-left: 0;">`;
+          foreshadowing.points.forEach(point => {
+            const chapter = currentProject.chapters.find(c => c.id === point.chapterId);
+            const chapterTitle = chapter?.title || '不明な章';
+            content += `
+            <li style="margin-bottom: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                <strong>${pointTypeLabels[point.type] || point.type}</strong>: ${point.description}
+                <span style="color: #7f8c8d; font-size: 0.9em;"> (${chapterTitle})</span>`;
+            if (point.lineReference) {
+              content += `
+                <div style="margin-top: 4px; font-style: italic; color: #7f8c8d;">「${point.lineReference}」</div>`;
+            }
+            content += `
+            </li>`;
+          });
+          content += `
+        </ul>`;
+        }
+        
+        if (foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0) {
+          const charNames = foreshadowing.relatedCharacterIds
+            .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .join(', ');
+          content += `
+        <p><strong>関連キャラクター:</strong> ${charNames}</p>`;
+        }
+        
+        if (foreshadowing.plannedPayoffChapterId) {
+          const chapter = currentProject.chapters.find(c => c.id === foreshadowing.plannedPayoffChapterId);
+          if (chapter) {
+            content += `
+        <p><strong>回収予定章:</strong> ${chapter.title}</p>`;
+          }
+          if (foreshadowing.plannedPayoffDescription) {
+            content += `
+        <p><strong>回収予定方法:</strong> ${foreshadowing.plannedPayoffDescription}</p>`;
+          }
+        }
+        
+        if (foreshadowing.tags && foreshadowing.tags.length > 0) {
+          content += `
+        <p><strong>タグ:</strong> ${foreshadowing.tags.map(t => `<span style="background: #e8e8e8; padding: 2px 6px; border-radius: 3px; margin-right: 4px;">#${t}</span>`).join(' ')}</p>`;
+        }
+        if (foreshadowing.notes) {
+          content += `
+        <p><strong>メモ:</strong> ${foreshadowing.notes}</p>`;
+        }
+        content += `
+    </div>`;
+      });
+      
+      // 伏線サマリー
+      const unresolvedCount = currentProject.foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length;
+      const resolvedCount = currentProject.foreshadowings.filter(f => f.status === 'resolved').length;
+      content += `
+    <div class="metadata" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <p><strong>伏線サマリー:</strong> 全${currentProject.foreshadowings.length}件 / 回収済み${resolvedCount}件 / 未回収${unresolvedCount}件</p>
+    </div>`;
+    }
+    
     if (exportOptions.memo) {
       const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
       try {
@@ -1208,6 +1399,7 @@ export const ExportStep: React.FC = () => {
                   { key: 'relationships', label: '相関図' },
                   { key: 'timeline', label: 'タイムライン' },
                   { key: 'worldSettings', label: '世界観' },
+                  { key: 'foreshadowings', label: '伏線トラッカー' },
                   { key: 'memo', label: 'クイックメモ' },
                 ].map((option) => (
                   <label key={option.key} className="flex items-center space-x-2 cursor-pointer">
@@ -1300,6 +1492,7 @@ export const ExportStep: React.FC = () => {
             { id: 'relationships', label: '相関図' },
             { id: 'timeline', label: 'タイムライン' },
             { id: 'worldSettings', label: '世界観' },
+            { id: 'foreshadowings', label: '伏線トラッカー' },
             { id: 'memo', label: 'クイックメモ' },
           ]
             .filter((section) => exportOptions[section.id as keyof typeof exportOptions] || section.id === 'title')
@@ -1339,6 +1532,7 @@ export const ExportStep: React.FC = () => {
                 {exportOptions.relationships && <li>キャラクター相関図</li>}
                 {exportOptions.timeline && <li>タイムライン</li>}
                 {exportOptions.worldSettings && <li>世界観設定</li>}
+                {exportOptions.foreshadowings && <li>伏線トラッカー（サマリー付き）</li>}
                 {exportOptions.memo && <li>クイックメモ</li>}
                 <li>作成日・更新日のメタデータ</li>
               </ul>

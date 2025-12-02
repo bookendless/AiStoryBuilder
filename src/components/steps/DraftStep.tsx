@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useProject } from '../../contexts/ProjectContext';
+import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { PenTool, Sparkles, BookOpen, FileText, ChevronDown, ChevronUp, AlignLeft, AlignJustify } from 'lucide-react';
 import { diffLines, type Change } from 'diff';
@@ -29,6 +29,7 @@ import { AIStatusBar } from './draft/AIStatusBar';
 import { DraftHeader } from './draft/DraftHeader';
 import { ChapterTabs } from './draft/ChapterTabs';
 import { MainEditor, type MainEditorHandle } from './draft/MainEditor';
+import { ForeshadowingPanel } from './draft/ForeshadowingPanel';
 import { useAILog } from '../common/hooks/useAILog';
 import { AILogPanel } from '../common/AILogPanel';
 import type {
@@ -43,7 +44,6 @@ import type {
 } from './draft/types';
 import {
   downloadTextFileInBrowser,
-  getHistoryStorageKey,
   isTauriEnvironment,
   parseAISuggestions,
   sanitizeFilename,
@@ -89,19 +89,24 @@ export const DraftStep: React.FC = () => {
   const [mainTextareaHeight, setMainTextareaHeight] = useState(MODAL_TEXTAREA_DEFAULT_HEIGHT);
   const [mainFontSize, setMainFontSize] = useState<number>(MODAL_DEFAULT_FONT_SIZE);
   const [mainLineHeight, setMainLineHeight] = useState<number>(MODAL_DEFAULT_LINE_HEIGHT);
-  const [showMainLineNumbers, setShowMainLineNumbers] = useState<boolean>(false);
-  const [isMainFocusMode, setIsMainFocusMode] = useState<boolean>(false);
   const [currentGenerationAction, setCurrentGenerationAction] = useState<GenerationAction | null>(null);
   
   // アコーディオン用の状態
   const [activeSecondaryTab, setActiveSecondaryTab] = useState<SecondaryTab>('ai');
+  
+  // 伏線パネル用の状態
+  const [isForeshadowingPanelCollapsed, setIsForeshadowingPanelCollapsed] = useState(false);
   
   // トースト通知用の状態
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   
   // AIログ管理
-  const { aiLogs, addLog } = useAILog();
+  const { aiLogs, addLog, loadLogs } = useAILog({
+    projectId: currentProject?.id,
+    chapterId: selectedChapter || undefined,
+    autoLoad: true,
+  });
 
   // AIログをコピー（DraftStep特有の形式に対応）
   const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
@@ -176,11 +181,10 @@ ${'='.repeat(80)}`;
   const [showCompletionToast, setShowCompletionToast] = useState<string | null>(null);
 
   const mainEditorRef = useRef<MainEditorHandle | null>(null);
-  const previousMainChapterCollapsedRef = useRef<boolean>(false);
-  const previousMainFocusModeRef = useRef<boolean>(false);
   const historyAutoSaveTimeoutRef = useRef<number | null>(null);
   const lastSnapshotContentRef = useRef<string>('');
   const historyLoadedChaptersRef = useRef<Set<string>>(new Set());
+  const verticalPreviewRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     historyLoadedChaptersRef.current.clear();
@@ -189,24 +193,36 @@ ${'='.repeat(80)}`;
   }, [currentProject?.id]);
 
   const createHistorySnapshot = useCallback(
-    (type: HistoryEntryType, options?: { content?: string; label?: string; force?: boolean }) => {
+    async (type: HistoryEntryType, options?: { content?: string; label?: string; force?: boolean }) => {
       if (!currentProject || !selectedChapter) return false;
       const content = options?.content ?? draft;
       const normalizedContent = content ?? '';
-      const storageKey = getHistoryStorageKey(currentProject.id, selectedChapter);
 
       let entryWasAdded = false;
-      const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const label = options?.label || HISTORY_TYPE_LABELS[type] || '履歴';
 
-      setChapterHistories(prev => {
-        const previousEntries = prev[selectedChapter] || [];
-        if (!options?.force && previousEntries[0]?.content === normalizedContent) {
-          return prev;
-        }
+      // 既存の履歴を確認（重複チェック）
+      const previousEntries = chapterHistories[selectedChapter] || [];
+      if (!options?.force && previousEntries[0]?.content === normalizedContent) {
+        return false;
+      }
+
+      try {
+        // IndexedDBに保存
+        const entryId = await databaseService.saveHistoryEntry(
+          currentProject.id,
+          selectedChapter,
+          {
+            content: normalizedContent,
+            type,
+            label,
+          }
+        );
 
         entryWasAdded = true;
+        lastSnapshotContentRef.current = normalizedContent;
 
+        // 状態を更新
         const newEntry: ChapterHistoryEntry = {
           id: entryId,
           timestamp: Date.now(),
@@ -215,35 +231,29 @@ ${'='.repeat(80)}`;
           label,
         };
 
-        const updatedEntries = [newEntry, ...previousEntries].slice(0, HISTORY_MAX_ENTRIES);
+        setChapterHistories(prev => {
+          const updatedEntries = [newEntry, ...previousEntries].slice(0, HISTORY_MAX_ENTRIES);
+          return {
+            ...prev,
+            [selectedChapter]: updatedEntries,
+          };
+        });
 
-        if (typeof window !== 'undefined') {
-          try {
-            window.localStorage.setItem(storageKey, JSON.stringify(updatedEntries));
-          } catch (error) {
-            console.warn('章履歴の保存に失敗しました:', error);
-          }
+        if (entryWasAdded) {
+          setSelectedHistoryEntryId(entryId);
         }
-
-        lastSnapshotContentRef.current = normalizedContent;
-
-        return {
-          ...prev,
-          [selectedChapter]: updatedEntries,
-        };
-      });
-
-      if (entryWasAdded) {
-        setSelectedHistoryEntryId(entryId);
+      } catch (error) {
+        console.error('章履歴の保存に失敗しました:', error);
+        return false;
       }
 
       return entryWasAdded;
     },
-    [currentProject, selectedChapter, draft]
+    [currentProject, selectedChapter, draft, chapterHistories]
   );
 
-  const handleManualHistorySnapshot = useCallback(() => {
-    createHistorySnapshot('manual', { force: true, label: '手動保存' });
+  const handleManualHistorySnapshot = useCallback(async () => {
+    await createHistorySnapshot('manual', { force: true, label: '手動保存' });
   }, [createHistorySnapshot]);
 
   const getCurrentSelection = useCallback(() => {
@@ -365,18 +375,6 @@ useEffect(() => {
   }
 }, [draft, isModalOpen]);
 
-  useEffect(() => {
-    const wasFocus = previousMainFocusModeRef.current;
-
-    if (isMainFocusMode && !wasFocus) {
-      previousMainChapterCollapsedRef.current = isChapterInfoCollapsed;
-      setIsChapterInfoCollapsed(true);
-    } else if (!isMainFocusMode && wasFocus) {
-      setIsChapterInfoCollapsed(previousMainChapterCollapsedRef.current);
-    }
-
-    previousMainFocusModeRef.current = isMainFocusMode;
-  }, [isMainFocusMode, isChapterInfoCollapsed]);
 
   useEffect(() => {
     if (!currentProject || !selectedChapter) {
@@ -384,34 +382,41 @@ useEffect(() => {
     }
 
     if (historyLoadedChaptersRef.current.has(selectedChapter)) return;
-    if (typeof window === 'undefined') return;
 
-    const storageKey = getHistoryStorageKey(currentProject.id, selectedChapter);
-    let parsedEntries: ChapterHistoryEntry[] = [];
+    // IndexedDBから履歴を読み込む
+    const loadHistory = async () => {
+      try {
+        const entries = await databaseService.getHistoryEntries(
+          currentProject.id,
+          selectedChapter
+        );
 
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (stored) {
-        parsedEntries = JSON.parse(stored) as ChapterHistoryEntry[];
+        setChapterHistories(prev => ({
+          ...prev,
+          [selectedChapter]: entries,
+        }));
+
+        if (entries[0]) {
+          lastSnapshotContentRef.current = entries[0].content;
+        } else {
+          const fallbackContent =
+            currentProject.chapters.find(chapter => chapter.id === selectedChapter)?.draft || '';
+          lastSnapshotContentRef.current = fallbackContent;
+        }
+
+        historyLoadedChaptersRef.current.add(selectedChapter);
+      } catch (error) {
+        console.error('章履歴の読み込みに失敗しました:', error);
+        // エラー時は空配列を設定
+        setChapterHistories(prev => ({
+          ...prev,
+          [selectedChapter]: [],
+        }));
+        historyLoadedChaptersRef.current.add(selectedChapter);
       }
-    } catch (error) {
-      console.warn('章履歴の読み込みに失敗しました:', error);
-    }
+    };
 
-    setChapterHistories(prev => ({
-      ...prev,
-      [selectedChapter]: parsedEntries,
-    }));
-
-    if (parsedEntries[0]) {
-      lastSnapshotContentRef.current = parsedEntries[0].content;
-    } else {
-      const fallbackContent =
-        currentProject.chapters.find(chapter => chapter.id === selectedChapter)?.draft || '';
-      lastSnapshotContentRef.current = fallbackContent;
-    }
-
-    historyLoadedChaptersRef.current.add(selectedChapter);
+    loadHistory();
   }, [currentProject, selectedChapter]);
 
   useEffect(() => {
@@ -449,6 +454,8 @@ useEffect(() => {
           content: baseContent,
           label: '初期状態',
           force: true,
+        }).catch(error => {
+          console.error('初期状態の履歴保存エラー:', error);
         });
       }
     }
@@ -465,7 +472,9 @@ useEffect(() => {
     if (draft === lastSnapshotContentRef.current) return;
 
     historyAutoSaveTimeoutRef.current = window.setTimeout(() => {
-      createHistorySnapshot('auto');
+      createHistorySnapshot('auto').catch(error => {
+        console.error('自動履歴保存エラー:', error);
+      });
       historyAutoSaveTimeoutRef.current = null;
     }, HISTORY_AUTO_SAVE_DELAY);
 
@@ -548,13 +557,9 @@ useEffect(() => {
     handleNavigateChapter('next');
   }, [handleNavigateChapter]);
 
-  const mainControlButtonBase = isMainFocusMode
-    ? 'rounded-md border border-emerald-500/40 bg-gray-900/80 text-emerald-200 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-    : 'rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const mainControlButtonBase = 'rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
-  const mainControlButtonActive = isMainFocusMode
-    ? 'bg-emerald-500/30 border-emerald-400 text-emerald-100'
-    : 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-700';
+  const mainControlButtonActive = 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-700';
 
   const adjustMainTextareaHeight = useCallback((delta: number) => {
     setMainTextareaHeight(prev => {
@@ -618,8 +623,6 @@ useEffect(() => {
     setMainFontSize(MODAL_DEFAULT_FONT_SIZE);
     setMainLineHeight(MODAL_DEFAULT_LINE_HEIGHT);
     setMainTextareaHeight(MODAL_TEXTAREA_DEFAULT_HEIGHT);
-    setShowMainLineNumbers(false);
-    setIsMainFocusMode(false);
   }, []);
 
   const handleClearSuggestionState = useCallback(() => {
@@ -692,6 +695,7 @@ useEffect(() => {
         setSelectedHistoryEntryId={setSelectedHistoryEntryId}
         onManualSnapshot={handleManualHistorySnapshot}
         onRestoreHistoryEntry={handleRestoreHistoryEntry}
+        onDeleteHistoryEntry={handleDeleteHistoryEntry}
         hasHistoryDiff={hasHistoryDiff}
         historyDiffSegments={historyDiffSegments}
       />
@@ -887,10 +891,6 @@ useEffect(() => {
             setMainLineHeight={setMainLineHeight}
             mainTextareaHeight={mainTextareaHeight}
             adjustMainTextareaHeight={adjustMainTextareaHeight}
-            showMainLineNumbers={showMainLineNumbers}
-            setShowMainLineNumbers={setShowMainLineNumbers}
-            isMainFocusMode={isMainFocusMode}
-            setIsMainFocusMode={setIsMainFocusMode}
             handleResetDisplaySettings={handleResetDisplaySettings}
             mainControlButtonBase={mainControlButtonBase}
             mainControlButtonActive={mainControlButtonActive}
@@ -1219,7 +1219,7 @@ useEffect(() => {
 
     if (selectedHistoryEntry.content === draft) return;
 
-    createHistorySnapshot('restore', {
+    await createHistorySnapshot('restore', {
       content: draft,
       label: '復元前スナップショット',
       force: true,
@@ -1244,8 +1244,38 @@ useEffect(() => {
     }, 0);
   }, [createHistorySnapshot, draft, handleSaveChapterDraft, selectedChapter, selectedHistoryEntry]);
 
+  const handleDeleteHistoryEntry = useCallback(async (entryId: string) => {
+    if (!currentProject || !selectedChapter) return;
+
+    try {
+      // IndexedDBから削除
+      await databaseService.deleteHistoryEntry(entryId);
+
+      // 状態を更新
+      setChapterHistories(prev => {
+        const entries = prev[selectedChapter] || [];
+        const updatedEntries = entries.filter(e => e.id !== entryId);
+        
+        // 削除されたエントリが選択されていた場合、選択を解除
+        if (selectedHistoryEntryId === entryId) {
+          setSelectedHistoryEntryId(null);
+        }
+
+        return {
+          ...prev,
+          [selectedChapter]: updatedEntries,
+        };
+      });
+
+      setToastMessage('履歴を削除しました');
+    } catch (error) {
+      console.error('履歴の削除エラー:', error);
+      setToastMessage('履歴の削除に失敗しました');
+    }
+  }, [currentProject, selectedChapter, selectedHistoryEntryId, setToastMessage]);
+
   const applyAISuggestion = useCallback(
-    (suggestion: AISuggestion) => {
+    async (suggestion: AISuggestion) => {
       if (!selectedChapter) return;
 
       const textarea = mainEditorRef.current?.getTextareaRef();
@@ -1257,7 +1287,7 @@ useEffect(() => {
       const after = draft.slice(selectionEnd);
       const newContent = `${before}${replacement}${after}`;
 
-      createHistorySnapshot('restore', {
+      await createHistorySnapshot('restore', {
         content: draft,
         label: `${SUGGESTION_CONFIG[activeSuggestionType].label}適用前`,
         force: true,
@@ -1271,7 +1301,7 @@ useEffect(() => {
 
       void handleSaveChapterDraft(selectedChapter, newContent);
 
-      createHistorySnapshot('manual', {
+      await createHistorySnapshot('manual', {
         content: newContent,
         label: `${SUGGESTION_CONFIG[activeSuggestionType].label}適用`,
         force: true,
@@ -1317,9 +1347,14 @@ useEffect(() => {
     }
 
     // キャラクター情報の取得を修正
-    // chapter.charactersは文字列配列（キャラクター名）として保存されている
+    // chapter.charactersは文字列配列（キャラクター名またはキャラクターID）として保存されている
+    // キャラクターIDの場合はキャラクター名に変換する
     const characters = chapter.characters && chapter.characters.length > 0
-      ? chapter.characters.join(', ')
+      ? chapter.characters.map(charIdOrName => {
+          // キャラクターIDかどうかを判定（IDは通常UUIDやタイムスタンプベースの文字列）
+          const character = currentProject.characters.find(c => c.id === charIdOrName);
+          return character ? character.name : charIdOrName;
+        }).join(', ')
       : '未設定';
 
     const setting = chapter.setting || '未設定';
@@ -1495,9 +1530,28 @@ useEffect(() => {
       const chapterDetails = getChapterDetails(currentChapter);
       
       // プロジェクトのキャラクター情報を整理
-      const projectCharacters = currentProject.characters.map((char: { name: string; bio?: string; description?: string }) => 
-        `${char.name}: ${char.bio || char.description || '説明なし'}`
-      ).join('\n');
+      const projectCharacters = currentProject.characters.map((char: Character) => {
+        let charInfo = `${char.name}`;
+        if (char.role) {
+          charInfo += ` (${char.role})`;
+        }
+        if (char.personality) {
+          charInfo += `\n  性格: ${char.personality}`;
+        }
+        if (char.background) {
+          charInfo += `\n  背景: ${char.background}`;
+        }
+        // 口調設定は簡潔に、かつ安全な表現のみを含める
+        if (char.speechStyle) {
+          // 口調設定を簡潔に（最大100文字）
+          const speechStyle = char.speechStyle.trim();
+          const truncatedSpeechStyle = speechStyle.length > 100 
+            ? speechStyle.substring(0, 100) + '...' 
+            : speechStyle;
+          charInfo += `\n  口調: ${truncatedSpeechStyle}`;
+        }
+        return charInfo;
+      }).join('\n\n');
 
       // 前章までのあらすじを取得
       const currentChapterIndex = currentProject.chapters.findIndex((c) => c.id === currentChapter.id);
@@ -1569,9 +1623,28 @@ useEffect(() => {
     setIsGenerating(true);
     try {
       // プロジェクトのキャラクター情報を整理
-      const projectCharacters = currentProject.characters.map((char: { name: string; bio?: string; description?: string }) => 
-        `${char.name}: ${char.bio || char.description || '説明なし'}`
-      ).join('\n');
+      const projectCharacters = currentProject.characters.map((char: Character) => {
+        let charInfo = `${char.name}`;
+        if (char.role) {
+          charInfo += ` (${char.role})`;
+        }
+        if (char.personality) {
+          charInfo += `\n  性格: ${char.personality}`;
+        }
+        if (char.background) {
+          charInfo += `\n  背景: ${char.background}`;
+        }
+        // 口調設定は簡潔に、かつ安全な表現のみを含める
+        if (char.speechStyle) {
+          // 口調設定を簡潔に（最大100文字）
+          const speechStyle = char.speechStyle.trim();
+          const truncatedSpeechStyle = speechStyle.length > 100 
+            ? speechStyle.substring(0, 100) + '...' 
+            : speechStyle;
+          charInfo += `\n  口調: ${truncatedSpeechStyle}`;
+        }
+        return charInfo;
+      }).join('\n\n');
 
       // 設定情報の取得
       const contextInfo = getProjectContextInfo();
@@ -2125,6 +2198,30 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
     }
   }, [isModalOpen]);
 
+  // 縦書きプレビューのホイールイベント処理（非passiveリスナー）
+  useEffect(() => {
+    const element = verticalPreviewRef.current;
+    if (!element || !isModalOpen || !isVerticalWriting) {
+      return;
+    }
+
+    const handleWheel = (e: WheelEvent) => {
+      // マウスホイールの回転（deltaY）を横スクロール（scrollLeft）に変換
+      // 通常のマウス：下に回す（deltaY > 0）→ 左へスクロール（文章が進む）
+      // 縦書き（vertical-rl）の仕様上、スクロール位置は負の値になるブラウザが多い
+      // 左へスクロール = scrollLeft を減らす（マイナス方向へ進む）
+      element.scrollLeft -= e.deltaY;
+      e.preventDefault();
+    };
+
+    // 非passiveイベントリスナーとして登録
+    element.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      element.removeEventListener('wheel', handleWheel);
+    };
+  }, [isModalOpen, isVerticalWriting]);
+
   // 章全体改善（描写強化＋文体調整の組み合わせ）
   const handleChapterImprovement = async () => {
     if (!selectedChapter || !draft.trim()) return;
@@ -2201,37 +2298,128 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       }
 
       // フェーズ2：改訂フェーズ（改善実行と統合）
-      const revisionPrompt = `フェーズ1で指摘された弱点を克服するために、以下の文章を書き直してください。
+      // プロンプトの長さを制限するため、元の文章を適切な長さに切り詰める
+      const maxDraftLength = 4000; // プロンプトの長さをさらに制限
+      const truncatedDraft = draft.length > maxDraftLength 
+        ? draft.substring(0, maxDraftLength) + '\n\n[以下省略]' 
+        : draft;
+      
+      // 評価結果から重要なポイントを抽出（JSON形式から要約を抽出）
+      let critiqueResult = '';
+      let critiqueSummary = '';
+      let weaknesses: Array<{ aspect: string; score: number; problem: string; solutions: string[] }> = [];
+      
+      try {
+        // JSON形式の評価結果を抽出（コードブロックがあれば除去）
+        let jsonContent = critiqueResponse.content.trim();
+        
+        // コードブロックを除去
+        if (jsonContent.startsWith('```')) {
+          const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (jsonMatch && jsonMatch[1]) {
+            jsonContent = jsonMatch[1].trim();
+          } else {
+            // コードブロックが見つからない場合は、全体を使用
+            jsonContent = jsonContent.replace(/```json\s*|\s*```/g, '').trim();
+          }
+        }
+        
+        // JSONオブジェクトを抽出（複数行に対応、最も長いマッチを選択）
+        const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
+        let jsonString = '';
+        
+        if (jsonMatches && jsonMatches.length > 0) {
+          // 最も長いマッチを選択（完全なJSONの可能性が高い）
+          jsonString = jsonMatches.reduce((a, b) => a.length > b.length ? a : b);
+        } else {
+          // マッチが見つからない場合は、全体を試行
+          jsonString = jsonContent;
+        }
+        
+        // JSON文字列のクリーニング
+        jsonString = jsonString
+          .replace(/^[\s\n\r]*/, '')
+          .replace(/[\s\n\r]*$/, '');
+        
+        if (jsonString && jsonString.startsWith('{')) {
+          const critiqueData = JSON.parse(jsonString);
+          
+          // summaryを取得
+          if (critiqueData.summary) {
+            critiqueSummary = critiqueData.summary;
+          }
+          
+          // weaknessesを取得
+          if (critiqueData.weaknesses && Array.isArray(critiqueData.weaknesses)) {
+            weaknesses = critiqueData.weaknesses.filter((w: any) => w && w.aspect && w.problem);
+            
+            // 7点以下の弱点を優先的に抽出
+            const lowScoreWeaknesses = weaknesses
+              .filter((w: any) => w.score !== undefined && w.score <= 7)
+              .slice(0, 5); // 最大5つまで
+            
+            // 弱点の要約を作成
+            if (lowScoreWeaknesses.length > 0) {
+              const weaknessTexts = lowScoreWeaknesses.map((w: any) => {
+                const solutions = w.solutions && Array.isArray(w.solutions) 
+                  ? w.solutions.slice(0, 2).join('、') 
+                  : '';
+                return `【${w.aspect}】（スコア: ${w.score}/10）\n問題: ${w.problem}\n改善策: ${solutions}`;
+              });
+              critiqueSummary = weaknessTexts.join('\n\n') + (critiqueData.summary ? `\n\n総評: ${critiqueData.summary}` : '');
+            } else if (weaknesses.length > 0) {
+              // スコアが不明な場合は最初の3つを使用
+              const weaknessTexts = weaknesses.slice(0, 3).map((w: any) => {
+                const solutions = w.solutions && Array.isArray(w.solutions) 
+                  ? w.solutions.slice(0, 2).join('、') 
+                  : '';
+                return `【${w.aspect}】\n問題: ${w.problem}\n改善策: ${solutions}`;
+              });
+              critiqueSummary = weaknessTexts.join('\n\n') + (critiqueData.summary ? `\n\n総評: ${critiqueData.summary}` : '');
+            }
+          }
+          
+          // 完全な評価結果を保持（reviseプロンプトで使用）
+          critiqueResult = JSON.stringify(critiqueData, null, 2);
+        } else {
+          // JSONが見つからない場合は、テキスト全体を使用
+          critiqueResult = critiqueResponse.content;
+          critiqueSummary = critiqueResponse.content.substring(0, 1000);
+        }
+      } catch (e) {
+        // JSON解析に失敗した場合は、評価結果をそのまま使用
+        console.warn('Critique JSON解析エラー:', e);
+        critiqueResult = critiqueResponse.content;
+        
+        // テキストから重要な部分を抽出
+        const lines = critiqueResponse.content.split('\n').filter(line => line.trim());
+        const importantLines = lines.filter(line => 
+          line.includes('問題') || 
+          line.includes('改善') || 
+          line.includes('弱点') || 
+          line.includes('評価') ||
+          line.includes('スコア')
+        );
+        critiqueSummary = importantLines.length > 0 
+          ? importantLines.slice(0, 10).join('\n')
+          : lines.slice(0, 10).join('\n');
+      }
+      
+      // 要約が長すぎる場合は切り詰める
+      const maxSummaryLength = 1500;
+      if (critiqueSummary.length > maxSummaryLength) {
+        critiqueSummary = critiqueSummary.substring(0, maxSummaryLength) + '...';
+      }
 
-【章情報】
-作品タイトル: ${currentProject?.title || '未設定'}
-章タイトル: ${currentChapter?.title || '未設定'}
-章の概要: ${currentChapter?.summary || '未設定'}
-
-【元の文章】
-${draft}
-
-【フェーズ1での評価結果】
-${critiqueResponse.content}
-
-【改訂指示】
-1. フェーズ1で指摘されたすべての弱点を克服してください
-2. 特に7点以下の評価項目については、改善策を必ず適用してください
-3. 現在の文字数（${draft.length}文字）を維持または3,000-4,000文字程度に調整してください
-4. 重要な内容は保持しつつ、表現を改善してください
-5. 適度な改行と段落分けを行ってください（改行は通常の改行文字\\nで表現）
-
-【出力形式】
-以下のJSON形式で出力してください（余計な文章は書かないこと）:
-{
-  "revisedText": "改訂後の文章全文",
-  "improvementSummary": "適用した改善戦略の要約（200文字程度）",
-  "changes": [
-    "主な変更点1",
-    "主な変更点2",
-    "主な変更点3"
-  ]
-}`;
+      // reviseプロンプトを構築（aiService.buildPromptを使用）
+      const revisionPrompt = aiService.buildPrompt('draft', 'revise', {
+        projectTitle: currentProject?.title || '未設定',
+        chapterTitle: currentChapter?.title || '未設定',
+        chapterSummary: currentChapter?.summary || '未設定',
+        currentText: truncatedDraft,
+        critiqueResult: critiqueResult,
+        currentLength: draft.length.toString(),
+      });
 
       const revisionResponse = await aiService.generateContent({
         prompt: revisionPrompt,
@@ -2243,7 +2431,7 @@ ${critiqueResponse.content}
         throw new Error('改訂フェーズの応答が取得できませんでした');
       }
 
-      // JSON形式の応答をパース
+      // JSON形式の応答をパース（より堅牢な解析）
       let revisedText = '';
       let improvementSummary = '';
       let phase2Changes: string[] = [];
@@ -2251,6 +2439,8 @@ ${critiqueResponse.content}
       try {
         // JSON形式の応答を抽出（コードブロックがあれば除去）
         let jsonContent = revisionResponse.content.trim();
+        
+        // コードブロックを除去
         if (jsonContent.startsWith('```')) {
           const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
           if (jsonMatch) {
@@ -2258,14 +2448,133 @@ ${critiqueResponse.content}
           }
         }
         
-        const parsed = JSON.parse(jsonContent);
-        revisedText = parsed.revisedText || parsed.revised_text || revisionResponse.content;
-        improvementSummary = parsed.improvementSummary || parsed.improvement_summary || '';
-        phase2Changes = parsed.changes || [];
+        // JSONオブジェクトを抽出（複数行に対応、最も長いマッチを選択）
+        const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
+        let jsonString = '';
+        
+        if (jsonMatches && jsonMatches.length > 0) {
+          // 最も長いマッチを選択（完全なJSONの可能性が高い）
+          jsonString = jsonMatches.reduce((a, b) => a.length > b.length ? a : b);
+        } else {
+          // マッチが見つからない場合は、全体を試行
+          jsonString = jsonContent;
+        }
+        
+        // JSON文字列のクリーニング
+        jsonString = jsonString
+          .replace(/^[\s\n\r]*/, '')
+          .replace(/[\s\n\r]*$/, '');
+        
+        if (jsonString && jsonString.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(jsonString);
+            revisedText = parsed.revisedText || parsed.revised_text || '';
+            improvementSummary = parsed.improvementSummary || parsed.improvement_summary || '';
+            phase2Changes = parsed.changes || [];
+          } catch (parseError) {
+            console.warn('JSON解析エラー（抽出した文字列）:', parseError);
+            throw new Error('JSON形式が見つかりましたが、解析に失敗しました');
+          }
+        } else {
+          throw new Error('JSON形式が見つかりません');
+        }
+        
+        // revisedTextが空の場合は、テキストから文章を抽出
+        if (!revisedText || revisedText.trim().length < 100) {
+          // 応答から文章らしい部分を抽出
+          const textPatterns = [
+            /"revisedText"\s*:\s*"([^"]+)"/,  // JSON内の文字列
+            /"revisedText"\s*:\s*"([^"]*\\"[^"]*)*"/,  // エスケープされた文字列
+            /改訂後の文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,  // テキスト形式
+            /改善された文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,  // テキスト形式
+          ];
+          
+          for (const pattern of textPatterns) {
+            const match = revisionResponse.content.match(pattern);
+            if (match && match[1] && match[1].trim().length > 100) {
+              revisedText = match[1].trim().replace(/\\n/g, '\n').replace(/\\"/g, '"');
+              break;
+            }
+          }
+          
+          // それでも見つからない場合は、応答全体から文章部分を抽出
+          if (!revisedText || revisedText.trim().length < 100) {
+            // JSON以外の部分から文章を抽出
+            const lines = revisionResponse.content.split('\n');
+            const textLines: string[] = [];
+            let inTextBlock = false;
+            
+            for (const line of lines) {
+              const trimmed = line.trim();
+              // JSONのキーや構造的な部分をスキップ
+              if (trimmed.startsWith('{') || trimmed.startsWith('}') || 
+                  trimmed.startsWith('"') && trimmed.includes(':') && !trimmed.includes('、') && !trimmed.includes('。')) {
+                continue;
+              }
+              // 文章らしい行を抽出
+              if (trimmed.length > 20 && !trimmed.startsWith('//') && !trimmed.match(/^[\s\w":,\[\]{}]+$/)) {
+                textLines.push(line);
+                inTextBlock = true;
+              } else if (inTextBlock && trimmed.length > 0) {
+                textLines.push(line);
+              }
+            }
+            
+            if (textLines.length > 0) {
+              revisedText = textLines.join('\n').trim();
+            }
+          }
+        }
+        
+        // 最終的にrevisedTextが空の場合は、元の応答を使用（ただし警告を出す）
+        if (!revisedText || revisedText.trim().length < 100) {
+          console.warn('改訂後の文章の抽出に失敗。応答全体を使用します。');
+          // 応答全体から、明らかにJSON構造の部分を除去
+          const cleanedContent = revisionResponse.content
+            .replace(/\{[^}]*"revisedText"[^}]*\}/g, '')
+            .replace(/\{[^}]*"improvementSummary"[^}]*\}/g, '')
+            .replace(/\{[^}]*"changes"[^}]*\}/g, '')
+            .replace(/\{[\s\S]*?\}/g, '')
+            .trim();
+          
+          if (cleanedContent.length > 100) {
+            revisedText = cleanedContent;
+          } else {
+            revisedText = revisionResponse.content;
+          }
+        }
       } catch (parseError) {
-        // JSONパースに失敗した場合は、応答全体をテキストとして使用
-        revisedText = revisionResponse.content;
-        console.warn('JSONパースエラー、応答全体を使用:', parseError);
+        console.warn('JSONパースエラー、テキスト抽出を試行:', parseError);
+        
+        // JSONパースに失敗した場合でも、テキストから文章を抽出
+        const textPatterns = [
+          /改訂後の文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,
+          /改善された文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,
+          /改訂された文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,
+        ];
+        
+        let extracted = false;
+        for (const pattern of textPatterns) {
+          const match = revisionResponse.content.match(pattern);
+          if (match && match[1] && match[1].trim().length > 100) {
+            revisedText = match[1].trim();
+            extracted = true;
+            break;
+          }
+        }
+        
+        // それでも見つからない場合は、応答全体を使用（ただし構造的な部分を除去）
+        if (!extracted) {
+          const cleanedContent = revisionResponse.content
+            .replace(/\{[^}]*"revisedText"[^}]*\}/g, '')
+            .replace(/\{[^}]*"improvementSummary"[^}]*\}/g, '')
+            .replace(/\{[^}]*"changes"[^}]*\}/g, '')
+            .replace(/```json[\s\S]*?```/g, '')
+            .replace(/```[\s\S]*?```/g, '')
+            .trim();
+          
+          revisedText = cleanedContent.length > 100 ? cleanedContent : revisionResponse.content;
+        }
       }
 
       if (revisedText.trim()) {
@@ -2462,8 +2771,6 @@ ${critiqueResponse.content}
               mainFontSize={mainFontSize}
               mainLineHeight={mainLineHeight}
               mainTextareaHeight={mainTextareaHeight}
-              showMainLineNumbers={showMainLineNumbers}
-              isMainFocusMode={isMainFocusMode}
               wordCount={wordCount}
               lastSavedAt={lastSavedAt}
               selectedChapter={selectedChapter}
@@ -2484,6 +2791,21 @@ ${critiqueResponse.content}
               isZenMode={isZenMode}
               onExitZenMode={() => setIsZenMode(false)}
             />
+
+            {/* 伏線パネル */}
+            {selectedChapter && !isZenMode && (
+              <ForeshadowingPanel
+                currentChapterId={selectedChapter}
+                onInsertText={(text) => {
+                  if (mainEditorRef.current) {
+                    mainEditorRef.current.insertText(text);
+                  }
+                }}
+                isCollapsed={isForeshadowingPanelCollapsed}
+                onToggleCollapse={() => setIsForeshadowingPanelCollapsed(prev => !prev)}
+                currentDraft={draft}
+              />
+            )}
           </div>
 
           {/* 副次機能パネル */}
@@ -2647,7 +2969,21 @@ ${critiqueResponse.content}
                         {!isModalChapterInfoCollapsed && (
                           <>
                             <p className="text-blue-800 dark:text-blue-200 text-sm font-['Noto_Sans_JP'] leading-relaxed mb-3">
-                              {currentChapter.summary}
+                              {(() => {
+                                // 章の説明内のキャラクターIDをキャラクター名に変換
+                                if (!currentChapter.summary || !currentProject) {
+                                  return currentChapter.summary || '';
+                                }
+                                let summary = currentChapter.summary;
+                                // プロジェクト内のすべてのキャラクターIDをキャラクター名に置換
+                                currentProject.characters.forEach(character => {
+                                  // キャラクターIDがテキスト内に含まれている場合、キャラクター名に置換
+                                  // 単語境界を考慮して置換（IDが単独で出現する場合のみ）
+                                  const regex = new RegExp(`\\b${character.id}\\b`, 'g');
+                                  summary = summary.replace(regex, character.name);
+                                });
+                                return summary;
+                              })()}
                             </p>
 
                             {/* 章詳細情報 */}
@@ -2698,23 +3034,13 @@ ${critiqueResponse.content}
                 {/* テキストエリア（読み取り専用） */}
                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
                   <div
+                    ref={verticalPreviewRef}
                     className={`${isVerticalWriting ? 'h-[600px] font-serif-jp' : 'h-[400px] font-[\'Noto_Sans_JP\']'} w-full p-4 border-0 rounded-lg bg-transparent text-gray-900 dark:text-white leading-relaxed overflow-auto whitespace-pre-wrap`}
                     style={{
                       lineHeight: isVerticalWriting ? '2.0' : '1.8',
                       letterSpacing: isVerticalWriting ? '0.05em' : 'normal',
                       writingMode: isVerticalWriting ? 'vertical-rl' : 'horizontal-tb',
                       textOrientation: isVerticalWriting ? 'upright' : 'mixed',
-                    }}
-                    onWheel={(e) => {
-                      if (isVerticalWriting) {
-                        const container = e.currentTarget;
-                        // マウスホイールの回転（deltaY）を横スクロール（scrollLeft）に変換
-                        // 通常のマウス：下に回す（deltaY > 0）→ 左へスクロール（文章が進む）
-                        // 縦書き（vertical-rl）の仕様上、スクロール位置は負の値になるブラウザが多い
-                        // 左へスクロール = scrollLeft を減らす（マイナス方向へ進む）
-                        container.scrollLeft -= e.deltaY;
-                        e.preventDefault();
-                      }
                     }}
                   >
                     {modalDraft || (

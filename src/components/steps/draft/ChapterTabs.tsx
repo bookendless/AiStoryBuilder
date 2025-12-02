@@ -1,5 +1,6 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useProject } from '../../../contexts/ProjectContext';
 
 interface Chapter {
   id: string;
@@ -26,9 +27,26 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
   onNextChapter,
   currentChapterIndex,
 }) => {
+  const { currentProject } = useProject();
   const chapterTabsContainerRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
+
+  // 章の説明内のキャラクターIDをキャラクター名に変換する関数
+  const convertSummaryCharacterIds = useCallback((summary: string | undefined): string => {
+    if (!summary || !currentProject) {
+      return summary || '';
+    }
+    let convertedSummary = summary;
+    // プロジェクト内のすべてのキャラクターIDをキャラクター名に置換
+    currentProject.characters.forEach(character => {
+      // キャラクターIDがテキスト内に含まれている場合、キャラクター名に置換
+      // 単語境界を考慮して置換（IDが単独で出現する場合のみ）
+      const regex = new RegExp(`\\b${character.id}\\b`, 'g');
+      convertedSummary = convertedSummary.replace(regex, character.name);
+    });
+    return convertedSummary;
+  }, [currentProject]);
 
   // スクロールボタンの状態を更新
   const updateScrollButtons = useCallback(() => {
@@ -224,7 +242,7 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
                   </div>
                   {chapter.summary && (
                     <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 max-h-10 overflow-hidden">
-                      {chapter.summary}
+                      {convertSummaryCharacterIds(chapter.summary)}
                     </p>
                   )}
                 </button>

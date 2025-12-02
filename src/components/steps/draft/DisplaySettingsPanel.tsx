@@ -16,10 +16,6 @@ interface DisplaySettingsPanelProps {
   setMainLineHeight: React.Dispatch<React.SetStateAction<number>>;
   mainTextareaHeight: number;
   adjustMainTextareaHeight: (delta: number) => void;
-  showMainLineNumbers: boolean;
-  setShowMainLineNumbers: React.Dispatch<React.SetStateAction<boolean>>;
-  isMainFocusMode: boolean;
-  setIsMainFocusMode: React.Dispatch<React.SetStateAction<boolean>>;
   handleResetDisplaySettings: () => void;
   mainControlButtonBase: string;
   mainControlButtonActive: string;
@@ -36,10 +32,6 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
   setMainLineHeight,
   mainTextareaHeight,
   adjustMainTextareaHeight,
-  showMainLineNumbers,
-  setShowMainLineNumbers,
-  isMainFocusMode,
-  setIsMainFocusMode,
   handleResetDisplaySettings,
   mainControlButtonBase,
   mainControlButtonActive,
@@ -153,16 +145,6 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700 mt-2 pt-3">
           <button
             type="button"
-            onClick={() => setShowMainLineNumbers((prev) => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${showMainLineNumbers ? mainControlButtonActive : ''
-              }`}
-            aria-pressed={showMainLineNumbers}
-          >
-            行番号 {showMainLineNumbers ? 'ON' : 'OFF'}
-          </button>
-
-          <button
-            type="button"
             onClick={() => setIsVerticalWriting((prev) => !prev)}
             className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] flex items-center gap-1.5 ${isVerticalWriting ? mainControlButtonActive : ''
               }`}
@@ -170,16 +152,6 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
           >
             {isVerticalWriting ? <AlignJustify className="h-3.5 w-3.5" /> : <AlignLeft className="h-3.5 w-3.5" />}
             {isVerticalWriting ? '縦書き' : '横書き'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsMainFocusMode((prev) => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${isMainFocusMode ? mainControlButtonActive : ''
-              }`}
-            aria-pressed={isMainFocusMode}
-          >
-            {isMainFocusMode ? '集中モード解除' : '集中モード'}
           </button>
 
           <button
@@ -203,8 +175,6 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
             onClick={() => {
               setMainFontSize(16);
               setMainLineHeight(1.6);
-              setShowMainLineNumbers(false);
-              setIsMainFocusMode(false);
               setIsVerticalWriting(false);
             }}
             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-left hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-xs font-['Noto_Sans_JP'] text-gray-600 dark:text-gray-300"
@@ -218,8 +188,6 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
             onClick={() => {
               setMainFontSize(18);
               setMainLineHeight(2.0);
-              setShowMainLineNumbers(false);
-              setIsMainFocusMode(true);
               setIsVerticalWriting(true);
             }}
             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-left hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-xs font-['Noto_Sans_JP'] text-gray-600 dark:text-gray-300"

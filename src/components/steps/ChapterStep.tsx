@@ -308,7 +308,15 @@ export const ChapterStep: React.FC = () => {
     const buildStructureDetails = () => {
       if (!currentProject.plot) return '';
 
-      const { structure, ki, sho, ten, ketsu, act1, act2, act3, fourAct1, fourAct2, fourAct3, fourAct4 } = currentProject.plot;
+      const { 
+        structure, 
+        ki, sho, ten, ketsu, 
+        act1, act2, act3, 
+        fourAct1, fourAct2, fourAct3, fourAct4,
+        hj1, hj2, hj3, hj4, hj5, hj6, hj7, hj8,
+        bs1, bs2, bs3, bs4, bs5, bs6, bs7,
+        ms1, ms2, ms3, ms4, ms5, ms6, ms7
+      } = currentProject.plot;
 
       if (structure === 'kishotenketsu') {
         const parts = [];
@@ -329,6 +337,37 @@ export const ChapterStep: React.FC = () => {
         if (fourAct2) parts.push(`【第2幕】混沌（3-5章程度）: ${fourAct2}`);
         if (fourAct3) parts.push(`【第3幕】秩序（6-8章程度）: ${fourAct3}`);
         if (fourAct4) parts.push(`【第4幕】混沌（9-10章程度）: ${fourAct4}`);
+        return parts.join('\n');
+      } else if (structure === 'heroes-journey') {
+        const parts = [];
+        if (hj1) parts.push(`【日常の世界】（1章程度）: ${hj1}`);
+        if (hj2) parts.push(`【冒険への誘い】（1-2章程度）: ${hj2}`);
+        if (hj3) parts.push(`【境界越え】（1章程度）: ${hj3}`);
+        if (hj4) parts.push(`【試練と仲間】（2-3章程度）: ${hj4}`);
+        if (hj5) parts.push(`【最大の試練】（1-2章程度）: ${hj5}`);
+        if (hj6) parts.push(`【報酬】（1章程度）: ${hj6}`);
+        if (hj7) parts.push(`【帰路】（1-2章程度）: ${hj7}`);
+        if (hj8) parts.push(`【復活と帰還】（1章程度）: ${hj8}`);
+        return parts.join('\n');
+      } else if (structure === 'beat-sheet') {
+        const parts = [];
+        if (bs1) parts.push(`【導入 (Setup)】（1-2章程度）: ${bs1}`);
+        if (bs2) parts.push(`【決断 (Break into Two)】（1章程度）: ${bs2}`);
+        if (bs3) parts.push(`【試練 (Fun and Games)】（2-4章程度）: ${bs3}`);
+        if (bs4) parts.push(`【転換点 (Midpoint)】（1章程度）: ${bs4}`);
+        if (bs5) parts.push(`【危機 (All Is Lost)】（1-2章程度）: ${bs5}`);
+        if (bs6) parts.push(`【クライマックス (Finale)】（1-2章程度）: ${bs6}`);
+        if (bs7) parts.push(`【結末 (Final Image)】（1章程度）: ${bs7}`);
+        return parts.join('\n');
+      } else if (structure === 'mystery-suspense') {
+        const parts = [];
+        if (ms1) parts.push(`【発端（事件発生）】（1章程度）: ${ms1}`);
+        if (ms2) parts.push(`【捜査（初期）】（1-2章程度）: ${ms2}`);
+        if (ms3) parts.push(`【仮説とミスリード】（2-3章程度）: ${ms3}`);
+        if (ms4) parts.push(`【第二の事件/急展開】（1-2章程度）: ${ms4}`);
+        if (ms5) parts.push(`【手がかりの統合】（1-2章程度）: ${ms5}`);
+        if (ms6) parts.push(`【解決（真相解明）】（1-2章程度）: ${ms6}`);
+        if (ms7) parts.push(`【エピローグ】（1章程度）: ${ms7}`);
         return parts.join('\n');
       }
 
@@ -1914,7 +1953,7 @@ ${'='.repeat(80)}`;
             }
           }}
         >
-          <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
+          <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
             <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
@@ -1930,7 +1969,7 @@ ${'='.repeat(80)}`;
               </div>
             </div>
 
-            <div className="p-6 overflow-y-auto custom-scrollbar">
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar min-h-0">
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
@@ -2153,7 +2192,7 @@ ${'='.repeat(80)}`;
             }
           }}
         >
-          <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
+          <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
             <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
@@ -2169,7 +2208,7 @@ ${'='.repeat(80)}`;
               </div>
             </div>
 
-            <div className="p-6 overflow-y-auto custom-scrollbar">
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar min-h-0">
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">

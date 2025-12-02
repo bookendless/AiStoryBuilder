@@ -9,6 +9,7 @@ import { PlotStep2 } from './components/steps/PlotStep2';
 import { SynopsisStep } from './components/steps/SynopsisStep';
 import { ChapterStep } from './components/steps/ChapterStep';
 import { DraftStep } from './components/steps/DraftStep';
+import { ReviewStep } from './components/steps/ReviewStep';
 import { ExportStep } from './components/steps/ExportStep';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
@@ -19,8 +20,9 @@ import { PerformanceMonitor, registerServiceWorker } from './utils/performanceUt
 import { useGlobalShortcuts } from './hooks/useKeyboardNavigation';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { Onboarding } from './components/Onboarding';
+import { databaseService } from './services/databaseService';
 
-export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
+export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'review' | 'export';
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -30,22 +32,64 @@ function App() {
       try {
         // セキュリティヘッダーの設定
         setSecurityHeaders();
-        
+
         // セッション管理の初期化
         const sessionManager = new SessionManager();
         sessionManager.updateActivity();
-        
+
         // パフォーマンス監視の開始
         const performanceMonitor = new PerformanceMonitor();
-        
+
         // サービスワーカーの登録
         if (import.meta.env.PROD) {
           await registerServiceWorker();
         }
-        
+
+        // データ移行（初回のみ）
+        const migrationDone = localStorage.getItem('historyMigrationDone');
+        if (!migrationDone) {
+          try {
+            const result = await databaseService.migrateHistoryFromLocalStorage();
+            if (result.migrated > 0) {
+              console.log(`履歴データ移行完了: ${result.migrated}件`);
+              localStorage.setItem('historyMigrationDone', 'true');
+            }
+          } catch (error) {
+            console.error('履歴データ移行エラー:', error);
+          }
+        }
+
+        // データベーススキーマの確認と再作成（必要に応じて）
+        // 注意: これは開発中のみ有効。本番環境では削除するか、より安全な方法を実装
+        try {
+          // データベースが正しく初期化されているか確認
+          await databaseService.getSettings();
+        } catch (error) {
+          console.error('データベース初期化エラー。ブラウザの開発者ツールでIndexedDBをクリアしてください:', error);
+        }
+
+        // 古いデータの自動クリーンアップ
+        try {
+          await databaseService.cleanupExpiredHistoryEntries();
+          await databaseService.cleanupExpiredAILogEntries();
+        } catch (error) {
+          console.error('データクリーンアップエラー:', error);
+        }
+
+        // 定期的なクリーンアップ（1日1回）
+        const cleanupInterval = setInterval(async () => {
+          try {
+            await databaseService.cleanupExpiredHistoryEntries();
+            await databaseService.cleanupExpiredAILogEntries();
+          } catch (error) {
+            console.error('定期データクリーンアップエラー:', error);
+          }
+        }, 24 * 60 * 60 * 1000); // 24時間
+
         // クリーンアップ関数
         return () => {
           performanceMonitor.disconnect();
+          clearInterval(cleanupInterval);
         };
       } catch (err) {
         console.error('アプリ初期化エラー:', err);
@@ -53,21 +97,21 @@ function App() {
         setIsLoading(false);
       }
     };
-    
+
     initializeApp();
   }, []);
 
   // ローディング状態
   if (isLoading) {
     return (
-      <div 
+      <div
         className="min-h-screen bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200 dark:from-sumi-900 dark:via-sumi-800 dark:to-sumi-900 flex items-center justify-center"
         role="status"
         aria-live="polite"
         aria-label="アプリケーションを読み込み中"
       >
         <div className="text-center">
-          <div 
+          <div
             className="animate-spin rounded-full h-12 w-12 border-b-2 border-ai-500 mx-auto mb-4"
             aria-hidden="true"
           ></div>
@@ -189,6 +233,8 @@ const AppContent: React.FC = () => {
         return <ChapterStep />;
       case 'draft':
         return <DraftStep />;
+      case 'review':
+        return <ReviewStep />;
       case 'export':
         return <ExportStep />;
       default:
@@ -201,39 +247,37 @@ const AppContent: React.FC = () => {
       <ProjectProvider>
         <OfflineNotifier />
         {/* スキップリンク */}
-        <a 
-          href="#main-content" 
+        <a
+          href="#main-content"
           className="skip-link"
           aria-label="メインコンテンツにスキップ"
         >
           メインコンテンツにスキップ
         </a>
-        
-      <div 
-        className={`min-h-screen transition-colors duration-300 ${
-          isDarkMode ? 'dark bg-sumi-900' : 'bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200'
-        }`}
+
+        <div
+          className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'dark bg-sumi-900' : 'bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200'
+            }`}
           role="application"
           aria-label="AI小説創作支援アプリケーション"
         >
           <div className="flex">
-            <Sidebar 
-              currentStep={currentStep} 
+            <Sidebar
+              currentStep={currentStep}
               onStepChange={setCurrentStep}
               className={currentStep === 'home' ? 'hidden' : ''}
               isCollapsed={isSidebarCollapsed}
               onCollapseChange={setIsSidebarCollapsed}
             />
-            
-            <div className={`flex-1 transition-all duration-300 ${
-              currentStep === 'home' 
-                ? 'ml-0' 
-                : isSidebarCollapsed 
-                  ? 'ml-16' 
+
+            <div className={`flex-1 transition-all duration-300 ${currentStep === 'home'
+                ? 'ml-0'
+                : isSidebarCollapsed
+                  ? 'ml-16'
                   : 'ml-64'
-            } ${currentStep === 'home' ? 'mr-0' : isToolsSidebarCollapsed ? 'mr-16' : 'mr-64'}`}>
-              <Header 
-                isDarkMode={isDarkMode} 
+              } ${currentStep === 'home' ? 'mr-0' : isToolsSidebarCollapsed ? 'mr-16' : 'mr-64'}`}>
+              <Header
+                isDarkMode={isDarkMode}
                 onToggleTheme={toggleTheme}
                 onHomeClick={() => setCurrentStep('home')}
                 isSidebarCollapsed={isSidebarCollapsed}
@@ -246,8 +290,8 @@ const AppContent: React.FC = () => {
                 showSidebarControls={currentStep !== 'home'}
                 currentStep={currentStep}
               />
-              
-              <main 
+
+              <main
                 id="main-content"
                 className="p-6"
                 role="main"
@@ -257,21 +301,21 @@ const AppContent: React.FC = () => {
                 {renderStep()}
               </main>
             </div>
-            
-            <ToolsSidebar 
+
+            <ToolsSidebar
               className={currentStep === 'home' ? 'hidden' : ''}
               isCollapsed={isToolsSidebarCollapsed}
               onCollapseChange={setIsToolsSidebarCollapsed}
             />
           </div>
         </div>
-        
+
         {/* ショートカットヘルプモーダル */}
         <ShortcutHelpModal
           isOpen={showShortcutHelp}
           onClose={() => setShowShortcutHelp(false)}
         />
-        
+
         {/* オンボーディング */}
         <Onboarding
           isOpen={showOnboarding}

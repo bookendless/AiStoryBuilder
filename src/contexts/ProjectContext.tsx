@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { databaseService } from '../services/databaseService';
 import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
+import { SavedEvaluation } from '../types/evaluation';
 
 export interface Character {
   id: string;
@@ -10,6 +11,7 @@ export interface Character {
   personality: string;
   background: string;
   image?: string;
+  speechStyle?: string; // キャラクターの口調・話し方
 }
 
 export interface GlossaryTerm {
@@ -58,6 +60,43 @@ export interface WorldSetting {
   aiPrompt?: string; // 生成に使ったプロンプト（参考用）
 }
 
+// 伏線のポイント（設置、ヒント、回収）
+export interface ForeshadowingPoint {
+  id: string;
+  chapterId: string;           // 関連する章のID
+  type: 'plant' | 'hint' | 'payoff';  // 設置/ヒント/回収
+  description: string;         // 具体的な描写・内容
+  lineReference?: string;      // 該当する文章の引用（任意）
+  createdAt: Date;
+}
+
+// 伏線
+export interface Foreshadowing {
+  id: string;
+  title: string;               // 伏線のタイトル（例：「主人公の過去の秘密」）
+  description: string;         // 伏線の説明・意図
+  importance: 'high' | 'medium' | 'low';  // 重要度
+  status: 'planted' | 'hinted' | 'resolved' | 'abandoned';  // ステータス
+  category: 'character' | 'plot' | 'world' | 'mystery' | 'relationship' | 'other';
+
+  // 伏線のポイント（複数可能）
+  points: ForeshadowingPoint[];
+
+  // 関連要素
+  relatedCharacterIds?: string[];   // 関連キャラクター
+  relatedChapterIds?: string[];     // 関連する章（ポイント以外で関連づけたい場合）
+
+  // 計画
+  plannedPayoffChapterId?: string;  // 回収予定の章
+  plannedPayoffDescription?: string; // 回収方法の計画
+
+  // メタ情報
+  tags?: string[];
+  notes?: string;              // 作者メモ
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -104,7 +143,7 @@ export interface Project {
     mainObstacle: string; // 主要な障害
     ending?: string; // 物語の結末
     // PlotStep2の構成詳細
-    structure?: 'kishotenketsu' | 'three-act' | 'four-act';
+    structure?: 'kishotenketsu' | 'three-act' | 'four-act' | 'heroes-journey' | 'beat-sheet' | 'mystery-suspense';
     ki?: string; // 起 - 導入
     sho?: string; // 承 - 展開
     ten?: string; // 転 - 転換
@@ -116,7 +155,33 @@ export interface Project {
     fourAct2?: string; // 第2幕 - 混沌
     fourAct3?: string; // 第3幕 - 秩序
     fourAct4?: string; // 第4幕 - 混沌
+    // ヒーローズ・ジャーニー
+    hj1?: string; // 日常の世界
+    hj2?: string; // 冒険への誘い
+    hj3?: string; // 境界越え
+    hj4?: string; // 試練と仲間
+    hj5?: string; // 最大の試練
+    hj6?: string; // 報酬
+    hj7?: string; // 帰路
+    hj8?: string; // 復活と帰還
+    // ビートシート
+    bs1?: string; // 導入 (Setup)
+    bs2?: string; // 決断 (Break into Two)
+    bs3?: string; // 試練 (Fun and Games)
+    bs4?: string; // 転換点 (Midpoint)
+    bs5?: string; // 危機 (All Is Lost)
+    bs6?: string; // クライマックス (Finale)
+    bs7?: string; // 結末 (Final Image)
+    // ミステリー・サスペンス
+    ms1?: string; // 発端（事件発生）
+    ms2?: string; // 捜査（初期）
+    ms3?: string; // 仮説とミスリード
+    ms4?: string; // 第二の事件/急展開
+    ms5?: string; // 手がかりの統合
+    ms6?: string; // 解決（真相解明）
+    ms7?: string; // エピローグ
   };
+  evaluations?: SavedEvaluation[];
   synopsis: string;
   chapters: Array<{
     id: string;
@@ -136,6 +201,7 @@ export interface Project {
   relationships?: CharacterRelationship[];
   timeline?: TimelineEvent[];
   worldSettings?: WorldSetting[];
+  foreshadowings?: Foreshadowing[];
   writingStyle?: {
     style?: string; // 基本文体（例：「現代小説風」「文語調」など）
     perspective?: string; // 人称（一人称 / 三人称 / 神の視点）
@@ -349,6 +415,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       timeline: [],
       writingStyle: writingStyle,
       worldSettings: [],
+      foreshadowings: [],
     };
 
     setProjects(prev => [...prev, newProject]);
@@ -519,11 +586,31 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       case 'plot1':
         return !!(project.plot.theme && project.plot.setting && project.plot.hook && project.plot.protagonistGoal && project.plot.mainObstacle);
       case 'plot2':
-        return !!(project.plot.structure && (
-          (project.plot.structure === 'kishotenketsu' && project.plot.ki && project.plot.sho && project.plot.ten && project.plot.ketsu) ||
-          (project.plot.structure === 'three-act' && project.plot.act1 && project.plot.act2 && project.plot.act3) ||
-          (project.plot.structure === 'four-act' && project.plot.fourAct1 && project.plot.fourAct2 && project.plot.fourAct3 && project.plot.fourAct4)
-        ));
+        if (!project.plot.structure) return false;
+        const structure = project.plot.structure;
+        if (structure === 'kishotenketsu') {
+          return !!(project.plot.ki && project.plot.sho && project.plot.ten && project.plot.ketsu &&
+            project.plot.ki.trim() && project.plot.sho.trim() && project.plot.ten.trim() && project.plot.ketsu.trim());
+        } else if (structure === 'three-act') {
+          return !!(project.plot.act1 && project.plot.act2 && project.plot.act3 &&
+            project.plot.act1.trim() && project.plot.act2.trim() && project.plot.act3.trim());
+        } else if (structure === 'four-act') {
+          return !!(project.plot.fourAct1 && project.plot.fourAct2 && project.plot.fourAct3 && project.plot.fourAct4 &&
+            project.plot.fourAct1.trim() && project.plot.fourAct2.trim() && project.plot.fourAct3.trim() && project.plot.fourAct4.trim());
+        } else if (structure === 'heroes-journey') {
+          return !!(project.plot.hj1 && project.plot.hj2 && project.plot.hj3 && project.plot.hj4 && project.plot.hj5 && project.plot.hj6 && project.plot.hj7 && project.plot.hj8 &&
+            project.plot.hj1.trim() && project.plot.hj2.trim() && project.plot.hj3.trim() && project.plot.hj4.trim() &&
+            project.plot.hj5.trim() && project.plot.hj6.trim() && project.plot.hj7.trim() && project.plot.hj8.trim());
+        } else if (structure === 'beat-sheet') {
+          return !!(project.plot.bs1 && project.plot.bs2 && project.plot.bs3 && project.plot.bs4 && project.plot.bs5 && project.plot.bs6 && project.plot.bs7 &&
+            project.plot.bs1.trim() && project.plot.bs2.trim() && project.plot.bs3.trim() && project.plot.bs4.trim() &&
+            project.plot.bs5.trim() && project.plot.bs6.trim() && project.plot.bs7.trim());
+        } else if (structure === 'mystery-suspense') {
+          return !!(project.plot.ms1 && project.plot.ms2 && project.plot.ms3 && project.plot.ms4 && project.plot.ms5 && project.plot.ms6 && project.plot.ms7 &&
+            project.plot.ms1.trim() && project.plot.ms2.trim() && project.plot.ms3.trim() && project.plot.ms4.trim() &&
+            project.plot.ms5.trim() && project.plot.ms6.trim() && project.plot.ms7.trim());
+        }
+        return false;
       case 'synopsis':
         return !!project.synopsis && project.synopsis.trim().length > 0;
       case 'chapter':

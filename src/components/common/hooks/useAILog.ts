@@ -1,24 +1,89 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AILogEntry } from '../types';
+import { databaseService } from '../../../services/databaseService';
+import { StoredAILogEntry } from '../../../services/databaseService';
 
 const MAX_LOGS = 10;
 
-export const useAILog = (maxLogs: number = MAX_LOGS) => {
-  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+interface UseAILogOptions {
+  projectId?: string;
+  chapterId?: string;
+  maxLogs?: number;
+  autoLoad?: boolean;
+}
 
-  const addLog = useCallback((logEntry: Omit<AILogEntry, 'id' | 'timestamp'>) => {
+export const useAILog = (options: UseAILogOptions = {}) => {
+  const { projectId, chapterId, maxLogs = MAX_LOGS, autoLoad = false } = options;
+  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ログの読み込み
+  const loadLogs = useCallback(async () => {
+    if (!projectId) return;
+
+    setIsLoading(true);
+    try {
+      const storedLogs = await databaseService.getAILogEntries(projectId, chapterId);
+      // StoredAILogEntryをAILogEntryに変換
+      const logs: AILogEntry[] = storedLogs.slice(0, maxLogs).map(log => ({
+        id: log.id,
+        timestamp: log.timestamp,
+        type: log.type,
+        prompt: log.prompt,
+        response: log.response,
+        error: log.error,
+        chapterId: log.chapterId,
+        suggestionType: log.suggestionType,
+      }));
+      setAiLogs(logs);
+    } catch (error) {
+      console.error('AIログの読み込みエラー:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId, chapterId, maxLogs]);
+
+  // 自動読み込み
+  useEffect(() => {
+    if (autoLoad && projectId) {
+      loadLogs();
+    }
+  }, [autoLoad, projectId, chapterId, loadLogs]);
+
+  const addLog = useCallback(async (logEntry: Omit<AILogEntry, 'id' | 'timestamp'>) => {
     const newLog: AILogEntry = {
-      ...logEntry,
       id: Date.now().toString(),
       timestamp: new Date(),
+      type: logEntry.type,
+      prompt: logEntry.prompt,
+      response: logEntry.response,
+      error: logEntry.error,
+      ...logEntry,
     };
-    setAiLogs(prev => [newLog, ...prev.slice(0, maxLogs - 1)]);
-    return newLog;
-  }, [maxLogs]);
 
-  const clearLogs = useCallback(() => {
-    setAiLogs([]);
-  }, []);
+    // メモリ内の状態を更新
+    setAiLogs(prev => [newLog, ...prev.slice(0, maxLogs - 1)]);
+
+    // IndexedDBに保存
+    if (projectId) {
+      try {
+        const storedEntry: Omit<StoredAILogEntry, 'id' | 'timestamp'> = {
+          projectId,
+          chapterId,
+          type: logEntry.type,
+          prompt: logEntry.prompt,
+          response: logEntry.response,
+          error: logEntry.error,
+          suggestionType: (logEntry as any).suggestionType,
+        };
+        await databaseService.saveAILogEntry(projectId, storedEntry);
+      } catch (error) {
+        console.error('AIログの保存エラー:', error);
+      }
+    }
+
+    return newLog;
+  }, [maxLogs, projectId, chapterId]);
 
   const copyLog = useCallback((log: AILogEntry): string => {
     const typeLabels: Record<string, string> = {
@@ -95,10 +160,29 @@ ${'='.repeat(80)}`;
     return logsText;
   }, [aiLogs]);
 
+  const clearLogs = useCallback(async () => {
+    setAiLogs([]);
+    
+    // IndexedDBからも削除
+    if (projectId) {
+      try {
+        if (chapterId) {
+          await databaseService.deleteChapterAILogs(projectId, chapterId);
+        } else {
+          await databaseService.deleteProjectAILogs(projectId);
+        }
+      } catch (error) {
+        console.error('AIログの削除エラー:', error);
+      }
+    }
+  }, [projectId, chapterId]);
+
   return {
     aiLogs,
+    isLoading,
     addLog,
     clearLogs,
+    loadLogs,
     copyLog,
     downloadLogs,
   };

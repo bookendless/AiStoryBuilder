@@ -232,6 +232,18 @@ body {
     inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
 }
 
+/* 画像コンテナ用 - 背景色のみ（ボーダー・シャドウなし） */
+.glass-bg-only {
+  /* 清涼感のある明るい背景（卯の花色、少し濃め） */
+  background: rgba(239, 249, 253, 0.85);
+}
+
+/* ダークモード用 - 背景色のみ */
+.dark .glass-bg-only {
+  /* ダークモードでも明るめの背景（深い墨色、少し濃め） */
+  background: rgba(40, 40, 40, 0.85);
+}
+
 /* 強化版Glassmorphism（モーダル用） - 卯の花色ベース */
 .glass-strong {
   /* より明るく、清涼感のある背景（卯の花色） */
@@ -361,4 +373,99 @@ body {
     rgba(92, 92, 92, 0.15),
     transparent
   );
+}
+
+/* ============================================================ */
+/* Markdownエディタのカスタムスタイル（小説執筆向け） */
+/* ============================================================ */
+
+/* Markdownエディタの基本スタイル */
+.novel-editor {
+  font-family: 'Noto Sans JP', sans-serif;
+}
+
+/* エディタエリアのスタイル */
+.novel-editor .rc-md-editor {
+  border: none;
+  background: transparent;
+}
+
+.novel-editor .rc-md-editor .editor-container {
+  background: transparent;
+}
+
+/* ツールバーのスタイル */
+.novel-editor .rc-md-editor .editor-toolbar {
+  background: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(212, 212, 212, 0.3);
+  padding: 8px;
+}
+
+.dark .novel-editor .rc-md-editor .editor-toolbar {
+  background: rgba(40, 40, 40, 0.5);
+  border-bottom: 1px solid rgba(92, 92, 92, 0.3);
+}
+
+/* エディタテキストエリアのスタイル */
+.novel-editor .rc-md-editor .editor-container .section-container textarea {
+  font-family: 'Noto Sans JP', sans-serif !important;
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 16px 24px;
+  line-height: var(--editor-line-height, 1.6) !important;
+  font-size: var(--editor-font-size, 16px) !important;
+}
+
+.novel-editor .rc-md-editor .editor-container .section-container textarea:focus {
+  outline: none;
+}
+
+
+/* ダークモード対応 */
+.dark .novel-editor .rc-md-editor .editor-container .section-container textarea {
+  color: rgb(229, 231, 235);
+}
+
+.dark .novel-editor .rc-md-editor .editor-container .section-container textarea::placeholder {
+  color: rgba(156, 163, 175, 0.6);
+}
+
+/* ツールバーボタンのスタイル */
+.novel-editor .rc-md-editor .editor-toolbar button {
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.novel-editor .rc-md-editor .editor-toolbar button:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.dark .novel-editor .rc-md-editor .editor-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* エディタのスクロールバー */
+.novel-editor .rc-md-editor .editor-container .section-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(158, 158, 158, 0.5) transparent;
+}
+
+.novel-editor .rc-md-editor .editor-container .section-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.novel-editor .rc-md-editor .editor-container .section-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.novel-editor .rc-md-editor .editor-container .section-container::-webkit-scrollbar-thumb {
+  background: rgba(158, 158, 158, 0.5);
+  border-radius: 3px;
+}
+
+.novel-editor .rc-md-editor .editor-container .section-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(122, 122, 122, 0.7);
 }

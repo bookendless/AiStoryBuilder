@@ -1,179 +1,76 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sparkles, Check, Play, Zap, Target, Heart, RotateCcw, Loader2, Layers, ChevronDown, ChevronUp, Copy, Trash2, AlertCircle, Undo2, Redo2, MoreVertical, Clock, GripVertical, Download, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
 import { useAILog } from '../common/hooks/useAILog';
-import { useAutoSave } from '../common/hooks/useAutoSave';
 import { AILogPanel } from '../common/AILogPanel';
 
-type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
-
-interface PlotStep2Props {
-  onNavigateToStep?: (step: Step) => void;
-}
-
-// 履歴管理用の型定義
-interface HistoryState {
-  formData: {
-    ki: string;
-    sho: string;
-    ten: string;
-    ketsu: string;
-    act1: string;
-    act2: string;
-    act3: string;
-    fourAct1: string;
-    fourAct2: string;
-    fourAct3: string;
-    fourAct4: string;
-  };
-  plotStructure: 'kishotenketsu' | 'three-act' | 'four-act';
-  timestamp: number;
-}
+// 新しい型定義とユーティリティのインポート
+import type { PlotStep2Props, PlotStructureType, PlotFormData, HistoryState } from './plot2/types';
+import { CHARACTER_LIMIT, HISTORY_SAVE_DELAY, AI_LOG_TYPE_LABELS, PLOT_STRUCTURE_CONFIGS } from './plot2/constants';
+import { getProjectContext, getStructureFields, hasAnyOverLimit, getLastSavedText, formatCharactersInfo, getProgressBarColor, getCharacterCountColor, isOverLimit } from './plot2/utils';
+import { usePlotForm } from './plot2/hooks/usePlotForm';
+import { usePlotHistory } from './plot2/hooks/usePlotHistory';
+import { useSidebarState } from './plot2/hooks/useSidebarState';
+import { PlotStructureSection } from './plot2/components/PlotStructureSection';
 
 export const PlotStep2: React.FC<PlotStep2Props> = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const { showSuccess, showWarning } = useToast();
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
-  const [plotStructure, setPlotStructure] = useState<'kishotenketsu' | 'three-act' | 'four-act'>('kishotenketsu');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // AIログ管理
   const { aiLogs, addLog } = useAILog();
 
-  const [formData, setFormData] = useState({
-    ki: currentProject?.plot?.ki || '',
-    sho: currentProject?.plot?.sho || '',
-    ten: currentProject?.plot?.ten || '',
-    ketsu: currentProject?.plot?.ketsu || '',
-    act1: currentProject?.plot?.act1 || '',
-    act2: currentProject?.plot?.act2 || '',
-    act3: currentProject?.plot?.act3 || '',
-    fourAct1: currentProject?.plot?.fourAct1 || '',
-    fourAct2: currentProject?.plot?.fourAct2 || '',
-    fourAct3: currentProject?.plot?.fourAct3 || '',
-    fourAct4: currentProject?.plot?.fourAct4 || '',
-  });
+  // 新しいカスタムフックを使用
+  const {
+    formData,
+    setFormData,
+    plotStructure,
+    setPlotStructure,
+    isSaving,
+    saveStatus,
+    lastSaved,
+    resetFormData,
+  } = usePlotForm({ currentProject, updateProject });
 
-  // 自動保存用の統合データ
-  const saveData = useMemo(() => ({
+  // 履歴管理フック
+  const {
+    saveToHistory,
+    handleUndo,
+    handleRedo,
+    canUndo,
+    canRedo,
+    initializeHistory,
+  } = usePlotHistory({
     formData,
     plotStructure,
-  }), [formData, plotStructure]);
+    projectId: currentProject?.id,
+  });
 
-  // 自動保存
-  const { isSaving, saveStatus, lastSaved } = useAutoSave(
-    saveData,
-    async (value: typeof saveData) => {
-      if (!currentProject) return;
-      const updatedPlot = {
-        ...currentProject.plot,
-        structure: value.plotStructure,
-      };
-
-      if (value.plotStructure === 'kishotenketsu') {
-        updatedPlot.ki = value.formData.ki;
-        updatedPlot.sho = value.formData.sho;
-        updatedPlot.ten = value.formData.ten;
-        updatedPlot.ketsu = value.formData.ketsu;
-      } else if (value.plotStructure === 'three-act') {
-        updatedPlot.act1 = value.formData.act1;
-        updatedPlot.act2 = value.formData.act2;
-        updatedPlot.act3 = value.formData.act3;
-      } else if (value.plotStructure === 'four-act') {
-        updatedPlot.fourAct1 = value.formData.fourAct1;
-        updatedPlot.fourAct2 = value.formData.fourAct2;
-        updatedPlot.fourAct3 = value.formData.fourAct3;
-        updatedPlot.fourAct4 = value.formData.fourAct4;
-      }
-
-      await updateProject({ plot: updatedPlot }, false);
-    }
-  );
+  // 自動保存はusePlotFormフック内で処理されます
 
   // 折りたたみ状態管理
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  // サイドバーセクションの折りたたみ状態と順序管理
-  const [sidebarSections, setSidebarSections] = useState([
-    { id: 'guide', title: '構成スタイルガイド', collapsed: true },
-    { id: 'settings', title: 'プロット基礎設定', collapsed: true },
-    { id: 'assistant', title: 'AI提案アシスタント', collapsed: true },
-    { id: 'progress', title: '完成度', collapsed: true },
-    { id: 'aiLogs', title: 'AIログ', collapsed: true },
-  ]);
-  const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
-  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
-
-  // サイドバーセクションの折りたたみ切り替え
-  const toggleSidebarSection = useCallback((sectionId: string) => {
-    setSidebarSections(prev =>
-      prev.map(section =>
-        section.id === sectionId
-          ? { ...section, collapsed: !section.collapsed }
-          : section
-      )
-    );
-  }, []);
-
-  // ドラッグ開始
-  const handleDragStart = useCallback((e: React.DragEvent, sectionId: string) => {
-    setDraggedSectionId(sectionId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', sectionId);
-  }, []);
-
-  // ドラッグオーバー
-  const handleDragOver = useCallback((e: React.DragEvent, sectionId: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (draggedSectionId !== null && draggedSectionId !== sectionId) {
-      setDragOverSectionId(sectionId);
-    }
-  }, [draggedSectionId]);
-
-  // ドラッグ離脱
-  const handleDragLeave = useCallback(() => {
-    setDragOverSectionId(null);
-  }, []);
-
-  // ドロップ
-  const handleDrop = useCallback((e: React.DragEvent, targetSectionId: string) => {
-    e.preventDefault();
-
-    if (!draggedSectionId || draggedSectionId === targetSectionId) {
-      setDraggedSectionId(null);
-      setDragOverSectionId(null);
-      return;
-    }
-
-    setSidebarSections(prev => {
-      const newSections = [...prev];
-      const draggedIndex = newSections.findIndex(s => s.id === draggedSectionId);
-      const targetIndex = newSections.findIndex(s => s.id === targetSectionId);
-
-      if (draggedIndex === -1 || targetIndex === -1) return prev;
-
-      const [removed] = newSections.splice(draggedIndex, 1);
-      newSections.splice(targetIndex, 0, removed);
-
-      return newSections;
-    });
-
-    setDraggedSectionId(null);
-    setDragOverSectionId(null);
+  // サイドバー管理（新しいフックを使用）
+  const {
+    sidebarSections,
+    draggedSectionId,
+    dragOverSectionId,
+    toggleSidebarSection,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+  } = useSidebarState(() => {
     showSuccess('サイドバー項目の並び順を変更しました');
-  }, [draggedSectionId, showSuccess]);
-
-  // ドラッグ終了
-  const handleDragEnd = useCallback(() => {
-    setDraggedSectionId(null);
-    setDragOverSectionId(null);
-  }, []);
-
+  });
 
   // 一貫性チェック結果
   const [consistencyCheck, setConsistencyCheck] = useState<{
@@ -181,54 +78,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     issues: string[];
   } | null>(null);
 
-  // 履歴管理
-  const historyRef = useRef<HistoryState[]>([]);
-  const historyIndexRef = useRef(-1);
-  const maxHistorySize = 50;
-
-  // 履歴に状態を保存
-  const saveToHistory = useCallback((data: typeof formData, structure: typeof plotStructure) => {
-    const newState: HistoryState = {
-      formData: { ...data },
-      plotStructure: structure,
-      timestamp: Date.now(),
-    };
-
-    // 現在の位置より後ろの履歴を削除（分岐した履歴を削除）
-    historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-
-    // 新しい状態を追加
-    historyRef.current.push(newState);
-
-    // 履歴サイズ制限
-    if (historyRef.current.length > maxHistorySize) {
-      historyRef.current.shift();
-    } else {
-      historyIndexRef.current++;
-    }
-  }, [maxHistorySize]);
-
-  // Undo機能
-  const handleUndo = useCallback(() => {
-    if (historyIndexRef.current > 0) {
-      historyIndexRef.current--;
-      const previousState = historyRef.current[historyIndexRef.current];
-      setFormData(previousState.formData);
-      setPlotStructure(previousState.plotStructure);
-    }
-  }, []);
-
-  // Redo機能
-  const handleRedo = useCallback(() => {
-    if (historyIndexRef.current < historyRef.current.length - 1) {
-      historyIndexRef.current++;
-      const nextState = historyRef.current[historyIndexRef.current];
-      setFormData(nextState.formData);
-      setPlotStructure(nextState.plotStructure);
-    }
-  }, []);
-
-  // 初期状態を履歴に保存
+  // 履歴の初期化
   useEffect(() => {
     if (currentProject) {
       const initialState: HistoryState = {
@@ -244,53 +94,44 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
           fourAct2: currentProject.plot?.fourAct2 || '',
           fourAct3: currentProject.plot?.fourAct3 || '',
           fourAct4: currentProject.plot?.fourAct4 || '',
+          // ヒーローズ・ジャーニー
+          hj1: currentProject.plot?.hj1 || '',
+          hj2: currentProject.plot?.hj2 || '',
+          hj3: currentProject.plot?.hj3 || '',
+          hj4: currentProject.plot?.hj4 || '',
+          hj5: currentProject.plot?.hj5 || '',
+          hj6: currentProject.plot?.hj6 || '',
+          hj7: currentProject.plot?.hj7 || '',
+          hj8: currentProject.plot?.hj8 || '',
+          // ビートシート
+          bs1: currentProject.plot?.bs1 || '',
+          bs2: currentProject.plot?.bs2 || '',
+          bs3: currentProject.plot?.bs3 || '',
+          bs4: currentProject.plot?.bs4 || '',
+          bs5: currentProject.plot?.bs5 || '',
+          bs6: currentProject.plot?.bs6 || '',
+          bs7: currentProject.plot?.bs7 || '',
+          // ミステリー・サスペンス
+          ms1: currentProject.plot?.ms1 || '',
+          ms2: currentProject.plot?.ms2 || '',
+          ms3: currentProject.plot?.ms3 || '',
+          ms4: currentProject.plot?.ms4 || '',
+          ms5: currentProject.plot?.ms5 || '',
+          ms6: currentProject.plot?.ms6 || '',
+          ms7: currentProject.plot?.ms7 || '',
         },
-        plotStructure: currentProject.plot?.structure || 'kishotenketsu',
+        plotStructure: (currentProject.plot?.structure || 'kishotenketsu') as PlotStructureType,
         timestamp: Date.now(),
       };
-      historyRef.current = [initialState];
-      historyIndexRef.current = 0;
+      initializeHistory(initialState);
     }
-  }, [currentProject?.id]); // プロジェクトIDが変わったときのみ初期化
-
-  // プロジェクトが変更されたときにformDataを更新
-  useEffect(() => {
-    if (currentProject) {
-      setFormData({
-        ki: currentProject.plot?.ki || '',
-        sho: currentProject.plot?.sho || '',
-        ten: currentProject.plot?.ten || '',
-        ketsu: currentProject.plot?.ketsu || '',
-        act1: currentProject.plot?.act1 || '',
-        act2: currentProject.plot?.act2 || '',
-        act3: currentProject.plot?.act3 || '',
-        fourAct1: currentProject.plot?.fourAct1 || '',
-        fourAct2: currentProject.plot?.fourAct2 || '',
-        fourAct3: currentProject.plot?.fourAct3 || '',
-        fourAct4: currentProject.plot?.fourAct4 || '',
-      });
-      // 構成スタイルも更新
-      if (currentProject.plot?.structure) {
-        setPlotStructure(currentProject.plot.structure);
-      }
-    }
-  }, [currentProject]);
+  }, [currentProject?.id, initializeHistory]);
 
   // formData変更時に履歴に保存（デバウンス付き）
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (historyRef.current.length > 0) {
-        // 現在の状態と最後の履歴を比較して、変更がある場合のみ保存
-        const lastState = historyRef.current[historyIndexRef.current];
-        const hasChanged =
-          JSON.stringify(formData) !== JSON.stringify(lastState.formData) ||
-          plotStructure !== lastState.plotStructure;
-
-        if (hasChanged) {
-          saveToHistory(formData, plotStructure);
-        }
-      }
-    }, 1000); // 1秒後に履歴に保存
+      saveToHistory(formData, plotStructure);
+    }, HISTORY_SAVE_DELAY);
 
     return () => clearTimeout(timeoutId);
   }, [formData, plotStructure, saveToHistory]);
@@ -325,12 +166,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
 
   // AIログをコピー（PlotStep2特有の形式に対応）
   const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
-    const typeLabels: Record<string, string> = {
-      supplement: '補完',
-      consistency: '一貫性チェック',
-      generateStructure: '構造生成',
-    };
-    const typeLabel = typeLabels[log.type] || log.type;
+    const typeLabel = AI_LOG_TYPE_LABELS[log.type] || log.type;
     const logText = `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
 ${log.fieldLabel ? `フィールド: ${log.fieldLabel}\n` : ''}
@@ -351,13 +187,8 @@ ${log.error}` : ''}`;
 
   // AIログをダウンロード（PlotStep2特有の形式に対応）
   const handleDownloadLogs = useCallback(() => {
-    const typeLabels: Record<string, string> = {
-      supplement: '補完',
-      consistency: '一貫性チェック',
-      generateStructure: '構造生成',
-    };
     const logsText = aiLogs.map(log => {
-      const typeLabel = typeLabels[log.type] || log.type;
+      const typeLabel = AI_LOG_TYPE_LABELS[log.type] || log.type;
       return `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
 ${log.fieldLabel ? `フィールド: ${log.fieldLabel}\n` : ''}
@@ -390,24 +221,10 @@ ${'='.repeat(80)}`;
 
 
 
-  // 文字数に応じた色を取得
-  const getCharacterCountColor = useCallback((count: number, max: number) => {
-    if (count > max) return 'text-red-500 dark:text-red-400';
-    if (count > max * 0.9) return 'text-orange-500 dark:text-orange-400';
-    if (count > max * 0.8) return 'text-yellow-500 dark:text-yellow-400';
-    return 'text-gray-500 dark:text-gray-400';
-  }, []);
-
-  // 文字数に応じたプログレスバーの色を取得
-  const getProgressBarColor = useCallback((count: number, max: number) => {
-    if (count > max) return 'bg-red-500';
-    if (count > max * 0.9) return 'bg-orange-500';
-    if (count > max * 0.8) return 'bg-yellow-500';
-    return 'bg-blue-500';
-  }, []);
+  // ユーティリティ関数は utils.ts からインポート済み
 
   // クイックアクション：コピー
-  const handleCopy = useCallback((fieldKey: keyof typeof formData) => {
+  const handleCopy = useCallback((fieldKey: keyof PlotFormData) => {
     const text = formData[fieldKey];
     if (text) {
       navigator.clipboard.writeText(text);
@@ -419,16 +236,16 @@ ${'='.repeat(80)}`;
   }, [formData, showSuccess, showWarning]);
 
   // クイックアクション：クリア
-  const handleClear = useCallback((fieldKey: keyof typeof formData) => {
+  const handleClear = useCallback((fieldKey: keyof PlotFormData) => {
     if (confirm('このセクションの内容をクリアしますか？')) {
       setFormData(prev => ({ ...prev, [fieldKey]: '' }));
       showSuccess('セクションをクリアしました');
       setOpenMenuId(null);
     }
-  }, [showSuccess]);
+  }, [setFormData, showSuccess]);
 
   // クイックアクション：AI補完
-  const handleAISupplement = useCallback(async (fieldKey: keyof typeof formData, fieldLabel: string) => {
+  const handleAISupplement = useCallback(async (fieldKey: keyof PlotFormData, fieldLabel: string) => {
     if (!isConfigured) {
       alert('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
       return;
@@ -437,7 +254,7 @@ ${'='.repeat(80)}`;
     setIsGenerating(`supplement-${fieldKey}`);
 
     try {
-      const context = getProjectContext();
+      const context = getProjectContext(currentProject);
       if (!context) {
         alert('プロジェクト情報が見つかりません。');
         return;
@@ -505,31 +322,13 @@ ${'='.repeat(80)}`;
     setIsGenerating('consistency');
 
     try {
-      const context = getProjectContext();
+      const context = getProjectContext(currentProject);
       if (!context) {
         alert('プロジェクト情報が見つかりません。');
         return;
       }
 
-      const structureFields = plotStructure === 'kishotenketsu'
-        ? [
-          { key: 'ki', label: '起', value: formData.ki },
-          { key: 'sho', label: '承', value: formData.sho },
-          { key: 'ten', label: '転', value: formData.ten },
-          { key: 'ketsu', label: '結', value: formData.ketsu },
-        ]
-        : plotStructure === 'three-act'
-          ? [
-            { key: 'act1', label: '第1幕', value: formData.act1 },
-            { key: 'act2', label: '第2幕', value: formData.act2 },
-            { key: 'act3', label: '第3幕', value: formData.act3 },
-          ]
-          : [
-            { key: 'fourAct1', label: '第1幕', value: formData.fourAct1 },
-            { key: 'fourAct2', label: '第2幕', value: formData.fourAct2 },
-            { key: 'fourAct3', label: '第3幕', value: formData.fourAct3 },
-            { key: 'fourAct4', label: '第4幕', value: formData.fourAct4 },
-          ];
+      const structureFields = getStructureFields(plotStructure, formData);
 
       const structureText = structureFields.map(f => `${f.label}: ${f.value}`).join('\n\n');
 
@@ -607,6 +406,28 @@ ${'='.repeat(80)}`;
       updatedPlot.fourAct2 = '';
       updatedPlot.fourAct3 = '';
       updatedPlot.fourAct4 = '';
+      updatedPlot.hj1 = '';
+      updatedPlot.hj2 = '';
+      updatedPlot.hj3 = '';
+      updatedPlot.hj4 = '';
+      updatedPlot.hj5 = '';
+      updatedPlot.hj6 = '';
+      updatedPlot.hj7 = '';
+      updatedPlot.hj8 = '';
+      updatedPlot.bs1 = '';
+      updatedPlot.bs2 = '';
+      updatedPlot.bs3 = '';
+      updatedPlot.bs4 = '';
+      updatedPlot.bs5 = '';
+      updatedPlot.bs6 = '';
+      updatedPlot.bs7 = '';
+      updatedPlot.ms1 = '';
+      updatedPlot.ms2 = '';
+      updatedPlot.ms3 = '';
+      updatedPlot.ms4 = '';
+      updatedPlot.ms5 = '';
+      updatedPlot.ms6 = '';
+      updatedPlot.ms7 = '';
     } else if (plotStructure === 'three-act') {
       updatedPlot.act1 = formData.act1;
       updatedPlot.act2 = formData.act2;
@@ -620,6 +441,28 @@ ${'='.repeat(80)}`;
       updatedPlot.fourAct2 = '';
       updatedPlot.fourAct3 = '';
       updatedPlot.fourAct4 = '';
+      updatedPlot.hj1 = '';
+      updatedPlot.hj2 = '';
+      updatedPlot.hj3 = '';
+      updatedPlot.hj4 = '';
+      updatedPlot.hj5 = '';
+      updatedPlot.hj6 = '';
+      updatedPlot.hj7 = '';
+      updatedPlot.hj8 = '';
+      updatedPlot.bs1 = '';
+      updatedPlot.bs2 = '';
+      updatedPlot.bs3 = '';
+      updatedPlot.bs4 = '';
+      updatedPlot.bs5 = '';
+      updatedPlot.bs6 = '';
+      updatedPlot.bs7 = '';
+      updatedPlot.ms1 = '';
+      updatedPlot.ms2 = '';
+      updatedPlot.ms3 = '';
+      updatedPlot.ms4 = '';
+      updatedPlot.ms5 = '';
+      updatedPlot.ms6 = '';
+      updatedPlot.ms7 = '';
     } else if (plotStructure === 'four-act') {
       updatedPlot.fourAct1 = formData.fourAct1;
       updatedPlot.fourAct2 = formData.fourAct2;
@@ -633,6 +476,133 @@ ${'='.repeat(80)}`;
       updatedPlot.act1 = '';
       updatedPlot.act2 = '';
       updatedPlot.act3 = '';
+      updatedPlot.hj1 = '';
+      updatedPlot.hj2 = '';
+      updatedPlot.hj3 = '';
+      updatedPlot.hj4 = '';
+      updatedPlot.hj5 = '';
+      updatedPlot.hj6 = '';
+      updatedPlot.hj7 = '';
+      updatedPlot.hj8 = '';
+      updatedPlot.bs1 = '';
+      updatedPlot.bs2 = '';
+      updatedPlot.bs3 = '';
+      updatedPlot.bs4 = '';
+      updatedPlot.bs5 = '';
+      updatedPlot.bs6 = '';
+      updatedPlot.bs7 = '';
+      updatedPlot.ms1 = '';
+      updatedPlot.ms2 = '';
+      updatedPlot.ms3 = '';
+      updatedPlot.ms4 = '';
+      updatedPlot.ms5 = '';
+      updatedPlot.ms6 = '';
+      updatedPlot.ms7 = '';
+    } else if (plotStructure === 'heroes-journey') {
+      updatedPlot.hj1 = formData.hj1;
+      updatedPlot.hj2 = formData.hj2;
+      updatedPlot.hj3 = formData.hj3;
+      updatedPlot.hj4 = formData.hj4;
+      updatedPlot.hj5 = formData.hj5;
+      updatedPlot.hj6 = formData.hj6;
+      updatedPlot.hj7 = formData.hj7;
+      updatedPlot.hj8 = formData.hj8;
+      // 他の構成のデータはクリア
+      updatedPlot.ki = '';
+      updatedPlot.sho = '';
+      updatedPlot.ten = '';
+      updatedPlot.ketsu = '';
+      updatedPlot.act1 = '';
+      updatedPlot.act2 = '';
+      updatedPlot.act3 = '';
+      updatedPlot.fourAct1 = '';
+      updatedPlot.fourAct2 = '';
+      updatedPlot.fourAct3 = '';
+      updatedPlot.fourAct4 = '';
+      updatedPlot.bs1 = '';
+      updatedPlot.bs2 = '';
+      updatedPlot.bs3 = '';
+      updatedPlot.bs4 = '';
+      updatedPlot.bs5 = '';
+      updatedPlot.bs6 = '';
+      updatedPlot.bs7 = '';
+      updatedPlot.ms1 = '';
+      updatedPlot.ms2 = '';
+      updatedPlot.ms3 = '';
+      updatedPlot.ms4 = '';
+      updatedPlot.ms5 = '';
+      updatedPlot.ms6 = '';
+      updatedPlot.ms7 = '';
+    } else if (plotStructure === 'beat-sheet') {
+      updatedPlot.bs1 = formData.bs1;
+      updatedPlot.bs2 = formData.bs2;
+      updatedPlot.bs3 = formData.bs3;
+      updatedPlot.bs4 = formData.bs4;
+      updatedPlot.bs5 = formData.bs5;
+      updatedPlot.bs6 = formData.bs6;
+      updatedPlot.bs7 = formData.bs7;
+      // 他の構成のデータはクリア
+      updatedPlot.ki = '';
+      updatedPlot.sho = '';
+      updatedPlot.ten = '';
+      updatedPlot.ketsu = '';
+      updatedPlot.act1 = '';
+      updatedPlot.act2 = '';
+      updatedPlot.act3 = '';
+      updatedPlot.fourAct1 = '';
+      updatedPlot.fourAct2 = '';
+      updatedPlot.fourAct3 = '';
+      updatedPlot.fourAct4 = '';
+      updatedPlot.hj1 = '';
+      updatedPlot.hj2 = '';
+      updatedPlot.hj3 = '';
+      updatedPlot.hj4 = '';
+      updatedPlot.hj5 = '';
+      updatedPlot.hj6 = '';
+      updatedPlot.hj7 = '';
+      updatedPlot.hj8 = '';
+      updatedPlot.ms1 = '';
+      updatedPlot.ms2 = '';
+      updatedPlot.ms3 = '';
+      updatedPlot.ms4 = '';
+      updatedPlot.ms5 = '';
+      updatedPlot.ms6 = '';
+      updatedPlot.ms7 = '';
+    } else if (plotStructure === 'mystery-suspense') {
+      updatedPlot.ms1 = formData.ms1;
+      updatedPlot.ms2 = formData.ms2;
+      updatedPlot.ms3 = formData.ms3;
+      updatedPlot.ms4 = formData.ms4;
+      updatedPlot.ms5 = formData.ms5;
+      updatedPlot.ms6 = formData.ms6;
+      updatedPlot.ms7 = formData.ms7;
+      // 他の構成のデータはクリア
+      updatedPlot.ki = '';
+      updatedPlot.sho = '';
+      updatedPlot.ten = '';
+      updatedPlot.ketsu = '';
+      updatedPlot.act1 = '';
+      updatedPlot.act2 = '';
+      updatedPlot.act3 = '';
+      updatedPlot.fourAct1 = '';
+      updatedPlot.fourAct2 = '';
+      updatedPlot.fourAct3 = '';
+      updatedPlot.fourAct4 = '';
+      updatedPlot.hj1 = '';
+      updatedPlot.hj2 = '';
+      updatedPlot.hj3 = '';
+      updatedPlot.hj4 = '';
+      updatedPlot.hj5 = '';
+      updatedPlot.hj6 = '';
+      updatedPlot.hj7 = '';
+      updatedPlot.hj8 = '';
+      updatedPlot.bs1 = '';
+      updatedPlot.bs2 = '';
+      updatedPlot.bs3 = '';
+      updatedPlot.bs4 = '';
+      updatedPlot.bs5 = '';
+      updatedPlot.bs6 = '';
+      updatedPlot.bs7 = '';
     }
 
     // 即座に保存
@@ -642,33 +612,17 @@ ${'='.repeat(80)}`;
 
   // プロット構成部分のみをリセット
   const handleResetPlotStructure = () => {
-    const structureName = plotStructure === 'kishotenketsu' ? '起承転結' :
-      plotStructure === 'three-act' ? '三幕構成' : '四幕構成';
+    const structureNames: Record<PlotStructureType, string> = {
+      'kishotenketsu': '起承転結',
+      'three-act': '三幕構成',
+      'four-act': '四幕構成',
+      'heroes-journey': 'ヒーローズ・ジャーニー',
+      'beat-sheet': 'ビートシート',
+      'mystery-suspense': 'ミステリー・サスペンス',
+    };
+    const structureName = structureNames[plotStructure];
     if (confirm(`${structureName}の内容をすべてリセットしますか？`)) {
-      if (plotStructure === 'kishotenketsu') {
-        setFormData(prev => ({
-          ...prev,
-          ki: '',
-          sho: '',
-          ten: '',
-          ketsu: ''
-        }));
-      } else if (plotStructure === 'three-act') {
-        setFormData(prev => ({
-          ...prev,
-          act1: '',
-          act2: '',
-          act3: ''
-        }));
-      } else if (plotStructure === 'four-act') {
-        setFormData(prev => ({
-          ...prev,
-          fourAct1: '',
-          fourAct2: '',
-          fourAct3: '',
-          fourAct4: ''
-        }));
-      }
+      resetFormData(plotStructure);
     }
   };
 
@@ -684,21 +638,19 @@ ${'='.repeat(80)}`;
 
     try {
       // プロジェクトの詳細情報を取得
-      const context = getProjectContext();
+      const context = getProjectContext(currentProject);
       if (!context) {
         alert('プロジェクト情報が見つかりません。');
         return;
       }
 
       // キャラクター情報の文字列化
-      const charactersInfo = context.characters.length > 0
-        ? context.characters.map(c => `・${c.name} (${c.role})\n  性格: ${c.personality}\n  背景: ${c.background}`).join('\n')
-        : 'キャラクター未設定';
+      const charactersInfo = formatCharactersInfo(context.characters);
 
 
       // 構成スタイルに応じたプロンプト変数の構築
       const ending = currentProject?.plot?.ending ? `物語の結末: ${currentProject.plot.ending}` : '';
-      const reversePrompting = currentProject?.plot?.ending 
+      const reversePrompting = currentProject?.plot?.ending
         ? `【逆算プロンプティング（Goal-Oriented Prompting）】
 上記の「物語の結末」から逆算して、その結末に至るための物語構成を構築してください。
 結末を目標として、そこに到達するための{structureType}の各段階を設計してください。
@@ -745,6 +697,65 @@ ${'='.repeat(80)}`;
   "第2幕（混沌）": "第2幕（混沌）を500文字以内で記述",
   "第3幕（秩序）": "第3幕（秩序）を500文字以内で記述",
   "第4幕（混沌）": "第4幕（混沌）を500文字以内で記述"
+}`;
+      } else if (plotStructure === 'heroes-journey') {
+        structureType = 'ヒーローズ・ジャーニー';
+        structureDescription = `ヒーローズ・ジャーニー（神話の法則）について：
+- 日常の世界：主人公の現状、平穏な日常
+- 冒険への誘い：事件の始まり、冒険への呼びかけ
+- 境界越え：非日常への旅立ち、新しい世界への入り口
+- 試練と仲間：最初の試練、仲間との出会い、敵との遭遇
+- 最大の試練：物語の底、敗北や死の危険、絶望の瞬間
+- 報酬：剣（力）の獲得、勝利の報酬、重要な発見
+- 帰路：追跡される帰路、最後の試練、脱出
+- 復活と帰還：成長した主人公の帰還、新しい日常、変化の完成`;
+        outputFormat = `{
+  "日常の世界": "日常の世界を500文字以内で記述",
+  "冒険への誘い": "冒険への誘いを500文字以内で記述",
+  "境界越え": "境界越えを500文字以内で記述",
+  "試練と仲間": "試練と仲間を500文字以内で記述",
+  "最大の試練": "最大の試練を500文字以内で記述",
+  "報酬": "報酬を500文字以内で記述",
+  "帰路": "帰路を500文字以内で記述",
+  "復活と帰還": "復活と帰還を500文字以内で記述"
+}`;
+      } else if (plotStructure === 'beat-sheet') {
+        structureType = 'ビートシート';
+        structureDescription = `ビートシート（Save the Cat! 風）について：
+- 導入 (Setup)：日常、テーマの提示、きっかけ（事件発生）
+- 決断 (Break into Two)：葛藤の末の決断、新しい世界への旅立ち
+- 試練 (Fun and Games)：新しい世界での試行錯誤、サブプロットの展開
+- 転換点 (Midpoint)：物語の中間点、状況の一変（偽の勝利または敗北）
+- 危機 (All Is Lost)：迫り来る敵、絶望、魂の暗夜
+- クライマックス (Finale)：再起、解決への最後の戦い
+- 結末 (Final Image)：変化した世界、新たな日常`;
+        outputFormat = `{
+  "導入 (Setup)": "導入 (Setup)を500文字以内で記述",
+  "決断 (Break into Two)": "決断 (Break into Two)を500文字以内で記述",
+  "試練 (Fun and Games)": "試練 (Fun and Games)を500文字以内で記述",
+  "転換点 (Midpoint)": "転換点 (Midpoint)を500文字以内で記述",
+  "危機 (All Is Lost)": "危機 (All Is Lost)を500文字以内で記述",
+  "クライマックス (Finale)": "クライマックス (Finale)を500文字以内で記述",
+  "結末 (Final Image)": "結末 (Final Image)を500文字以内で記述"
+}`;
+      } else if (plotStructure === 'mystery-suspense') {
+        structureType = 'ミステリー・サスペンス構成';
+        structureDescription = `ミステリー・サスペンス構成について：
+- 発端（事件発生）：不可解な事件の提示、謎の始まり
+- 捜査（初期）：状況確認、関係者への聴取、初期の手がかり
+- 仮説とミスリード：誤った推理、ミスリード、謎が深まる
+- 第二の事件/急展開：捜査の行き詰まり、新たな事件、急展開
+- 手がかりの統合：手がかりの統合、真相への気づき、重要な発見
+- 解決（真相解明）：犯人の指摘、トリックの暴き、真相の解明
+- エピローグ：事件後の余韻、影響、物語の結末`;
+        outputFormat = `{
+  "発端（事件発生）": "発端（事件発生）を500文字以内で記述",
+  "捜査（初期）": "捜査（初期）を500文字以内で記述",
+  "仮説とミスリード": "仮説とミスリードを500文字以内で記述",
+  "第二の事件/急展開": "第二の事件/急展開を500文字以内で記述",
+  "手がかりの統合": "手がかりの統合を500文字以内で記述",
+  "解決（真相解明）": "解決（真相解明）を500文字以内で記述",
+  "エピローグ": "エピローグを500文字以内で記述"
 }`;
       }
 
@@ -817,6 +828,40 @@ ${'='.repeat(80)}`;
               fourAct3: parsed['第3幕（秩序）'] || prev.fourAct3,
               fourAct4: parsed['第4幕（混沌）'] || prev.fourAct4,
             }));
+          } else if (plotStructure === 'heroes-journey') {
+            setFormData(prev => ({
+              ...prev,
+              hj1: parsed['日常の世界'] || prev.hj1,
+              hj2: parsed['冒険への誘い'] || prev.hj2,
+              hj3: parsed['境界越え'] || prev.hj3,
+              hj4: parsed['試練と仲間'] || prev.hj4,
+              hj5: parsed['最大の試練'] || prev.hj5,
+              hj6: parsed['報酬'] || prev.hj6,
+              hj7: parsed['帰路'] || prev.hj7,
+              hj8: parsed['復活と帰還'] || prev.hj8,
+            }));
+          } else if (plotStructure === 'beat-sheet') {
+            setFormData(prev => ({
+              ...prev,
+              bs1: parsed['導入 (Setup)'] || prev.bs1,
+              bs2: parsed['決断 (Break into Two)'] || prev.bs2,
+              bs3: parsed['試練 (Fun and Games)'] || prev.bs3,
+              bs4: parsed['転換点 (Midpoint)'] || prev.bs4,
+              bs5: parsed['危機 (All Is Lost)'] || prev.bs5,
+              bs6: parsed['クライマックス (Finale)'] || prev.bs6,
+              bs7: parsed['結末 (Final Image)'] || prev.bs7,
+            }));
+          } else if (plotStructure === 'mystery-suspense') {
+            setFormData(prev => ({
+              ...prev,
+              ms1: parsed['発端（事件発生）'] || prev.ms1,
+              ms2: parsed['捜査（初期）'] || prev.ms2,
+              ms3: parsed['仮説とミスリード'] || prev.ms3,
+              ms4: parsed['第二の事件/急展開'] || prev.ms4,
+              ms5: parsed['手がかりの統合'] || prev.ms5,
+              ms6: parsed['解決（真相解明）'] || prev.ms6,
+              ms7: parsed['エピローグ'] || prev.ms7,
+            }));
           }
         } catch (error) {
           console.error('JSON解析エラー:', error);
@@ -834,79 +879,11 @@ ${'='.repeat(80)}`;
     }
   };
 
-  // プロジェクトの詳細情報を取得する関数
-  const getProjectContext = () => {
-    if (!currentProject) return null;
-
-    return {
-      title: currentProject.title,
-      description: currentProject.description,
-      genre: currentProject.genre || '一般小説',
-      mainGenre: currentProject.mainGenre || currentProject.genre || '一般小説',
-      subGenre: currentProject.subGenre || '未設定',
-      targetReader: currentProject.targetReader || '全年齢',
-      projectTheme: currentProject.projectTheme || '成長・自己発見',
-      characters: currentProject.characters.map(c => ({
-        name: c.name,
-        role: c.role,
-        personality: c.personality,
-        background: c.background
-      }))
-    };
-  };
-
-  // 最終保存時刻の表示
-  const getLastSavedText = useCallback(() => {
-    if (!lastSaved) return '未保存';
-
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - lastSaved.getTime()) / 1000);
-
-    if (diff < 10) return '数秒前に保存';
-    if (diff < 60) return `${diff}秒前に保存`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}分前に保存`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}時間前に保存`;
-    return lastSaved.toLocaleDateString('ja-JP');
-  }, [lastSaved]);
-
-  // 文字数が制限を超えているかチェック
-  const isOverLimit = useCallback((fieldKey: keyof typeof formData, limit: number = 500) => {
-    return formData[fieldKey].length > limit;
-  }, [formData]);
-
-  // 任意のフィールドが制限超過しているかチェック
-  const hasAnyOverLimit = useCallback(() => {
-    const fieldsToCheck = plotStructure === 'kishotenketsu'
-      ? ['ki', 'sho', 'ten', 'ketsu']
-      : plotStructure === 'three-act'
-        ? ['act1', 'act2', 'act3']
-        : ['fourAct1', 'fourAct2', 'fourAct3', 'fourAct4'];
-
-    return fieldsToCheck.some(field => isOverLimit(field as keyof typeof formData));
-  }, [plotStructure, isOverLimit]);
+  // ユーティリティ関数は utils.ts からインポート済み
 
   // プロット構成完成度を計算する関数
   const calculateStructureProgress = () => {
-    const structureFields = plotStructure === 'kishotenketsu'
-      ? [
-        { key: 'ki', label: '起 - 導入', value: formData.ki },
-        { key: 'sho', label: '承 - 展開', value: formData.sho },
-        { key: 'ten', label: '転 - 転換', value: formData.ten },
-        { key: 'ketsu', label: '結 - 結末', value: formData.ketsu },
-      ]
-      : plotStructure === 'three-act'
-        ? [
-          { key: 'act1', label: '第1幕 - 導入', value: formData.act1 },
-          { key: 'act2', label: '第2幕 - 展開', value: formData.act2 },
-          { key: 'act3', label: '第3幕 - 結末', value: formData.act3 },
-        ]
-        : [
-          { key: 'fourAct1', label: '第1幕 - 秩序', value: formData.fourAct1 },
-          { key: 'fourAct2', label: '第2幕 - 混沌', value: formData.fourAct2 },
-          { key: 'fourAct3', label: '第3幕 - 秩序', value: formData.fourAct3 },
-          { key: 'fourAct4', label: '第4幕 - 混沌', value: formData.fourAct4 },
-        ];
-
+    const structureFields = getStructureFields(plotStructure, formData);
     const completedFields = structureFields.filter(field => field.value.trim().length > 0);
     const progressPercentage = (completedFields.length / structureFields.length) * 100;
 
@@ -915,7 +892,8 @@ ${'='.repeat(80)}`;
       total: structureFields.length,
       percentage: progressPercentage,
       fields: structureFields.map(field => ({
-        ...field,
+        key: field.key,
+        label: field.label,
         completed: field.value.trim().length > 0
       }))
     };
@@ -954,42 +932,26 @@ ${'='.repeat(80)}`;
                 </h2>
                 <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
                   <Clock className="h-4 w-4" />
-                  <span className="font-['Noto_Sans_JP']">{getLastSavedText()}</span>
+                  <span className="font-['Noto_Sans_JP']">{getLastSavedText(lastSaved)}</span>
                 </div>
               </div>
 
-              {/* 2段目: 構成スタイル切り替え（タブUI） */}
-              <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-lg flex space-x-1">
-                <button
-                  onClick={() => setPlotStructure('kishotenketsu')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${plotStructure === 'kishotenketsu'
-                      ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                    }`}
-                  title="日本伝統の4段階構成"
+              {/* 2段目: 構成スタイル切り替え（ドロップダウン） */}
+              <div className="relative">
+                <select
+                  value={plotStructure}
+                  onChange={(e) => setPlotStructure(e.target.value as PlotStructureType)}
+                  className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none cursor-pointer"
                 >
-                  起承転結
-                </button>
-                <button
-                  onClick={() => setPlotStructure('three-act')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${plotStructure === 'three-act'
-                      ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                    }`}
-                  title="西洋古典の3段階構成"
-                >
-                  三幕構成
-                </button>
-                <button
-                  onClick={() => setPlotStructure('four-act')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 font-['Noto_Sans_JP'] ${plotStructure === 'four-act'
-                      ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                    }`}
-                  title="秩序と混沌の対比を重視した現代的な4段階構成"
-                >
-                  四幕構成
-                </button>
+                  {Object.entries(PLOT_STRUCTURE_CONFIGS).map(([key, config]) => (
+                    <option key={key} value={key}>
+                      {config.label} - {config.description}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <ChevronDown className="h-5 w-5 text-gray-400" />
+                </div>
               </div>
 
               {/* 3段目: 履歴管理、一貫性チェック、構成提案ボタン */}
@@ -997,16 +959,28 @@ ${'='.repeat(80)}`;
                 {/* 履歴管理ボタン */}
                 <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                   <button
-                    onClick={handleUndo}
-                    disabled={historyIndexRef.current <= 0}
+                    onClick={() => {
+                      const state = handleUndo();
+                      if (state) {
+                        setFormData(state.formData);
+                        setPlotStructure(state.plotStructure);
+                      }
+                    }}
+                    disabled={!canUndo()}
                     className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="元に戻す (Ctrl+Z)"
                   >
                     <Undo2 className="h-4 w-4 text-gray-700 dark:text-gray-300" />
                   </button>
                   <button
-                    onClick={handleRedo}
-                    disabled={historyIndexRef.current >= historyRef.current.length - 1}
+                    onClick={() => {
+                      const state = handleRedo();
+                      if (state) {
+                        setFormData(state.formData);
+                        setPlotStructure(state.plotStructure);
+                      }
+                    }}
+                    disabled={!canRedo()}
                     className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="やり直す (Ctrl+Y)"
                   >
@@ -1032,14 +1006,14 @@ ${'='.repeat(80)}`;
                   onClick={handleStructureAIGenerate}
                   disabled={isGenerating === 'structure'}
                   className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-                  title={`${plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}の内容をAI提案`}
+                  title={`${PLOT_STRUCTURE_CONFIGS[plotStructure].label}の内容をAI提案`}
                 >
                   {isGenerating === 'structure' ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  <span>{plotStructure === 'kishotenketsu' ? '起承転結提案' : plotStructure === 'three-act' ? '三幕構成提案' : '四幕構成提案'}</span>
+                  <span>{PLOT_STRUCTURE_CONFIGS[plotStructure].label}提案</span>
                 </button>
               </div>
             </div>
@@ -1047,17 +1021,17 @@ ${'='.repeat(80)}`;
             {/* 一貫性チェック結果表示 */}
             {consistencyCheck && (
               <div className={`p-4 rounded-lg border ${consistencyCheck.hasIssues
-                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
-                  : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                 }`}>
                 <div className="flex items-center space-x-2 mb-2">
                   <AlertCircle className={`h-5 w-5 ${consistencyCheck.hasIssues
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-green-600 dark:text-green-400'
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-green-600 dark:text-green-400'
                     }`} />
                   <h4 className={`font-semibold font-['Noto_Sans_JP'] ${consistencyCheck.hasIssues
-                      ? 'text-amber-800 dark:text-amber-200'
-                      : 'text-green-800 dark:text-green-200'
+                    ? 'text-amber-800 dark:text-amber-200'
+                    : 'text-green-800 dark:text-green-200'
                     }`}>
                     {consistencyCheck.hasIssues ? '一貫性の問題が見つかりました' : '一貫性チェック完了：問題なし'}
                   </h4>
@@ -1072,672 +1046,18 @@ ${'='.repeat(80)}`;
               </div>
             )}
 
-            {/* 起承転結、三幕構成、または四幕構成の表示 */}
-            {plotStructure === 'kishotenketsu' ? (
-              <>
-                {/* 起 - 導入 */}
-                <div id="section-ki" className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-6 rounded-2xl border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-blue-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Play className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 font-['Noto_Sans_JP']">
-                          起 - 導入
-                        </h3>
-                        <p className="text-sm text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">
-                          物語の始まり
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {/* AI補完ボタン */}
-                      <button
-                        onClick={() => handleAISupplement('ki', '起 - 導入')}
-                        disabled={isGenerating === 'supplement-ki'}
-                        className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center"
-                        title="AI補完"
-                      >
-                        {isGenerating === 'supplement-ki' ? (
-                          <Loader2 className="h-5 w-5 text-blue-700 dark:text-blue-300 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-5 w-5 text-blue-700 dark:text-blue-300" />
-                        )}
-                      </button>
-                      {/* その他のアクションメニュー */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setOpenMenuId(openMenuId === 'ki' ? null : 'ki')}
-                          className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          title="その他のアクション"
-                        >
-                          <MoreVertical className="h-5 w-5 text-blue-700 dark:text-blue-300" />
-                        </button>
-                        {openMenuId === 'ki' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button
-                              onClick={() => handleCopy('ki')}
-                              className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"
-                            >
-                              <Copy className="h-4 w-4" />
-                              <span>コピー</span>
-                            </button>
-                            <button
-                              onClick={() => handleClear('ki')}
-                              className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span>クリア</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      {/* 折りたたみボタン */}
-                      <button
-                        onClick={() => toggleSection('ki')}
-                        className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                        title={collapsedSections.has('ki') ? '展開' : '折りたたみ'}
-                      >
-                        {collapsedSections.has('ki') ? (
-                          <ChevronDown className="h-5 w-5 text-blue-700 dark:text-blue-300" />
-                        ) : (
-                          <ChevronUp className="h-5 w-5 text-blue-700 dark:text-blue-300" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('ki') && (
-                    <div>
-                      <textarea
-                        value={formData.ki}
-                        onChange={(e) => setFormData({ ...formData, ki: e.target.value })}
-                        placeholder="登場人物の紹介、日常の描写、事件の発端..."
-                        rows={8}
-                        className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('ki')
-                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
-                            : 'border-blue-300 dark:border-blue-600 focus:ring-blue-500'
-                          } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`}
-                      />
-                      <div className="mt-2 space-y-2">
-                        {/* 文字数超過警告 */}
-                        {isOverLimit('ki') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">
-                              文字数が上限を{formData.ki.length - 500}文字超過しています
-                            </span>
-                          </div>
-                        )}
-                        {/* 文字数プログレスバー */}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.ki.length, 500)}`}
-                            style={{ width: `${Math.min((formData.ki.length / 500) * 100, 100)}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">
-                            500文字以内で記述してください
-                          </p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.ki.length, 500)}`}>
-                            {formData.ki.length}/500
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 承 - 展開 */}
-                <div id="section-sho" className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-2xl border border-green-200 dark:border-green-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-green-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Zap className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-green-900 dark:text-green-100 font-['Noto_Sans_JP']">
-                          承 - 展開
-                        </h3>
-                        <p className="text-sm text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
-                          事件の発展
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('sho', '承 - 展開')} disabled={isGenerating === 'supplement-sho'} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-sho' ? <Loader2 className="h-5 w-5 text-green-700 dark:text-green-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-green-700 dark:text-green-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'sho' ? null : 'sho')} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-green-700 dark:text-green-300" />
-                        </button>
-                        {openMenuId === 'sho' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('sho')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('sho')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('sho')} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('sho') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('sho') ? <ChevronDown className="h-5 w-5 text-green-700 dark:text-green-300" /> : <ChevronUp className="h-5 w-5 text-green-700 dark:text-green-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('sho') && (
-                    <div>
-                      <textarea value={formData.sho} onChange={(e) => setFormData({ ...formData, sho: e.target.value })} placeholder="問題の詳細化、新たな登場人物、状況の発展..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('sho') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-green-300 dark:border-green-600 focus:ring-green-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('sho') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.sho.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.sho.length, 500)}`} style={{ width: `${Math.min((formData.sho.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.sho.length, 500)}`}>{formData.sho.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 転 - 転換 */}
-                <div id="section-ten" className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-2xl border border-orange-200 dark:border-orange-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-orange-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Target className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-orange-900 dark:text-orange-100 font-['Noto_Sans_JP']">転 - 転換</h3>
-                        <p className="text-sm text-orange-700 dark:text-orange-300 font-['Noto_Sans_JP']">大きな変化</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('ten', '転 - 転換')} disabled={isGenerating === 'supplement-ten'} className="p-2.5 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-ten' ? <Loader2 className="h-5 w-5 text-orange-700 dark:text-orange-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-orange-700 dark:text-orange-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'ten' ? null : 'ten')} className="p-2.5 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-orange-700 dark:text-orange-300" />
-                        </button>
-                        {openMenuId === 'ten' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('ten')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('ten')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('ten')} className="p-2.5 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('ten') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('ten') ? <ChevronDown className="h-5 w-5 text-orange-700 dark:text-orange-300" /> : <ChevronUp className="h-5 w-5 text-orange-700 dark:text-orange-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('ten') && (
-                    <div>
-                      <textarea value={formData.ten} onChange={(e) => setFormData({ ...formData, ten: e.target.value })} placeholder="予想外の展開、大きな転換点、クライマックス..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('ten') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-orange-300 dark:border-orange-600 focus:ring-orange-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('ten') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.ten.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.ten.length, 500)}`} style={{ width: `${Math.min((formData.ten.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-orange-600 dark:text-orange-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.ten.length, 500)}`}>{formData.ten.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 結 - 結末 */}
-                <div id="section-ketsu" className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-2xl border border-purple-200 dark:border-purple-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-purple-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Heart className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 font-['Noto_Sans_JP']">結 - 結末</h3>
-                        <p className="text-sm text-purple-700 dark:text-purple-300 font-['Noto_Sans_JP']">物語の終結</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('ketsu', '結 - 結末')} disabled={isGenerating === 'supplement-ketsu'} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-ketsu' ? <Loader2 className="h-5 w-5 text-purple-700 dark:text-purple-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-purple-700 dark:text-purple-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'ketsu' ? null : 'ketsu')} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-purple-700 dark:text-purple-300" />
-                        </button>
-                        {openMenuId === 'ketsu' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('ketsu')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('ketsu')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('ketsu')} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('ketsu') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('ketsu') ? <ChevronDown className="h-5 w-5 text-purple-700 dark:text-purple-300" /> : <ChevronUp className="h-5 w-5 text-purple-700 dark:text-purple-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('ketsu') && (
-                    <div>
-                      <textarea value={formData.ketsu} onChange={(e) => setFormData({ ...formData, ketsu: e.target.value })} placeholder="問題の解決、キャラクターの成長、新たな始まり..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('ketsu') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-purple-300 dark:border-purple-600 focus:ring-purple-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('ketsu') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.ketsu.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.ketsu.length, 500)}`} style={{ width: `${Math.min((formData.ketsu.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.ketsu.length, 500)}`}>{formData.ketsu.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : plotStructure === 'three-act' ? (
-              <>
-                {/* 第1幕 - 導入 */}
-                <div id="section-act1" className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-6 rounded-2xl border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-blue-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Play className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 font-['Noto_Sans_JP']">第1幕 - 導入</h3>
-                        <p className="text-sm text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">物語の始まりと設定</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('act1', '第1幕 - 導入')} disabled={isGenerating === 'supplement-act1'} className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-act1' ? <Loader2 className="h-5 w-5 text-blue-700 dark:text-blue-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-blue-700 dark:text-blue-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'act1' ? null : 'act1')} className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-blue-700 dark:text-blue-300" />
-                        </button>
-                        {openMenuId === 'act1' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('act1')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('act1')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('act1')} className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('act1') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('act1') ? <ChevronDown className="h-5 w-5 text-blue-700 dark:text-blue-300" /> : <ChevronUp className="h-5 w-5 text-blue-700 dark:text-blue-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('act1') && (
-                    <div>
-                      <textarea value={formData.act1} onChange={(e) => setFormData({ ...formData, act1: e.target.value })} placeholder="登場人物の紹介、世界観の設定、事件の発端..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('act1') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-blue-300 dark:border-blue-600 focus:ring-blue-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('act1') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.act1.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.act1.length, 500)}`} style={{ width: `${Math.min((formData.act1.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.act1.length, 500)}`}>{formData.act1.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 第2幕 - 展開 */}
-                <div id="section-act2" className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-2xl border border-green-200 dark:border-green-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-green-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Zap className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-green-900 dark:text-green-100 font-['Noto_Sans_JP']">第2幕 - 展開</h3>
-                        <p className="text-sm text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">物語の核心部分</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('act2', '第2幕 - 展開')} disabled={isGenerating === 'supplement-act2'} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-act2' ? <Loader2 className="h-5 w-5 text-green-700 dark:text-green-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-green-700 dark:text-green-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'act2' ? null : 'act2')} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-green-700 dark:text-green-300" />
-                        </button>
-                        {openMenuId === 'act2' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('act2')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('act2')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('act2')} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('act2') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('act2') ? <ChevronDown className="h-5 w-5 text-green-700 dark:text-green-300" /> : <ChevronUp className="h-5 w-5 text-green-700 dark:text-green-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('act2') && (
-                    <div>
-                      <textarea value={formData.act2} onChange={(e) => setFormData({ ...formData, act2: e.target.value })} placeholder="主人公の試練、対立の激化、クライマックスへの準備..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('act2') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-green-300 dark:border-green-600 focus:ring-green-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('act2') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.act2.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.act2.length, 500)}`} style={{ width: `${Math.min((formData.act2.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.act2.length, 500)}`}>{formData.act2.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 第3幕 - 結末 */}
-                <div id="section-act3" className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-2xl border border-purple-200 dark:border-purple-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-purple-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Heart className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 font-['Noto_Sans_JP']">第3幕 - 結末</h3>
-                        <p className="text-sm text-purple-700 dark:text-purple-300 font-['Noto_Sans_JP']">物語の解決と結末</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('act3', '第3幕 - 結末')} disabled={isGenerating === 'supplement-act3'} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-act3' ? <Loader2 className="h-5 w-5 text-purple-700 dark:text-purple-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-purple-700 dark:text-purple-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'act3' ? null : 'act3')} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-purple-700 dark:text-purple-300" />
-                        </button>
-                        {openMenuId === 'act3' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('act3')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('act3')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('act3')} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('act3') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('act3') ? <ChevronDown className="h-5 w-5 text-purple-700 dark:text-purple-300" /> : <ChevronUp className="h-5 w-5 text-purple-700 dark:text-purple-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('act3') && (
-                    <div>
-                      <textarea value={formData.act3} onChange={(e) => setFormData({ ...formData, act3: e.target.value })} placeholder="クライマックス、問題の解決、物語の結末、キャラクターの成長..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('act3') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-purple-300 dark:border-purple-600 focus:ring-purple-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('act3') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.act3.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.act3.length, 500)}`} style={{ width: `${Math.min((formData.act3.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.act3.length, 500)}`}>{formData.act3.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                {/* 第1幕 - 秩序 */}
-                <div id="section-fourAct1" className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-6 rounded-2xl border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-blue-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Play className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 font-['Noto_Sans_JP']">第1幕 - 秩序</h3>
-                        <p className="text-sm text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">日常の確立</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('fourAct1', '第1幕 - 秩序')} disabled={isGenerating === 'supplement-fourAct1'} className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-fourAct1' ? <Loader2 className="h-5 w-5 text-blue-700 dark:text-blue-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-blue-700 dark:text-blue-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'fourAct1' ? null : 'fourAct1')} className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-blue-700 dark:text-blue-300" />
-                        </button>
-                        {openMenuId === 'fourAct1' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('fourAct1')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('fourAct1')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('fourAct1')} className="p-2.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('fourAct1') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('fourAct1') ? <ChevronDown className="h-5 w-5 text-blue-700 dark:text-blue-300" /> : <ChevronUp className="h-5 w-5 text-blue-700 dark:text-blue-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('fourAct1') && (
-                    <div>
-                      <textarea value={formData.fourAct1} onChange={(e) => setFormData({ ...formData, fourAct1: e.target.value })} placeholder="キャラクター紹介、世界観の設定、日常の確立..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('fourAct1') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-blue-300 dark:border-blue-600 focus:ring-blue-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('fourAct1') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.fourAct1.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.fourAct1.length, 500)}`} style={{ width: `${Math.min((formData.fourAct1.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.fourAct1.length, 500)}`}>{formData.fourAct1.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 第2幕 - 混沌 */}
-                <div id="section-fourAct2" className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-6 rounded-2xl border border-red-200 dark:border-red-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-red-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Zap className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-red-900 dark:text-red-100 font-['Noto_Sans_JP']">第2幕 - 混沌</h3>
-                        <p className="text-sm text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">問題発生と状況悪化</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('fourAct2', '第2幕 - 混沌')} disabled={isGenerating === 'supplement-fourAct2'} className="p-2.5 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-fourAct2' ? <Loader2 className="h-5 w-5 text-red-700 dark:text-red-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-red-700 dark:text-red-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'fourAct2' ? null : 'fourAct2')} className="p-2.5 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-red-700 dark:text-red-300" />
-                        </button>
-                        {openMenuId === 'fourAct2' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('fourAct2')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('fourAct2')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('fourAct2')} className="p-2.5 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('fourAct2') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('fourAct2') ? <ChevronDown className="h-5 w-5 text-red-700 dark:text-red-300" /> : <ChevronUp className="h-5 w-5 text-red-700 dark:text-red-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('fourAct2') && (
-                    <div>
-                      <textarea value={formData.fourAct2} onChange={(e) => setFormData({ ...formData, fourAct2: e.target.value })} placeholder="問題の発生、状況の悪化、困難の増大..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('fourAct2') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-red-300 dark:border-red-600 focus:ring-red-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('fourAct2') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.fourAct2.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.fourAct2.length, 500)}`} style={{ width: `${Math.min((formData.fourAct2.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.fourAct2.length, 500)}`}>{formData.fourAct2.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 第3幕 - 秩序 */}
-                <div id="section-fourAct3" className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-2xl border border-green-200 dark:border-green-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-green-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Target className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-green-900 dark:text-green-100 font-['Noto_Sans_JP']">第3幕 - 秩序</h3>
-                        <p className="text-sm text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">解決への取り組み</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('fourAct3', '第3幕 - 秩序')} disabled={isGenerating === 'supplement-fourAct3'} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-fourAct3' ? <Loader2 className="h-5 w-5 text-green-700 dark:text-green-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-green-700 dark:text-green-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'fourAct3' ? null : 'fourAct3')} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-green-700 dark:text-green-300" />
-                        </button>
-                        {openMenuId === 'fourAct3' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('fourAct3')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('fourAct3')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('fourAct3')} className="p-2.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('fourAct3') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('fourAct3') ? <ChevronDown className="h-5 w-5 text-green-700 dark:text-green-300" /> : <ChevronUp className="h-5 w-5 text-green-700 dark:text-green-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('fourAct3') && (
-                    <div>
-                      <textarea value={formData.fourAct3} onChange={(e) => setFormData({ ...formData, fourAct3: e.target.value })} placeholder="解決への取り組み、希望の光、状況の改善..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('fourAct3') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-green-300 dark:border-green-600 focus:ring-green-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('fourAct3') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.fourAct3.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.fourAct3.length, 500)}`} style={{ width: `${Math.min((formData.fourAct3.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.fourAct3.length, 500)}`}>{formData.fourAct3.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 第4幕 - 混沌 */}
-                <div id="section-fourAct4" className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-2xl border border-purple-200 dark:border-purple-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-purple-500 w-8 h-8 rounded-full flex items-center justify-center">
-                        <Heart className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 font-['Noto_Sans_JP']">第4幕 - 混沌</h3>
-                        <p className="text-sm text-purple-700 dark:text-purple-300 font-['Noto_Sans_JP']">最終的な試練と真の解決</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => handleAISupplement('fourAct4', '第4幕 - 混沌')} disabled={isGenerating === 'supplement-fourAct4'} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center" title="AI補完">
-                        {isGenerating === 'supplement-fourAct4' ? <Loader2 className="h-5 w-5 text-purple-700 dark:text-purple-300 animate-spin" /> : <Sparkles className="h-5 w-5 text-purple-700 dark:text-purple-300" />}
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === 'fourAct4' ? null : 'fourAct4')} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="その他のアクション">
-                          <MoreVertical className="h-5 w-5 text-purple-700 dark:text-purple-300" />
-                        </button>
-                        {openMenuId === 'fourAct4' && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                            <button onClick={() => handleCopy('fourAct4')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP'] transition-colors"><Copy className="h-4 w-4" /><span>コピー</span></button>
-                            <button onClick={() => handleClear('fourAct4')} className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 text-red-600 dark:text-red-400 font-['Noto_Sans_JP'] transition-colors"><Trash2 className="h-4 w-4" /><span>クリア</span></button>
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => toggleSection('fourAct4')} className="p-2.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title={collapsedSections.has('fourAct4') ? '展開' : '折りたたみ'}>
-                        {collapsedSections.has('fourAct4') ? <ChevronDown className="h-5 w-5 text-purple-700 dark:text-purple-300" /> : <ChevronUp className="h-5 w-5 text-purple-700 dark:text-purple-300" />}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedSections.has('fourAct4') && (
-                    <div>
-                      <textarea value={formData.fourAct4} onChange={(e) => setFormData({ ...formData, fourAct4: e.target.value })} placeholder="最終的な試練、真の解決、物語の結末..." rows={8} className={`w-full px-4 py-3 rounded-lg border ${isOverLimit('fourAct4') ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-purple-300 dark:border-purple-600 focus:ring-purple-500'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent font-['Noto_Sans_JP'] resize-y min-h-[200px]`} />
-                      <div className="mt-2 space-y-2">
-                        {isOverLimit('fourAct4') && (
-                          <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium font-['Noto_Sans_JP']">文字数が上限を{formData.fourAct4.length - 500}文字超過しています</span>
-                          </div>
-                        )}
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(formData.fourAct4.length, 500)}`} style={{ width: `${Math.min((formData.fourAct4.length / 500) * 100, 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">500文字以内で記述してください</p>
-                          <span className={`text-xs font-['Noto_Sans_JP'] ${getCharacterCountColor(formData.fourAct4.length, 500)}`}>{formData.fourAct4.length}/500</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+            {/* プロット構成の表示 */}
+            <PlotStructureSection
+              structure={plotStructure}
+              formData={formData}
+              collapsedSections={collapsedSections}
+              isGenerating={isGenerating}
+              onFieldChange={(fieldKey, value) => setFormData(prev => ({ ...prev, [fieldKey]: value }))}
+              onToggleCollapse={toggleSection}
+              onAISupplement={handleAISupplement}
+              onCopy={handleCopy}
+              onClear={handleClear}
+            />
           </div>
 
           {/* リセットボタンと保存ボタン */}
@@ -1765,7 +1085,7 @@ ${'='.repeat(80)}`;
               )}
               <button
                 onClick={() => {
-                  if (hasAnyOverLimit()) {
+                  if (hasAnyOverLimit(plotStructure, formData)) {
                     if (confirm('⚠️ 一部のセクションで文字数が上限を超えています。\nこのまま保存しますか？')) {
                       handleManualSave();
                     }
@@ -1775,13 +1095,13 @@ ${'='.repeat(80)}`;
                 }}
                 disabled={isSaving}
                 className={`px-6 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] ${isSaving
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : hasAnyOverLimit()
-                      ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:scale-105'
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-105'
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : hasAnyOverLimit(plotStructure, formData)
+                    ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:scale-105'
+                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-105'
                   } text-white flex items-center space-x-2`}
               >
-                {hasAnyOverLimit() && !isSaving && <AlertCircle className="h-5 w-5" />}
+                {hasAnyOverLimit(plotStructure, formData) && !isSaving && <AlertCircle className="h-5 w-5" />}
                 <span>{isSaving ? '保存中...' : '保存する'}</span>
               </button>
             </div>
@@ -1807,10 +1127,10 @@ ${'='.repeat(80)}`;
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
                   className={`bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl border transition-all duration-200 ${isDragging
-                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                      : isDragOver
-                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                        : 'border-indigo-200 dark:border-indigo-800 cursor-move hover:shadow-xl'
+                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                    : isDragOver
+                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-indigo-200 dark:border-indigo-800 cursor-move hover:shadow-xl'
                     }`}
                 >
                   <div
@@ -1852,60 +1172,19 @@ ${'='.repeat(80)}`;
                   {!isCollapsed && (
                     <div className="p-6 pt-0">
                       <div className="space-y-4">
-                        {plotStructure === 'kishotenketsu' && (
                           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700">
                             <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2 font-['Noto_Sans_JP']">
-                              起承転結（日本伝統）
+                            {PLOT_STRUCTURE_CONFIGS[plotStructure].label}
                             </h4>
                             <p className="text-xs text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-2">
-                              物語の自然な流れを重視した4段階構成
+                            {PLOT_STRUCTURE_CONFIGS[plotStructure].description}
                             </p>
                             <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
-                              <li>• 起：物語の始まり、日常の描写</li>
-                              <li>• 承：事件の発展、状況の変化</li>
-                              <li>• 転：大きな転換点、クライマックス</li>
-                              <li>• 結：解決、物語の終結</li>
+                            {PLOT_STRUCTURE_CONFIGS[plotStructure].fields.map((field) => (
+                              <li key={field.key}>• {field.label}：{field.description}</li>
+                            ))}
                             </ul>
                           </div>
-                        )}
-
-                        {plotStructure === 'three-act' && (
-                          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700">
-                            <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2 font-['Noto_Sans_JP']">
-                              三幕構成（西洋古典）
-                            </h4>
-                            <p className="text-xs text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-2">
-                              劇的な構造を重視した3段階構成
-                            </p>
-                            <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
-                              <li>• 第1幕：導入、設定、事件の発端</li>
-                              <li>• 第2幕：展開、対立の激化、試練</li>
-                              <li>• 第3幕：クライマックス、解決、結末</li>
-                            </ul>
-                          </div>
-                        )}
-
-                        {plotStructure === 'four-act' && (
-                          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700">
-                            <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2 font-['Noto_Sans_JP']">
-                              四幕構成（ダン・ハーモン）
-                            </h4>
-                            <p className="text-xs text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-2">
-                              秩序と混沌の対比を重視した現代的な4段階構成
-                            </p>
-                            <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
-                              <li>• 第1幕（秩序）：日常の確立、キャラクター紹介</li>
-                              <li>• 第2幕（混沌）：問題発生、状況の悪化</li>
-                              <li>• 第3幕（秩序）：解決への取り組み、希望の光</li>
-                              <li>• 第4幕（混沌）：最終的な試練、真の解決</li>
-                            </ul>
-                            <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-700">
-                              <p className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
-                                💡 起承転結との違い：秩序と混沌の対比により、より現代的な物語構造を提供。短い作品にも適応しやすい。
-                              </p>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
@@ -1925,10 +1204,10 @@ ${'='.repeat(80)}`;
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
                   className={`bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl border transition-all duration-200 ${isDragging
-                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                      : isDragOver
-                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                        : 'border-amber-200 dark:border-amber-800 cursor-move hover:shadow-xl'
+                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                    : isDragOver
+                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-amber-200 dark:border-amber-800 cursor-move hover:shadow-xl'
                     }`}
                 >
                   <div
@@ -1970,7 +1249,6 @@ ${'='.repeat(80)}`;
                   {!isCollapsed && (
                     <div className="p-6 pt-0">
                       <div className="space-y-4">
-                        {/* メインテーマ */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
                             メインテーマ
@@ -1979,8 +1257,6 @@ ${'='.repeat(80)}`;
                             {currentProject?.plot?.theme || '未設定'}
                           </p>
                         </div>
-
-                        {/* 舞台設定 */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
                             舞台設定
@@ -1989,8 +1265,6 @@ ${'='.repeat(80)}`;
                             {currentProject?.plot?.setting || '未設定'}
                           </p>
                         </div>
-
-                        {/* フック要素 */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
                             フック要素
@@ -1999,8 +1273,6 @@ ${'='.repeat(80)}`;
                             {currentProject?.plot?.hook || '未設定'}
                           </p>
                         </div>
-
-                        {/* 主人公の目標 */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
                             主人公の目標
@@ -2009,8 +1281,6 @@ ${'='.repeat(80)}`;
                             {currentProject?.plot?.protagonistGoal || '未設定'}
                           </p>
                         </div>
-
-                        {/* 主要な障害 */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
                             主要な障害
@@ -2019,8 +1289,6 @@ ${'='.repeat(80)}`;
                             {currentProject?.plot?.mainObstacle || '未設定'}
                           </p>
                         </div>
-
-                        {/* 物語の結末 */}
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
                           <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
                             物語の結末
@@ -2030,7 +1298,6 @@ ${'='.repeat(80)}`;
                           </p>
                         </div>
                       </div>
-
                       <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
                         {currentProject?.plot?.theme && currentProject?.plot?.setting && currentProject?.plot?.hook && currentProject?.plot?.protagonistGoal && currentProject?.plot?.mainObstacle ? (
                           <p className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
@@ -2063,10 +1330,10 @@ ${'='.repeat(80)}`;
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
                   className={`bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border transition-all duration-200 ${isDragging
-                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                      : isDragOver
-                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                        : 'border-purple-200 dark:border-purple-800 cursor-move hover:shadow-xl'
+                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                    : isDragOver
+                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-purple-200 dark:border-purple-800 cursor-move hover:shadow-xl'
                     }`}
                 >
                   <div
@@ -2110,20 +1377,18 @@ ${'='.repeat(80)}`;
                       <p className="text-gray-700 dark:text-gray-300 mb-4 font-['Noto_Sans_JP']">
                         一貫性のある物語構成を生成します：
                       </p>
-
                       <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
-                        <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">{plotStructure === 'kishotenketsu' ? '起承転結提案' : plotStructure === 'three-act' ? '三幕構成提案' : '四幕構成提案'}</span>：{plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}の内容をAI提案</li>
+                        <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">{PLOT_STRUCTURE_CONFIGS[plotStructure].label}提案</span>：{PLOT_STRUCTURE_CONFIGS[plotStructure].label}の内容をAI提案</li>
                         <li>• キャラクター設定との連携強化</li>
                         <li>• ジャンルに適した展開パターン</li>
                         <li>• 文字数制限による適切なボックスサイズ対応</li>
                       </ul>
-
                       <div className="mb-4 p-4 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
                         <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-3 font-['Noto_Sans_JP']">
                           AI構成詳細提案について
                         </h4>
                         <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-3">
-                          プロジェクトの基本設定とキャラクター情報に基づいて、選択した構成（{plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}）の詳細な内容を自動生成します。
+                          プロジェクトの基本設定とキャラクター情報に基づいて、選択した構成（{PLOT_STRUCTURE_CONFIGS[plotStructure].label}）の詳細な内容を自動生成します。
                         </p>
                         <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mb-4">
                           <li>• 基本設定（テーマ、舞台、フック要素など）を反映した一貫性のある構成</li>
@@ -2133,7 +1398,6 @@ ${'='.repeat(80)}`;
                             <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">逆算プロンプティング</span>：結末から逆算して物語を構築（Goal-Oriented Prompting）</li>
                           )}
                         </ul>
-
                         <button
                           onClick={handleStructureAIGenerate}
                           disabled={isGenerating === 'structure'}
@@ -2147,7 +1411,7 @@ ${'='.repeat(80)}`;
                           ) : (
                             <>
                               <Sparkles className="h-5 w-5" />
-                              <span>{plotStructure === 'kishotenketsu' ? '起承転結をAI提案' : plotStructure === 'three-act' ? '三幕構成をAI提案' : '四幕構成をAI提案'}</span>
+                              <span>{PLOT_STRUCTURE_CONFIGS[plotStructure].label}をAI提案</span>
                             </>
                           )}
                         </button>
@@ -2170,10 +1434,10 @@ ${'='.repeat(80)}`;
                   onDrop={(e) => handleDrop(e, section.id)}
                   onDragEnd={handleDragEnd}
                   className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border transition-all duration-200 ${isDragging
-                      ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                      : isDragOver
-                        ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                        : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
+                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
+                    : isDragOver
+                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl'
                     }`}
                 >
                   <div
@@ -2185,7 +1449,7 @@ ${'='.repeat(80)}`;
                         <Check className="h-5 w-5 text-white" />
                       </div>
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        {plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}{section.title}
+                        {PLOT_STRUCTURE_CONFIGS[plotStructure].label}{section.title}
                       </h3>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -2228,32 +1492,31 @@ ${'='.repeat(80)}`;
                               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                                 <div
                                   className={`h-2 rounded-full transition-all duration-500 ${progress.percentage === 100
-                                      ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                      : 'bg-gradient-to-r from-green-500 to-emerald-500'
+                                    ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                                    : 'bg-gradient-to-r from-green-500 to-emerald-500'
                                     }`}
                                   style={{ width: `${progress.percentage}%` }}
                                 />
                               </div>
                               <div className="text-center">
                                 <span className={`text-sm font-semibold ${progress.percentage === 100
-                                    ? 'text-green-600 dark:text-green-400'
-                                    : 'text-gray-900 dark:text-white'
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-gray-900 dark:text-white'
                                   }`}>
                                   {progress.percentage.toFixed(0)}%
                                 </span>
                               </div>
                             </div>
-
                             <div className="mt-4 space-y-2 text-sm">
                               {progress.fields.map((field) => (
                                 <div key={field.key} className="flex items-center space-x-2">
                                   <div className={`w-2 h-2 rounded-full ${field.completed
-                                      ? 'bg-green-500'
-                                      : 'bg-gray-300 dark:bg-gray-600'
+                                    ? 'bg-green-500'
+                                    : 'bg-gray-300 dark:bg-gray-600'
                                     }`} />
                                   <span className={`font-['Noto_Sans_JP'] ${field.completed
-                                      ? 'text-gray-700 dark:text-gray-300'
-                                      : 'text-gray-500 dark:text-gray-500'
+                                    ? 'text-gray-700 dark:text-gray-300'
+                                    : 'text-gray-500 dark:text-gray-500'
                                     }`}>
                                     {field.label}
                                   </span>
@@ -2263,17 +1526,16 @@ ${'='.repeat(80)}`;
                                 </div>
                               ))}
                             </div>
-
                             {progress.percentage === 100 && (
                               <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                                 <div className="flex items-center space-x-2">
                                   <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                                   <span className="text-sm font-semibold text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
-                                    {plotStructure === 'kishotenketsu' ? '起承転結完成！' : plotStructure === 'three-act' ? '三幕構成完成！' : '四幕構成完成！'}
+                                    {PLOT_STRUCTURE_CONFIGS[plotStructure].label}完成！
                                   </span>
                                 </div>
                                 <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-['Noto_Sans_JP']">
-                                  すべての{plotStructure === 'kishotenketsu' ? '起承転結' : plotStructure === 'three-act' ? '三幕構成' : '四幕構成'}項目が設定されました。次のステップに進むことができます。
+                                  すべての{PLOT_STRUCTURE_CONFIGS[plotStructure].label}項目が設定されました。次のステップに進むことができます。
                                 </p>
                               </div>
                             )}
@@ -2352,7 +1614,6 @@ ${'='.repeat(80)}`;
                       </button>
                     </div>
                   </div>
-
                   {!section.collapsed && (
                     <div className="px-4 pb-4">
                       <AILogPanel

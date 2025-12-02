@@ -7,7 +7,8 @@ import {
   Network, 
   Calendar,
   MessageSquare,
-  Globe
+  Globe,
+  Bookmark
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { ImageBoard } from './ImageBoard';
@@ -16,6 +17,7 @@ import { RelationshipDiagram } from './tools/RelationshipDiagram';
 import { TimelineViewer } from './tools/TimelineViewer';
 import { ChatAssistant } from './tools/ChatAssistant';
 import { WorldSettingsManager } from './tools/WorldSettingsManager';
+import { ForeshadowingTracker } from './tools/ForeshadowingTracker';
 
 // ツールボタンコンポーネント（メモ化）
 interface ToolButtonProps {
@@ -93,6 +95,7 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
   const [showRelationships, setShowRelationships] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showWorldSettings, setShowWorldSettings] = useState(false);
+  const [showForeshadowings, setShowForeshadowings] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [activeMemoTab, setActiveMemoTab] = useState<MemoTabId>('ideas');
   const memoDefaults = useMemo(
@@ -188,6 +191,14 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       icon: Globe,
       onClick: () => setShowWorldSettings(true),
       color: 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20',
+      available: !!currentProject,
+    },
+    {
+      id: 'foreshadowings',
+      label: '伏線トラッカー',
+      icon: Bookmark,
+      onClick: () => setShowForeshadowings(true),
+      color: 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20',
       available: !!currentProject,
     },
   ];
@@ -343,6 +354,11 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       <WorldSettingsManager 
         isOpen={showWorldSettings} 
         onClose={() => setShowWorldSettings(false)} 
+      />
+      
+      <ForeshadowingTracker 
+        isOpen={showForeshadowings} 
+        onClose={() => setShowForeshadowings(false)} 
       />
       
       <ChatAssistant 

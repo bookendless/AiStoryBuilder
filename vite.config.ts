@@ -13,7 +13,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: true,
+    strictPort: false, // ポートが使用中の場合は別のポートを自動選択
     host: true,
     open: false, // Tauriでは自動で開かない
     cors: true,

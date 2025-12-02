@@ -32,7 +32,7 @@ export interface AISettings {
 export interface AIRequest {
   prompt: string;
   context?: string;
-  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world';
+  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world' | 'foreshadowing' | 'evaluation';
   settings: AISettings;
   image?: string; // Base64エンコードされた画像データ（data:image/...形式）
   onStream?: (chunk: string) => void; // ストリーミング用のコールバック
@@ -51,7 +51,8 @@ export interface AIResponse {
 
 export interface ImageItem {
   id: string;
-  url: string;
+  url: string; // Base64 URL または Blob URL（後方互換性のため）
+  imageId?: string; // Blobストレージの画像ID（新形式）
   title: string;
   description?: string;
   category: 'reference' | 'character' | 'setting' | 'mood' | 'other';

@@ -84,6 +84,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
     personality: '',
     background: '',
     image: '',
+    speechStyle: '',
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -102,10 +103,11 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
           personality: editingCharacter.personality,
           background: editingCharacter.background,
           image: editingCharacter.image || '',
+          speechStyle: editingCharacter.speechStyle || '',
         });
         setPreviewUrl(editingCharacter.image || '');
       } else {
-        setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '' });
+        setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
         setPreviewUrl('');
       }
       setSelectedFile(null);
@@ -191,6 +193,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
       personality: formData.personality.trim(),
       background: formData.background.trim(),
       image: formData.image,
+      speechStyle: formData.speechStyle.trim() || undefined,
     };
 
     if (editingCharacter && onUpdate) {
@@ -202,7 +205,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
     }
 
     // フォームをリセット
-    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '' });
+    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
     setSelectedFile(null);
     setPreviewUrl('');
     if (fileInputRef.current) {
@@ -213,7 +216,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
 
   // キャンセル
   const handleCancel = () => {
-    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '' });
+    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
     setSelectedFile(null);
     setPreviewUrl('');
     if (fileInputRef.current) {
@@ -504,6 +507,51 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
                     </p>
                   )}
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                    口調・話し方
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={formData.speechStyle}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const truncatedValue = value.length > 200 ? value.substring(0, 200) : value;
+                        setFormData({ ...formData, speechStyle: truncatedValue });
+                      }}
+                      placeholder="例：丁寧語で話す、関西弁、語尾に「〜だぜ」をつける、敬語を使わないなど（100文字程度推奨）"
+                      rows={3}
+                      className={`w-full px-4 py-2 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] ${formData.speechStyle.length > 100
+                        ? 'border-yellow-300 dark:border-yellow-600'
+                        : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                    />
+                    <div className="absolute bottom-2 right-2 text-xs">
+                      <span className={`font-['Noto_Sans_JP'] ${formData.speechStyle.length > 200
+                        ? 'text-red-500'
+                        : formData.speechStyle.length > 100
+                          ? 'text-yellow-500'
+                          : 'text-gray-400'
+                        }`}>
+                        {formData.speechStyle.length}/200
+                      </span>
+                    </div>
+                  </div>
+                  {formData.speechStyle.length > 100 && formData.speechStyle.length <= 200 && (
+                    <p className="text-xs text-yellow-600 mt-1 font-['Noto_Sans_JP']">
+                      文字数が多めです（100文字程度推奨）
+                    </p>
+                  )}
+                  {formData.speechStyle.length > 200 && (
+                    <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
+                      200文字を超えたため切り捨てられました
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-['Noto_Sans_JP']">
+                    💡 この口調設定は、AIアシストでの会話生成や草案作成時に反映されます
+                  </p>
+                </div>
               </>
             )}
 
@@ -710,6 +758,10 @@ export const CharacterStep: React.FC = () => {
         ? '\n\n【重要】このキャラクターには画像が設定されています。画像を詳しく分析し、以下の点を確認してください：\n- 外見の特徴（髪色、髪型、目の色、体型、服装など）\n- 表情や雰囲気から読み取れる性格の特徴\n- 背景や設定から推測できる情報\n\n画像の分析結果を、既存の情報と統合して「外見の詳細」に反映してください。'
         : '';
 
+      const speechStyleInfo = character.speechStyle
+        ? `口調・話し方: ${character.speechStyle}`
+        : '';
+
       const prompt = aiService.buildPrompt('character', 'enhance', {
         title: currentProject.title || '未設定',
         theme: currentProject.theme || '未設定',
@@ -723,6 +775,7 @@ export const CharacterStep: React.FC = () => {
         appearance: character.appearance || '未設定',
         personality: character.personality || '未設定',
         background: character.background || '未設定',
+        speechStyle: speechStyleInfo ? `\n${speechStyleInfo}` : '',
         imageAnalysis: imageAnalysisInstruction,
       });
 
@@ -1252,6 +1305,13 @@ ${'='.repeat(80)}`;
                               <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.background}</p>
                             </div>
                           )}
+
+                          {character.speechStyle && (
+                            <div>
+                              <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">口調・話し方</h4>
+                              <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.speechStyle}</p>
+                            </div>
+                          )}
                         </div>
 
                         <button
@@ -1398,7 +1458,6 @@ ${'='.repeat(80)}`;
                     'enhance': '詳細化',
                     'generate': '生成',
                   }}
-                  showWhenEmpty={false}
                   renderLogContent={(log) => (
                     <div className="text-sm text-ai-700 dark:text-ai-300 font-['Noto_Sans_JP']">
                       <div className="mb-2">

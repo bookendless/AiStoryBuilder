@@ -5,11 +5,14 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { compressImage, optimizeBase64Image } from '../utils/performanceUtils';
+import { databaseService } from '../services/databaseService';
 
 interface OptimizedImageProps {
   src: string;
   alt: string;
   className?: string;
+  imageClassName?: string;
+  objectFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
   width?: number;
   height?: number;
   maxWidth?: number;
@@ -17,6 +20,7 @@ interface OptimizedImageProps {
   quality?: number;
   lazy?: boolean;
   placeholder?: string;
+  imageId?: string; // Blobストレージの画像ID
   onLoad?: () => void;
   onError?: (error: Error) => void;
   onClick?: () => void;
@@ -26,6 +30,8 @@ export function OptimizedImage({
   src,
   alt,
   className = '',
+  imageClassName = '',
+  objectFit = 'cover',
   width,
   height,
   maxWidth = 1920,
@@ -33,6 +39,7 @@ export function OptimizedImage({
   quality = 0.8,
   lazy = true,
   placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5YTNhZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkxvYWRpbmcuLi48L3RleHQ+PC9zdmc+',
+  imageId,
   onLoad,
   onError,
   onClick
@@ -90,12 +97,43 @@ export function OptimizedImage({
     };
   }, [lazy]);
 
-  // 画像の読み込み
+  // 画像の読み込み（Blobストレージ対応）
   useEffect(() => {
-    if (isVisible && src) {
-      optimizeImage(src);
-    }
-  }, [isVisible, src, optimizeImage]);
+    if (!isVisible) return;
+
+    const loadImage = async () => {
+      try {
+        setIsLoading(true);
+        setIsError(false);
+
+        // imageIdが指定されている場合はBlobストレージから読み込む
+        if (imageId) {
+          const blobUrl = await databaseService.getImageUrl(imageId);
+          if (blobUrl) {
+            setImageSrc(blobUrl);
+            setIsLoading(false);
+            return;
+          } else {
+            throw new Error('画像を取得できませんでした');
+          }
+        }
+
+        // 通常のsrcを使用
+        if (src) {
+          await optimizeImage(src);
+        }
+      } catch (error) {
+        console.error('画像読み込みエラー:', error);
+        setIsError(true);
+        setIsLoading(false);
+        if (onError) {
+          onError(error instanceof Error ? error : new Error('画像の読み込みに失敗しました'));
+        }
+      }
+    };
+
+    loadImage();
+  }, [isVisible, src, imageId, optimizeImage, onError]);
 
   // 画像の読み込み完了
   const handleLoad = useCallback(() => {
@@ -118,6 +156,35 @@ export function OptimizedImage({
       onClick();
     }
   }, [onClick]);
+
+  const objectFitClass = (() => {
+    switch (objectFit) {
+      case 'contain':
+        return 'object-contain';
+      case 'fill':
+        return 'object-fill';
+      case 'none':
+        return 'object-none';
+      case 'scale-down':
+        return 'object-scale-down';
+      case 'cover':
+      default:
+        return 'object-cover';
+    }
+  })();
+
+  const imageStyle: React.CSSProperties = {
+    maxWidth,
+    maxHeight,
+  };
+
+  if (typeof width === 'number') {
+    imageStyle.width = width;
+  }
+
+  if (typeof height === 'number') {
+    imageStyle.height = height;
+  }
 
   return (
     <div
@@ -144,17 +211,12 @@ export function OptimizedImage({
       <img
         src={imageSrc}
         alt={alt}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${
+        className={`w-full h-full ${objectFitClass} transition-opacity duration-300 ${
           isLoading ? 'opacity-0' : 'opacity-100'
-        }`}
+        } ${imageClassName}`.trim()}
         onLoad={handleLoad}
         onError={handleError}
-        style={{
-          maxWidth: maxWidth,
-          maxHeight: maxHeight,
-          width: width ? `${width}px` : 'auto',
-          height: height ? `${height}px` : 'auto'
-        }}
+        style={imageStyle}
       />
     </div>
   );

@@ -5,6 +5,8 @@ import { ImageItem } from '../types/ai';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { useToast } from './Toast';
 import { OptimizedImage } from './OptimizedImage';
+import { databaseService } from '../services/databaseService';
+import { optimizeImageToWebP } from '../utils/performanceUtils';
 
 // 画像カードコンポーネント（メモ化）
 interface ImageCardProps {
@@ -22,6 +24,7 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
         <OptimizedImage
           src={image.url}
           alt={image.title}
+          imageId={image.imageId}
           className="w-full h-full group-hover:scale-105 transition-transform duration-200"
           lazy={true}
           quality={0.8}
@@ -235,15 +238,16 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [gridContainerHeight, setGridContainerHeight] = useState(600); // デフォルト高さ
 
-  // 自動保存機能
-  const autoSaveImage = useCallback(async (imageData: { url: string; title: string; description: string; category: ImageItem['category'] }) => {
+  // 自動保存機能（Blobストレージ対応）
+  const autoSaveImage = useCallback(async (imageData: { url: string; imageId?: string; title: string; description: string; category: ImageItem['category'] }) => {
     if (!imageData.url.trim() || !imageData.title.trim()) return;
 
     setIsAutoSaving(true);
 
-    const newImage = {
+    const newImage: ImageItem = {
       id: Date.now().toString(),
       url: imageData.url.trim(),
+      imageId: imageData.imageId,
       title: imageData.title.trim(),
       description: imageData.description || '',
       category: imageData.category,
@@ -251,6 +255,11 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     };
 
     try {
+      // 参照カウントを増やす
+      if (newImage.imageId) {
+        await databaseService.incrementImageReference(newImage.imageId);
+      }
+
       await updateProject({
         imageBoard: [...(currentProject?.imageBoard || []), newImage]
       });
@@ -286,8 +295,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     });
   };
 
-  // ファイル処理関数（単一ファイル用）
-  const processFile = async (file: File): Promise<string | null> => {
+  // ファイル処理関数（単一ファイル用）- Blobストレージ対応
+  const processFile = async (file: File): Promise<{ imageId: string; url: string } | null> => {
     // ファイルタイプの検証
     if (!file.type.startsWith('image/')) {
       showError('画像ファイルを選択してください。');
@@ -302,30 +311,50 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
 
     try {
-      const base64 = await fileToBase64(file);
-      return base64;
+      // 画像のサイズを取得
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+
+      // WebP形式に変換してBlobストレージに保存
+      const webpBlob = await optimizeImageToWebP(file, 1920, 1080, 0.8);
+      const imageId = await databaseService.saveImage(
+        webpBlob,
+        file.type,
+        file.size,
+        img.width,
+        img.height
+      );
+
+      // Blob URLを生成（表示用）
+      const blobUrl = URL.createObjectURL(webpBlob);
+
+      return { imageId, url: blobUrl };
     } catch (error) {
-      console.error('ファイル読み込みエラー:', error);
-      showError('ファイルの読み込みに失敗しました。');
+      console.error('ファイル処理エラー:', error);
+      showError('ファイルの処理に失敗しました。');
       return null;
     }
   };
 
-  // 複数ファイル処理関数
+  // 複数ファイル処理関数 - Blobストレージ対応
   const processMultipleFiles = async (files: FileList | File[]) => {
     if (!currentProject) return;
 
     const fileArray = Array.from(files);
-    const validFiles: Array<{ file: File; base64: string }> = [];
+    const validFiles: Array<{ file: File; imageId: string; url: string }> = [];
     const errors: string[] = [];
 
     setIsUploading(true);
 
     // すべてのファイルを処理
     for (const file of fileArray) {
-      const base64 = await processFile(file);
-      if (base64) {
-        validFiles.push({ file, base64 });
+      const result = await processFile(file);
+      if (result) {
+        validFiles.push({ file, ...result });
       } else {
         errors.push(file.name);
       }
@@ -340,9 +369,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
 
     // 複数ファイルを一括追加
-    const newImages: ImageItem[] = validFiles.map(({ file, base64 }, index) => ({
+    const newImages: ImageItem[] = validFiles.map(({ file, imageId, url }, index) => ({
       id: (Date.now() + index).toString(),
-      url: base64,
+      imageId, // BlobストレージのID
+      url, // 表示用のBlob URL
       title: file.name.replace(/\.[^/.]+$/, ''), // 拡張子を除いたファイル名
       description: '',
       category: 'reference' as ImageItem['category'],
@@ -350,6 +380,13 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }));
 
     try {
+      // 参照カウントを増やす
+      for (const image of newImages) {
+        if (image.imageId) {
+          await databaseService.incrementImageReference(image.imageId);
+        }
+      }
+
       await updateProject({
         imageBoard: [...(currentProject.imageBoard || []), ...newImages],
       });
@@ -383,10 +420,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     setSelectedFile(file);
     setIsUploading(true);
 
-    const base64 = await processFile(file);
-    if (base64) {
-      setPreviewUrl(base64);
-      setFormData(prev => ({ ...prev, url: base64 }));
+    const result = await processFile(file);
+    if (result) {
+      setPreviewUrl(result.url);
+      setFormData(prev => ({ ...prev, url: result.url, imageId: result.imageId }));
     }
 
     setIsUploading(false);
@@ -448,10 +485,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       setSelectedFile(file);
       setIsUploading(true);
 
-      const base64 = await processFile(file);
-      if (base64) {
-        setPreviewUrl(base64);
-        setFormData(prev => ({ ...prev, url: base64 }));
+      const result = await processFile(file);
+      if (result) {
+        setPreviewUrl(result.url);
+        setFormData(prev => ({ ...prev, url: result.url, imageId: result.imageId }));
       }
 
       setIsUploading(false);
@@ -462,10 +499,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       setSelectedFile(file);
       setIsUploading(true);
 
-      const base64 = await processFile(file);
-      if (base64) {
-        setPreviewUrl(base64);
-        setFormData(prev => ({ ...prev, url: base64, title: file.name.replace(/\.[^/.]+$/, '') }));
+      const result = await processFile(file);
+      if (result) {
+        setPreviewUrl(result.url);
+        setFormData(prev => ({ ...prev, url: result.url, imageId: result.imageId, title: file.name.replace(/\.[^/.]+$/, '') }));
       }
 
       setIsUploading(false);
@@ -473,37 +510,64 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
 
-  const handleAddImage = () => {
+  const handleAddImage = async () => {
     if (!currentProject || !formData.url.trim() || !formData.title.trim()) return;
 
-    const newImage = {
+    const newImage: ImageItem = {
       id: Date.now().toString(),
       url: formData.url.trim(),
+      imageId: formData.imageId,
       title: formData.title.trim(),
       description: formData.description.trim(),
       category: formData.category,
       addedAt: new Date(),
     };
 
-    updateProject({
-      imageBoard: [...currentProject.imageBoard, newImage],
-    });
+    try {
+      // 参照カウントを増やす
+      if (newImage.imageId) {
+        await databaseService.incrementImageReference(newImage.imageId);
+      }
 
-    setFormData({ url: '', title: '', description: '', category: 'reference' });
-    setSelectedFile(null);
-    setPreviewUrl('');
-    setShowAddForm(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      await updateProject({
+        imageBoard: [...currentProject.imageBoard, newImage],
+      });
+
+      setFormData({ url: '', imageId: undefined, title: '', description: '', category: 'reference' });
+      setSelectedFile(null);
+      setPreviewUrl('');
+      setShowAddForm(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('画像追加エラー:', error);
+      showError('画像の追加に失敗しました。');
     }
   };
 
 
-  const handleDeleteImage = (id: string) => {
+  const handleDeleteImage = async (id: string) => {
     if (!currentProject) return;
-    updateProject({
-      imageBoard: currentProject.imageBoard.filter(img => img.id !== id),
-    });
+    
+    // 削除する画像を取得
+    const imageToDelete = currentProject.imageBoard.find(img => img.id === id);
+    
+    try {
+      // Blobストレージから削除（参照カウントを減らす）
+      if (imageToDelete?.imageId) {
+        await databaseService.decrementImageReference(imageToDelete.imageId);
+        // 参照カウントが0になった場合は自動削除される（オプション）
+      }
+      
+      // プロジェクトから削除
+      await updateProject({
+        imageBoard: currentProject.imageBoard.filter(img => img.id !== id),
+      });
+    } catch (error) {
+      console.error('画像削除エラー:', error);
+      showError('画像の削除に失敗しました。');
+    }
   };
 
   const getCategoryInfo = (categoryId: string) => {

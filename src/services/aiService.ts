@@ -1,4 +1,5 @@
 import { AIRequest, AIResponse, AIProvider } from '../types/ai';
+import { EvaluationRequest, EvaluationResult } from '../types/evaluation';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
 import { decryptApiKey, sanitizeInput } from '../utils/securityUtils';
@@ -167,6 +168,15 @@ export const AI_PROVIDERS: AIProvider[] = [
     regions: ['Global', 'Japan'],
     models: [
       {
+        id: 'gemini-3-pro-preview',
+        name: 'Gemini 3 Pro (Preview)',
+        description: '最新世代の最強モデル。マルチモーダル理解とエージェント機能に優れる',
+        maxTokens: 1048576,
+        capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
+        recommendedUse: '高度な推論タスクや複雑なマルチモーダル処理',
+        latencyClass: 'standard',
+      },
+      {
         id: 'gemini-2.5-pro',
         name: 'Gemini 2.5 Pro',
         description: '最新フラッグシップ。最大200万トークン対応',
@@ -309,6 +319,7 @@ const PROMPTS: PromptTemplates = {
 現在の外見: {appearance}
 現在の性格: {personality}
 現在の背景: {background}
+{speechStyle}
 
 {imageAnalysis}
 
@@ -604,12 +615,12 @@ const PROMPTS: PromptTemplates = {
 
 1. **主人公の動機と目標**：プロット基本設定の「主人公の目標」を基に、明確な動機を表現
 2. **主要な対立や問題**：「主要な障害」を活用し、物語の核心となる対立を設定
-3. **物語の核心となる出来事**：物語構造の詳細（起承転結、三幕構成、または四幕構成）に沿った展開
+3. **物語の核心となる出来事**：物語構造の詳細（起承転結、三幕構成、四幕構成、ヒーローズ・ジャーニー、ビートシート、ミステリー・サスペンス構成など）に沿った展開
 4. **読者の興味を引く要素**：「フック要素」を活かした魅力的な導入
 5. **適切な文字数**：500文字程度で簡潔かつ魅力的に
 
 【特に重視すべき点】
-- 物語構造の詳細（起承転結、三幕構成、または四幕構成）を必ず反映
+- 物語構造の詳細（起承転結、三幕構成、四幕構成、ヒーローズ・ジャーニー、ビートシート、ミステリー・サスペンス構成など）を必ず反映
 - キャラクターの性格や背景を活かした物語展開
 - プロット基本設定（主人公の目標、主要な障害を含む）の一貫性を保つ
 - 読者の心を掴む、魅力的で読みやすい文章
@@ -669,6 +680,154 @@ const PROMPTS: PromptTemplates = {
 ・物語の核心を伝える
 ・キャラクターの魅力を表現
 ・適切な文字数（500文字程度）`,
+
+    generateFullSynopsis: `以下の章立て情報を参照して、ネタバレを含む全体の内容を丁寧に要約した全体あらすじを作成してください。
+
+【プロジェクト基本情報】
+{projectInfo}
+
+【キャラクター情報】
+{characters}
+
+【プロット基本設定】
+{basicPlotInfo}
+
+【物語構造の詳細】
+{detailedStructureInfo}
+
+【章立て情報】
+{chaptersInfo}
+
+【重要指示】
+上記の章立て情報を基に、以下の要素を含む詳細な全体あらすじを作成してください：
+
+1. **物語全体の流れ**：各章の内容を時系列に沿って丁寧に要約
+2. **ネタバレを含む**：結末や重要な展開を含めて、物語全体の内容を説明
+3. **キャラクターの成長と変化**：各章でのキャラクターの変化や成長を反映
+4. **重要な出来事の詳細**：各章の重要な出来事を丁寧に説明
+5. **物語の結末**：最終的な結末や解決を含める
+6. **適切な文字数**：1000-1500文字程度で詳細に記述
+
+【特に重視すべき点】
+- 章立ての情報を正確に反映し、各章の内容を漏れなく含める
+- 物語の全体像が分かるように、時系列に沿って丁寧に記述
+- ネタバレを含むため、結末や重要な展開を明記
+- キャラクターの関係性や成長を丁寧に描写
+- 読者が物語全体を理解できるような詳細な要約
+
+【出力形式】
+全体あらすじのみを出力してください。説明文やコメントは不要です。`,
+  },
+
+  evaluation: {
+    structure: `以下の物語の構成とプロットを分析し、評価してください。
+
+【プロジェクト情報】
+作品タイトル: {title}
+テーマ: {theme}
+ジャンル: {genre}
+
+【評価対象テキスト】
+{content}
+
+【評価観点】
+1. **一貫性**: 設定やキャラクターの行動に矛盾がないか
+2. **ペース配分**: 物語の展開速度は適切か
+3. **伏線と回収**: 提示された謎や要素が効果的に扱われているか
+4. **論理性**: 因果関係は明確か
+
+以下のJSON形式で出力してください：
+{
+  "score": 1-5の整数,
+  "summary": "総評（200文字以内）",
+  "strengths": ["良かった点1", "良かった点2", ...],
+  "weaknesses": ["改善点1", "改善点2", ...],
+  "improvements": ["具体的な改善案1", "具体的な改善案2", ...],
+  "detailedAnalysis": "Markdown形式の詳細な分析レポート"
+}`,
+
+    character: `以下の物語におけるキャラクター描写を分析し、評価してください。
+
+【プロジェクト情報】
+作品タイトル: {title}
+テーマ: {theme}
+ジャンル: {genre}
+キャラクター情報: {characters}
+
+【評価対象テキスト】
+{content}
+
+【評価観点】
+1. **動機と行動**: キャラクターの行動原理は明確で納得感があるか
+2. **成長と変化**: 物語を通じてキャラクターの変化や成長が描かれているか
+3. **独自性**: ステレオタイプに留まらない個性があるか
+4. **関係性**: キャラクター間の相互作用は自然で魅力的か
+
+以下のJSON形式で出力してください：
+{
+  "score": 1-5の整数,
+  "summary": "総評（200文字以内）",
+  "strengths": ["良かった点1", "良かった点2", ...],
+  "weaknesses": ["改善点1", "改善点2", ...],
+  "improvements": ["具体的な改善案1", "具体的な改善案2", ...],
+  "detailedAnalysis": "Markdown形式の詳細な分析レポート"
+}`,
+
+    style: `以下の物語の文章表現（文体）を分析し、評価してください。
+
+【プロジェクト情報】
+作品タイトル: {title}
+テーマ: {theme}
+ジャンル: {genre}
+
+【評価対象テキスト】
+{content}
+
+【評価観点】
+1. **Show, Don't Tell**: 説明過多にならず、描写で状況や感情を伝えているか
+2. **五感表現**: 視覚以外の感覚（聴覚、嗅覚、触覚など）が効果的に使われているか
+3. **可読性とリズム**: 文章のリズムは良く、読みやすいか
+4. **語彙と表現力**: 表現は豊かで、陳腐な言い回しを避けているか
+
+以下のJSON形式で出力してください：
+{
+  "score": 1-5の整数,
+  "summary": "総評（200文字以内）",
+  "strengths": ["良かった点1", "良かった点2", ...],
+  "weaknesses": ["改善点1", "改善点2", ...],
+  "improvements": ["具体的な改善案1", "具体的な改善案2", ...],
+  "detailedAnalysis": "Markdown形式の詳細な分析レポート"
+}`,
+
+    persona: `あなたは「{targetAudience}」を代表する読者です。
+この作品を読んで、ターゲット読者層として率直な感想と評価を行ってください。
+
+【評価の視点】
+1. **市場性**: この作品はターゲット層に売れるか、興味を引くか
+2. **没入感**: 物語の世界に入り込めるか、感情移入できるか
+3. **期待値**: ターゲット層が求める要素（カタルシス、萌え、感動など）が含まれているか
+4. **推奨度**: 友人に勧めたくなるか
+
+以下のJSON形式で出力してください：
+\`\`\`json
+{
+  "score": 1-5の整数,
+  "summary": "読者としての全体的な感想（200文字程度）",
+  "strengths": ["良かった点1", "良かった点2", ...],
+  "weaknesses": ["物足りなかった点1", "物足りなかった点2", ...],
+  "improvements": ["こうすればもっと読みたくなるという要望1", "要望2", ...],
+  "detailedAnalysis": "各視点に基づいた詳細なレビュー（Markdown形式）",
+  "persona": "シミュレートしたペルソナの詳細（年齢、性別、職業、趣味、好みのジャンルなど具体的に）"
+}
+\`\`\`
+
+作品情報:
+タイトル: {title}
+ジャンル: {genre}
+ターゲット: {targetAudience}
+
+評価対象テキスト:
+{content}`
   },
 
   chapter: {
@@ -715,7 +874,7 @@ const PROMPTS: PromptTemplates = {
 
 【最重要指示】
 1. **構成詳細の情報を最優先で従い、逸脱しない**
-   - 起承転結、三幕構成、四幕構成の詳細に厳密に従う
+   - 選択された物語構成（起承転結、三幕構成、四幕構成、ヒーローズ・ジャーニー、ビートシート、ミステリー・サスペンス構成など）の詳細に厳密に従う
    - 各段階の役割と配置を正確に反映
 
 2. **メインジャンルに適した章構成**
@@ -789,7 +948,7 @@ const PROMPTS: PromptTemplates = {
 
 【最重要指示】
 1. **構成詳細の情報を最優先で従い、逸脱しない**
-   - 起承転結、三幕構成、四幕構成の詳細に厳密に従う
+   - 選択された物語構成（起承転結、三幕構成、四幕構成、ヒーローズ・ジャーニー、ビートシート、ミステリー・サスペンス構成など）の詳細に厳密に従う
    - 各段階の役割と配置を正確に反映
 
 2. **未完了の構成要素に焦点を当てた章立て**
@@ -1028,38 +1187,42 @@ const PROMPTS: PromptTemplates = {
 {currentText}
 
 【評価基準（各項目10点満点で採点）】
-1. **プロットの一貫性**：物語に矛盾や論理的な飛躍がないか？
-2. **キャラクターの深み**：登場人物は多面的で、行動に説得力があるか？
-3. **描写の具体性**：五感に訴えかける具体的な描写がなされているか？
-4. **読者共感度**：読者が感情移入できる感情的な真正性があるか？
-5. **文体の完成度**：文章のリズムが整い、読みやすいか？
+1. **プロットの一貫性**：物語に矛盾や論理的な飛躍がないか？時系列や因果関係は明確か？
+2. **キャラクターの深み**：登場人物は多面的で、行動に説得力があるか？性格の一貫性は保たれているか？
+3. **描写の具体性**：五感に訴えかける具体的な描写がなされているか？情景が読者に伝わるか？
+4. **読者共感度**：読者が感情移入できる感情的な真正性があるか？キャラクターの心情が伝わるか？
+5. **文体の完成度**：文章のリズムは整い、読みやすいか？冗長な表現や不自然な日本語はないか？
 
-【出力形式】
-以下のJSON形式で出力してください（余計な文章は書かないこと）:
+【重要】以下のJSON形式で「必ず」出力してください。説明文やコメントは一切不要です。JSONのみを出力してください:
+
 {{
   "scores": {{
-    "plot": 点数（0-10の整数）,
-    "character": 点数（0-10の整数）,
-    "description": 点数（0-10の整数）,
-    "empathy": 点数（0-10の整数）,
-    "style": 点数（0-10の整数）
+    "plot": 0-10の整数,
+    "character": 0-10の整数,
+    "description": 0-10の整数,
+    "empathy": 0-10の整数,
+    "style": 0-10の整数
   }},
   "weaknesses": [
     {{
       "aspect": "評価項目名（例：プロットの一貫性）",
-      "score": 点数,
-      "problem": "具体的な問題点の説明",
+      "score": 0-10の整数,
+      "problem": "具体的な問題点の説明（100文字程度）",
       "solutions": [
-        "改善策1（具体的な修正案）",
-        "改善策2（具体的な修正案）",
-        "改善策3（具体的な修正案）"
+        "改善策1（具体的な修正案、50文字程度）",
+        "改善策2（具体的な修正案、50文字程度）",
+        "改善策3（具体的な修正案、50文字程度）"
       ]
     }}
   ],
   "summary": "全体的な評価と最も重要な改善点の要約（200文字程度）"
 }}
 
-7点以下の項目について、特に詳しく分析してください。`,
+【出力ルール】
+- 7点以下の項目については、必ずweaknessesに含めてください
+- JSON形式以外のテキストは一切出力しないでください
+- コードブロック（三重のバッククォート）は使用しないでください
+- JSONのみを出力してください`,
 
     revise: `フェーズ1で指摘された弱点を克服するために、以下の文章を書き直してください。
 
@@ -1075,13 +1238,32 @@ const PROMPTS: PromptTemplates = {
 {critiqueResult}
 
 【改訂指示】
-1. フェーズ1で指摘されたすべての弱点を克服してください
-2. 特に7点以下の評価項目については、改善策を必ず適用してください
-3. 現在の文字数（{currentLength}文字）を維持または3,000-4,000文字程度に調整してください
-4. 重要な内容は保持しつつ、表現を改善してください
-5. 適度な改行と段落分けを行ってください（改行は通常の改行文字\\nで表現）
+1. **弱点の克服**: フェーズ1で指摘されたすべての弱点を克服してください。特に7点以下の評価項目については、提示された改善策を必ず適用してください。
+2. **文脈の保持**: 元の文章の物語の流れ、キャラクターの性格、設定の一貫性を必ず保持してください。
+3. **描写の強化**: 五感を活用した具体的な描写を追加し、読者が情景をイメージできるようにしてください。
+4. **感情表現の深化**: キャラクターの内面や心情をより深く描写し、読者の共感を得られるようにしてください。
+5. **文体の改善**: 文章のリズムを整え、冗長な表現を削除し、自然で読みやすい日本語にしてください。
+6. **文字数の調整**: 現在の文字数（{currentLength}文字）を維持または3,000-4,000文字程度に調整してください。
+7. **改行と段落**: 適度な改行と段落分けを行ってください（改行は通常の改行文字\\nで表現）。
 
-改訂された文章：`,
+【出力形式】
+以下のJSON形式で「必ず」出力してください。説明文やコメントは一切不要です。JSONのみを出力してください:
+
+{{
+  "revisedText": "改訂後の文章全文（元の文章を改善したもの）",
+  "improvementSummary": "適用した改善戦略の要約（200文字程度）",
+  "changes": [
+    "主な変更点1（50文字程度）",
+    "主な変更点2（50文字程度）",
+    "主な変更点3（50文字程度）"
+  ]
+}}
+
+【出力ルール】
+- JSON形式以外のテキストは一切出力しないでください
+- コードブロック（三重のバッククォート）は使用しないでください
+- revisedTextには、改善された文章の全文を含めてください
+- 元の文章の内容を保持しつつ、指摘された弱点を克服した文章にしてください`,
 
     generate: `以下の設定に基づいて物語の草案を執筆してください。
 
@@ -1275,6 +1457,227 @@ const PROMPTS: PromptTemplates = {
     //
     // 問題があれば指摘し、改善案を提示してください。問題がなければ、設定の一貫性を確認した旨を伝えてください。`,
   },
+
+  foreshadowing: {
+    suggest: `あなたは物語構成のプロフェッショナルです。以下のプロジェクト情報を分析し、効果的な伏線を提案してください。
+
+【プロジェクト基本情報】
+タイトル: {title}
+メインジャンル: {mainGenre}
+サブジャンル: {subGenre}
+テーマ: {theme}
+
+【プロット情報】
+テーマ: {plotTheme}
+舞台設定: {plotSetting}
+フック要素: {plotHook}
+主人公の目標: {protagonistGoal}
+主要な障害: {mainObstacle}
+
+【物語構造】
+{structureInfo}
+
+【キャラクター情報】
+{characters}
+
+【章立て】
+{chapters}
+
+【あらすじ】
+{synopsis}
+
+【既存の伏線】
+{existingForeshadowings}
+
+【指示】
+上記の情報を総合的に分析し、物語をより深く魅力的にする伏線を3〜5個提案してください。
+各伏線には以下の情報を含めてください：
+
+【提案の観点】
+1. キャラクターの秘密や過去に関する伏線
+2. プロットの展開を予感させる伏線
+3. 世界観や設定に関するミステリアスな伏線
+4. 人間関係の変化を示唆する伏線
+5. テーマを深める象徴的な伏線
+
+以下のJSON形式で出力してください：
+{{
+  "suggestions": [
+    {{
+      "title": "伏線のタイトル",
+      "description": "伏線の説明と意図（100文字程度）",
+      "category": "character" | "plot" | "world" | "mystery" | "relationship" | "other",
+      "importance": "high" | "medium" | "low",
+      "plantChapter": "設置推奨章（例：第1章）",
+      "plantDescription": "設置時の具体的な描写案（50文字程度）",
+      "payoffChapter": "回収推奨章（例：第5章）",
+      "payoffDescription": "回収方法の提案（50文字程度）",
+      "relatedCharacters": ["関連キャラクター名"],
+      "effect": "この伏線が物語にもたらす効果（50文字程度）"
+    }}
+  ]
+}}`,
+
+    checkConsistency: `あなたは厳格な編集者として、以下の伏線の整合性をチェックしてください。
+
+【プロジェクト基本情報】
+タイトル: {title}
+メインジャンル: {mainGenre}
+
+【プロット情報】
+テーマ: {plotTheme}
+舞台設定: {plotSetting}
+主人公の目標: {protagonistGoal}
+主要な障害: {mainObstacle}
+
+【物語構造】
+{structureInfo}
+
+【キャラクター情報】
+{characters}
+
+【章立て】
+{chapters}
+
+【伏線一覧】
+{foreshadowings}
+
+【チェック観点】
+1. **未回収の伏線**: 設置されたが回収されていない伏線はないか？
+2. **矛盾する伏線**: 互いに矛盾する伏線や、設定と矛盾する伏線はないか？
+3. **唐突な回収**: 十分な準備なく回収されている伏線はないか？
+4. **バランス**: 伏線の重要度や配置のバランスは適切か？
+5. **キャラクター整合性**: キャラクターの行動や性格と矛盾する伏線はないか？
+
+以下のJSON形式で出力してください：
+{{
+  "overallScore": 0-100の整数（整合性スコア）,
+  "summary": "全体的な評価と改善の方向性（150文字程度）",
+  "unresolvedIssues": [
+    {{
+      "foreshadowingTitle": "伏線タイトル",
+      "issue": "問題の内容",
+      "severity": "high" | "medium" | "low",
+      "suggestion": "改善提案"
+    }}
+  ],
+  "contradictions": [
+    {{
+      "items": ["矛盾する伏線1", "矛盾する伏線2"],
+      "description": "矛盾の内容",
+      "resolution": "解決案"
+    }}
+  ],
+  "balanceIssues": [
+    {{
+      "issue": "バランスの問題",
+      "suggestion": "改善提案"
+    }}
+  ],
+  "strengths": ["良い点1", "良い点2"]
+}}`,
+
+    suggestPayoff: `あなたは物語構成のエキスパートです。以下の伏線について、最適な回収タイミングと方法を提案してください。
+
+【プロジェクト基本情報】
+タイトル: {title}
+メインジャンル: {mainGenre}
+
+【対象の伏線】
+タイトル: {foreshadowingTitle}
+説明: {foreshadowingDescription}
+カテゴリ: {foreshadowingCategory}
+重要度: {foreshadowingImportance}
+現在のポイント: {currentPoints}
+
+【関連キャラクター】
+{relatedCharacters}
+
+【章立て】
+{chapters}
+
+【物語構造】
+{structureInfo}
+
+【他の伏線との関係】
+{otherForeshadowings}
+
+【指示】
+この伏線を最も効果的に回収するためのタイミングと方法を提案してください。
+
+以下のJSON形式で出力してください：
+{{
+  "recommendedChapter": "推奨する回収章",
+  "timing": "物語内でのベストタイミング（例：クライマックス前、主人公の成長後）",
+  "payoffMethods": [
+    {{
+      "method": "回収方法の案",
+      "description": "具体的な描写案（100文字程度）",
+      "impact": "この回収方法が与えるインパクト",
+      "prerequisites": ["この回収に必要な前提条件"]
+    }}
+  ],
+  "hintsBeforePayoff": [
+    {{
+      "chapter": "ヒントを入れる章",
+      "hint": "ヒントの内容（50文字程度）"
+    }}
+  ],
+  "avoidTiming": ["避けるべきタイミングとその理由"]
+}}`,
+
+    enhance: `あなたは物語構成のプロフェッショナルです。以下の伏線をより効果的にするための改善案を提案してください。
+
+【プロジェクト基本情報】
+タイトル: {title}
+メインジャンル: {mainGenre}
+テーマ: {theme}
+
+【対象の伏線】
+タイトル: {foreshadowingTitle}
+説明: {foreshadowingDescription}
+カテゴリ: {foreshadowingCategory}
+重要度: {foreshadowingImportance}
+現在のステータス: {foreshadowingStatus}
+現在のポイント: {currentPoints}
+計画中の回収: {plannedPayoff}
+
+【関連キャラクター】
+{relatedCharacters}
+
+【物語のテーマとの関連】
+{themeConnection}
+
+【指示】
+この伏線をより効果的にするための改善案を提案してください。
+
+以下のJSON形式で出力してください：
+{{
+  "enhancedDescription": "改善された伏線の説明（現在の説明を発展させたもの）",
+  "additionalLayers": [
+    {{
+      "layer": "追加できる層や深み",
+      "description": "具体的な内容",
+      "effect": "物語への効果"
+    }}
+  ],
+  "connectionOpportunities": [
+    {{
+      "target": "接続先（キャラクター、他の伏線、テーマなど）",
+      "connection": "接続方法",
+      "benefit": "接続によるメリット"
+    }}
+  ],
+  "strengthenMethods": [
+    {{
+      "current": "現在の状態",
+      "improved": "改善案",
+      "reason": "改善理由"
+    }}
+  ],
+  "warnings": ["注意すべき点"]
+}}`
+  },
 };
 
 class AIService {
@@ -1288,9 +1691,9 @@ class AIService {
       const apiKey = decryptApiKey(request.settings.apiKey);
 
       // Tauri環境検出（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' && 
+      const isTauriEnv = typeof window !== 'undefined' &&
         ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-      
+
       // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
       const apiUrl = isTauriEnv || !import.meta.env.DEV
         ? 'https://api.openai.com/v1/chat/completions'
@@ -1336,7 +1739,7 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
-        
+
         await httpService.postStream(
           apiUrl,
           requestBody,
@@ -1386,7 +1789,7 @@ class AIService {
       }
 
       const data = response.data as { choices: Array<{ message: { content: string } }>; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } };
-      
+
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('OpenAI API からの応答が無効です');
       }
@@ -1418,9 +1821,9 @@ class AIService {
       const apiKey = decryptApiKey(request.settings.apiKey);
 
       // Tauri環境検出（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' && 
+      const isTauriEnv = typeof window !== 'undefined' &&
         ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-      
+
       // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
       const apiUrl = isTauriEnv || !import.meta.env.DEV
         ? 'https://api.anthropic.com/v1/messages'
@@ -1483,7 +1886,7 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
-        
+
         await httpService.postStream(
           apiUrl,
           requestBody,
@@ -1492,10 +1895,10 @@ class AIService {
             const lines = chunk.split('\n');
             for (const line of lines) {
               if (!line.startsWith('data: ')) continue;
-              
+
               const dataStr = line.slice(6).trim();
               if (dataStr === '[DONE]') continue;
-              
+
               try {
                 const data = JSON.parse(dataStr);
                 if (data.type === 'content_block_delta' && data.delta?.text) {
@@ -1536,9 +1939,9 @@ class AIService {
       }
 
       const data = response.data as { content: Array<{ text: string }>; usage?: { input_tokens: number; output_tokens: number } };
-      
+
       console.log('Claude API Response:', data);
-      
+
       if (!data.content || !data.content[0] || !data.content[0].text) {
         console.error('Invalid Claude response structure:', data);
         throw new Error('Claude API からの応答が無効です');
@@ -1571,12 +1974,12 @@ class AIService {
       const apiKey = decryptApiKey(request.settings.apiKey);
 
       // Tauri環境検出（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' && 
+      const isTauriEnv = typeof window !== 'undefined' &&
         ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-      
+
       // ストリーミングの場合はエンドポイントが異なる (streamGenerateContent)
       const method = request.onStream ? 'streamGenerateContent' : 'generateContent';
-      
+
       // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
       const apiUrl = isTauriEnv || !import.meta.env.DEV
         ? `https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:${method}?key=${apiKey}`
@@ -1636,23 +2039,23 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
-        
+
         // GeminiのストリーミングはJSONの配列が送られてくる特殊な形式
         // 通常のSSEとは異なり、]で終わるJSON配列のストリーム
         // ここでは簡易的にパースする
-        
+
         await httpService.postStream(
           apiUrl,
           requestBody,
           (chunk) => {
             // チャンク処理が複雑なため、Geminiの場合は
             // 行ごとに分割して処理を試みる
-            
+
             // Note: GeminiのREST APIストリーミングは単純なSSEではなく、
             // JSON配列が徐々に送られてくる形式。
             // 完全な実装にはストリーミングJSONパーサーが必要だが、
             // ここでは簡易的にtextフィールドを抽出する
-            
+
             // 簡易実装: "text": "..." を正規表現で探す
             const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
             let match;
@@ -1686,11 +2089,11 @@ class AIService {
       if (response.status >= 400) {
         const errorData = response.data as { error?: { message?: string; code?: number } };
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
-        
+
         // 429エラーの場合、より詳細なメッセージを提供
         if (response.status === 429) {
           let detailedMessage = `Gemini API エラー (429): ${errorMessage}`;
-          
+
           if (errorMessage.includes('Resource has been exhausted') || errorMessage.includes('quota')) {
             detailedMessage += '\n\n【考えられる原因】\n';
             detailedMessage += '1. リージョンのリソース制限: 特定のリージョンでリソースが一時的に枯渇している可能性があります\n';
@@ -1703,24 +2106,97 @@ class AIService {
             detailedMessage += '- Google Cloud Consoleでクォータとレート制限を確認してください\n';
             detailedMessage += '- プロビジョニングされたスループットの購入を検討してください';
           }
-          
+
           throw new Error(detailedMessage);
         }
-        
+
         throw new Error(`Gemini API エラー (${response.status}): ${errorMessage}`);
       }
 
-      const data = response.data as { candidates: Array<{ content: { parts: Array<{ text: string }> } }> };
-      
-      console.log('Gemini API Response:', data);
-      
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        console.error('Invalid Gemini response structure:', data);
-        throw new Error('Gemini API からの応答が無効です');
+      // 200番台の応答でも、candidatesが空の場合は安全フィルターなどでブロックされた可能性がある
+      const data = response.data as any;
+      if (data && data.candidates && Array.isArray(data.candidates) && data.candidates.length === 0) {
+        console.warn('Gemini API response has empty candidates array - possibly blocked by safety filters');
+        throw new Error('Gemini API の応答が安全フィルターによってブロックされた可能性があります。プロンプトの内容を確認してください。');
+      }
+
+      console.log('Gemini API Response:', JSON.stringify(data, null, 2));
+
+      // 応答構造の検証とエラーハンドリング
+      if (!data) {
+        console.error('Gemini API response is null or undefined');
+        throw new Error('Gemini API からの応答が空です');
+      }
+
+      // candidatesが存在しない場合、promptFeedbackを確認（安全フィルターによるブロック）
+      if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
+        console.error('Invalid Gemini response structure - no candidates:', data);
+
+        // promptFeedbackが存在する場合、詳細なエラーメッセージを構築
+        if (data.promptFeedback) {
+          const feedback = data.promptFeedback as any;
+          let errorMessage = 'Gemini API の応答が安全フィルターによってブロックされました。\n\n';
+
+          if (feedback.blockReason) {
+            errorMessage += `【ブロック理由】\n${feedback.blockReason}\n\n`;
+          }
+
+          if (feedback.safetyRatings && Array.isArray(feedback.safetyRatings)) {
+            const blockedCategories = feedback.safetyRatings.filter((rating: any) =>
+              rating.blocked === true || rating.probability === 'HIGH'
+            );
+
+            if (blockedCategories.length > 0) {
+              errorMessage += '【ブロックされたカテゴリ】\n';
+              blockedCategories.forEach((rating: any) => {
+                const category = rating.category || '不明';
+                const probability = rating.probability || '不明';
+                errorMessage += `- ${category}: ${probability}\n`;
+              });
+              errorMessage += '\n';
+            }
+          }
+
+          errorMessage += '【対処法】\n';
+          errorMessage += '- プロンプトの内容を確認し、不適切な表現がないか確認してください\n';
+          errorMessage += '- プロンプトをより中立的で適切な表現に変更してください\n';
+          errorMessage += '- 長文の場合は、より短いセクションに分割して試してください';
+
+          throw new Error(errorMessage);
+        }
+
+        throw new Error('Gemini API からの応答にcandidatesが含まれていません。安全フィルターによってブロックされた可能性があります。');
+      }
+
+      const candidate = data.candidates[0];
+      if (!candidate) {
+        console.error('Invalid Gemini response structure - empty candidates array:', data);
+        throw new Error('Gemini API からの応答のcandidatesが空です');
+      }
+
+      if (!candidate.content) {
+        console.error('Invalid Gemini response structure - no content:', candidate);
+        throw new Error('Gemini API からの応答にcontentが含まれていません');
+      }
+
+      if (!candidate.content.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
+        console.error('Invalid Gemini response structure - no parts:', candidate.content);
+        throw new Error('Gemini API からの応答にpartsが含まれていません');
+      }
+
+      const firstPart = candidate.content.parts[0];
+      if (!firstPart) {
+        console.error('Invalid Gemini response structure - empty parts array:', candidate.content.parts);
+        throw new Error('Gemini API からの応答のpartsが空です');
+      }
+
+      if (typeof firstPart.text !== 'string') {
+        console.error('Invalid Gemini response structure - no text in part:', firstPart);
+        throw new Error('Gemini API からの応答にtextが含まれていません');
       }
 
       return {
-        content: data.candidates[0].content.parts[0].text,
+        content: firstPart.text,
       };
     } catch (error) {
       console.error('Gemini API Error:', error);
@@ -1734,7 +2210,7 @@ class AIService {
   private async callLocal(request: AIRequest): Promise<AIResponse> {
     try {
       let endpoint = request.settings.localEndpoint || 'http://localhost:1234/v1/chat/completions';
-      
+
       if (!endpoint) {
         throw new Error('ローカルエンドポイントが設定されていません');
       }
@@ -1749,9 +2225,9 @@ class AIService {
       }
 
       // Tauri環境チェック（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' && 
+      const isTauriEnv = typeof window !== 'undefined' &&
         ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-      
+
       // 開発環境でブラウザの場合のみプロキシ経由（CORS回避）
       let apiEndpoint = endpoint;
       if (!isTauriEnv && import.meta.env.DEV) {
@@ -1769,7 +2245,7 @@ class AIService {
 
       // プロンプトの長さを制限（Local LLMでは短めに）
       const maxPromptLength = 3000;
-      const truncatedPrompt = request.prompt.length > maxPromptLength 
+      const truncatedPrompt = request.prompt.length > maxPromptLength
         ? request.prompt.substring(0, maxPromptLength) + '\n\n[プロンプトが長すぎるため省略されました]'
         : request.prompt;
 
@@ -1807,7 +2283,7 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
-        
+
         await httpService.postStream(
           apiEndpoint,
           requestBody,
@@ -1858,14 +2334,14 @@ class AIService {
       }
 
       const data = response.data as { choices?: Array<{ message: { content: string } }>; content?: string; response?: string; error?: string };
-      
+
       console.log('Local LLM Response:', data);
-      
+
       // エラーレスポンスの処理
       if (data.error) {
         throw new Error(`ローカルLLM エラー: ${data.error}`);
       }
-      
+
       // 複数の応答形式に対応
       if (data.choices && data.choices[0] && data.choices[0].message) {
         return {
@@ -1891,7 +2367,7 @@ class AIService {
         stack: error instanceof Error ? error.stack : undefined,
         endpoint: request.settings.localEndpoint
       });
-      
+
       let errorMessage = 'Unknown error';
       if (error instanceof Error) {
         if (error.message.includes('ネットワークエラー')) {
@@ -1902,7 +2378,7 @@ class AIService {
           errorMessage = `ローカルLLM エラー: ${error.message}`;
         }
       }
-      
+
       return {
         content: '',
         error: errorMessage,
@@ -1913,10 +2389,10 @@ class AIService {
   async generateContent(request: AIRequest): Promise<AIResponse> {
     try {
       const { prompt, settings } = request;
-      
+
       // 入力値のサニタイゼーション
       const sanitizedPrompt = sanitizeInput(prompt);
-      
+
       if (!settings.apiKey && settings.provider !== 'local') {
         return {
           content: '',
@@ -1953,10 +2429,10 @@ class AIService {
           // プロバイダーごとのタイムアウト設定
           // Gemini APIは長文生成に時間がかかるため、120秒に設定
           // ローカルLLMも120秒、その他のAPIは60秒
-          timeout: isLocalProvider 
-            ? 120000 
-            : request.settings.provider === 'gemini' 
-              ? 120000 
+          timeout: isLocalProvider
+            ? 120000
+            : request.settings.provider === 'gemini'
+              ? 120000
               : 60000,
           retryConfig: {
             maxRetries: isLocalProvider ? 2 : 3, // ローカルLLMは再試行回数を減らす
@@ -1969,7 +2445,7 @@ class AIService {
             if (request.onStream) return false;
             if (!(error instanceof Error)) return false;
             return (
-              error.message.includes('timeout') || 
+              error.message.includes('timeout') ||
               error.message.includes('network') ||
               error.message.includes('rate limit') ||
               error.message.includes('500') ||
@@ -1991,17 +2467,45 @@ class AIService {
       }
 
       // 応答の解析と検証
+      // draftタイプの応答は、JSON形式を期待するが、parseAIResponseは章立て解析などを試みるため
+      // draftタイプの場合は解析をスキップして生の応答を返す
       if (response.content) {
-        const parsedResponse = parseAIResponse(response.content, 'auto');
-        
-        if (parsedResponse.success && validateResponse(parsedResponse)) {
-          const data = parsedResponse.data as Record<string, unknown>;
+        // draftタイプの場合は、JSON解析を試みるが、失敗しても生の応答を返す
+        if (request.type === 'draft') {
+          // draftタイプの場合は、JSON解析を試行するが、失敗しても問題ない
+          try {
+            const parsedResponse = parseAIResponse(response.content, 'json');
+            if (parsedResponse.success && parsedResponse.data) {
+              // JSON解析が成功した場合でも、draftタイプの場合は生の応答を返す
+              // （DraftStep.tsxで独自に解析するため）
+              return {
+                content: response.content,
+                error: response.error
+              };
+            }
+          } catch (e) {
+            // JSON解析に失敗しても、draftタイプの場合は生の応答を返す
+            console.debug('Draft type response: JSON parsing skipped, returning raw content');
+          }
+
+          // draftタイプの場合は、生の応答を返す
           return {
-            content: data.type === 'text' ? (data.content as string) : response.content,
+            content: response.content,
             error: response.error
           };
         } else {
-          console.warn('AI応答の解析に失敗しましたが、生の応答を返します:', parsedResponse.error);
+          // その他のタイプの場合は、通常の解析を実行
+          const parsedResponse = parseAIResponse(response.content, 'auto');
+
+          if (parsedResponse.success && validateResponse(parsedResponse)) {
+            const data = parsedResponse.data as Record<string, unknown>;
+            return {
+              content: data.type === 'text' ? (data.content as string) : response.content,
+              error: response.error
+            };
+          } else {
+            console.warn('AI応答の解析に失敗しましたが、生の応答を返します:', parsedResponse.error);
+          }
         }
       }
 
@@ -2011,14 +2515,76 @@ class AIService {
       };
     } catch (error) {
       console.error('AI generation error:', error);
-      
+
       // ユーザーフレンドリーなエラーメッセージを生成
       const friendlyMessage = getUserFriendlyErrorMessage(error, 'AI生成');
-      
+
       return {
         content: '',
         error: friendlyMessage
       };
+    }
+  }
+
+  async evaluateStory(request: EvaluationRequest, settings: any): Promise<EvaluationResult> {
+    try {
+      const promptVariables = {
+        title: request.context?.title || '不明',
+        theme: request.context?.theme || '不明',
+        genre: request.context?.genre || '不明',
+        targetAudience: request.context?.targetAudience || '一般読者',
+        characters: request.context?.characters || '',
+        content: request.content
+      };
+
+      const prompt = this.buildPrompt('evaluation', request.mode, promptVariables);
+
+      const aiRequest: AIRequest = {
+        prompt,
+        settings,
+        type: 'evaluation'
+      };
+
+      const response = await this.generateContent(aiRequest);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // JSONパースを試みる
+      try {
+        // レスポンスからJSON部分を抽出（Markdownコードブロック内にある場合などに対応）
+        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? jsonMatch[0] : response.content;
+        const parsed = JSON.parse(jsonStr) as EvaluationResult;
+
+        // 必須フィールドの確認と補完
+        return {
+          score: parsed.score || 3,
+          summary: parsed.summary || '評価の要約を生成できませんでした。',
+          strengths: parsed.strengths || [],
+          weaknesses: parsed.weaknesses || [],
+          improvements: parsed.improvements || [],
+          detailedAnalysis: parsed.detailedAnalysis || response.content,
+          persona: typeof parsed.persona === 'object'
+            ? Object.entries(parsed.persona).map(([k, v]) => `${k}: ${v}`).join(', ')
+            : parsed.persona // ペルソナ情報があれば取得
+        };
+      } catch (e) {
+        console.error('Failed to parse evaluation result:', e);
+        // パース失敗時はテキスト全体を詳細分析として返す
+        return {
+          score: 0,
+          summary: '評価結果の解析に失敗しました。',
+          strengths: [],
+          weaknesses: [],
+          improvements: [],
+          detailedAnalysis: response.content
+        };
+      }
+    } catch (error) {
+      console.error('Evaluation error:', error);
+      throw error;
     }
   }
 
@@ -2027,20 +2593,20 @@ class AIService {
     if (!promptType) {
       throw new Error(`Prompt type not found: ${type}`);
     }
-    
+
     const template = promptType[subType];
     if (!template) {
       throw new Error(`Prompt template not found: ${type}.${subType}`);
     }
 
     let prompt = template;
-    
+
     // 文体の詳細指示を構築（draftタイプの場合）
     if (type === 'draft' && (subType === 'generate' || subType === 'continue')) {
       const styleDetails = this.buildStyleDetails(variables);
       variables.styleDetails = styleDetails;
     }
-    
+
     Object.entries(variables).forEach(([key, value]) => {
       prompt = prompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
     });

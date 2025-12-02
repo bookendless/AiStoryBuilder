@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, Sparkles, RotateCcw, Save, CheckCircle, AlertCircle, User, BookOpen } from 'lucide-react';
+import { FileText, Sparkles, Save, CheckCircle, AlertCircle, User, BookOpen } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -17,6 +17,7 @@ export const SynopsisStep: React.FC = () => {
   const [synopsis, setSynopsis] = useState(currentProject?.synopsis || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingStyle, setIsGeneratingStyle] = useState(false);
+  const [isGeneratingFullSynopsis, setIsGeneratingFullSynopsis] = useState(false);
   const [activeStyleType, setActiveStyleType] = useState<string | null>(null);
 
   // AIログ管理
@@ -102,6 +103,40 @@ export const SynopsisStep: React.FC = () => {
           `第3幕（秩序）: ${currentProject.plot.fourAct3 || '未設定'}`,
           `第4幕（混沌）: ${currentProject.plot.fourAct4 || '未設定'}`
         ].join('\n');
+      } else if (currentProject?.plot.structure === 'heroes-journey') {
+        detailedStructureInfo = [
+          `【ヒーローズ・ジャーニー】`,
+          `日常の世界: ${currentProject.plot.hj1 || '未設定'}`,
+          `冒険への誘い: ${currentProject.plot.hj2 || '未設定'}`,
+          `境界越え: ${currentProject.plot.hj3 || '未設定'}`,
+          `試練と仲間: ${currentProject.plot.hj4 || '未設定'}`,
+          `最大の試練: ${currentProject.plot.hj5 || '未設定'}`,
+          `報酬: ${currentProject.plot.hj6 || '未設定'}`,
+          `帰路: ${currentProject.plot.hj7 || '未設定'}`,
+          `復活と帰還: ${currentProject.plot.hj8 || '未設定'}`
+        ].join('\n');
+      } else if (currentProject?.plot.structure === 'beat-sheet') {
+        detailedStructureInfo = [
+          `【ビートシート】`,
+          `導入 (Setup): ${currentProject.plot.bs1 || '未設定'}`,
+          `決断 (Break into Two): ${currentProject.plot.bs2 || '未設定'}`,
+          `試練 (Fun and Games): ${currentProject.plot.bs3 || '未設定'}`,
+          `転換点 (Midpoint): ${currentProject.plot.bs4 || '未設定'}`,
+          `危機 (All Is Lost): ${currentProject.plot.bs5 || '未設定'}`,
+          `クライマックス (Finale): ${currentProject.plot.bs6 || '未設定'}`,
+          `結末 (Final Image): ${currentProject.plot.bs7 || '未設定'}`
+        ].join('\n');
+      } else if (currentProject?.plot.structure === 'mystery-suspense') {
+        detailedStructureInfo = [
+          `【ミステリー・サスペンス構成】`,
+          `発端（事件発生）: ${currentProject.plot.ms1 || '未設定'}`,
+          `捜査（初期）: ${currentProject.plot.ms2 || '未設定'}`,
+          `仮説とミスリード: ${currentProject.plot.ms3 || '未設定'}`,
+          `第二の事件/急展開: ${currentProject.plot.ms4 || '未設定'}`,
+          `手がかりの統合: ${currentProject.plot.ms5 || '未設定'}`,
+          `解決（真相解明）: ${currentProject.plot.ms6 || '未設定'}`,
+          `エピローグ: ${currentProject.plot.ms7 || '未設定'}`
+        ].join('\n');
       } else {
         detailedStructureInfo = '物語構造の詳細が設定されていません';
       }
@@ -180,10 +215,6 @@ export const SynopsisStep: React.FC = () => {
     }
   };
 
-  const handleReset = () => {
-    setSynopsis('');
-  };
-
   // AIログをコピー
   const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
     const logText = copyLog(log);
@@ -196,6 +227,200 @@ export const SynopsisStep: React.FC = () => {
     downloadLogs(`synopsis_ai_logs_${new Date().toISOString().split('T')[0]}.txt`);
     showSuccess('ログをダウンロードしました');
   }, [downloadLogs, showSuccess]);
+
+  // 全体あらすじ生成機能
+  const handleGenerateFullSynopsis = async () => {
+    if (!isConfigured) {
+      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
+        title: 'AI設定が必要',
+        details: 'AI機能を使用するには、ヘッダーの「AI設定」ボタンからAPIキーを設定する必要があります。',
+      });
+      return;
+    }
+
+    if (!currentProject?.chapters || currentProject.chapters.length === 0) {
+      showErrorWithDetails('章立てが必要', '章立てが完了していません。まず章立てを作成してください。', '全体あらすじを生成するには、章立てステップで章立てを作成する必要があります。');
+      return;
+    }
+
+    setIsGeneratingFullSynopsis(true);
+
+    try {
+      // キャラクター情報を詳細に構築
+      const charactersInfo = currentProject?.characters && currentProject.characters.length > 0
+        ? currentProject.characters.map(c =>
+          `【${c.name}】\n` +
+          `役割: ${c.role}\n` +
+          `外見: ${c.appearance || '未設定'}\n` +
+          `性格: ${c.personality || '未設定'}\n` +
+          `背景: ${c.background || '未設定'}\n`
+        ).join('\n')
+        : 'キャラクター情報が設定されていません';
+
+      // プロット基本設定情報を構築
+      const basicPlotInfo = [
+        `メインテーマ: ${currentProject?.plot.theme || '未設定'}`,
+        `舞台設定: ${currentProject?.plot.setting || '未設定'}`,
+        `フック要素: ${currentProject?.plot.hook || '未設定'}`,
+        `主人公の目標: ${currentProject?.plot.protagonistGoal || '未設定'}`,
+        `主要な障害: ${currentProject?.plot.mainObstacle || '未設定'}`
+      ].join('\n');
+
+      // PlotStep2の詳細構成情報を構築
+      let detailedStructureInfo = '';
+      if (currentProject?.plot.structure === 'kishotenketsu') {
+        detailedStructureInfo = [
+          `【起承転結構成】`,
+          `起（導入）: ${currentProject.plot.ki || '未設定'}`,
+          `承（展開）: ${currentProject.plot.sho || '未設定'}`,
+          `転（転換）: ${currentProject.plot.ten || '未設定'}`,
+          `結（結末）: ${currentProject.plot.ketsu || '未設定'}`
+        ].join('\n');
+      } else if (currentProject?.plot.structure === 'three-act') {
+        detailedStructureInfo = [
+          `【三幕構成】`,
+          `第1幕（導入）: ${currentProject.plot.act1 || '未設定'}`,
+          `第2幕（展開）: ${currentProject.plot.act2 || '未設定'}`,
+          `第3幕（結末）: ${currentProject.plot.act3 || '未設定'}`
+        ].join('\n');
+      } else if (currentProject?.plot.structure === 'four-act') {
+        detailedStructureInfo = [
+          `【四幕構成】`,
+          `第1幕（秩序）: ${currentProject.plot.fourAct1 || '未設定'}`,
+          `第2幕（混沌）: ${currentProject.plot.fourAct2 || '未設定'}`,
+          `第3幕（秩序）: ${currentProject.plot.fourAct3 || '未設定'}`,
+          `第4幕（混沌）: ${currentProject.plot.fourAct4 || '未設定'}`
+        ].join('\n');
+      } else if (currentProject?.plot.structure === 'heroes-journey') {
+        detailedStructureInfo = [
+          `【ヒーローズ・ジャーニー】`,
+          `日常の世界: ${currentProject.plot.hj1 || '未設定'}`,
+          `冒険への誘い: ${currentProject.plot.hj2 || '未設定'}`,
+          `境界越え: ${currentProject.plot.hj3 || '未設定'}`,
+          `試練と仲間: ${currentProject.plot.hj4 || '未設定'}`,
+          `最大の試練: ${currentProject.plot.hj5 || '未設定'}`,
+          `報酬: ${currentProject.plot.hj6 || '未設定'}`,
+          `帰路: ${currentProject.plot.hj7 || '未設定'}`,
+          `復活と帰還: ${currentProject.plot.hj8 || '未設定'}`
+        ].join('\n');
+      } else if (currentProject?.plot.structure === 'beat-sheet') {
+        detailedStructureInfo = [
+          `【ビートシート】`,
+          `導入 (Setup): ${currentProject.plot.bs1 || '未設定'}`,
+          `決断 (Break into Two): ${currentProject.plot.bs2 || '未設定'}`,
+          `試練 (Fun and Games): ${currentProject.plot.bs3 || '未設定'}`,
+          `転換点 (Midpoint): ${currentProject.plot.bs4 || '未設定'}`,
+          `危機 (All Is Lost): ${currentProject.plot.bs5 || '未設定'}`,
+          `クライマックス (Finale): ${currentProject.plot.bs6 || '未設定'}`,
+          `結末 (Final Image): ${currentProject.plot.bs7 || '未設定'}`
+        ].join('\n');
+      } else if (currentProject?.plot.structure === 'mystery-suspense') {
+        detailedStructureInfo = [
+          `【ミステリー・サスペンス構成】`,
+          `発端（事件発生）: ${currentProject.plot.ms1 || '未設定'}`,
+          `捜査（初期）: ${currentProject.plot.ms2 || '未設定'}`,
+          `仮説とミスリード: ${currentProject.plot.ms3 || '未設定'}`,
+          `第二の事件/急展開: ${currentProject.plot.ms4 || '未設定'}`,
+          `手がかりの統合: ${currentProject.plot.ms5 || '未設定'}`,
+          `解決（真相解明）: ${currentProject.plot.ms6 || '未設定'}`,
+          `エピローグ: ${currentProject.plot.ms7 || '未設定'}`
+        ].join('\n');
+      } else {
+        detailedStructureInfo = '物語構造の詳細が設定されていません';
+      }
+
+      // プロジェクトの基本情報
+      const projectInfo = [
+        `作品タイトル: ${currentProject?.title || '無題'}`,
+        `メインジャンル: ${currentProject?.mainGenre || currentProject?.genre || '未設定'}`,
+        `サブジャンル: ${currentProject?.subGenre || '未設定'}`,
+        `ターゲット読者: ${currentProject?.targetReader || '未設定'}`,
+        `プロジェクトテーマ: ${currentProject?.projectTheme || '未設定'}`,
+        `作品説明: ${currentProject?.description || '未設定'}`
+      ].join('\n');
+
+      // 章立て情報を構築
+      const chaptersInfo = currentProject.chapters.map((chapter, index) => {
+        const characterNames = chapter.characters
+          ? chapter.characters.map(id => {
+              const char = currentProject.characters.find(c => c.id === id);
+              return char ? char.name : id;
+            }).join('、')
+          : '未設定';
+
+        return `【第${index + 1}章: ${chapter.title}】
+概要: ${chapter.summary || '未設定'}
+設定・場所: ${chapter.setting || '未設定'}
+雰囲気・ムード: ${chapter.mood || '未設定'}
+重要な出来事: ${chapter.keyEvents ? chapter.keyEvents.join('、') : '未設定'}
+登場キャラクター: ${characterNames}
+${chapter.draft ? `草案の内容: ${chapter.draft.substring(0, 500)}...` : ''}`;
+      }).join('\n\n');
+
+      const variables = {
+        title: currentProject?.title || '無題',
+        projectInfo: projectInfo,
+        characters: charactersInfo,
+        basicPlotInfo: basicPlotInfo,
+        detailedStructureInfo: detailedStructureInfo,
+        chaptersInfo: chaptersInfo,
+      };
+
+      const prompt = aiService.buildPrompt('synopsis', 'generateFullSynopsis', variables);
+
+      const response = await aiService.generateContent({
+        prompt,
+        type: 'synopsis',
+        settings,
+      });
+
+      // AIログに記録
+      addLog({
+        type: 'generateFullSynopsis',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+      });
+
+      if (response.error) {
+        const errorInfo = getUserFriendlyError(response.error);
+        showErrorWithDetails(
+          errorInfo.title,
+          errorInfo.message,
+          errorInfo.details,
+          errorInfo.retryable ? {
+            label: '再試行',
+            onClick: () => handleGenerateFullSynopsis(),
+            variant: 'primary',
+          } : undefined
+        );
+        return;
+      }
+
+      setSynopsis(response.content);
+
+      // AI生成後は即座に保存
+      setTimeout(() => {
+        handleSave();
+      }, 500);
+
+    } catch (error) {
+      console.error('Full synopsis generation error:', error);
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showErrorWithDetails(
+        errorInfo.title,
+        errorInfo.message,
+        errorInfo.details,
+        errorInfo.retryable ? {
+          label: '再試行',
+          onClick: () => handleGenerateFullSynopsis(),
+          variant: 'primary',
+        } : undefined
+      );
+    } finally {
+      setIsGeneratingFullSynopsis(false);
+    }
+  };
 
   // 文体調整AI機能
   const handleStyleAdjustment = async (styleType: string) => {
@@ -366,50 +591,6 @@ export const SynopsisStep: React.FC = () => {
               </div>
             </div>
 
-            {/* AI Proposal Section */}
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-              <div className="mb-4 p-4 bg-white dark:bg-gray-700 rounded-lg border border-indigo-200 dark:border-indigo-700">
-                <h4 className="font-semibold text-indigo-700 dark:text-indigo-300 mb-3 font-['Noto_Sans_JP']">
-                  AIあらすじ提案について
-                </h4>
-                <p className="text-sm text-indigo-600 dark:text-indigo-400 font-['Noto_Sans_JP'] mb-3">
-                  プロジェクトの基本設定、キャラクター情報、プロット構成に基づいて、一貫性のある物語のあらすじを自動生成します。
-                </p>
-                <ul className="space-y-1 text-xs text-indigo-500 dark:text-indigo-400 font-['Noto_Sans_JP'] mb-4">
-                  <li>• キャラクターの関係性と成長を反映した物語の流れ</li>
-                  <li>• プロット構成（起承転結/三幕構成/四幕構成）に沿った展開</li>
-                  <li>• ジャンルとテーマに適した文体と表現</li>
-                </ul>
-
-                <div className="flex space-x-3">
-                  <button
-                    onClick={handleReset}
-                    className="flex-1 px-4 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 hover:scale-105 text-white flex items-center justify-center space-x-2"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    <span>リセット</span>
-                  </button>
-                  <button
-                    onClick={handleAIGenerate}
-                    disabled={isGenerating}
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Sparkles className="h-5 w-5 animate-spin" />
-                        <span>生成中...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-5 w-5" />
-                        <span>あらすじをAI提案</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
             {/* Footer */}
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 rounded-b-2xl">
               <div className="flex justify-between items-center">
@@ -467,93 +648,127 @@ export const SynopsisStep: React.FC = () => {
           items={[
             {
               id: 'styleAssistant',
-              title: '文体アシスタント',
+              title: 'AI提案',
               icon: Sparkles,
               iconBgClass: 'bg-gradient-to-br from-indigo-500 to-purple-600',
               defaultExpanded: false,
               className: 'bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-900/20 dark:to-purple-800/20 border-indigo-200 dark:border-purple-800',
               content: (
                 <div className="space-y-4">
-                  <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                    AIがあらすじの文体を調整します：
-                  </p>
-                  <div className="space-y-3">
+                  {/* AIあらすじ提案（メイン） */}
+                  <div className="mb-6">
+                    <h4 className="font-semibold text-indigo-700 dark:text-indigo-300 mb-2 font-['Noto_Sans_JP']">
+                      AIあらすじ提案
+                    </h4>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400 font-['Noto_Sans_JP'] mb-3">
+                      プロジェクトの基本設定、キャラクター情報、プロット構成に基づいて、一貫性のある物語のあらすじを自動生成します。
+                    </p>
                     <button
-                      onClick={() => handleStyleAdjustment('readable')}
-                      disabled={isGeneratingStyle || !synopsis.trim()}
-                      className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'readable'
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 border-2 border-blue-400'
-                          : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-                        } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                      onClick={handleAIGenerate}
+                      disabled={isGenerating}
+                      className="w-full px-4 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl transform hover:scale-105"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-white/20 p-2 rounded-lg">
-                            <FileText className="h-5 w-5 text-white" />
-                          </div>
-                          <div className="text-left">
-                            <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">読みやすく調整</div>
-                            <div className="text-blue-100 text-sm font-['Noto_Sans_JP']">文章を整理して理解しやすく</div>
-                          </div>
-                        </div>
-                        {isGeneratingStyle && activeStyleType === 'readable' ? (
-                          <Sparkles className="h-5 w-5 text-white animate-spin" />
-                        ) : (
-                          <Sparkles className="h-5 w-5 text-white" />
-                        )}
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleStyleAdjustment('summary')}
-                      disabled={isGeneratingStyle || !synopsis.trim()}
-                      className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'summary'
-                          ? 'bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400'
-                          : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-                        } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-white/20 p-2 rounded-lg">
-                            <CheckCircle className="h-5 w-5 text-white" />
-                          </div>
-                          <div className="text-left">
-                            <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">要点抽出</div>
-                            <div className="text-green-100 text-sm font-['Noto_Sans_JP']">重要なポイントを抽出</div>
-                          </div>
-                        </div>
-                        {isGeneratingStyle && activeStyleType === 'summary' ? (
-                          <Sparkles className="h-5 w-5 text-white animate-spin" />
-                        ) : (
-                          <Sparkles className="h-5 w-5 text-white" />
-                        )}
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleStyleAdjustment('engaging')}
-                      disabled={isGeneratingStyle || !synopsis.trim()}
-                      className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'engaging'
-                          ? 'bg-gradient-to-r from-purple-500 to-purple-600 border-2 border-purple-400'
-                          : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
-                        } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-white/20 p-2 rounded-lg">
-                            <Sparkles className="h-5 w-5 text-white" />
-                          </div>
-                          <div className="text-left">
-                            <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">魅力的に演出</div>
-                            <div className="text-purple-100 text-sm font-['Noto_Sans_JP']">読者の興味を引く表現に</div>
-                          </div>
-                        </div>
-                        {isGeneratingStyle && activeStyleType === 'engaging' ? (
-                          <Sparkles className="h-5 w-5 text-white animate-spin" />
-                        ) : (
-                          <Sparkles className="h-5 w-5 text-white" />
-                        )}
-                      </div>
+                      {isGenerating ? (
+                        <>
+                          <Sparkles className="h-5 w-5 animate-spin" />
+                          <span>生成中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-5 w-5" />
+                          <span>あらすじをAI提案</span>
+                        </>
+                      )}
                     </button>
                   </div>
+
+                  {/* 文体調整 */}
+                  <div>
+                    <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+                      文体調整
+                    </h4>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => handleStyleAdjustment('readable')}
+                        disabled={isGeneratingStyle || !synopsis.trim()}
+                        className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'readable'
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 border-2 border-blue-400'
+                            : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-white/20 p-2 rounded-lg">
+                              <FileText className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">読みやすく調整</div>
+                              <div className="text-blue-100 text-sm font-['Noto_Sans_JP']">文章を整理して理解しやすく</div>
+                            </div>
+                          </div>
+                          {isGeneratingStyle && activeStyleType === 'readable' ? (
+                            <Sparkles className="h-5 w-5 text-white animate-spin" />
+                          ) : (
+                            <Sparkles className="h-5 w-5 text-white" />
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => handleStyleAdjustment('summary')}
+                        disabled={isGeneratingStyle || !synopsis.trim()}
+                        className={`w-full p-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${isGeneratingStyle && activeStyleType === 'summary'
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400'
+                            : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
+                          } ${!synopsis.trim() ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-white/20 p-2 rounded-lg">
+                              <CheckCircle className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-bold text-white text-lg font-['Noto_Sans_JP']">要点抽出</div>
+                              <div className="text-green-100 text-sm font-['Noto_Sans_JP']">重要なポイントを抽出</div>
+                            </div>
+                          </div>
+                          {isGeneratingStyle && activeStyleType === 'summary' ? (
+                            <Sparkles className="h-5 w-5 text-white animate-spin" />
+                          ) : (
+                            <Sparkles className="h-5 w-5 text-white" />
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 全体あらすじ生成 */}
+                  {currentProject?.chapters && currentProject.chapters.length > 0 && (
+                    <div className="mt-6 pt-6 border-t border-gray-300 dark:border-gray-600">
+                      <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+                        全体あらすじ生成
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-3">
+                        章立ての内容を参照し、ネタバレを含む全体の内容を丁寧に要約した全体あらすじを作成します。
+                      </p>
+                      <button
+                        onClick={handleGenerateFullSynopsis}
+                        disabled={isGeneratingFullSynopsis}
+                        className="w-full px-4 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        {isGeneratingFullSynopsis ? (
+                          <>
+                            <Sparkles className="h-5 w-5 animate-spin" />
+                            <span>生成中...</span>
+                          </>
+                        ) : (
+                          <>
+                            <BookOpen className="h-5 w-5" />
+                            <span>全体あらすじを生成</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ),
             },
@@ -639,6 +854,37 @@ export const SynopsisStep: React.FC = () => {
                               <div>第3幕（秩序）: {currentProject.plot.fourAct3 ? currentProject.plot.fourAct3.substring(0, 20) + '...' : '未設定'}</div>
                               <div>第4幕（混沌）: {currentProject.plot.fourAct4 ? currentProject.plot.fourAct4.substring(0, 20) + '...' : '未設定'}</div>
                             </div>
+                          ) : currentProject.plot.structure === 'heroes-journey' ? (
+                            <div>
+                              <div>日常の世界: {currentProject.plot.hj1 ? currentProject.plot.hj1.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>冒険への誘い: {currentProject.plot.hj2 ? currentProject.plot.hj2.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>境界越え: {currentProject.plot.hj3 ? currentProject.plot.hj3.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>試練と仲間: {currentProject.plot.hj4 ? currentProject.plot.hj4.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>最大の試練: {currentProject.plot.hj5 ? currentProject.plot.hj5.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>報酬: {currentProject.plot.hj6 ? currentProject.plot.hj6.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>帰路: {currentProject.plot.hj7 ? currentProject.plot.hj7.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>復活と帰還: {currentProject.plot.hj8 ? currentProject.plot.hj8.substring(0, 20) + '...' : '未設定'}</div>
+                            </div>
+                          ) : currentProject.plot.structure === 'beat-sheet' ? (
+                            <div>
+                              <div>導入 (Setup): {currentProject.plot.bs1 ? currentProject.plot.bs1.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>決断 (Break into Two): {currentProject.plot.bs2 ? currentProject.plot.bs2.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>試練 (Fun and Games): {currentProject.plot.bs3 ? currentProject.plot.bs3.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>転換点 (Midpoint): {currentProject.plot.bs4 ? currentProject.plot.bs4.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>危機 (All Is Lost): {currentProject.plot.bs5 ? currentProject.plot.bs5.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>クライマックス (Finale): {currentProject.plot.bs6 ? currentProject.plot.bs6.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>結末 (Final Image): {currentProject.plot.bs7 ? currentProject.plot.bs7.substring(0, 20) + '...' : '未設定'}</div>
+                            </div>
+                          ) : currentProject.plot.structure === 'mystery-suspense' ? (
+                            <div>
+                              <div>発端（事件発生）: {currentProject.plot.ms1 ? currentProject.plot.ms1.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>捜査（初期）: {currentProject.plot.ms2 ? currentProject.plot.ms2.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>仮説とミスリード: {currentProject.plot.ms3 ? currentProject.plot.ms3.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>第二の事件/急展開: {currentProject.plot.ms4 ? currentProject.plot.ms4.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>手がかりの統合: {currentProject.plot.ms5 ? currentProject.plot.ms5.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>解決（真相解明）: {currentProject.plot.ms6 ? currentProject.plot.ms6.substring(0, 20) + '...' : '未設定'}</div>
+                              <div>エピローグ: {currentProject.plot.ms7 ? currentProject.plot.ms7.substring(0, 20) + '...' : '未設定'}</div>
+                            </div>
                           ) : (
                             <div>構造詳細が設定されていません</div>
                           )}
@@ -667,7 +913,7 @@ export const SynopsisStep: React.FC = () => {
                     'generate': 'あらすじ生成',
                     'readable': '読みやすく調整',
                     'summary': '要点抽出',
-                    'engaging': '魅力的に演出',
+                    'generateFullSynopsis': '全体あらすじ生成',
                   }}
                 />
               ),

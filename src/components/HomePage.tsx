@@ -44,11 +44,12 @@ const ProjectCard = React.memo<ProjectCardProps>(({
             onClick={() => onSelect(project)}
             className="cursor-pointer"
           >
-            <div className="w-full h-36 rounded-lg bg-usuzumi-100 dark:bg-sumi-800 flex items-center justify-center overflow-hidden">
+            <div className="w-full h-36 rounded-lg glass-bg-only flex items-center justify-center overflow-hidden">
               <OptimizedImage
                 src={project.coverImage}
                 alt={project.title}
-                className="max-h-full max-w-full object-contain"
+                className="w-full h-full"
+                objectFit="contain"
                 lazy={true}
                 quality={0.8}
               />
@@ -199,13 +200,16 @@ const RecentProjectCard = React.memo<RecentProjectCardProps>(({ project, progres
       hoverEffect={true}
     >
       {project.coverImage && (
-        <OptimizedImage
-          src={project.coverImage}
-          alt={project.title}
-          className="w-full h-24 rounded-lg mb-2"
-          lazy={true}
-          quality={0.8}
-        />
+        <div className="w-full h-24 rounded-lg glass-bg-only mb-2 flex items-center justify-center overflow-hidden">
+          <OptimizedImage
+            src={project.coverImage}
+            alt={project.title}
+            className="w-full h-full"
+            objectFit="contain"
+            lazy={true}
+            quality={0.8}
+          />
+        </div>
       )}
       <h3 className="text-sm font-bold text-sumi-900 dark:text-usuzumi-50 mb-1 line-clamp-1 font-['Noto_Sans_JP']">
         {project.title}

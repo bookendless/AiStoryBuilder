@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, RotateCcw } from 'lucide-react';
+import { Save, RotateCcw, Trash2 } from 'lucide-react';
 import type { Change } from 'diff';
 import type { ChapterHistoryEntry } from './types';
 import { HISTORY_BADGE_CLASSES } from './constants';
@@ -18,6 +18,7 @@ interface HistoryTabPanelProps {
   setSelectedHistoryEntryId: React.Dispatch<React.SetStateAction<string | null>>;
   onManualSnapshot: () => void;
   onRestoreHistoryEntry: () => void;
+  onDeleteHistoryEntry: (entryId: string) => void;
   hasHistoryDiff: boolean;
   historyDiffSegments: Change[];
 }
@@ -30,6 +31,7 @@ export const HistoryTabPanel: React.FC<HistoryTabPanelProps> = ({
   setSelectedHistoryEntryId,
   onManualSnapshot,
   onRestoreHistoryEntry,
+  onDeleteHistoryEntry,
   hasHistoryDiff,
   historyDiffSegments,
 }) => {
@@ -71,24 +73,41 @@ export const HistoryTabPanel: React.FC<HistoryTabPanelProps> = ({
             const isActive = selectedHistoryEntryId === entry.id;
 
             return (
-              <button
+              <div
                 key={entry.id}
-                type="button"
-                onClick={() => setSelectedHistoryEntryId(entry.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg border transition-all duration-150 font-['Noto_Sans_JP'] ${
+                className={`group relative w-full px-3 py-2 rounded-lg border transition-all duration-150 font-['Noto_Sans_JP'] ${
                   isActive
                     ? 'border-emerald-400 bg-emerald-50/80 dark:border-emerald-500 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-100'
                     : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${HISTORY_BADGE_CLASSES[entry.type]}`}>
-                    {entry.label}
-                  </span>
-                  <span className="text-gray-500 dark:text-gray-400 text-[10px]">{formatTimestamp(entry.timestamp)}</span>
-                </div>
-                <div className="text-[11px] text-gray-500 dark:text-gray-400">{preview}</div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedHistoryEntryId(entry.id)}
+                  className="w-full text-left"
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${HISTORY_BADGE_CLASSES[entry.type]}`}>
+                      {entry.label}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400 text-[10px]">{formatTimestamp(entry.timestamp)}</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400">{preview}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm('この履歴を削除しますか？')) {
+                      onDeleteHistoryEntry(entry.id);
+                    }
+                  }}
+                  className="absolute top-2 right-2 p-1.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 dark:hover:bg-red-900/50"
+                  title="履歴を削除"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             );
           })
         ) : (

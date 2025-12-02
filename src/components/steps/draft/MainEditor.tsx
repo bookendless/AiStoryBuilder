@@ -1,6 +1,12 @@
 import React, { useRef, useCallback, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { PenTool, BookOpen, Save, Download, ChevronDown, ChevronUp, ListChecks, Wand2, MoreVertical, Minimize } from 'lucide-react';
+import { useProject } from '../../../contexts/ProjectContext';
 import { formatTimestamp } from './utils';
+// @ts-ignore - markdown-itの型定義が不完全な場合がある
+import MarkdownIt from 'markdown-it';
+// @ts-ignore - react-markdown-editor-liteの型定義が不完全な場合がある
+import MdEditor from 'react-markdown-editor-lite';
+import 'react-markdown-editor-lite/lib/index.css';
 
 interface Chapter {
   id: string;
@@ -22,6 +28,7 @@ interface ChapterDetails {
 export interface MainEditorHandle {
   getCurrentSelection: () => string;
   getTextareaRef: () => HTMLTextAreaElement | null;
+  insertText: (text: string) => void;
 }
 
 interface MainEditorProps {
@@ -35,8 +42,6 @@ interface MainEditorProps {
   mainFontSize: number;
   mainLineHeight: number;
   mainTextareaHeight: number;
-  showMainLineNumbers: boolean;
-  isMainFocusMode: boolean;
   wordCount: number;
   lastSavedAt: Date | null;
   selectedChapter: string | null;
@@ -61,8 +66,6 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   mainFontSize,
   mainLineHeight,
   mainTextareaHeight,
-  showMainLineNumbers,
-  isMainFocusMode,
   wordCount,
   lastSavedAt,
   selectedChapter,
@@ -75,60 +78,44 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   isZenMode,
   onExitZenMode,
 }, ref) => {
+  const { currentProject } = useProject();
   const mainTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const mainLineNumbersRef = useRef<HTMLDivElement | null>(null);
-  const mainLineNumbersInnerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const mdEditorRef = useRef<any>(null);
 
-  const [localLineNumbers, setLocalLineNumbers] = React.useState<number[]>([1]);
+  // Markdownパーサーの初期化
+  const mdParser = useMemo(() => new MarkdownIt({
+    html: true,
+    linkify: true,
+    typographer: true,
+  }), []);
 
-  const mainLineNumbersContent = useMemo(() => localLineNumbers.join('\n'), [localLineNumbers]);
   const mainComputedLineHeight = useMemo(() => Math.max(mainFontSize * mainLineHeight, 12), [mainFontSize, mainLineHeight]);
 
-  const mainEditorContainerClass = isMainFocusMode
-    ? 'bg-gray-900/95 border border-emerald-500/30'
-    : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600';
+  // Markdownエディタのフォントサイズと行間を適用
+  useEffect(() => {
+    if (!isVerticalWriting && mdEditorRef.current) {
+      const applyStyles = () => {
+        const editor = mdEditorRef.current;
+        if (!editor) return;
+        
+        const textarea = editor.querySelector?.('textarea');
+        if (textarea) {
+          textarea.style.fontSize = `${mainFontSize}px`;
+          textarea.style.lineHeight = `${mainComputedLineHeight}px`;
+        }
+      };
 
-  // 行番号の更新
-  const updateLineNumbers = useCallback(() => {
-    // 縦書きモードでは行番号を計算しない（または非表示にするため不要）
-    if (isVerticalWriting) return;
+      // 即座に適用
+      applyStyles();
 
-    const textarea = mainTextareaRef.current;
-    if (!textarea) {
-      setLocalLineNumbers([1]);
-      return;
+      // 少し遅延して再適用（Markdownエディタの内部レンダリングを待つ）
+      const timeoutId = setTimeout(applyStyles, 100);
+      
+      return () => clearTimeout(timeoutId);
     }
-
-    const computedStyle = window.getComputedStyle(textarea);
-    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
-    const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-    const contentHeight = Math.max(textarea.scrollHeight - paddingTop - paddingBottom, 0);
-    const totalLines = Math.max(1, Math.ceil(contentHeight / mainComputedLineHeight));
-
-    setLocalLineNumbers((prev) => {
-      if (prev.length === totalLines) {
-        return prev;
-      }
-      return Array.from({ length: totalLines }, (_, index) => index + 1);
-    });
-  }, [mainComputedLineHeight, isVerticalWriting]);
-
-  useEffect(() => {
-    updateLineNumbers();
-  }, [draft, mainComputedLineHeight, mainTextareaHeight, isMainFocusMode, showMainLineNumbers, isVerticalWriting, updateLineNumbers]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleResize = () => {
-      updateLineNumbers();
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [updateLineNumbers]);
+  }, [mainFontSize, mainComputedLineHeight, isVerticalWriting, draft]);
 
   // メニューの外側クリックで閉じる
   useEffect(() => {
@@ -146,32 +133,72 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
     }
   }, [isMenuOpen]);
 
-  const handleMainTextareaScroll = useCallback(() => {
-    if (!mainTextareaRef.current || !mainLineNumbersInnerRef.current) return;
-
-    const textarea = mainTextareaRef.current;
-    const innerElement = mainLineNumbersInnerRef.current;
-
-    innerElement.style.transform = `translateY(-${textarea.scrollTop}px)`;
-  }, []);
-
-  useEffect(() => {
-    if (showMainLineNumbers && !isVerticalWriting) {
-      handleMainTextareaScroll();
-    }
-  }, [showMainLineNumbers, mainTextareaHeight, draft, mainComputedLineHeight, handleMainTextareaScroll, isVerticalWriting]);
+  // Markdownエディタの変更ハンドラ
+  const handleMarkdownChange = useCallback(({ text }: { text: string }) => {
+    onDraftChange(text);
+  }, [onDraftChange]);
 
   // 親コンポーネントからref経由でアクセスできるメソッドを公開
   useImperativeHandle(ref, () => ({
     getCurrentSelection: () => {
-      const textarea = mainTextareaRef.current;
-      if (!textarea) return '';
-      const { selectionStart, selectionEnd } = textarea;
-      if (selectionStart === selectionEnd) return '';
-      return textarea.value.slice(selectionStart, selectionEnd);
+      if (isVerticalWriting) {
+        const textarea = mainTextareaRef.current;
+        if (!textarea) return '';
+        const { selectionStart, selectionEnd } = textarea;
+        if (selectionStart === selectionEnd) return '';
+        return textarea.value.slice(selectionStart, selectionEnd);
+      } else {
+        // Markdownエディタの場合
+        if (mdEditorRef.current) {
+          const editor = mdEditorRef.current;
+          const textarea = editor?.querySelector?.('textarea');
+          if (textarea) {
+            const { selectionStart, selectionEnd } = textarea;
+            if (selectionStart === selectionEnd) return '';
+            return textarea.value.slice(selectionStart, selectionEnd);
+          }
+        }
+        return '';
+      }
     },
-    getTextareaRef: () => mainTextareaRef.current,
-  }), []);
+    getTextareaRef: () => {
+      if (isVerticalWriting) {
+        return mainTextareaRef.current;
+      } else {
+        // Markdownエディタのtextareaを返す
+        if (mdEditorRef.current) {
+          return mdEditorRef.current?.querySelector?.('textarea') || null;
+        }
+        return null;
+      }
+    },
+    insertText: (text: string) => {
+      let textarea: HTMLTextAreaElement | null = null;
+      
+      if (isVerticalWriting) {
+        textarea = mainTextareaRef.current;
+      } else if (mdEditorRef.current) {
+        textarea = mdEditorRef.current?.querySelector?.('textarea') || null;
+      }
+      
+      if (!textarea) return;
+      
+      const { selectionStart, selectionEnd, value } = textarea;
+      const newValue = value.slice(0, selectionStart) + text + value.slice(selectionEnd);
+      
+      // 値を更新
+      onDraftChange(newValue);
+      
+      // カーソル位置を挿入したテキストの後に移動
+      setTimeout(() => {
+        if (textarea) {
+          textarea.focus();
+          const newPosition = selectionStart + text.length;
+          textarea.setSelectionRange(newPosition, newPosition);
+        }
+      }, 0);
+    },
+  }), [isVerticalWriting, onDraftChange]);
 
   return (
     <div className={`flex-1 min-w-0 space-y-6 ${isZenMode ? 'z-50' : ''}`}>
@@ -214,7 +241,21 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                   {!isChapterInfoCollapsed && (
                     <>
                       <p className="text-blue-800 dark:text-blue-200 text-sm font-['Noto_Sans_JP'] leading-relaxed mb-3">
-                        {currentChapter.summary}
+                        {(() => {
+                          // 章の説明内のキャラクターIDをキャラクター名に変換
+                          if (!currentChapter.summary || !currentProject) {
+                            return currentChapter.summary || '';
+                          }
+                          let summary = currentChapter.summary;
+                          // プロジェクト内のすべてのキャラクターIDをキャラクター名に置換
+                          currentProject.characters.forEach(character => {
+                            // キャラクターIDがテキスト内に含まれている場合、キャラクター名に置換
+                            // 単語境界を考慮して置換（IDが単独で出現する場合のみ）
+                            const regex = new RegExp(`\\b${character.id}\\b`, 'g');
+                            summary = summary.replace(regex, character.name);
+                          });
+                          return summary;
+                        })()}
                       </p>
 
                       {/* 章詳細情報 */}
@@ -263,78 +304,76 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
 
           {/* メインテキストエリア */}
           <div
-            className={`rounded-lg min-h-[300px] border ${isMainFocusMode
-                ? 'border-emerald-500/40 bg-gray-900 text-emerald-50'
-                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-              } ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
-            style={isZenMode ? { minHeight: 'auto', backgroundColor: isMainFocusMode ? '#111827' : undefined } : undefined}
+            className={`rounded-lg min-h-[300px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
           >
             {selectedChapterId ? (
-              <div className={`p-4 ${isMainFocusMode ? 'bg-gray-900/80 rounded-b-lg' : ''} ${isZenMode ? 'flex-1 flex flex-col p-0 bg-transparent' : ''}`}>
+              <div className={`p-4 ${isZenMode ? 'flex-1 flex flex-col p-0 bg-transparent' : ''}`}>
                 <div
-                  className={`${mainEditorContainerClass} rounded-lg transition-colors duration-200 ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
-                  style={isMainFocusMode ? { boxShadow: isZenMode ? 'none' : '0 0 0 1px rgba(16, 185, 129, 0.25)' } : undefined}
+                  className={`bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors duration-200 ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
                 >
                   <div className={`flex ${isZenMode ? 'flex-1' : ''}`}>
-                    {showMainLineNumbers && !isVerticalWriting && (
-                      <div
-                        ref={mainLineNumbersRef}
-                        className={`pl-6 pr-3 py-5 md:pl-8 md:pr-4 md:py-6 select-none border-r ${isMainFocusMode
-                            ? 'border-emerald-500/40 bg-gray-900/60 text-emerald-200/80'
-                            : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-500'
-                          }`}
+                    {isVerticalWriting ? (
+                      // 縦書きモード: 従来のtextareaを使用
+                      <textarea
+                        ref={mainTextareaRef}
+                        value={draft}
+                        onChange={(e) => onDraftChange(e.target.value)}
+                        placeholder="ここに草案を執筆してください..."
+                        className={`flex-1 px-6 py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none font-serif-jp text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${isZenMode ? 'h-full' : ''}`}
                         style={{
+                          fontSize: mainFontSize,
+                          lineHeight: mainLineHeight,
                           height: isZenMode ? '100%' : mainTextareaHeight,
-                          overflow: 'hidden',
-                          position: 'relative',
+                          writingMode: 'vertical-rl',
+                          textOrientation: 'upright',
+                          letterSpacing: '0.05em',
+                          overflowX: 'auto',
+                          overflowY: 'hidden',
                         }}
-                      >
-                        <div
-                          ref={mainLineNumbersInnerRef}
-                          style={{
-                            fontFamily: 'monospace',
-                            whiteSpace: 'pre',
-                            fontSize: mainFontSize,
-                            lineHeight: `${mainComputedLineHeight}px`,
-                            transform: 'translateY(0)',
-                            willChange: 'transform',
-                          }}
-                        >
-                          {mainLineNumbersContent}
-                        </div>
-                      </div>
-                    )}
-                    <textarea
-                      ref={mainTextareaRef}
-                      value={draft}
-                      onChange={(e) => onDraftChange(e.target.value)}
-                      onScroll={!isVerticalWriting ? handleMainTextareaScroll : undefined}
-                      placeholder="ここに草案を執筆してください..."
-                      className={`flex-1 px-6 py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none ${isVerticalWriting ? 'font-serif-jp' : "font-['Noto_Sans_JP']"
-                        } ${isMainFocusMode
-                          ? 'text-emerald-50 placeholder-emerald-400/50'
-                          : 'text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400'
-                        } ${isZenMode ? 'h-full' : ''}`}
-                      style={{
-                        fontSize: mainFontSize,
-                        lineHeight: isVerticalWriting ? '2.0' : `${mainComputedLineHeight}px`,
-                        height: isZenMode ? '100%' : mainTextareaHeight,
-                        writingMode: isVerticalWriting ? 'vertical-rl' : 'horizontal-tb',
-                        textOrientation: isVerticalWriting ? 'upright' : 'mixed',
-                        letterSpacing: isVerticalWriting ? '0.05em' : 'normal',
-                        overflowX: isVerticalWriting ? 'auto' : 'hidden',
-                        overflowY: isVerticalWriting ? 'hidden' : 'auto',
-                      }}
-                      onWheel={(e) => {
-                        if (isVerticalWriting) {
+                        onWheel={(e) => {
                           const container = e.currentTarget;
                           container.scrollLeft -= e.deltaY;
-                          // 縦書き時は横スクロールを優先するため、親要素への伝播を止める場合があるが、
-                          // ここではブラウザのデフォルト挙動を上書きして横スクロールにする
-                          // e.preventDefault() は状況によるが、スムーズスクロールのために必要
-                        }
-                      }}
-                    />
+                        }}
+                      />
+                    ) : (
+                      // 横書きモード: Markdownエディタを使用
+                      <div
+                        ref={mdEditorRef}
+                        className="flex-1"
+                        style={{
+                          height: isZenMode ? '100%' : mainTextareaHeight,
+                          '--editor-font-size': `${mainFontSize}px`,
+                          '--editor-line-height': `${mainComputedLineHeight}px`,
+                        } as React.CSSProperties}
+                      >
+                        <MdEditor
+                          value={draft}
+                          style={{
+                            height: isZenMode ? '100%' : mainTextareaHeight,
+                          }}
+                          renderHTML={(text: string) => mdParser.render(text)}
+                          onChange={handleMarkdownChange}
+                          placeholder="ここに草案を執筆してください..."
+                          config={{
+                            view: {
+                              menu: true,
+                              md: true,
+                              html: false, // プレビューは非表示（小説執筆向け）
+                            },
+                            canView: {
+                              menu: true,
+                              md: true,
+                              html: false,
+                              fullScreen: false,
+                              hideMenu: false,
+                            },
+                            // 小説執筆向けにツールバーをカスタマイズ（太字、斜体、見出しのみ）
+                            toolbar: ['bold', 'italic', 'heading', '|', 'quote'],
+                          }}
+                          className="novel-editor"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

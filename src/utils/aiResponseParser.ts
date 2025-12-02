@@ -77,35 +77,89 @@ const detectResponseFormat = (content: string): 'json' | 'text' => {
 };
 
 /**
- * JSON形式の応答を解析
+ * JSON形式の応答を解析（強化版）
  */
 const parseJsonResponse = (content: string): ParsedResponse => {
-  // 複数のパターンでJSONを抽出
-  const jsonPatterns = [
-    /```json\s*([\s\S]*?)\s*```/g,  // ```json ... ``` ブロック
-    /```\s*([\s\S]*?)\s*```/g,      // ``` ... ``` ブロック
-    /\{[\s\S]*\}/g,                  // { ... } オブジェクト
-    /\[[\s\S]*\]/g,                  // [ ... ] 配列
+  if (!content || typeof content !== 'string') {
+    return {
+      success: false,
+      data: null,
+      rawContent: content || '',
+      error: '無効な応答内容'
+    };
+  }
+
+  const trimmedContent = content.trim();
+  
+  // 複数のパターンでJSONを抽出（優先順位順）
+  const extractionPatterns = [
+    // 1. コードブロック内のJSON（json指定あり）
+    {
+      pattern: /```json\s*([\s\S]*?)\s*```/,
+      description: 'jsonコードブロック'
+    },
+    // 2. コードブロック内のJSON（json指定なし）
+    {
+      pattern: /```\s*([\s\S]*?)\s*```/,
+      description: 'コードブロック'
+    },
+    // 3. 波括弧で囲まれたJSONオブジェクト（最も長いものを選択）
+    {
+      pattern: /\{[\s\S]*\}/,
+      description: 'JSONオブジェクト',
+      extractLongest: true
+    },
+    // 4. 角括弧で囲まれたJSON配列
+    {
+      pattern: /\[[\s\S]*\]/,
+      description: 'JSON配列',
+      extractLongest: true
+    }
   ];
 
   let jsonString = '';
-  
+  let extractionMethod = '';
+
   // パターンマッチングでJSONを抽出
-  for (const pattern of jsonPatterns) {
-    const matches = content.match(pattern);
+  for (const { pattern, description, extractLongest } of extractionPatterns) {
+    const matches = trimmedContent.match(pattern);
     if (matches && matches.length > 0) {
-      // 最も長いマッチを選択
-      const longestMatch = matches.reduce((a, b) => a.length > b.length ? a : b);
-      jsonString = longestMatch.replace(/```json\s*|\s*```/g, '').trim();
+      if (extractLongest) {
+        // 最も長いマッチを選択
+        const longestMatch = matches.reduce((a, b) => a.length > b.length ? a : b);
+        jsonString = longestMatch.trim();
+      } else {
+        // 最初のマッチを使用
+        jsonString = matches[1] ? matches[1].trim() : matches[0].trim();
+      }
+      extractionMethod = description;
       break;
     }
   }
 
   // パターンマッチングで見つからない場合は、全体をJSONとして試行
   if (!jsonString) {
-    jsonString = content;
+    jsonString = trimmedContent;
+    extractionMethod = '全体';
   }
 
+  // JSON文字列のクリーニング
+  jsonString = jsonString
+    .replace(/```json\s*|\s*```/g, '') // コードブロックマーカーを除去
+    .replace(/^[\s\n\r]*/, '') // 先頭の空白・改行を除去
+    .replace(/[\s\n\r]*$/, ''); // 末尾の空白・改行を除去
+
+  // 空の場合は失敗
+  if (!jsonString) {
+    return {
+      success: false,
+      data: null,
+      rawContent: content,
+      error: 'JSON文字列が抽出できませんでした'
+    };
+  }
+
+  // JSON解析を試行
   try {
     const parsed = JSON.parse(jsonString);
     return {
@@ -114,8 +168,12 @@ const parseJsonResponse = (content: string): ParsedResponse => {
       rawContent: content
     };
   } catch (error) {
-    // JSON解析に失敗した場合は、テキスト解析にフォールバック
-    console.warn('JSON parsing failed, falling back to text parsing:', error);
+    // JSON解析に失敗した場合、より詳細なエラー情報を記録
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn(`JSON parsing failed (${extractionMethod}), falling back to text parsing:`, errorMessage);
+    console.debug('Attempted JSON string (first 200 chars):', jsonString.substring(0, 200));
+    
+    // テキスト解析にフォールバック
     return parseTextResponse(content);
   }
 };

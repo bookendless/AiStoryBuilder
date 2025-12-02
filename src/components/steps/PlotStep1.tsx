@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Sparkles, Check, Loader2, BookOpen, Eye, Wand2, GripVertical, RotateCcw, ChevronRight, FileText, X, AlertCircle, RefreshCw, Clock } from 'lucide-react';
+import { Sparkles, Check, Loader2, BookOpen, Eye, Wand2, GripVertical, ChevronRight, FileText, X, AlertCircle, RefreshCw, Clock } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -87,26 +87,6 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     });
     setHistoryIndex(prev => Math.min(prev + 1, 49));
   }, [historyIndex]);
-
-  // 元に戻す機能
-  const handleUndo = useCallback(() => {
-    if (historyIndex > 0) {
-      const prevIndex = historyIndex - 1;
-      historyRef.current = true;
-      setFormData(history[prevIndex]);
-      setHistoryIndex(prevIndex);
-    }
-  }, [history, historyIndex]);
-
-  // やり直し機能
-  const handleRedo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const nextIndex = historyIndex + 1;
-      historyRef.current = true;
-      setFormData(history[nextIndex]);
-      setHistoryIndex(nextIndex);
-    }
-  }, [history, historyIndex]);
 
   // フォームデータ変更時に履歴を保存
   useEffect(() => {
@@ -1083,22 +1063,6 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
               >
                 すべてリセット
               </button>
-              <button
-                onClick={handleUndo}
-                disabled={historyIndex <= 0}
-                className="px-3 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white"
-                title="元に戻す (Ctrl+Z)"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
-              <button
-                onClick={handleRedo}
-                disabled={historyIndex >= history.length - 1}
-                className="px-3 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rotate-180"
-                title="やり直し (Ctrl+Y)"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
             </div>
             
             <div className="flex items-center space-x-4 flex-wrap">
@@ -1135,11 +1099,6 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                       <RefreshCw className={`h-3 w-3 ${isSaving ? 'animate-spin' : ''}`} />
                       <span>再試行</span>
                     </button>
-                  </div>
-                )}
-                {saveStatus === 'idle' && (
-                  <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
-                    <span className="text-sm font-['Noto_Sans_JP']">未保存</span>
                   </div>
                 )}
               </div>

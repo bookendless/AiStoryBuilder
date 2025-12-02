@@ -57,7 +57,22 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
     if (currentProject.characters && currentProject.characters.length > 0) {
       context += 'キャラクター:\n';
       currentProject.characters.forEach(char => {
-        context += `- ${char.name} (${char.role}): ${char.personality || char.background || ''}\n`;
+        let charInfo = `- ${char.name} (${char.role})`;
+        if (char.personality) {
+          charInfo += `\n  性格: ${char.personality}`;
+        }
+        if (char.background) {
+          charInfo += `\n  背景: ${char.background}`;
+        }
+        // 口調設定は簡潔に（最大100文字）
+        if (char.speechStyle) {
+          const speechStyle = char.speechStyle.trim();
+          const truncatedSpeechStyle = speechStyle.length > 100 
+            ? speechStyle.substring(0, 100) + '...' 
+            : speechStyle;
+          charInfo += `\n  口調: ${truncatedSpeechStyle}`;
+        }
+        context += charInfo + '\n';
       });
       context += '\n';
     }
