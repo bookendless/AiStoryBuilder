@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
@@ -24,24 +24,100 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
     const internalRef = useRef<HTMLDivElement>(null);
     // 外部からのrefと内部のrefを統合
     const modalRef = (ref as React.RefObject<HTMLDivElement>) || internalRef;
-
+    const previousActiveElement = useRef<HTMLElement | null>(null);
+    const hasInitialFocused = useRef(false);
+    
+    // onCloseをrefで保持して、依存関係から除外
+    const onCloseRef = useRef(onClose);
     useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                onClose();
-            }
-        };
+        onCloseRef.current = onClose;
+    }, [onClose]);
 
-        if (isOpen) {
-            document.addEventListener('keydown', handleEscape);
-            document.body.style.overflow = 'hidden';
+    // フォーカス可能な要素を取得する関数
+    const getFocusableElements = (container: HTMLElement): HTMLElement[] => {
+        const selector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+        return Array.from(container.querySelectorAll<HTMLElement>(selector)).filter(
+            (el) => !el.hasAttribute('disabled') && !el.hasAttribute('aria-hidden')
+        );
+    };
+
+    // キーボードイベントハンドラー（refを使用して安定した参照を維持）
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        if (!modalRef.current) return;
+        
+        // Escapeキーでモーダルを閉じる
+        if (e.key === 'Escape') {
+            onCloseRef.current();
+            return;
+        }
+
+        // Tabキーでフォーカストラップ
+        if (e.key === 'Tab') {
+            const focusableElements = getFocusableElements(modalRef.current);
+            if (focusableElements.length === 0) {
+                e.preventDefault();
+                return;
+            }
+
+            const firstElement = focusableElements[0];
+            const lastElement = focusableElements[focusableElements.length - 1];
+            const currentElement = document.activeElement as HTMLElement;
+
+            if (e.shiftKey) {
+                // Shift+Tab: 逆方向
+                if (currentElement === firstElement || !focusableElements.includes(currentElement)) {
+                    e.preventDefault();
+                    lastElement.focus();
+                }
+            } else {
+                // Tab: 順方向
+                if (currentElement === lastElement || !focusableElements.includes(currentElement)) {
+                    e.preventDefault();
+                    firstElement.focus();
+                }
+            }
+        }
+    }, [modalRef]);
+
+    // フォーカストラップの実装
+    useEffect(() => {
+        if (!isOpen || !modalRef.current) {
+            // モーダルが閉じた時にフラグをリセット
+            hasInitialFocused.current = false;
+            return;
+        }
+
+        // モーダルが開いた時の処理
+        previousActiveElement.current = document.activeElement as HTMLElement;
+        document.addEventListener('keydown', handleKeyDown);
+        document.body.style.overflow = 'hidden';
+
+        // モーダル内の最初の要素にフォーカス（初回のみ）
+        if (!hasInitialFocused.current) {
+            hasInitialFocused.current = true;
+            setTimeout(() => {
+                if (!modalRef.current) return;
+                const focusableElements = getFocusableElements(modalRef.current);
+                if (focusableElements.length > 0) {
+                    focusableElements[0].focus();
+                } else {
+                    // フォーカス可能な要素がない場合はモーダル自体にフォーカス
+                    modalRef.current?.setAttribute('tabindex', '-1');
+                    modalRef.current?.focus();
+                }
+            }, 100);
         }
 
         return () => {
-            document.removeEventListener('keydown', handleEscape);
+            document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = 'unset';
+            
+            // 前の要素にフォーカスを戻す
+            if (previousActiveElement.current) {
+                previousActiveElement.current.focus();
+            }
         };
-    }, [isOpen, onClose]);
+    }, [isOpen, handleKeyDown]);
 
     if (!isOpen) return null;
 
@@ -69,12 +145,14 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
             {/* モーダルコンテンツ: 強化されたGlassmorphism */}
             <div
                 ref={modalRef}
+                tabIndex={-1}
                 className={`
           relative w-full ${sizeClasses[size]} 
           glass-strong glass-shimmer
           rounded-2xl
           transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95
           flex flex-col max-h-[90vh]
+          focus:outline-none
           ${className}
         `}
             >

@@ -60,6 +60,7 @@ export const compressImage = (
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
+    let objectUrl: string | null = null;
     
     img.onload = () => {
       // アスペクト比を維持しながらリサイズ
@@ -80,6 +81,12 @@ export const compressImage = (
       // 圧縮してBlobに変換
       canvas.toBlob(
         (blob) => {
+          // オブジェクトURLを解放
+          if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            objectUrl = null;
+          }
+          
           if (blob) {
             resolve(blob);
           } else {
@@ -91,8 +98,17 @@ export const compressImage = (
       );
     };
     
-    img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => {
+      // エラー時もオブジェクトURLを解放
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      reject(new Error('画像の読み込みに失敗しました'));
+    };
+    
+    objectUrl = URL.createObjectURL(file);
+    img.src = objectUrl;
   });
 };
 
@@ -109,6 +125,7 @@ export const convertToWebP = (
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
+    let objectUrl: string | null = null;
     
     img.onload = () => {
       // アスペクト比を維持しながらリサイズ
@@ -129,6 +146,12 @@ export const convertToWebP = (
       // WebP形式でBlobに変換
       canvas.toBlob(
         (blob) => {
+          // オブジェクトURLを解放
+          if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            objectUrl = null;
+          }
+          
           if (blob) {
             resolve(blob);
           } else {
@@ -141,13 +164,17 @@ export const convertToWebP = (
       );
     };
     
-    img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+    img.onerror = () => {
+      // エラー時もオブジェクトURLを解放
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      reject(new Error('画像の読み込みに失敗しました'));
+    };
     
-    if (file instanceof File) {
-      img.src = URL.createObjectURL(file);
-    } else {
-      img.src = URL.createObjectURL(file);
-    }
+    objectUrl = URL.createObjectURL(file);
+    img.src = objectUrl;
   });
 };
 

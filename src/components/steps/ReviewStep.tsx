@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -23,8 +23,31 @@ import {
     Trash2,
     ChevronRight
 } from 'lucide-react';
-// @ts-ignore
 import MarkdownIt from 'markdown-it';
+
+// 定数定義
+const MAX_SCORE = 5;
+
+// 評価モードの定義
+const EVALUATION_MODES: { id: EvaluationMode; label: string; icon: React.ReactNode; description: string }[] = [
+    { id: 'structure', label: '構造・プロット', icon: <BookOpen size={18} />, description: '物語の構成、一貫性、ペース配分を分析します' },
+    { id: 'character', label: 'キャラクター', icon: <Users size={18} />, description: 'キャラクターの動機、成長、独自性を評価します' },
+    { id: 'style', label: '文体・表現', icon: <Feather size={18} />, description: '文章の読みやすさ、描写力、五感表現をチェックします' },
+    { id: 'persona', label: '読者ペルソナ', icon: <UserCheck size={18} />, description: '想定読者になりきって感想と市場性を評価します' },
+];
+
+// UUID生成のヘルパー関数（crypto.randomUUID()のフォールバック付き）
+const generateUUID = (): string => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // フォールバック: 簡易的なUUID v4の実装
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
 
 export const ReviewStep: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -39,29 +62,42 @@ export const ReviewStep: React.FC = () => {
     const [result, setResult] = useState<EvaluationResult | null>(null);
     const [showHistory, setShowHistory] = useState(false);
 
-    // Markdownパーサーの初期化
+    // Markdownパーサーの初期化（HTMLを無効化してXSSを防止）
     const mdParser = useMemo(() => new MarkdownIt({
-        html: true,
+        html: false, // XSS対策: HTMLを無効化
         linkify: true,
         typographer: true,
     }), []);
 
-    // コンテンツの自動設定
+    // モードマップの作成（O(1)ルックアップ用）
+    const modeMap = useMemo(() => {
+        const map = new Map<EvaluationMode, typeof EVALUATION_MODES[0]>();
+        EVALUATION_MODES.forEach(mode => {
+            map.set(mode.id, mode);
+        });
+        return map;
+    }, []);
+
+    // コンテンツの自動設定（依存配列を最適化）
+    const projectId = currentProject?.id;
+    const synopsis = currentProject?.synopsis;
+    const chapters = currentProject?.chapters;
+
     useEffect(() => {
         if (!currentProject) return;
 
         if (targetType === 'synopsis') {
-            setTargetContent(currentProject.synopsis || '');
+            setTargetContent(synopsis || '');
         } else if (targetType === 'chapter') {
             if (selectedChapterId) {
-                const chapter = currentProject.chapters.find(c => c.id === selectedChapterId);
+                const chapter = chapters?.find(c => c.id === selectedChapterId);
                 setTargetContent(chapter?.draft || chapter?.summary || '');
-            } else if (currentProject.chapters.length > 0) {
-                setSelectedChapterId(currentProject.chapters[0].id);
-                setTargetContent(currentProject.chapters[0].draft || currentProject.chapters[0].summary || '');
+            } else if (chapters && chapters.length > 0) {
+                setSelectedChapterId(chapters[0].id);
+                setTargetContent(chapters[0].draft || chapters[0].summary || '');
             }
         }
-    }, [targetType, selectedChapterId, currentProject]);
+    }, [targetType, selectedChapterId, projectId, synopsis, chapters]);
 
     const handleEvaluate = async () => {
         if (!isConfigured) {
@@ -82,7 +118,7 @@ export const ReviewStep: React.FC = () => {
                 theme: currentProject?.theme,
                 genre: currentProject?.mainGenre,
                 targetAudience: currentProject?.targetReader,
-                characters: currentProject?.characters.map(c => `${c.name}: ${c.role}`).join(', ')
+                characters: currentProject?.characters?.map(c => `${c.name}: ${c.role}`).join(', ') || ''
             };
 
             const evaluationResult = await aiService.evaluateStory({
@@ -95,7 +131,8 @@ export const ReviewStep: React.FC = () => {
             showSuccess('評価が完了しました');
         } catch (error) {
             console.error('Evaluation failed:', error);
-            showError('評価中にエラーが発生しました');
+            const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
+            showError(`評価中にエラーが発生しました: ${errorMessage}`);
         } finally {
             setIsEvaluating(false);
         }
@@ -106,12 +143,12 @@ export const ReviewStep: React.FC = () => {
 
         const newEvaluation: SavedEvaluation = {
             ...result,
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             date: new Date(),
             mode: activeMode,
             targetType,
             targetTitle: targetType === 'chapter'
-                ? currentProject.chapters.find(c => c.id === selectedChapterId)?.title
+                ? currentProject.chapters?.find(c => c.id === selectedChapterId)?.title
                 : undefined
         };
 
@@ -127,12 +164,13 @@ export const ReviewStep: React.FC = () => {
     const handleExport = () => {
         if (!result) return;
 
-        const content = `# AI評価レポート: ${modes.find(m => m.id === activeMode)?.label}
+        const modeLabel = modeMap.get(activeMode)?.label || activeMode;
+        const content = `# AI評価レポート: ${modeLabel}
 
 ## 概要
 ${result.summary}
 
-## スコア: ${result.score}/5
+## スコア: ${result.score}/${MAX_SCORE}
 
 ${result.persona ? `## 想定ペルソナ\n${result.persona}\n` : ''}
 
@@ -156,8 +194,11 @@ ${result.detailedAnalysis}
         a.download = `evaluation_${activeMode}_${new Date().toISOString().slice(0, 10)}.md`;
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // ダウンロード完了を待ってからURLを解放
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
         showSuccess('レポートをダウンロードしました');
     };
 
@@ -172,20 +213,21 @@ ${result.detailedAnalysis}
         showSuccess('履歴を削除しました');
     };
 
-    const loadHistory = (evaluation: SavedEvaluation) => {
+    const loadHistory = useCallback((evaluation: SavedEvaluation) => {
         setResult(evaluation);
         setActiveMode(evaluation.mode);
         setTargetType(evaluation.targetType);
         // コンテンツの復元は完全にはできない（保存していないため）が、結果は表示できる
         setShowHistory(false);
-    };
+    }, []);
 
-    const modes: { id: EvaluationMode; label: string; icon: React.ReactNode; description: string }[] = [
-        { id: 'structure', label: '構造・プロット', icon: <BookOpen size={18} />, description: '物語の構成、一貫性、ペース配分を分析します' },
-        { id: 'character', label: 'キャラクター', icon: <Users size={18} />, description: 'キャラクターの動機、成長、独自性を評価します' },
-        { id: 'style', label: '文体・表現', icon: <Feather size={18} />, description: '文章の読みやすさ、描写力、五感表現をチェックします' },
-        { id: 'persona', label: '読者ペルソナ', icon: <UserCheck size={18} />, description: '想定読者になりきって感想と市場性を評価します' },
-    ];
+    // 評価履歴を逆順でメモ化（パフォーマンス最適化）
+    const reversedEvaluations = useMemo(() => {
+        if (!currentProject?.evaluations || currentProject.evaluations.length === 0) {
+            return [];
+        }
+        return [...currentProject.evaluations].reverse();
+    }, [currentProject?.evaluations]);
 
     return (
         <div className="h-full flex flex-col gap-6 p-6 max-w-7xl mx-auto overflow-y-auto">
@@ -214,13 +256,13 @@ ${result.detailedAnalysis}
                         <History size={20} />
                         評価履歴
                     </h3>
-                    {currentProject?.evaluations && currentProject.evaluations.length > 0 ? (
+                    {reversedEvaluations.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {currentProject.evaluations.slice().reverse().map((evaluation) => (
+                            {reversedEvaluations.map((evaluation) => (
                                 <div key={evaluation.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-50 dark:bg-gray-800/50">
                                     <div className="flex justify-between items-start mb-2">
                                         <span className="text-xs font-medium px-2 py-1 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                                            {modes.find(m => m.id === evaluation.mode)?.label}
+                                            {modeMap.get(evaluation.mode)?.label || evaluation.mode}
                                         </span>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleDeleteHistory(evaluation.id); }}
@@ -234,7 +276,9 @@ ${result.detailedAnalysis}
                                             {evaluation.summary}
                                         </p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {new Date(evaluation.date).toLocaleString()}
+                                            {evaluation.date instanceof Date 
+                                                ? evaluation.date.toLocaleString() 
+                                                : new Date(evaluation.date).toLocaleString()}
                                         </p>
                                     </div>
                                     <button
@@ -256,7 +300,7 @@ ${result.detailedAnalysis}
                 <>
                     {/* モード選択 */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {modes.map((mode) => (
+                        {EVALUATION_MODES.map((mode) => (
                             <button
                                 key={mode.id}
                                 onClick={() => setActiveMode(mode.id)}
@@ -332,7 +376,7 @@ ${result.detailedAnalysis}
                                                 onChange={(e) => setSelectedChapterId(e.target.value)}
                                                 className="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                             >
-                                                {currentProject?.chapters.map(chapter => (
+                                                {currentProject?.chapters?.map(chapter => (
                                                     <option key={chapter.id} value={chapter.id}>
                                                         {chapter.title}
                                                     </option>
@@ -402,12 +446,12 @@ ${result.detailedAnalysis}
                                             <div>
                                                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">評価結果</h3>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                    {modes.find(m => m.id === activeMode)?.label}
+                                                    {modeMap.get(activeMode)?.label || activeMode}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-full">
                                                 <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">スコア</span>
-                                                <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{result.score}/5</span>
+                                                <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{result.score}/{MAX_SCORE}</span>
                                             </div>
                                         </div>
                                         <p className="text-gray-700 dark:text-gray-300 leading-relaxed">

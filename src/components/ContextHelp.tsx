@@ -108,6 +108,9 @@ const helpContents: Record<Step, HelpContent> = {
           '起承転結: 日本の伝統的な4部構成',
           '3幕構成: 導入・展開・結末の3部構成',
           '4幕構成: 秩序・混沌・秩序・混沌の4部構成',
+          'ヒーローズ・ジャーニー: 主人公の成長と冒険を12段階で描く構成（日常世界→試練→変容→帰還）',
+          'ビートシート: 15のビート（拍）で物語のリズムと転換点を明確にする構成',
+          'ミステリー・サスペンス構成: 謎の提示→調査→手がかりの発見→真実の暴露という構成',
         ],
         icon: <Layers className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />,
       },
@@ -122,6 +125,9 @@ const helpContents: Record<Step, HelpContent> = {
     ],
     tips: [
       '物語のジャンルに応じて適切な構成パターンを選択しましょう',
+      '冒険・ファンタジー系にはヒーローズ・ジャーニーが適しています',
+      '映画脚本や商業小説にはビートシートが効果的です',
+      '推理小説やサスペンスにはミステリー・サスペンス構成が最適です',
     ],
   },
   synopsis: {
@@ -200,6 +206,44 @@ const helpContents: Record<Step, HelpContent> = {
       '履歴機能で過去のバージョンに戻れます',
     ],
   },
+  review: {
+    title: '作品評価',
+    description: 'AIを使って作品を多角的に分析・評価し、改善点を見つけます。',
+    sections: [
+      {
+        title: '評価モード',
+        content: [
+          '構造・プロット: 物語の構成、一貫性、ペース配分を分析',
+          'キャラクター: キャラクターの動機、成長、独自性を評価',
+          '文体・表現: 文章の読みやすさ、描写力、五感表現をチェック',
+          '読者ペルソナ: 想定読者になりきって感想と市場性を評価',
+        ],
+        icon: <BookOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />,
+      },
+      {
+        title: '評価対象の選択',
+        content: [
+          'あらすじ: プロジェクトのあらすじを評価',
+          '章: 特定の章の草案を評価',
+          'カスタム: 任意のテキストを評価',
+        ],
+        icon: <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />,
+      },
+      {
+        title: '評価結果の活用',
+        content: [
+          '評価結果をプロジェクトに保存して履歴として管理',
+          'Markdown形式でエクスポートして外部で参照',
+          '改善提案を参考に作品をブラッシュアップ',
+        ],
+        icon: <Sparkles className="h-5 w-5 text-green-600 dark:text-green-400" />,
+      },
+    ],
+    tips: [
+      '複数のモードで評価することで、より多角的な分析ができます',
+      '評価履歴を保存しておくと、改善の進捗を確認できます',
+    ],
+  },
   export: {
     title: 'エクスポート',
     description: '完成した作品をエクスポートします。',
@@ -226,6 +270,34 @@ export const ContextHelp: React.FC<ContextHelpProps> = ({ step, isOpen, onClose 
   if (!isOpen) return null;
 
   const content = helpContents[step];
+
+  // ヘルプコンテンツが存在しない場合のフォールバック
+  if (!content) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={
+          <div className="flex items-center space-x-3">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
+              <HelpCircle className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <span className="block text-xl font-bold">ヘルプ</span>
+              <span className="block text-sm font-normal text-gray-500 dark:text-gray-400">
+                このステップのヘルプ情報は準備中です
+              </span>
+            </div>
+          </div>
+        }
+        size="lg"
+      >
+        <div className="p-6 text-center text-gray-600 dark:text-gray-400">
+          <p>このステップ（{step}）のヘルプ情報はまだ利用できません。</p>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal

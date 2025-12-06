@@ -268,7 +268,7 @@ export const AI_PROVIDERS: AIProvider[] = [
 
 // システムプロンプト（全プロバイダー共通）
 export const SYSTEM_PROMPT = `あなたは日本語の小説創作を専門とするプロフェッショナルな
-編集者・作家アシスタントです。
+編集者兼作家アシスタントです。
 
 【あなたの役割】
 - 作家の創作意図を深く理解し、物語の魅力を最大化する
@@ -281,7 +281,7 @@ export const SYSTEM_PROMPT = `あなたは日本語の小説創作を専門と�
 2. **感情の深み**: キャラクターの内面や心情を丁寧に描写
 3. **五感の活用**: 視覚だけでなく、聴覚・触覚・嗅覚・味覚も活用
 4. **リズムとテンポ**: 文章の長短を調整し、読みやすいリズム
-5. **一貫性**: 既存設定・世界観・キャラクター性格と矛盾しない
+5. **一貫性**: 既存設定・世界観・キャラクター性格・容姿・行動と矛盾しない
 
 【禁止事項】
 - 陳腐な表現や使い古された比喩の多用
@@ -455,6 +455,72 @@ const PROMPTS: PromptTemplates = {
 
 
 特に、作品タイトル、テーマ、内容を基に、メインジャンルとサブジャンルの特徴を活かし、ターゲット読者層に親近感を持ってもらえる、かつ互いに区別しやすいキャラクター設定を心がけてください。Few-Shot例と同レベルの詳細さと具体性で記述してください。`,
+
+    possession: `あなたは「{characterName}」というキャラクターになりきって会話してください。
+
+【キャラクター設定】
+名前: {characterName}
+役割: {characterRole}
+外見: {characterAppearance}
+性格: {characterPersonality}
+背景: {characterBackground}
+{characterSpeechStyle}
+
+【物語の世界観】
+タイトル: {projectTitle}
+テーマ: {projectTheme}
+{projectGenre}
+{plotTheme}
+{plotSetting}
+
+【他のキャラクターとの関係性】
+{characterRelationships}
+
+【これまでの会話】
+{conversationHistory}
+
+【重要な指示】
+1. 常に{characterName}の視点で話してください
+2. キャラクターの性格や背景に基づいた行動原理を守ってください
+3. {speechStyleInstruction}
+4. キャラクターが知らない情報は知らないと答えてください
+5. キャラクターの価値観や信念を反映した回答をしてください
+6. 一人称は適切に使用してください（「私」「僕」「俺」など）
+7. キャラクターの性格に基づいた反応をしてください（例：内向的な性格なら控えめに、明るい性格なら積極的に）
+8. 物語の設定や世界観に矛盾しないようにしてください
+
+ユーザー: {userMessage}
+{characterName}:`,
+
+    diary: `あなたは「{characterName}」の視点で、以下の出来事について本音の日記を書いてください。
+
+【物語の出来事】
+{chapterSummary}
+
+【キャラクター設定】
+名前: {characterName}
+役割: {characterRole}
+外見: {characterAppearance}
+性格: {characterPersonality}
+背景: {characterBackground}
+{characterSpeechStyle}
+
+【物語の世界観】
+タイトル: {projectTitle}
+テーマ: {projectTheme}
+
+【指示】
+- キャラクターの内面の声として書く（一人称で）
+- 他人に見せない本音を記録する
+- 感情や思考を率直に表現する
+- 200-300文字程度で簡潔に
+- キャラクターの性格や価値観を反映する
+- 日記の形式で自然な文体で書く
+- **登場人物の名前は正確に使用し、新たに創作しない**
+- **状況や出来事は記載された情報のみを基に記述し、新たに創作しない**
+
+【出力形式】
+日記の内容のみを出力してください。説明文やコメントは不要です。`,
   },
 
   plot: {
@@ -1736,6 +1802,9 @@ class AIService {
         stream: !!request.onStream, // ストリーミング有効化
       };
 
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は60秒（OpenAIのデフォルト）
+      const timeout = request.timeout ?? 60000;
+
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
@@ -1766,6 +1835,7 @@ class AIService {
             headers: {
               'Authorization': `Bearer ${apiKey}`,
             },
+            timeout, // request.timeoutが指定されている場合はそれを使用
             signal: request.signal
           }
         );
@@ -1780,6 +1850,7 @@ class AIService {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
         },
+        timeout, // request.timeoutが指定されている場合はそれを使用
       });
 
       if (response.status >= 400) {
@@ -1883,6 +1954,9 @@ class AIService {
         stream: !!request.onStream,
       };
 
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は60秒（Claudeのデフォルト）
+      const timeout = request.timeout ?? 60000;
+
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
@@ -1916,6 +1990,7 @@ class AIService {
               'x-api-key': apiKey,
               'anthropic-version': '2023-06-01',
             },
+            timeout, // request.timeoutが指定されている場合はそれを使用
             signal: request.signal
           }
         );
@@ -1930,6 +2005,7 @@ class AIService {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
         },
+        timeout, // request.timeoutが指定されている場合はそれを使用
       });
 
       if (response.status >= 400) {
@@ -2036,6 +2112,9 @@ class AIService {
         },
       };
 
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は120秒（Geminiのデフォルト）
+      const timeout = request.timeout ?? 120000;
+
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
@@ -2071,7 +2150,7 @@ class AIService {
             }
           },
           {
-            timeout: 120000, // Gemini APIストリーミングも120秒に設定
+            timeout, // request.timeoutが指定されている場合はそれを使用
             signal: request.signal
           }
         );
@@ -2081,9 +2160,9 @@ class AIService {
         };
       }
 
-      // Gemini APIは長文生成に時間がかかることがあるため、タイムアウトを120秒に設定
+      // Gemini APIは長文生成に時間がかかることがあるため、タイムアウトを120秒に設定（request.timeoutが指定されている場合はそれを使用）
       const response = await httpService.post(apiUrl, requestBody, {
-        timeout: 120000, // 120秒
+        timeout, // request.timeoutが指定されている場合はそれを使用
       });
 
       if (response.status >= 400) {
@@ -2200,9 +2279,35 @@ class AIService {
       };
     } catch (error) {
       console.error('Gemini API Error:', error);
+      
+      // より詳細なエラーメッセージを提供
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // 開発環境での接続エラーの場合、より詳細な情報を提供
+        if (errorMessage.includes('ネットワークエラー') || errorMessage.includes('Failed to fetch') || errorMessage.includes('ERR_CONNECTION_REFUSED')) {
+          const isDev = import.meta.env.DEV;
+          const isTauriEnv = typeof window !== 'undefined' &&
+            ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+          
+          if (isDev && !isTauriEnv) {
+            errorMessage = `ネットワークエラー: Gemini APIへの接続に失敗しました。\n\n` +
+              `【考えられる原因】\n` +
+              `1. Viteの開発サーバーが起動していない可能性があります\n` +
+              `2. プロキシ設定が正しく動作していない可能性があります\n\n` +
+              `【対処法】\n` +
+              `- 開発サーバーが起動していることを確認してください（通常は http://localhost:5173）\n` +
+              `- 開発サーバーを再起動してください（npm run dev）\n` +
+              `- ブラウザのコンソールで詳細なエラーを確認してください\n` +
+              `- Tauri環境（npm run tauri:dev）で実行すると、直接APIに接続できます`;
+          }
+        }
+      }
+      
       return {
         content: '',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       };
     }
   }
@@ -2280,6 +2385,9 @@ class AIService {
         stream: !!request.onStream,
       };
 
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は120秒（Local LLMのデフォルト）
+      const timeout = request.timeout ?? 120000;
+
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
@@ -2307,7 +2415,7 @@ class AIService {
             }
           },
           {
-            timeout: 120000,
+            timeout, // request.timeoutが指定されている場合はそれを使用
             signal: request.signal
           }
         );
@@ -2318,7 +2426,7 @@ class AIService {
       }
 
       const response = await httpService.post(apiEndpoint, requestBody, {
-        timeout: 120000,
+        timeout, // request.timeoutが指定されている場合はそれを使用
       });
 
       if (response.status >= 400) {
@@ -2410,6 +2518,16 @@ class AIService {
 
       // 再試行機能付きでAPI呼び出しを実行
       const isLocalProvider = settings.provider === 'local';
+      
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、
+      // そうでない場合はプロバイダーごとのデフォルト値を使用
+      const defaultTimeout = isLocalProvider
+        ? 120000
+        : request.settings.provider === 'gemini'
+          ? 120000
+          : 60000;
+      const timeout = request.timeout ?? defaultTimeout;
+      
       const response = await retryApiCall(
         async () => {
           switch (settings.provider) {
@@ -2429,11 +2547,8 @@ class AIService {
           // プロバイダーごとのタイムアウト設定
           // Gemini APIは長文生成に時間がかかるため、120秒に設定
           // ローカルLLMも120秒、その他のAPIは60秒
-          timeout: isLocalProvider
-            ? 120000
-            : request.settings.provider === 'gemini'
-              ? 120000
-              : 60000,
+          // 全章生成など長時間かかる処理の場合は、request.timeoutで延長可能
+          timeout,
           retryConfig: {
             maxRetries: isLocalProvider ? 2 : 3, // ローカルLLMは再試行回数を減らす
             baseDelay: isLocalProvider ? 2000 : 1000, // ローカルLLMは待機時間を長く

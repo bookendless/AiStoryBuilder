@@ -233,13 +233,22 @@ export const useModalNavigation = (options: {
   const { isOpen, onClose, onConfirm } = options;
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const hasInitialFocused = useRef(false);
+  
+  // onClose/onConfirmをrefで保持して、依存関係から除外
+  const onCloseRef = useRef(onClose);
+  const onConfirmRef = useRef(onConfirm);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onConfirmRef.current = onConfirm;
+  }, [onClose, onConfirm]);
 
   // フォーカストラップ
   const trapFocus = useCallback((e: KeyboardEvent) => {
-    if (!isOpen || !modalRef.current) return;
+    if (!modalRef.current) return;
 
     if (e.key === 'Escape') {
-      onClose();
+      onCloseRef.current();
       return;
     }
 
@@ -262,7 +271,7 @@ export const useModalNavigation = (options: {
         }
       }
     }
-  }, [isOpen, onClose]);
+  }, []);
 
   // モーダルが開いた時の処理
   useEffect(() => {
@@ -271,16 +280,20 @@ export const useModalNavigation = (options: {
       document.addEventListener('keydown', trapFocus);
       document.body.style.overflow = 'hidden';
       
-      // モーダル内の最初の要素にフォーカス
-      setTimeout(() => {
-        const firstFocusable = modalRef.current?.querySelector(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        ) as HTMLElement;
-        firstFocusable?.focus();
-      }, 100);
+      // モーダル内の最初の要素にフォーカス（初回のみ）
+      if (!hasInitialFocused.current) {
+        hasInitialFocused.current = true;
+        setTimeout(() => {
+          const firstFocusable = modalRef.current?.querySelector(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          ) as HTMLElement;
+          firstFocusable?.focus();
+        }, 100);
+      }
     } else {
       document.removeEventListener('keydown', trapFocus);
       document.body.style.overflow = 'unset';
+      hasInitialFocused.current = false;
       
       // 前の要素にフォーカスを戻す
       if (previousActiveElement.current) {
@@ -294,11 +307,13 @@ export const useModalNavigation = (options: {
     };
   }, [isOpen, trapFocus]);
 
+  // onEnter/onSpaceは入力フィールドでは無視されるので安全
+  // ただし、useKeyboardNavigationは既に入力フィールドをチェックしている
   useKeyboardNavigation({
     enabled: isOpen,
-    onEscape: onClose,
-    onEnter: onConfirm,
-    onSpace: onConfirm
+    onEscape: () => onCloseRef.current(),
+    onEnter: onConfirmRef.current ? () => onConfirmRef.current?.() : undefined,
+    onSpace: onConfirmRef.current ? () => onConfirmRef.current?.() : undefined
   });
 
   return { modalRef };

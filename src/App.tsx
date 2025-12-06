@@ -131,10 +131,19 @@ function App() {
 const AppContent: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('home');
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isToolsSidebarCollapsed, setIsToolsSidebarCollapsed] = useState(false);
+  // サイドバーの折りたたみ状態をlocalStorageから読み込む（デフォルト: true = 折りたたみ）
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebar-collapsed');
+    return saved !== null ? saved === 'true' : true; // デフォルトで折りたたみ
+  });
+  const [isToolsSidebarCollapsed, setIsToolsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('tools-sidebar-collapsed');
+    return saved !== null ? saved === 'true' : true; // デフォルトで折りたたみ
+  });
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingMode, setOnboardingMode] = useState<'full' | 'quick'>('quick');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // テーマの初期化
   useEffect(() => {
@@ -145,17 +154,33 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
+  // サイドバーの折りたたみ状態をlocalStorageに保存
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('tools-sidebar-collapsed', String(isToolsSidebarCollapsed));
+  }, [isToolsSidebarCollapsed]);
+
   // オンボーディングの初期化
   useEffect(() => {
     const onboardingCompleted = localStorage.getItem('onboarding-completed');
     if (!onboardingCompleted) {
       // 少し遅延させて表示（アプリの読み込み完了後）
       const timer = setTimeout(() => {
+        setOnboardingMode('quick'); // 初回はクイックガイド
         setShowOnboarding(true);
       }, 500);
       return () => clearTimeout(timer);
     }
   }, []);
+
+  // オンボーディングの表示（再表示用）
+  const handleShowOnboarding = (mode: 'full' | 'quick' = 'quick') => {
+    setOnboardingMode(mode);
+    setShowOnboarding(true);
+  };
 
   const toggleTheme = () => {
     try {
@@ -169,6 +194,17 @@ const AppContent: React.FC = () => {
       }
     } catch (err) {
       console.error('テーマ切り替えエラー:', err);
+    }
+  };
+
+  // モバイルメニューの開閉
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+    // モバイルメニューを開くときはサイドバーを展開
+    if (isMobileMenuOpen) {
+      setIsSidebarCollapsed(true);
+    } else {
+      setIsSidebarCollapsed(false);
     }
   };
 
@@ -191,6 +227,7 @@ const AppContent: React.FC = () => {
         handler: () => {
           if (currentStep !== 'home') {
             setIsSidebarCollapsed(!isSidebarCollapsed);
+            setIsMobileMenuOpen(false); // モバイルメニューを閉じる
           }
         },
         description: 'サイドバーの折りたたみ/展開',
@@ -264,18 +301,25 @@ const AppContent: React.FC = () => {
           <div className="flex">
             <Sidebar
               currentStep={currentStep}
-              onStepChange={setCurrentStep}
+              onStepChange={(step) => {
+                setCurrentStep(step);
+                setIsMobileMenuOpen(false); // ステップ変更時にモバイルメニューを閉じる
+              }}
               className={currentStep === 'home' ? 'hidden' : ''}
-              isCollapsed={isSidebarCollapsed}
-              onCollapseChange={setIsSidebarCollapsed}
+              isCollapsed={currentStep === 'home' ? true : isMobileMenuOpen ? false : isSidebarCollapsed}
+              onCollapseChange={(collapsed) => {
+                setIsSidebarCollapsed(collapsed);
+                if (!collapsed) {
+                  setIsMobileMenuOpen(false);
+                }
+              }}
             />
 
             <div className={`flex-1 transition-all duration-300 ${currentStep === 'home'
-                ? 'ml-0'
-                : isSidebarCollapsed
-                  ? 'ml-16'
-                  : 'ml-64'
-              } ${currentStep === 'home' ? 'mr-0' : isToolsSidebarCollapsed ? 'mr-16' : 'mr-64'}`}>
+              ? 'ml-0'
+              : 'ml-0 md:ml-16 lg:ml-64'
+              } ${currentStep === 'home' ? 'mr-0' : 'mr-0 md:mr-16 lg:mr-64'
+              }`}>
               <Header
                 isDarkMode={isDarkMode}
                 onToggleTheme={toggleTheme}
@@ -289,6 +333,13 @@ const AppContent: React.FC = () => {
                 }}
                 showSidebarControls={currentStep !== 'home'}
                 currentStep={currentStep}
+                onNavigate={(step, _chapterId) => {
+                  setCurrentStep(step);
+                  // 章IDが必要な場合は、各ステップコンポーネントで処理
+                  // 必要に応じて、ここで章IDを状態として管理することも可能
+                }}
+                onToggleMobileMenu={toggleMobileMenu}
+                onShowOnboarding={handleShowOnboarding}
               />
 
               <main
@@ -306,6 +357,7 @@ const AppContent: React.FC = () => {
               className={currentStep === 'home' ? 'hidden' : ''}
               isCollapsed={isToolsSidebarCollapsed}
               onCollapseChange={setIsToolsSidebarCollapsed}
+              currentStep={currentStep}
             />
           </div>
         </div>
@@ -323,6 +375,7 @@ const AppContent: React.FC = () => {
           onComplete={() => {
             setShowOnboarding(false);
           }}
+          mode={onboardingMode}
         />
       </ProjectProvider>
     </AIProvider>

@@ -6,6 +6,8 @@ import { aiService } from '../../services/aiService';
 import { getUserFriendlyErrorMessage } from '../../utils/apiUtils';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
+import { useToast } from '../Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface WorldSettingsManagerProps {
   isOpen: boolean;
@@ -27,6 +29,7 @@ const categoryLabels: Record<WorldSetting['category'], { label: string; color: s
 
 export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { showError, showWarning } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -89,7 +92,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
 
   const handleAddSetting = () => {
     if (!formData.title || !formData.content) {
-      alert('タイトルと内容は必須です');
+      showWarning('タイトルと内容は必須です', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -143,7 +148,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
 
   const handleUpdateSetting = () => {
     if (!editingSetting || !formData.title || !formData.content) {
-      alert('タイトルと内容は必須です');
+      showWarning('タイトルと内容は必須です', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -221,7 +228,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
   // AI生成機能
   const handleAIGenerate = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
@@ -229,7 +238,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
 
     // 新規生成モードの場合はカテゴリが必須
     if (aiMode === 'generate' && !aiCategory) {
-      alert('カテゴリを選択してください。');
+      showWarning('カテゴリを選択してください。', 5000, {
+        title: '選択エラー',
+      });
       return;
     }
 
@@ -275,7 +286,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
       } else if (aiMode === 'enhance') {
         // 既存設定の強化
         if (!selectedSettingForAI) {
-          alert('強化する世界観設定を選択してください');
+          showWarning('強化する世界観設定を選択してください', 5000, {
+            title: '選択エラー',
+          });
           setIsAIGenerating(false);
           return;
         }
@@ -292,7 +305,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
       } else if (aiMode === 'expand') {
         // 既存設定からの展開
         if (!selectedSettingForAI) {
-          alert('展開元の世界観設定を選択してください');
+          showWarning('展開元の世界観設定を選択してください', 5000, {
+            title: '選択エラー',
+          });
           setIsAIGenerating(false);
           return;
         }
@@ -536,14 +551,33 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
           </div>
 
           {/* メインコンテンツ */}
-          <div className="flex-1 overflow-hidden flex pt-4">
+          <div className="flex-1 overflow-hidden pt-4">
             {/* 設定一覧 */}
-            <div className="flex-1 overflow-y-auto pr-2">
+            <div className="overflow-y-auto">
               {filteredSettings.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  {searchQuery || selectedCategory !== 'all'
-                    ? '条件に一致する世界観設定が見つかりません'
-                    : '世界観設定がありません。新規作成ボタンから追加してください。'}
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <EmptyState
+                    icon={Globe}
+                    iconColor="text-indigo-400 dark:text-indigo-500"
+                    title={searchQuery || selectedCategory !== 'all'
+                      ? '条件に一致する世界観設定が見つかりません'
+                      : '世界観設定がありません'}
+                    description={searchQuery || selectedCategory !== 'all'
+                      ? `「${searchQuery || categoryLabels[selectedCategory as WorldSetting['category']].label}」に一致する世界観設定が見つかりませんでした。検索条件やカテゴリを変更して再度お試しください。`
+                      : '物語の世界観を詳細に設定しましょう。地理、社会制度、文化、技術、魔法など、物語の舞台となる世界の様々な側面を定義できます。AI生成機能を使って、プロジェクトの設定に基づいて自動的に世界観を生成することも可能です。'}
+                    actionLabel={searchQuery || selectedCategory !== 'all' ? undefined : '最初の設定を作成'}
+                    onAction={searchQuery || selectedCategory !== 'all' ? undefined : () => {
+                      setShowAddForm(true);
+                      setEditingSetting(null);
+                      setFormData({
+                        title: '',
+                        content: '',
+                        category: 'other',
+                        tags: [],
+                      });
+                      setTagInput('');
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -650,130 +684,121 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      </Modal>
 
-            {/* 追加/編集フォーム */}
-            {showAddForm && (
-              <div className="w-96 border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto pl-4">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                      {editingSetting ? '編集' : '新規作成'}
-                    </h3>
+      {/* 追加/編集フォームモーダル */}
+      <Modal
+        isOpen={showAddForm}
+        onClose={handleCancelEdit}
+        title={editingSetting ? '世界観設定を編集' : '世界観設定を追加'}
+        size="md"
+        className="z-[60]"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              タイトル <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.title || ''}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
+              placeholder="例: エルフの森の生態系"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              カテゴリ <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.category || 'other'}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value as WorldSetting['category'] })}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
+            >
+              {Object.entries(categoryLabels).map(([value, { label }]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              内容 <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={formData.content || ''}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              rows={8}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP'] resize-y"
+              placeholder="世界観の詳細な説明を記入してください..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+              タグ
+            </label>
+            <div className="flex items-center space-x-2 mb-2">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddTag();
+                  }
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
+                placeholder="タグを入力してEnter"
+              />
+              <button
+                onClick={handleAddTag}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
+              >
+                追加
+              </button>
+            </div>
+            {formData.tags && formData.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {formData.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200 text-sm"
+                  >
+                    {tag}
                     <button
-                      onClick={handleCancelEdit}
-                      className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                      aria-label="閉じる"
+                      onClick={() => handleRemoveTag(tag)}
+                      className="ml-1 hover:text-indigo-900 dark:hover:text-indigo-100"
                     >
-                      <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      <X className="h-3 w-3" />
                     </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                      タイトル <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title || ''}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
-                      placeholder="例: エルフの森の生態系"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                      カテゴリ <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.category || 'other'}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value as WorldSetting['category'] })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
-                    >
-                      {Object.entries(categoryLabels).map(([value, { label }]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                      内容 <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={formData.content || ''}
-                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      rows={10}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP'] resize-y"
-                      placeholder="世界観の詳細な説明を記入してください..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                      タグ
-                    </label>
-                    <div className="flex items-center space-x-2 mb-2">
-                      <input
-                        type="text"
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddTag();
-                          }
-                        }}
-                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
-                        placeholder="タグを入力してEnter"
-                      />
-                      <button
-                        onClick={handleAddTag}
-                        className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
-                      >
-                        追加
-                      </button>
-                    </div>
-                    {formData.tags && formData.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {formData.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200 text-sm"
-                          >
-                            {tag}
-                            <button
-                              onClick={() => handleRemoveTag(tag)}
-                              className="ml-1 hover:text-indigo-900 dark:hover:text-indigo-100"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex space-x-2 pt-4">
-                    <button
-                      onClick={editingSetting ? handleUpdateSetting : handleAddSetting}
-                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
-                    >
-                      <Save className="h-5 w-5" />
-                      <span>{editingSetting ? '更新' : '作成'}</span>
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
-                    >
-                      キャンセル
-                    </button>
-                  </div>
-                </div>
+                  </span>
+                ))}
               </div>
             )}
+          </div>
+
+          <div className="flex items-center justify-end space-x-4 pt-4">
+            <button
+              onClick={handleCancelEdit}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={editingSetting ? handleUpdateSetting : handleAddSetting}
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
+            >
+              <Save className="h-5 w-5" />
+              <span>{editingSetting ? '更新' : '作成'}</span>
+            </button>
           </div>
         </div>
       </Modal>

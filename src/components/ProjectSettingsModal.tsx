@@ -5,6 +5,7 @@ import { useToast } from './Toast';
 import { databaseService } from '../services/databaseService';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
+import { compressImage } from '../utils/performanceUtils';
 
 // ジャンル選択オプション（新規作成画面と共通）
 const GENRES = [
@@ -249,7 +250,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
@@ -257,13 +258,29 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
         return;
       }
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setPreviewUrl(result);
-        setFormData(prev => ({ ...prev, coverImage: result }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        // 画像を圧縮（1920x1080、quality 0.8）
+        const compressedBlob = await compressImage(file, 1920, 1080, 0.8);
+        
+        // 圧縮されたBlobをBase64に変換
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          setPreviewUrl(result);
+          setFormData(prev => ({ ...prev, coverImage: result }));
+        };
+        reader.readAsDataURL(compressedBlob);
+      } catch (error) {
+        console.error('画像の圧縮エラー:', error);
+        // エラーの場合は元のファイルをBase64に変換
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          setPreviewUrl(result);
+          setFormData(prev => ({ ...prev, coverImage: result }));
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -323,7 +340,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
         {/* コンテンツ */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {activeTab === 'basic' && (
-            <div className="space-y-6">
+            <div 
+              id="basic-tabpanel"
+              role="tabpanel"
+              aria-labelledby="basic-tab"
+              className="space-y-6"
+            >
               {/* プロジェクトタイトル */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
@@ -588,7 +610,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           )}
 
           {activeTab === 'style' && (
-            <div className="space-y-6">
+            <div 
+              id="style-tabpanel"
+              role="tabpanel"
+              aria-labelledby="style-tab"
+              className="space-y-6"
+            >
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <p className="text-sm text-blue-800 dark:text-blue-200 font-['Noto_Sans_JP']">
                   これらの設定は、AIによる文章生成時に使用されます。設定しない場合はデフォルト値が使用されます。

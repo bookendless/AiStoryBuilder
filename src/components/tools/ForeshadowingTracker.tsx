@@ -28,9 +28,11 @@ import {
 } from 'lucide-react';
 import { useProject, Foreshadowing, ForeshadowingPoint } from '../../contexts/ProjectContext';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
+import { useToast } from '../Toast';
 import { Modal } from '../common/Modal';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { EmptyState } from '../common/EmptyState';
 
 interface ForeshadowingTrackerProps {
   isOpen: boolean;
@@ -71,6 +73,7 @@ const pointTypeConfig: Record<ForeshadowingPoint['type'], { label: string; icon:
 
 export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { showWarning } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -330,7 +333,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // 伏線の追加
   const handleAddForeshadowing = () => {
     if (!formData.title || !formData.description) {
-      alert('タイトルと説明は必須です');
+      showWarning('タイトルと説明は必須です', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -398,7 +403,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // 伏線の更新
   const handleUpdateForeshadowing = () => {
     if (!editingForeshadowing || !formData.title || !formData.description) {
-      alert('タイトルと説明は必須です');
+      showWarning('タイトルと説明は必須です', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -466,7 +473,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // ポイントの追加
   const handleAddPoint = (foreshadowingId: string) => {
     if (!pointFormData.chapterId || !pointFormData.description) {
-      alert('章と説明は必須です');
+      showWarning('章と説明は必須です', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -1175,21 +1184,19 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
           {/* 伏線リスト */}
           <div className="flex-1 overflow-y-auto space-y-4">
             {filteredForeshadowings.length === 0 ? (
-              <div className="text-center py-12">
-                <Bookmark className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  {foreshadowings.length === 0 
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <EmptyState
+                  icon={Bookmark}
+                  iconColor="text-rose-400 dark:text-rose-500"
+                  title={foreshadowings.length === 0 
                     ? 'まだ伏線が登録されていません'
                     : '条件に一致する伏線がありません'}
-                </p>
-                {foreshadowings.length === 0 && (
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="mt-4 px-4 py-2 text-rose-600 dark:text-rose-400 hover:underline font-['Noto_Sans_JP']"
-                  >
-                    最初の伏線を追加する
-                  </button>
-                )}
+                  description={foreshadowings.length === 0
+                    ? '物語に伏線を設定して、読者を引き込む仕掛けを作りましょう。キャラクター、プロット、世界観など、様々な要素に伏線を仕込むことで、物語に深みと興味を生み出せます。伏線の設置、ヒント、回収を管理して、物語の完成度を高めましょう。'
+                    : '検索条件やフィルターを変更して、再度お試しください。'}
+                  actionLabel={foreshadowings.length === 0 ? '最初の伏線を追加' : undefined}
+                  onAction={foreshadowings.length === 0 ? () => setShowAddForm(true) : undefined}
+                />
               </div>
             ) : (
               filteredForeshadowings.map((foreshadowing) => {
@@ -1320,9 +1327,15 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                           </div>
                           
                           {foreshadowing.points.length === 0 ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                              ポイントがまだ登録されていません
-                            </p>
+                            <div className="py-6 text-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                              <Target className="h-8 w-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                              <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-2">
+                                ポイントがまだ登録されていません
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                                伏線の設置、ヒント、回収のポイントを追加しましょう
+                              </p>
+                            </div>
                           ) : (
                             <div className="space-y-2">
                               {foreshadowing.points

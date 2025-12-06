@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, Key, Server, Zap } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
 import { AI_PROVIDERS } from '../services/aiService';
 import { useToast } from './Toast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
+import { decryptApiKey } from '../utils/securityUtils';
 
 interface AISettingsProps {
   isOpen: boolean;
@@ -20,14 +21,18 @@ const LATENCY_LABELS: Record<'standard' | 'fast' | 'reasoning', string> = {
 export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings } = useAI();
   const { showError } = useToast();
-  const [formData, setFormData] = useState(() => {
+
+  const buildInitialFormData = useCallback(() => {
     const initialData = { ...settings };
+    initialData.apiKey = settings.apiKey ? decryptApiKey(settings.apiKey) : '';
     // ローカルLLMの場合はlocalEndpointを確実に設定
     if (initialData.provider === 'local' && !initialData.localEndpoint) {
       initialData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
     }
     return initialData;
-  });
+  }, [settings]);
+
+  const [formData, setFormData] = useState(buildInitialFormData);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string>('');
@@ -43,6 +48,12 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     import.meta.env.VITE_GEMINI_API_KEY ||
     import.meta.env.VITE_LOCAL_LLM_ENDPOINT
   );
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(buildInitialFormData());
+    }
+  }, [isOpen, buildInitialFormData]);
 
   if (!isOpen) return null;
 

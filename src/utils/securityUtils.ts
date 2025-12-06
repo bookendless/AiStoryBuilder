@@ -3,6 +3,11 @@
  * APIキーの暗号化、入力値サニタイゼーション等を提供
  */
 
+const isEncryptionEnabled = (): boolean => {
+  const flag = import.meta.env.VITE_ENABLE_API_KEY_ENCRYPTION;
+  return flag === undefined || flag === '' || flag === 'true';
+};
+
 /**
  * より強固な暗号化（AES-256-GCM風の実装）
  * 本番環境ではWeb Crypto APIを使用することを推奨
@@ -12,7 +17,7 @@ export const encryptApiKey = (key: string): string => {
   
   try {
     // 環境変数で暗号化が有効でない場合は元のキーを返す
-    const encryptionEnabled = import.meta.env.VITE_ENABLE_API_KEY_ENCRYPTION === 'true';
+    const encryptionEnabled = isEncryptionEnabled();
     if (!encryptionEnabled) {
       return key;
     }
@@ -46,7 +51,7 @@ export const decryptApiKey = (encryptedKey: string): string => {
   
   try {
     // 環境変数で暗号化が有効でない場合は元のキーを返す
-    const encryptionEnabled = import.meta.env.VITE_ENABLE_API_KEY_ENCRYPTION === 'true';
+    const encryptionEnabled = isEncryptionEnabled();
     if (!encryptionEnabled) {
       return encryptedKey;
     }
@@ -519,6 +524,21 @@ export const setSecurityHeaders = (): void => {
     document.head.appendChild(cspMeta);
   }
   cspMeta.setAttribute('content', csp);
+};
+
+/**
+ * UUID生成（crypto.randomUUID()のフォールバック付き）
+ */
+export const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // フォールバック: 簡易的なUUID v4の実装
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 };
 
 /**

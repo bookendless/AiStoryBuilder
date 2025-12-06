@@ -5,6 +5,8 @@ import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
+import { useToast } from '../Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface GlossaryManagerProps {
   isOpen: boolean;
@@ -21,6 +23,7 @@ const categoryLabels: Record<GlossaryTerm['category'], string> = {
 
 export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { showError, showWarning, showSuccess, showInfo } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -72,7 +75,9 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
 
   const handleAddTerm = () => {
     if (!formData.term || !formData.definition) {
-      alert('用語と説明は必須です');
+      showWarning('用語と説明は必須です', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -109,7 +114,9 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
 
   const handleUpdateTerm = () => {
     if (!editingTerm || !formData.term || !formData.definition) {
-      alert('用語と説明は必須です');
+      showWarning('用語と説明は必須です', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -180,10 +187,12 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
           glossary: [...glossary, ...importedWithNewIds],
         });
 
-        alert(`${imported.length}件の用語をインポートしました`);
+        showSuccess(`${imported.length}件の用語をインポートしました`);
         setShowImportExport(false);
       } catch (_error) {
-        alert('インポートに失敗しました: ファイル形式が正しくありません');
+        showError('インポートに失敗しました: ファイル形式が正しくありません', 7000, {
+          title: 'インポートエラー',
+        });
       }
     };
     reader.readAsText(file);
@@ -248,7 +257,9 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
   // 用語自動抽出
   const handleExtractTerms = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      showError('AI設定が必要です。設定画面でAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
@@ -294,7 +305,9 @@ JSON配列形式で出力してください：
       });
 
       if (response.error) {
-        alert(`エラーが発生しました: ${response.error}`);
+        showError(`エラーが発生しました: ${response.error}`, 7000, {
+          title: 'AI生成エラー',
+        });
         setIsAIGenerating(false);
         return;
       }
@@ -321,12 +334,16 @@ JSON配列形式で出力してください：
           setSelectedResults(new Set(filteredTerms.map((_, idx) => idx)));
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
-          alert('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。');
+          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+            title: '解析エラー',
+          });
         }
       }
     } catch (error) {
       console.error('用語抽出エラー:', error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      showError(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`, 7000, {
+        title: 'エラー',
+      });
     } finally {
       setIsAIGenerating(false);
     }
@@ -335,12 +352,16 @@ JSON配列形式で出力してください：
   // 説明文自動生成
   const handleGenerateDefinition = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      showError('AI設定が必要です。設定画面でAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
     if (!formData.term || !formData.term.trim()) {
-      alert('用語を入力してください。');
+      showWarning('用語を入力してください。', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -379,7 +400,9 @@ JSON形式で出力してください：
       });
 
       if (response.error) {
-        alert(`エラーが発生しました: ${response.error}`);
+        showError(`エラーが発生しました: ${response.error}`, 7000, {
+          title: 'AI生成エラー',
+        });
         setIsAIGenerating(false);
         return;
       }
@@ -423,7 +446,9 @@ JSON形式で出力してください：
       }
     } catch (error) {
       console.error('説明生成エラー:', error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      showError(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`, 7000, {
+        title: 'エラー',
+      });
     } finally {
       setIsAIGenerating(false);
     }
@@ -432,12 +457,16 @@ JSON形式で出力してください：
   // 一括生成（用語リストから）
   const handleBulkGenerate = async (terms: string[]) => {
     if (!isConfigured) {
-      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      showError('AI設定が必要です。設定画面でAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
     if (terms.length === 0) {
-      alert('用語を入力してください。');
+      showWarning('用語を入力してください。', 5000, {
+        title: '入力エラー',
+      });
       return;
     }
 
@@ -481,7 +510,9 @@ JSON配列形式で出力してください：
       });
 
       if (response.error) {
-        alert(`エラーが発生しました: ${response.error}`);
+        showError(`エラーが発生しました: ${response.error}`, 7000, {
+          title: 'AI生成エラー',
+        });
         setIsAIGenerating(false);
         return;
       }
@@ -506,12 +537,16 @@ JSON配列形式で出力してください：
           setSelectedResults(new Set(filteredTerms.map((_, idx) => idx)));
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
-          alert('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。');
+          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+            title: '解析エラー',
+          });
         }
       }
     } catch (error) {
       console.error('一括生成エラー:', error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      showError(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`, 7000, {
+        title: 'エラー',
+      });
     } finally {
       setIsAIGenerating(false);
     }
@@ -532,7 +567,9 @@ JSON配列形式で出力してください：
       }));
 
     if (termsToAdd.length === 0) {
-      alert('追加する用語を選択してください。');
+      showWarning('追加する用語を選択してください。', 5000, {
+        title: '選択エラー',
+      });
       return;
     }
 
@@ -543,7 +580,7 @@ JSON配列形式で出力してください：
     setShowAIAssistant(false);
     setAiResults([]);
     setSelectedResults(new Set());
-    alert(`${termsToAdd.length}件の用語を追加しました。`);
+    showSuccess(`${termsToAdd.length}件の用語を追加しました。`);
   };
 
   // 結果の選択を切り替え
@@ -640,11 +677,17 @@ JSON配列形式で出力してください：
           {/* 用語リスト */}
           <div className="flex-1 overflow-y-auto p-4">
             {filteredGlossary.length === 0 ? (
-              <div className="text-center py-12">
-                <BookOpen className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  {searchQuery || selectedCategory !== 'all' ? '検索結果がありません' : '用語が登録されていません'}
-                </p>
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <EmptyState
+                  icon={BookOpen}
+                  iconColor="text-indigo-400 dark:text-indigo-500"
+                  title={searchQuery || selectedCategory !== 'all' ? '検索結果がありません' : '用語が登録されていません'}
+                  description={searchQuery || selectedCategory !== 'all'
+                    ? `「${searchQuery || categoryLabels[selectedCategory as GlossaryTerm['category']]}」に一致する用語が見つかりませんでした。検索条件を変更して再度お試しください。`
+                    : 'プロジェクトで使用する重要な用語を登録しましょう。キャラクター名、地名、特殊な概念など、物語の世界観を支える用語を管理できます。AIアシスタント機能を使って、プロジェクトから自動的に用語を抽出することも可能です。'}
+                  actionLabel={searchQuery || selectedCategory !== 'all' ? undefined : '最初の用語を追加'}
+                  onAction={searchQuery || selectedCategory !== 'all' ? undefined : () => setShowAddForm(true)}
+                />
               </div>
             ) : (
               <div className="grid gap-4">
@@ -984,7 +1027,9 @@ JSON配列形式で出力してください：
                       .map(t => t.trim())
                       .filter(t => t.length > 0);
                     if (terms.length === 0) {
-                      alert('用語を入力してください。');
+                      showWarning('用語を入力してください。', 5000, {
+        title: '入力エラー',
+      });
                       return;
                     }
                     handleBulkGenerate(terms);

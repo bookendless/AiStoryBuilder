@@ -9,6 +9,226 @@
 /* ------------------------------------------------------------------ */
 /* ③ あとは自分の CSS */
 
+/* ============================================================ */
+/* タイポグラフィ階層 - 情報の視覚的優先度を明確化 */
+/* ============================================================ */
+
+/* ページタイトル - 最も重要な見出し */
+.text-page-title {
+  @apply text-3xl font-bold;
+}
+
+/* セクションタイトル - 主要セクションの見出し */
+.text-section-title {
+  @apply text-2xl font-bold;
+}
+
+/* カードタイトル - カードやコンポーネントの見出し */
+.text-card-title {
+  @apply text-xl font-bold;
+}
+
+/* 本文 - 標準的なテキスト */
+.text-body {
+  @apply text-base;
+}
+
+/* キャプション - 補足情報や説明文 */
+.text-caption {
+  @apply text-sm;
+}
+
+/* ============================================================ */
+/* セマンティックカラー - 色に機能的な意味を持たせる */
+/* ============================================================ */
+
+:root {
+  /* 成功 - 完了状態、成功メッセージ */
+  --color-semantic-success: #7CB342;
+  --color-semantic-success-light: #E8F5E9;
+  --color-semantic-success-dark: #558B2F;
+
+  /* 警告 - 注意が必要な状態 */
+  --color-semantic-warning: #FFA726;
+  --color-semantic-warning-light: #FFF3E0;
+  --color-semantic-warning-dark: #F57C00;
+
+  /* 情報 - 中立的な情報 */
+  --color-semantic-info: #29B6F6;
+  --color-semantic-info-light: #E1F5FE;
+  --color-semantic-info-dark: #0277BD;
+
+  /* エラー - エラー、削除操作 */
+  --color-semantic-error: #EF5350;
+  --color-semantic-error-light: #FFEBEE;
+  --color-semantic-error-dark: #C62828;
+
+  /* プライマリ - 主要アクション、強調 */
+  --color-semantic-primary: #4A6FA5;
+  --color-semantic-primary-light: #E3F2FD;
+  --color-semantic-primary-dark: #3D5A8A;
+}
+
+.dark {
+  /* ダークモード用のセマンティックカラー */
+  --color-semantic-success: #81C784;
+  --color-semantic-success-light: #1B5E20;
+  --color-semantic-success-dark: #A5D6A7;
+
+  --color-semantic-warning: #FFB74D;
+  --color-semantic-warning-light: #E65100;
+  --color-semantic-warning-dark: #FFCC80;
+
+  --color-semantic-info: #4FC3F7;
+  --color-semantic-info-light: #01579B;
+  --color-semantic-info-dark: #81D4FA;
+
+  --color-semantic-error: #E57373;
+  --color-semantic-error-light: #B71C1C;
+  --color-semantic-error-dark: #EF9A9A;
+
+  --color-semantic-primary: #6B8FC7;
+  --color-semantic-primary-light: #1A237E;
+  --color-semantic-primary-dark: #90CAF9;
+}
+
+/* セマンティックカラーのユーティリティクラス */
+.text-semantic-success {
+  color: var(--color-semantic-success);
+}
+
+.bg-semantic-success {
+  background-color: var(--color-semantic-success);
+}
+
+.bg-semantic-success-light {
+  background-color: var(--color-semantic-success-light);
+}
+
+.border-semantic-success {
+  border-color: var(--color-semantic-success);
+}
+
+.text-semantic-warning {
+  color: var(--color-semantic-warning);
+}
+
+.bg-semantic-warning {
+  background-color: var(--color-semantic-warning);
+}
+
+.bg-semantic-warning-light {
+  background-color: var(--color-semantic-warning-light);
+}
+
+.border-semantic-warning {
+  border-color: var(--color-semantic-warning);
+}
+
+.text-semantic-info {
+  color: var(--color-semantic-info);
+}
+
+.bg-semantic-info {
+  background-color: var(--color-semantic-info);
+}
+
+.bg-semantic-info-light {
+  background-color: var(--color-semantic-info-light);
+}
+
+.border-semantic-info {
+  border-color: var(--color-semantic-info);
+}
+
+.text-semantic-error {
+  color: var(--color-semantic-error);
+}
+
+.bg-semantic-error {
+  background-color: var(--color-semantic-error);
+}
+
+.bg-semantic-error-light {
+  background-color: var(--color-semantic-error-light);
+}
+
+.border-semantic-error {
+  border-color: var(--color-semantic-error);
+}
+
+.text-semantic-primary {
+  color: var(--color-semantic-primary);
+}
+
+.bg-semantic-primary {
+  background-color: var(--color-semantic-primary);
+}
+
+.bg-semantic-primary-light {
+  background-color: var(--color-semantic-primary-light);
+}
+
+.border-semantic-primary {
+  border-color: var(--color-semantic-primary);
+}
+
+/* ============================================================ */
+/* 余白スケール - 一貫した余白システム */
+/* ============================================================ */
+
+.spacing-xs {
+  @apply p-1;
+}
+
+/* 4px */
+.spacing-sm {
+  @apply p-2;
+}
+
+/* 8px */
+.spacing-md {
+  @apply p-4;
+}
+
+/* 16px */
+.spacing-lg {
+  @apply p-6;
+}
+
+/* 24px */
+.spacing-xl {
+  @apply p-8;
+}
+
+/* 32px */
+
+.gap-xs {
+  @apply gap-1;
+}
+
+/* 4px */
+.gap-sm {
+  @apply gap-2;
+}
+
+/* 8px */
+.gap-md {
+  @apply gap-4;
+}
+
+/* 16px */
+.gap-lg {
+  @apply gap-6;
+}
+
+/* 24px */
+.gap-xl {
+  @apply gap-8;
+}
+
+/* 32px */
+
 /* body フォント設定 */
 body {
   font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont,
@@ -21,12 +241,15 @@ body {
   padding: 0;
   /* 執筆環境に適した明るい背景色 - 卯の花色 */
   background-color: #F7FCFE;
-  color: #2C2C2C; /* 墨色 */
+  color: #2C2C2C;
+  /* 墨色 */
 }
 
 .dark body {
-  background-color: #1A1A1A; /* 深い墨色 */
-  color: #E8E8E8; /* 薄墨 */
+  background-color: #1E1E1E;
+  /* 深い墨色（コントラスト改善） */
+  color: #F0F0F0;
+  /* 薄墨（視認性向上） */
 }
 
 /* ルート要素の基本設定 */
@@ -45,52 +268,91 @@ body {
 }
 
 /* カスタムスクロールバー */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 
 ::-webkit-scrollbar-thumb {
-  background: #9E9E9E; /* 薄墨300 */
+  background: #9E9E9E;
+  /* 薄墨300 */
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: #7A7A7A; /* 薄墨400 */ }
 
-/* ダークモード用 */
-.dark ::-webkit-scrollbar-thumb { background: #5C5C5C; /* 薄墨500 */ }
-.dark ::-webkit-scrollbar-thumb:hover { background: #7A7A7A; /* 薄墨400 */ }
+::-webkit-scrollbar-thumb:hover {
+  background: #7A7A7A;
+  /* 薄墨400 */
+}
+
+/* ダークモード用 - 視認性向上 */
+.dark ::-webkit-scrollbar-thumb {
+  background: #6B6B6B;
+  /* 薄墨400（コントラスト改善） */
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #8A8A8A;
+  /* 薄墨300（ホバー時の視認性向上） */
+}
 
 /* スクロールバーを非表示にするクラス */
 .scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
+
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari and Opera */
+  display: none;
+  /* Chrome, Safari and Opera */
 }
 
 /* アニメーション */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.fade-in { animation: fadeIn 0.3s ease-out; }
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
 
 @keyframes slideIn {
-  from { 
-    opacity: 0; 
-    transform: translateX(100%); 
+  from {
+    opacity: 0;
+    transform: translateX(100%);
   }
-  to { 
-    opacity: 1; 
-    transform: translateX(0); 
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
+
 .animate-slide-in {
   animation: slideIn 0.3s ease-out;
 }
 
 /* 日本語フォントクラス */
-.font-jp { font-family: 'Noto Sans JP', sans-serif; }
-.font-serif-jp { font-family: 'Noto Serif JP', serif; }
+.font-jp {
+  font-family: 'Noto Sans JP', sans-serif;
+}
+
+.font-serif-jp {
+  font-family: 'Noto Serif JP', serif;
+}
 
 /* グラデーションテキスト - 藍色ベース */
 .gradient-text {
@@ -129,11 +391,11 @@ body {
   .text-gray-600 {
     @apply text-gray-900;
   }
-  
+
   .text-gray-500 {
     @apply text-gray-800;
   }
-  
+
   .border-gray-300 {
     @apply border-gray-600;
   }
@@ -153,9 +415,71 @@ body {
   @apply focus:ring-ai-400;
 }
 
+/* ダークモードでのテキスト色コントラスト改善 */
+.dark .text-gray-400 {
+  color: #B8B8B8;
+  /* より明るいグレー（コントラスト改善） */
+}
+
+.dark .text-gray-500 {
+  color: #C8C8C8;
+  /* より明るいグレー（コントラスト改善） */
+}
+
+.dark .text-gray-600 {
+  color: #D8D8D8;
+  /* より明るいグレー（コントラスト改善） */
+}
+
+/* ダークモードでのボーダー色の視認性向上 */
+.dark .border-gray-600 {
+  border-color: #6B6B6B;
+  /* より明るいボーダー（コントラスト改善） */
+}
+
+.dark .border-gray-700 {
+  border-color: #7A7A7A;
+  /* より明るいボーダー（コントラスト改善） */
+}
+
 /* キーボードナビゲーション用のフォーカス表示 - 藍色 */
 .keyboard-focus:focus-visible {
   @apply outline-2 outline-ai-500 outline-offset-2;
+}
+
+/* 強化されたフォーカスインジケーター - より視認性の高いスタイル */
+*:focus-visible {
+  outline: 2px solid #4A6FA5;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.dark *:focus-visible {
+  outline-color: #6B8FC7;
+  outline-width: 2px;
+}
+
+/* ボタンとインタラクティブ要素のフォーカス表示を強化 */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #4A6FA5;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.2);
+}
+
+.dark button:focus-visible,
+.dark a:focus-visible,
+.dark input:focus-visible,
+.dark select:focus-visible,
+.dark textarea:focus-visible,
+.dark [tabindex]:focus-visible {
+  outline-color: #7BA3D9;
+  outline-width: 2px;
+  box-shadow: 0 0 0 3px rgba(123, 163, 217, 0.4);
 }
 
 /* スキップリンク - 藍色 */
@@ -169,6 +493,7 @@ body {
     transform: rotate(360deg);
   }
 }
+
 .animate-spin {
   animation: spin 1s linear infinite;
 }
@@ -213,23 +538,27 @@ body {
   /* より明確なボーダー（薄墨） */
   border: 1px solid rgba(212, 212, 212, 0.6);
   /* より明確なシャドウでメリハリを付ける */
-  box-shadow: 
+  box-shadow:
     0 4px 16px 0 rgba(158, 158, 158, 0.12),
     0 2px 8px 0 rgba(122, 122, 122, 0.08),
     0 0 0 1px rgba(255, 255, 255, 0.8),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
 }
 
-/* ダークモード用Glassmorphism */
+/* ダークモード用Glassmorphism - コントラスト改善 */
 .dark .glass {
-  /* ダークモードでも明るめの背景（深い墨色、少し濃め） */
-  background: rgba(40, 40, 40, 0.85);
-  border: 1px solid rgba(92, 92, 92, 0.5);
-  box-shadow: 
-    0 4px 16px 0 rgba(0, 0, 0, 0.4),
-    0 2px 8px 0 rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(92, 92, 92, 0.3),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+  /* ダークモードでも明るめの背景（コントラスト改善） */
+  background: rgba(45, 45, 45, 0.90);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* より視認性の高いボーダー */
+  border: 1px solid rgba(110, 110, 110, 0.6);
+  /* より明確なシャドウでメリハリを付ける */
+  box-shadow:
+    0 4px 16px 0 rgba(0, 0, 0, 0.5),
+    0 2px 8px 0 rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(110, 110, 110, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
 }
 
 /* 画像コンテナ用 - 背景色のみ（ボーダー・シャドウなし） */
@@ -240,8 +569,8 @@ body {
 
 /* ダークモード用 - 背景色のみ */
 .dark .glass-bg-only {
-  /* ダークモードでも明るめの背景（深い墨色、少し濃め） */
-  background: rgba(40, 40, 40, 0.85);
+  /* ダークモードでも明るめの背景（コントラスト改善） */
+  background: rgba(45, 45, 45, 0.90);
 }
 
 /* 強化版Glassmorphism（モーダル用） - 卯の花色ベース */
@@ -253,7 +582,7 @@ body {
   /* 明るく目立つボーダー（薄墨） */
   border: 1px solid rgba(232, 232, 232, 0.6);
   /* 明るく柔らかいシャドウ（プレミアム感のある色調） */
-  box-shadow: 
+  box-shadow:
     0 20px 60px -15px rgba(158, 158, 158, 0.12),
     0 8px 24px -8px rgba(122, 122, 122, 0.08),
     0 0 0 1px rgba(255, 255, 255, 0.7),
@@ -261,14 +590,18 @@ body {
 }
 
 .dark .glass-strong {
-  /* ダークモードでも明るめで洗練された背景（深い墨色） */
-  background: rgba(26, 26, 26, 0.92);
-  border: 1px solid rgba(92, 92, 92, 0.4);
-  box-shadow: 
-    0 20px 60px -15px rgba(0, 0, 0, 0.4),
-    0 8px 24px -8px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(92, 92, 92, 0.3),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  /* ダークモードでも明るめで洗練された背景（コントラスト改善） */
+  background: rgba(35, 35, 35, 0.95);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  /* より視認性の高いボーダー */
+  border: 1px solid rgba(110, 110, 110, 0.5);
+  /* より明確なシャドウでメリハリを付ける */
+  box-shadow:
+    0 20px 60px -15px rgba(0, 0, 0, 0.6),
+    0 8px 24px -8px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(110, 110, 110, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
 }
 
 /* グラデーションボーダー付きGlassmorphism - 卯の花色ベース */
@@ -288,12 +621,10 @@ body {
   border-radius: 1rem;
   padding: 1px;
   /* 明るく柔らかいグラデーション（薄墨ベース） */
-  background: linear-gradient(
-    135deg,
-    rgba(232, 232, 232, 0.7) 0%,
-    rgba(232, 232, 232, 0.3) 50%,
-    rgba(232, 232, 232, 0.5) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(232, 232, 232, 0.7) 0%,
+      rgba(232, 232, 232, 0.3) 50%,
+      rgba(232, 232, 232, 0.5) 100%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -301,36 +632,34 @@ body {
 }
 
 .dark .glass-gradient-border {
-  background: rgba(26, 26, 26, 0.82);
+  background: rgba(35, 35, 35, 0.90);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .dark .glass-gradient-border::before {
-  background: linear-gradient(
-    135deg,
-    rgba(92, 92, 92, 0.25) 0%,
-    rgba(92, 92, 92, 0.08) 50%,
-    rgba(92, 92, 92, 0.18) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(110, 110, 110, 0.4) 0%,
+      rgba(110, 110, 110, 0.15) 50%,
+      rgba(110, 110, 110, 0.3) 100%);
 }
 
 /* 背景オーバーレイ用のグラデーション */
 .glass-overlay {
   /* 明るく柔らかいオーバーレイ */
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.2) 0%,
-    rgba(0, 0, 0, 0.35) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(0, 0, 0, 0.2) 0%,
+      rgba(0, 0, 0, 0.35) 100%);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
 .dark .glass-overlay {
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.4) 0%,
-    rgba(0, 0, 0, 0.6) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(0, 0, 0, 0.5) 0%,
+      rgba(0, 0, 0, 0.7) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* 微細なアニメーション効果 */
@@ -338,6 +667,7 @@ body {
   0% {
     background-position: -1000px 0;
   }
+
   100% {
     background-position: 1000px 0;
   }
@@ -356,23 +686,19 @@ body {
   width: 100%;
   height: 100%;
   /* 明るく柔らかいシマー効果 */
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.35),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.35),
+      transparent);
   animation: glassShimmer 3s infinite;
   pointer-events: none;
 }
 
 .dark .glass-shimmer::after {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(92, 92, 92, 0.15),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.12),
+      transparent);
 }
 
 /* ============================================================ */
@@ -468,4 +794,61 @@ body {
 
 .novel-editor .rc-md-editor .editor-container .section-container::-webkit-scrollbar-thumb:hover {
   background: rgba(122, 122, 122, 0.7);
+}
+
+/* ============================================================ */
+/* タッチデバイス用の最適化 */
+/* ============================================================ */
+
+/* タッチデバイスでのボタン最小サイズ */
+@media (hover: none) and (pointer: coarse) {
+
+  button,
+  a[role="button"],
+  [role="tab"],
+  [role="menuitem"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* タッチフィードバック */
+  button:active,
+  a[role="button"]:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease-out;
+  }
+
+  /* スクロールの改善 */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* スムーズスクロール */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* タッチデバイスでのホバーエフェクト無効化 */
+@media (hover: none) {
+  .hover\:scale-105:hover {
+    transform: none;
+  }
+
+  .hover\:scale-\[1\.02\]:hover {
+    transform: none;
+  }
+}
+
+/* タッチデバイスでのアクティブ状態 */
+@media (hover: none) and (pointer: coarse) {
+  .hover\:bg-gray-100:active {
+    background-color: rgb(243 244 246);
+  }
+
+  .dark .hover\:bg-gray-700:active {
+    background-color: rgb(55 65 81);
+  }
 }

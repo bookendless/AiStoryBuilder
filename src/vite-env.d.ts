@@ -17,3 +17,19 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// markdown-itの型定義
+declare module 'markdown-it' {
+  interface MarkdownItOptions {
+    html?: boolean;
+    linkify?: boolean;
+    typographer?: boolean;
+  }
+
+  class MarkdownIt {
+    constructor(options?: MarkdownItOptions);
+    render(md: string): string;
+  }
+
+  export default MarkdownIt;
+}

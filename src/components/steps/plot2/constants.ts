@@ -458,11 +458,8 @@ export const PLOT_STRUCTURE_CONFIGS: Record<
 };
 
 export const DEFAULT_SIDEBAR_SECTIONS: SidebarSection[] = [
-  { id: 'guide', title: '構成スタイルガイド', collapsed: true },
-  { id: 'settings', title: 'プロット基礎設定', collapsed: true },
-  { id: 'assistant', title: 'AI提案アシスタント', collapsed: true },
-  { id: 'progress', title: '完成度', collapsed: true },
-  { id: 'aiLogs', title: 'AIログ', collapsed: true },
+  { id: 'guide', title: '構成スタイルガイド', collapsed: false },
+  { id: 'settings', title: 'プロット基礎設定', collapsed: false },
 ];
 
 export const AI_LOG_TYPE_LABELS: Record<string, string> = {

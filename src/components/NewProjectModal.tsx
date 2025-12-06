@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { BookOpen, Image, Upload, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { BookOpen, Image, Upload, X, CheckCircle, Circle } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
+import { compressImage } from '../utils/performanceUtils';
+import { useToast } from './Toast';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -61,6 +63,15 @@ const TONE_OPTIONS = [
   '緊張感', '穏やか', '希望', '切なさ', '謎めいた'
 ];
 
+interface ValidationErrors {
+  title?: string;
+  mainGenre?: string;
+  customMainGenre?: string;
+  customSubGenre?: string;
+  customTargetReader?: string;
+  customTheme?: string;
+}
+
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onNavigateToStep }) => {
   const [activeTab, setActiveTab] = useState<'basic' | 'style'>('basic');
   const [title, setTitle] = useState('');
@@ -85,15 +96,144 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     emotion: '',
     tone: '',
   });
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { createNewProject } = useProject();
+  const { showError } = useToast();
 
+  // バリデーション関数
+  const validateField = (fieldName: string, value: string): string | undefined => {
+    switch (fieldName) {
+      case 'title':
+        if (!value.trim()) {
+          return 'プロジェクトタイトルは必須です';
+        }
+        if (value.trim().length > 100) {
+          return 'プロジェクトタイトルは100文字以内で入力してください';
+        }
+        return undefined;
+      case 'mainGenre':
+        if (!value) {
+          return 'メインジャンルは必須です';
+        }
+        return undefined;
+      case 'customMainGenre':
+        if (mainGenre === 'その他' && !value.trim()) {
+          return 'カスタムジャンルを入力してください';
+        }
+        return undefined;
+      case 'customSubGenre':
+        if (subGenre === 'その他' && !value.trim()) {
+          return 'カスタムサブジャンルを入力してください';
+        }
+        return undefined;
+      case 'customTargetReader':
+        if (targetReader === 'その他' && !value.trim()) {
+          return 'カスタムターゲット読者を入力してください';
+        }
+        return undefined;
+      case 'customTheme':
+        if (projectTheme === 'その他' && !value.trim()) {
+          return 'カスタムテーマを入力してください';
+        }
+        return undefined;
+      default:
+        return undefined;
+    }
+  };
+
+  // リアルタイムバリデーション
+  const handleFieldChange = (fieldName: string, value: string, setter: (value: string) => void) => {
+    setter(value);
+    if (touched[fieldName]) {
+      const error = validateField(fieldName, value);
+      setErrors(prev => ({
+        ...prev,
+        [fieldName]: error,
+      }));
+    }
+  };
+
+  // フィールドがタッチされたときにマーク
+  const handleFieldBlur = (fieldName: string) => {
+    setTouched(prev => ({ ...prev, [fieldName]: true }));
+    const value = fieldName === 'title' ? title :
+                  fieldName === 'mainGenre' ? mainGenre :
+                  fieldName === 'customMainGenre' ? customMainGenre :
+                  fieldName === 'customSubGenre' ? customSubGenre :
+                  fieldName === 'customTargetReader' ? customTargetReader :
+                  fieldName === 'customTheme' ? customTheme : '';
+    const error = validateField(fieldName, value);
+    setErrors(prev => ({
+      ...prev,
+      [fieldName]: error,
+    }));
+  };
+
+  // 基本情報ステップの完了度を計算
+  const getBasicStepProgress = (): number => {
+    let completed = 0;
+    let total = 2; // 必須項目数
+
+    if (title.trim()) completed++;
+    if (mainGenre) {
+      if (mainGenre === 'その他') {
+        // その他の場合、カスタムジャンルが入力されているかチェック
+        if (customMainGenre.trim()) {
+          completed++;
+        }
+      } else {
+        // その他以外が選択されている場合は完了
+        completed++;
+      }
+    }
+
+    return total > 0 ? (completed / total) * 100 : 0;
+  };
+
+  // 文体設定ステップの完了度を計算（任意項目なので常に100%）
+  const getStyleStepProgress = (): number => {
+    // 文体設定はすべて任意項目なので、常に100%とする
+    return 100;
+  };
+
+  // モーダルが閉じられたときに状態をリセット
+  useEffect(() => {
+    if (!isOpen) {
+      setTitle('');
+      setDescription('');
+      setMainGenre('');
+      setSubGenre('');
+      setTargetReader('');
+      setProjectTheme('');
+      setCoverImage('');
+      setPreviewUrl(null);
+      setCustomMainGenre('');
+      setCustomSubGenre('');
+      setCustomTargetReader('');
+      setCustomTheme('');
+      setStyleData({
+        style: '',
+        perspective: '',
+        formality: '',
+        rhythm: '',
+        metaphor: '',
+        dialogue: '',
+        emotion: '',
+        tone: '',
+      });
+      setErrors({});
+      setTouched({});
+      setActiveTab('basic');
+    }
+  }, [isOpen]);
 
   // ファイルをBase64に変換
-  const fileToBase64 = (file: File): Promise<string> => {
+  const fileToBase64 = (file: File | Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(file instanceof File ? file : new File([file], 'image', { type: file.type }));
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = error => reject(error);
     });
@@ -106,18 +246,34 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
     // ファイルタイプとサイズの検証
     if (!file.type.startsWith('image/')) {
-      alert('画像ファイルを選択してください。');
+      showError('画像ファイルを選択してください。', 5000, {
+        title: 'ファイル形式エラー',
+      });
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) { // 10MB制限
-      alert('ファイルサイズは10MB以下にしてください。');
+      showError('ファイルサイズは10MB以下にしてください。', 5000, {
+        title: 'ファイルサイズエラー',
+      });
       return;
     }
 
-    const base64 = await fileToBase64(file);
-    setPreviewUrl(base64);
-    setCoverImage(base64);
+    try {
+      // 画像を圧縮（1920x1080、quality 0.8）
+      const compressedBlob = await compressImage(file, 1920, 1080, 0.8);
+      
+      // 圧縮されたBlobをBase64に変換
+      const base64 = await fileToBase64(new File([compressedBlob], file.name, { type: file.type }));
+      setPreviewUrl(base64);
+      setCoverImage(base64);
+    } catch (error) {
+      console.error('画像の圧縮エラー:', error);
+      // エラーの場合は元のファイルをBase64に変換
+      const base64 = await fileToBase64(file);
+      setPreviewUrl(base64);
+      setCoverImage(base64);
+    }
   };
 
   // ファイル選択ボタンクリック
@@ -136,8 +292,83 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
   if (!isOpen) return null;
 
+  // すべてのフィールドをバリデーション
+  const validateAll = (): boolean => {
+    const newErrors: ValidationErrors = {};
+    let isValid = true;
+
+    const titleError = validateField('title', title);
+    if (titleError) {
+      newErrors.title = titleError;
+      isValid = false;
+    }
+
+    const mainGenreError = validateField('mainGenre', mainGenre);
+    if (mainGenreError) {
+      newErrors.mainGenre = mainGenreError;
+      isValid = false;
+    }
+
+    if (mainGenre === 'その他') {
+      const customMainGenreError = validateField('customMainGenre', customMainGenre);
+      if (customMainGenreError) {
+        newErrors.customMainGenre = customMainGenreError;
+        isValid = false;
+      }
+    }
+
+    if (subGenre === 'その他') {
+      const customSubGenreError = validateField('customSubGenre', customSubGenre);
+      if (customSubGenreError) {
+        newErrors.customSubGenre = customSubGenreError;
+        isValid = false;
+      }
+    }
+
+    if (targetReader === 'その他') {
+      const customTargetReaderError = validateField('customTargetReader', customTargetReader);
+      if (customTargetReaderError) {
+        newErrors.customTargetReader = customTargetReaderError;
+        isValid = false;
+      }
+    }
+
+    if (projectTheme === 'その他') {
+      const customThemeError = validateField('customTheme', customTheme);
+      if (customThemeError) {
+        newErrors.customTheme = customThemeError;
+        isValid = false;
+      }
+    }
+
+    setErrors(newErrors);
+    // すべてのフィールドをタッチ済みとしてマーク
+    setTouched({
+      title: true,
+      mainGenre: true,
+      customMainGenre: true,
+      customSubGenre: true,
+      customTargetReader: true,
+      customTheme: true,
+    });
+
+    return isValid;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateAll()) {
+      // エラーがある場合は基本情報タブに切り替え
+      if (activeTab === 'style') {
+        setActiveTab('basic');
+      }
+      showError('入力内容にエラーがあります。確認してください。', 5000, {
+        title: 'バリデーションエラー',
+      });
+      return;
+    }
+
     if (title.trim() && mainGenre) {
       const finalMainGenre = mainGenre === 'その他' ? customMainGenre : mainGenre;
       const finalSubGenre = subGenre === 'その他' ? customSubGenre : subGenre;
@@ -190,6 +421,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     }
   };
 
+  const basicProgress = getBasicStepProgress();
+  const styleProgress = getStyleStepProgress();
+
   return (
     <Modal
       isOpen={isOpen}
@@ -204,10 +438,55 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       }
       size="md"
     >
-      {/* タブナビゲーション */}
+      {/* ステップインジケーター */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2 flex-1">
+            <div className="flex items-center space-x-2">
+              {basicProgress === 100 ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : (
+                <Circle className="h-5 w-5 text-gray-400" />
+              )}
+              <span className={`text-sm font-medium font-['Noto_Sans_JP'] ${
+                activeTab === 'basic' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'
+              }`}>
+                基本情報
+              </span>
+            </div>
+            <div className="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 mx-2">
+              <div 
+                className="h-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-300"
+                style={{ width: `${basicProgress}%` }}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              {styleProgress === 100 ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : (
+                <Circle className="h-5 w-5 text-gray-400" />
+              )}
+              <span className={`text-sm font-medium font-['Noto_Sans_JP'] ${
+                activeTab === 'style' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'
+              }`}>
+                文体設定
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 text-center font-['Noto_Sans_JP']">
+          {activeTab === 'basic' 
+            ? `完了度: ${Math.round(basicProgress)}%` 
+            : `完了度: ${Math.round(styleProgress)}%`}
+        </div>
+      </div>
 
       {/* タブナビゲーション */}
-      <div className="mb-6 flex space-x-1 border-b border-gray-200 dark:border-gray-700">
+      <div 
+        className="mb-6 flex space-x-1 border-b border-gray-200 dark:border-gray-700"
+        role="tablist"
+        aria-label="プロジェクト設定タブ"
+      >
         <button
           type="button"
           onClick={() => setActiveTab('basic')}
@@ -232,20 +511,33 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {activeTab === 'basic' && (
-          <div className="space-y-6">
+          <div 
+            id="basic-tabpanel"
+            role="tabpanel"
+            aria-labelledby="basic-tab"
+            className="space-y-6"
+          >
             <div>
               <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                プロジェクトタイトル *
+                プロジェクトタイトル <span className="text-red-500 font-bold">*</span>
               </label>
               <input
                 type="text"
                 id="title"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => handleFieldChange('title', e.target.value, setTitle)}
+                onBlur={() => handleFieldBlur('title')}
                 placeholder="例：異世界転生物語"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-['Noto_Sans_JP']"
+                className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-['Noto_Sans_JP'] ${
+                  errors.title ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                }`}
                 required
               />
+              {errors.title && (
+                <p className="mt-1 text-sm text-red-500 dark:text-red-400 font-['Noto_Sans_JP']">
+                  {errors.title}
+                </p>
+              )}
             </div>
 
             <div>
@@ -265,7 +557,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
             {/* メインジャンル選択 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-                メインジャンル <span className="text-red-500">*</span>
+                メインジャンル <span className="text-red-500 font-bold">*</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {GENRES.map((genreOption) => (
@@ -274,28 +566,43 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                     type="button"
                     onClick={() => {
                       if (mainGenre !== genreOption) {
-                        setMainGenre(genreOption);
+                        handleFieldChange('mainGenre', genreOption, setMainGenre);
                         setCustomMainGenre('');
+                        setErrors(prev => ({ ...prev, mainGenre: undefined }));
                       }
                     }}
+                    onBlur={() => handleFieldBlur('mainGenre')}
                     className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${mainGenre === genreOption
                       ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/50'
-                      }`}
+                      } ${errors.mainGenre ? 'ring-2 ring-red-500' : ''}`}
                   >
                     {genreOption}
                   </button>
                 ))}
               </div>
+              {errors.mainGenre && (
+                <p className="mt-1 text-sm text-red-500 dark:text-red-400 font-['Noto_Sans_JP']">
+                  {errors.mainGenre}
+                </p>
+              )}
               {mainGenre === 'その他' && (
                 <div className="mt-3">
                   <input
                     type="text"
                     value={customMainGenre}
-                    onChange={(e) => setCustomMainGenre(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    onChange={(e) => handleFieldChange('customMainGenre', e.target.value, setCustomMainGenre)}
+                    onBlur={() => handleFieldBlur('customMainGenre')}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] ${
+                      errors.customMainGenre ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    }`}
                     placeholder="カスタムジャンルを入力してください"
                   />
+                  {errors.customMainGenre && (
+                    <p className="mt-1 text-sm text-red-500 dark:text-red-400 font-['Noto_Sans_JP']">
+                      {errors.customMainGenre}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -333,10 +640,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                   <input
                     type="text"
                     value={customSubGenre}
-                    onChange={(e) => setCustomSubGenre(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    onChange={(e) => handleFieldChange('customSubGenre', e.target.value, setCustomSubGenre)}
+                    onBlur={() => handleFieldBlur('customSubGenre')}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] ${
+                      errors.customSubGenre ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    }`}
                     placeholder="カスタムサブジャンルを入力してください"
                   />
+                  {errors.customSubGenre && (
+                    <p className="mt-1 text-sm text-red-500 dark:text-red-400 font-['Noto_Sans_JP']">
+                      {errors.customSubGenre}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -374,10 +689,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                   <input
                     type="text"
                     value={customTargetReader}
-                    onChange={(e) => setCustomTargetReader(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    onChange={(e) => handleFieldChange('customTargetReader', e.target.value, setCustomTargetReader)}
+                    onBlur={() => handleFieldBlur('customTargetReader')}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] ${
+                      errors.customTargetReader ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    }`}
                     placeholder="カスタムターゲット読者を入力してください"
                   />
+                  {errors.customTargetReader && (
+                    <p className="mt-1 text-sm text-red-500 dark:text-red-400 font-['Noto_Sans_JP']">
+                      {errors.customTargetReader}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -415,10 +738,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                   <input
                     type="text"
                     value={customTheme}
-                    onChange={(e) => setCustomTheme(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    onChange={(e) => handleFieldChange('customTheme', e.target.value, setCustomTheme)}
+                    onBlur={() => handleFieldBlur('customTheme')}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP'] ${
+                      errors.customTheme ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    }`}
                     placeholder="カスタムテーマを入力してください"
                   />
+                  {errors.customTheme && (
+                    <p className="mt-1 text-sm text-red-500 dark:text-red-400 font-['Noto_Sans_JP']">
+                      {errors.customTheme}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -491,7 +822,12 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
         )}
 
         {activeTab === 'style' && (
-          <div className="space-y-6">
+          <div 
+            id="style-tabpanel"
+            role="tabpanel"
+            aria-labelledby="style-tab"
+            className="space-y-6"
+          >
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <p className="text-sm text-blue-800 dark:text-blue-200 font-['Noto_Sans_JP']">
                 これらの設定は、AIによる文章生成時に使用されます。設定しない場合はデフォルト値が使用されます。

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PlotFormData, PlotStructureType } from '../types';
-import type { Project } from '../../../contexts/ProjectContext';
+import type { Project } from '../../../../contexts/ProjectContext';
 import { useAutoSave } from '../../../common/hooks/useAutoSave';
 
 interface UsePlotFormProps {

@@ -1,6 +1,5 @@
 import React, { useRef, useCallback, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { PenTool, BookOpen, Save, Download, ChevronDown, ChevronUp, ListChecks, Wand2, MoreVertical, Minimize } from 'lucide-react';
-import { useProject } from '../../../contexts/ProjectContext';
+import { PenTool, BookOpen, Save, Download, MoreVertical, Minimize } from 'lucide-react';
 import { formatTimestamp } from './utils';
 // @ts-ignore - markdown-itの型定義が不完全な場合がある
 import MarkdownIt from 'markdown-it';
@@ -18,13 +17,6 @@ interface Chapter {
   keyEvents?: string[];
 }
 
-interface ChapterDetails {
-  characters: string;
-  setting: string;
-  mood: string;
-  keyEvents: string;
-}
-
 export interface MainEditorHandle {
   getCurrentSelection: () => string;
   getTextareaRef: () => HTMLTextAreaElement | null;
@@ -35,9 +27,6 @@ interface MainEditorProps {
   selectedChapterId: string | null;
   currentChapter: Chapter | null;
   draft: string;
-  chapterDetails: ChapterDetails | null;
-  isChapterInfoCollapsed: boolean;
-  onChapterInfoToggle: () => void;
   onDraftChange: (value: string) => void;
   mainFontSize: number;
   mainLineHeight: number;
@@ -48,8 +37,6 @@ interface MainEditorProps {
   onSave: () => void;
   onOpenViewer: () => void;
   onExportChapter: () => void;
-  onOpenDisplaySettings: () => void;
-  onOpenAIAssist: () => void;
   isVerticalWriting: boolean;
   isZenMode: boolean;
   onExitZenMode: () => void;
@@ -59,9 +46,6 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   selectedChapterId,
   currentChapter,
   draft,
-  chapterDetails,
-  isChapterInfoCollapsed,
-  onChapterInfoToggle,
   onDraftChange,
   mainFontSize,
   mainLineHeight,
@@ -72,13 +56,10 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   onSave,
   onOpenViewer,
   onExportChapter,
-  onOpenDisplaySettings,
-  onOpenAIAssist,
   isVerticalWriting,
   isZenMode,
   onExitZenMode,
 }, ref) => {
-  const { currentProject } = useProject();
   const mainTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -207,101 +188,6 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
         style={isZenMode ? { borderRadius: 0, border: 'none' } : undefined}
       >
         <div className={`p-6 space-y-6 ${isZenMode ? 'flex-1 flex flex-col overflow-hidden' : ''}`}>
-          {!isZenMode && (
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                {selectedChapterId && currentChapter ? `${currentChapter.title} の草案` : '草案執筆'}
-              </h3>
-            </div>
-          )}
-
-          {/* 章内容表示（禅モード時は非表示） */}
-          {!isZenMode && currentChapter && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
-              {/* アコーディオンヘッダー */}
-              <button
-                type="button"
-                onClick={onChapterInfoToggle}
-                className="w-full p-4 flex items-start space-x-3 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-              >
-                <div className="bg-blue-500 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                  <BookOpen className="h-4 w-4 text-white" />
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center justify-between">
-                    <h4 className={`font-semibold text-blue-900 dark:text-blue-100 font-['Noto_Sans_JP'] ${!isChapterInfoCollapsed ? 'mb-2' : ''}`}>
-                      {currentChapter.title}
-                    </h4>
-                    {isChapterInfoCollapsed ? (
-                      <ChevronDown className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
-                    ) : (
-                      <ChevronUp className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
-                    )}
-                  </div>
-                  {!isChapterInfoCollapsed && (
-                    <>
-                      <p className="text-blue-800 dark:text-blue-200 text-sm font-['Noto_Sans_JP'] leading-relaxed mb-3">
-                        {(() => {
-                          // 章の説明内のキャラクターIDをキャラクター名に変換
-                          if (!currentChapter.summary || !currentProject) {
-                            return currentChapter.summary || '';
-                          }
-                          let summary = currentChapter.summary;
-                          // プロジェクト内のすべてのキャラクターIDをキャラクター名に置換
-                          currentProject.characters.forEach(character => {
-                            // キャラクターIDがテキスト内に含まれている場合、キャラクター名に置換
-                            // 単語境界を考慮して置換（IDが単独で出現する場合のみ）
-                            const regex = new RegExp(`\\b${character.id}\\b`, 'g');
-                            summary = summary.replace(regex, character.name);
-                          });
-                          return summary;
-                        })()}
-                      </p>
-
-                      {/* 章詳細情報 */}
-                      {chapterDetails && (() => {
-                        const hasDetails = Object.values(chapterDetails).some(value => value !== '未設定');
-
-                        if (!hasDetails) return null;
-
-                        return (
-                          <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                              {chapterDetails.characters !== '未設定' && (
-                                <div>
-                                  <span className="font-medium text-blue-700 dark:text-blue-300">登場キャラクター:</span>
-                                  <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.characters}</span>
-                                </div>
-                              )}
-                              {chapterDetails.setting !== '未設定' && (
-                                <div>
-                                  <span className="font-medium text-blue-700 dark:text-blue-300">設定・場所:</span>
-                                  <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.setting}</span>
-                                </div>
-                              )}
-                              {chapterDetails.mood !== '未設定' && (
-                                <div>
-                                  <span className="font-medium text-blue-700 dark:text-blue-300">雰囲気:</span>
-                                  <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.mood}</span>
-                                </div>
-                              )}
-                              {chapterDetails.keyEvents !== '未設定' && (
-                                <div className="sm:col-span-2">
-                                  <span className="font-medium text-blue-700 dark:text-blue-300">重要な出来事:</span>
-                                  <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.keyEvents}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </>
-                  )}
-                </div>
-              </button>
-            </div>
-          )}
-
           {/* メインテキストエリア */}
           <div
             className={`rounded-lg min-h-[300px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
@@ -476,29 +362,6 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                       章出力
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenDisplaySettings();
-                      setIsMenuOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
-                  >
-                    <ListChecks className="h-4 w-4" />
-                    表示設定
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenAIAssist();
-                      setIsMenuOpen(false);
-                    }}
-                    disabled={!selectedChapter}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                  >
-                    <Wand2 className="h-4 w-4" />
-                    AIアシスト
-                  </button>
                 </div>
               )}
             </div>

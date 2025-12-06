@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
 
@@ -7,6 +7,7 @@ interface OnboardingProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: () => void;
+  mode?: 'full' | 'quick'; // フルオンボーディングまたはクイックガイド
 }
 
 interface OnboardingStep {
@@ -18,7 +19,37 @@ interface OnboardingStep {
   features?: string[];
 }
 
-const onboardingSteps: OnboardingStep[] = [
+// クイックガイド用の簡素化されたステップ
+const quickOnboardingSteps: OnboardingStep[] = [
+  {
+    id: 'welcome',
+    title: 'AIと共創するストーリービルダーへようこそ',
+    description: 'このアプリは、AIの力を借りて小説を創作するための支援ツールです。80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう。',
+    icon: <Sparkles className="h-12 w-12 text-indigo-600 dark:text-indigo-400" />,
+    features: [
+      'AIによるキャラクター設計の支援',
+      'プロット構造の自動生成',
+      '草案執筆のAI支援',
+    ],
+  },
+  {
+    id: 'workflow',
+    title: '6ステップの制作ワークフロー',
+    description: '小説制作は6つのステップで進めます。各ステップを順番に完了することで、完成度の高い作品を作成できます。',
+    icon: <BookOpen className="h-12 w-12 text-purple-600 dark:text-purple-400" />,
+    features: [
+      '1. キャラクター設計',
+      '2. プロット基本設定',
+      '3. プロット構成詳細',
+      '4. あらすじ作成',
+      '5. 章立て',
+      '6. 草案執筆',
+    ],
+  },
+];
+
+// フルオンボーディング用の詳細なステップ
+const fullOnboardingSteps: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'AIと共創するストーリービルダーへようこそ',
@@ -73,7 +104,7 @@ const onboardingSteps: OnboardingStep[] = [
   },
 ];
 
-export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onComplete }) => {
+export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onComplete, mode = 'quick' }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const { modalRef } = useModalNavigation({
@@ -82,6 +113,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onCompl
       handleComplete();
     },
   });
+
+  // モードに応じてステップを選択
+  const onboardingSteps = mode === 'full' ? fullOnboardingSteps : quickOnboardingSteps;
+  const isFirstTime = !localStorage.getItem('onboarding-completed');
 
   const handleNext = () => {
     if (currentStep < onboardingSteps.length - 1) {
@@ -110,7 +145,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onCompl
   };
 
   const handleComplete = () => {
-    localStorage.setItem('onboarding-completed', 'true');
+    // 初回のみ完了フラグを設定
+    if (isFirstTime) {
+      localStorage.setItem('onboarding-completed', 'true');
+    }
     onComplete();
     onClose();
   };
@@ -129,14 +167,18 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onCompl
       title={
         <div className="flex items-center space-x-3">
           <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
-            <Sparkles className="h-6 w-6 text-white" />
+            {isFirstTime ? (
+              <Sparkles className="h-6 w-6 text-white" />
+            ) : (
+              <HelpCircle className="h-6 w-6 text-white" />
+            )}
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-              はじめに
+              {isFirstTime ? 'はじめに' : 'ガイド'}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-              ステップ {currentStep + 1} / {onboardingSteps.length}
+              {mode === 'full' ? '詳細ガイド' : 'クイックガイド'} - ステップ {currentStep + 1} / {onboardingSteps.length}
             </p>
           </div>
         </div>

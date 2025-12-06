@@ -1,589 +1,18 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Plus, User, Sparkles, Edit3, Trash2, Loader, Upload, X, FileImage, FileText, CheckCircle, GripVertical, ZoomIn, Network, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, User, Network } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { RelationshipDiagram } from '../tools/RelationshipDiagram';
 import { useToast } from '../Toast';
-import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
-import { OptimizedImage } from '../OptimizedImage';
-import { Modal } from '../common/Modal';
-import { useAILog } from '../common/hooks/useAILog';
-import { DraggableSidebar } from '../common/DraggableSidebar';
-import { AILogPanel } from '../common/AILogPanel';
-
-// 画像拡大表示モーダルコンポーネント
-interface ImageViewerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  imageUrl: string;
-  characterName: string;
-}
-
-const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
-  isOpen,
-  onClose,
-  imageUrl,
-  characterName
-}) => {
-  const { modalRef } = useModalNavigation({
-    isOpen,
-    onClose,
-  });
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={characterName}
-      size="full"
-      className="z-[60] bg-black/75"
-      ref={modalRef}
-      showCloseButton={true}
-    >
-      <div className="flex items-center justify-center h-[80vh]">
-        <OptimizedImage
-          src={imageUrl}
-          alt={characterName}
-          className="max-w-full max-h-full rounded-lg shadow-2xl cursor-pointer"
-          lazy={false}
-          quality={0.9}
-          onClick={onClose}
-        />
-      </div>
-    </Modal>
-  );
-};
-
-// キャラクター入力モーダルコンポーネント
-interface CharacterModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (character: Character) => void;
-  editingCharacter?: Character | null;
-  onUpdate?: (character: Character) => void;
-}
-
-const CharacterModal: React.FC<CharacterModalProps> = ({
-  isOpen,
-  onClose,
-  onSubmit,
-  editingCharacter,
-  onUpdate
-}) => {
-  const { showError, showSuccess } = useToast();
-  const { modalRef } = useModalNavigation({
-    isOpen,
-    onClose,
-  });
-  const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
-  const [formData, setFormData] = useState({
-    name: '',
-    role: '',
-    appearance: '',
-    personality: '',
-    background: '',
-    image: '',
-    speechStyle: '',
-  });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // モーダルが開かれた時にフォームデータを初期化
-  React.useEffect(() => {
-    if (isOpen) {
-      if (editingCharacter) {
-        setFormData({
-          name: editingCharacter.name,
-          role: editingCharacter.role,
-          appearance: editingCharacter.appearance,
-          personality: editingCharacter.personality,
-          background: editingCharacter.background,
-          image: editingCharacter.image || '',
-          speechStyle: editingCharacter.speechStyle || '',
-        });
-        setPreviewUrl(editingCharacter.image || '');
-      } else {
-        setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
-        setPreviewUrl('');
-      }
-      setSelectedFile(null);
-      setActiveTab('basic'); // タブをリセット
-    }
-  }, [isOpen, editingCharacter]);
-
-  // ファイルをBase64に変換する関数
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  // ファイル選択ハンドラー
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // ファイルタイプの検証
-    if (!file.type.startsWith('image/')) {
-      showError('画像ファイルを選択してください。');
-      return;
-    }
-
-    // ファイルサイズの検証（5MB制限）
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      showError('ファイルサイズが大きすぎます。5MB以下の画像を選択してください。');
-      return;
-    }
-
-    setSelectedFile(file);
-    setIsUploading(true);
-
-    try {
-      const base64 = await fileToBase64(file);
-      setPreviewUrl(base64);
-      setFormData(prev => ({ ...prev, image: base64 }));
-    } catch (error) {
-      console.error('ファイル読み込みエラー:', error);
-      showError('ファイルの読み込みに失敗しました。');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // ファイル選択ダイアログを開く
-  const handleSelectFile = () => {
-    fileInputRef.current?.click();
-  };
-
-  // ファイルをクリア
-  const handleClearFile = () => {
-    setSelectedFile(null);
-    setPreviewUrl('');
-    setFormData(prev => ({ ...prev, image: '' }));
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  // 画像拡大表示を開く
-  const handleOpenImageViewer = () => {
-    if (previewUrl) {
-      setIsImageViewerOpen(true);
-    }
-  };
-
-  // フォーム送信
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim()) return;
-
-    const character: Character = {
-      id: editingCharacter?.id || Date.now().toString(),
-      name: formData.name.trim(),
-      role: formData.role.trim(),
-      appearance: formData.appearance.trim(),
-      personality: formData.personality.trim(),
-      background: formData.background.trim(),
-      image: formData.image,
-      speechStyle: formData.speechStyle.trim() || undefined,
-    };
-
-    if (editingCharacter && onUpdate) {
-      onUpdate(character);
-      showSuccess('キャラクターを更新しました');
-    } else {
-      onSubmit(character);
-      showSuccess('キャラクターを追加しました');
-    }
-
-    // フォームをリセット
-    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
-    setSelectedFile(null);
-    setPreviewUrl('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    onClose();
-  };
-
-  // キャンセル
-  const handleCancel = () => {
-    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
-    setSelectedFile(null);
-    setPreviewUrl('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    onClose();
-  };
-
-  return (
-    <>
-      <Modal
-        isOpen={isOpen}
-        onClose={handleCancel}
-        title={editingCharacter ? 'キャラクターを編集' : '新しいキャラクター'}
-        size="md"
-        ref={modalRef}
-      >
-        <div className="space-y-6">
-          {/* タブナビゲーション */}
-          <div className="flex space-x-1 border-b border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => setActiveTab('basic')}
-              className={`px-4 py-2 text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${activeTab === 'basic'
-                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-            >
-              基本情報
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('details')}
-              className={`px-4 py-2 text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${activeTab === 'details'
-                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-            >
-              詳細情報
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* 基本情報タブ */}
-            {activeTab === 'basic' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                    名前 *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="キャラクターの名前"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                    役割・立場
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    placeholder="主人公、ヒロイン、悪役など"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                    キャラクター画像
-                  </label>
-
-                  {/* ファイル選択エリア */}
-                  <div className="space-y-3">
-                    <button
-                      type="button"
-                      onClick={handleSelectFile}
-                      disabled={isUploading}
-                      className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <div className="text-center">
-                        {isUploading ? (
-                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto mb-2"></div>
-                        ) : (
-                          <Upload className="h-6 w-6 text-gray-400 group-hover:text-indigo-500 mx-auto mb-2" />
-                        )}
-                        <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-indigo-500 font-['Noto_Sans_JP']">
-                          {isUploading ? '読み込み中...' : '画像を選択'}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 font-['Noto_Sans_JP']">
-                          JPG, PNG, GIF, WebP (最大5MB)
-                        </p>
-                      </div>
-                    </button>
-
-                    {/* 選択されたファイル情報 */}
-                    {selectedFile && (
-                      <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center space-x-2">
-                          <FileImage className="h-4 w-4 text-indigo-600" />
-                          <div>
-                            <p className="text-xs font-medium text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                              {selectedFile.name}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleClearFile}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* プレビュー */}
-                    {previewUrl && (
-                      <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-2 relative group">
-                        <div
-                          className="relative cursor-pointer"
-                          onClick={handleOpenImageViewer}
-                        >
-                          <OptimizedImage
-                            src={previewUrl}
-                            alt="Preview"
-                            className="w-24 h-32 rounded mx-auto"
-                            lazy={true}
-                            quality={0.8}
-                          />
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded flex items-center justify-center">
-                            <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1 font-['Noto_Sans_JP']">
-                          クリックで拡大表示
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 隠しファイル入力 */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </div>
-              </>
-            )}
-
-            {/* 詳細情報タブ */}
-            {activeTab === 'details' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                    外見・特徴
-                  </label>
-                  <div className="relative">
-                    <textarea
-                      value={formData.appearance}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > 200 ? value.substring(0, 200) : value;
-                        setFormData({ ...formData, appearance: truncatedValue });
-                      }}
-                      placeholder="キャラクターの外見や特徴を簡潔に（150文字程度推奨）"
-                      rows={3}
-                      className={`w-full px-4 py-2 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] ${formData.appearance.length > 150
-                        ? 'border-yellow-300 dark:border-yellow-600'
-                        : 'border-gray-300 dark:border-gray-600'
-                        }`}
-                    />
-                    <div className="absolute bottom-2 right-2 text-xs">
-                      <span className={`font-['Noto_Sans_JP'] ${formData.appearance.length > 200
-                        ? 'text-red-500'
-                        : formData.appearance.length > 150
-                          ? 'text-yellow-500'
-                          : 'text-gray-400'
-                        }`}>
-                        {formData.appearance.length}/200
-                      </span>
-                    </div>
-                  </div>
-                  {formData.appearance.length > 150 && formData.appearance.length <= 200 && (
-                    <p className="text-xs text-yellow-600 mt-1 font-['Noto_Sans_JP']">
-                      文字数が多めです（150文字程度推奨）
-                    </p>
-                  )}
-                  {formData.appearance.length > 200 && (
-                    <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      200文字を超えたため切り捨てられました
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                    性格
-                  </label>
-                  <div className="relative">
-                    <textarea
-                      value={formData.personality}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > 200 ? value.substring(0, 200) : value;
-                        setFormData({ ...formData, personality: truncatedValue });
-                      }}
-                      placeholder="キャラクターの性格や特徴を簡潔に（150文字程度推奨）"
-                      rows={3}
-                      className={`w-full px-4 py-2 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] ${formData.personality.length > 150
-                        ? 'border-yellow-300 dark:border-yellow-600'
-                        : 'border-gray-300 dark:border-gray-600'
-                        }`}
-                    />
-                    <div className="absolute bottom-2 right-2 text-xs">
-                      <span className={`font-['Noto_Sans_JP'] ${formData.personality.length > 200
-                        ? 'text-red-500'
-                        : formData.personality.length > 150
-                          ? 'text-yellow-500'
-                          : 'text-gray-400'
-                        }`}>
-                        {formData.personality.length}/200
-                      </span>
-                    </div>
-                  </div>
-                  {formData.personality.length > 150 && formData.personality.length <= 200 && (
-                    <p className="text-xs text-yellow-600 mt-1 font-['Noto_Sans_JP']">
-                      文字数が多めです（150文字程度推奨）
-                    </p>
-                  )}
-                  {formData.personality.length > 200 && (
-                    <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      200文字を超えたため切り捨てられました
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                    背景・過去
-                  </label>
-                  <div className="relative">
-                    <textarea
-                      value={formData.background}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > 200 ? value.substring(0, 200) : value;
-                        setFormData({ ...formData, background: truncatedValue });
-                      }}
-                      placeholder="キャラクターの背景や過去について（150文字程度推奨）"
-                      rows={3}
-                      className={`w-full px-4 py-2 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] ${formData.background.length > 150
-                        ? 'border-yellow-300 dark:border-yellow-600'
-                        : 'border-gray-300 dark:border-gray-600'
-                        }`}
-                    />
-                    <div className="absolute bottom-2 right-2 text-xs">
-                      <span className={`font-['Noto_Sans_JP'] ${formData.background.length > 200
-                        ? 'text-red-500'
-                        : formData.background.length > 150
-                          ? 'text-yellow-500'
-                          : 'text-gray-400'
-                        }`}>
-                        {formData.background.length}/200
-                      </span>
-                    </div>
-                  </div>
-                  {formData.background.length > 150 && formData.background.length <= 200 && (
-                    <p className="text-xs text-yellow-600 mt-1 font-['Noto_Sans_JP']">
-                      文字数が多めです（150文字程度推奨）
-                    </p>
-                  )}
-                  {formData.background.length > 200 && (
-                    <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      200文字を超えたため切り捨てられました
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                    口調・話し方
-                  </label>
-                  <div className="relative">
-                    <textarea
-                      value={formData.speechStyle}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > 200 ? value.substring(0, 200) : value;
-                        setFormData({ ...formData, speechStyle: truncatedValue });
-                      }}
-                      placeholder="例：丁寧語で話す、関西弁、語尾に「〜だぜ」をつける、敬語を使わないなど（100文字程度推奨）"
-                      rows={3}
-                      className={`w-full px-4 py-2 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP'] ${formData.speechStyle.length > 100
-                        ? 'border-yellow-300 dark:border-yellow-600'
-                        : 'border-gray-300 dark:border-gray-600'
-                        }`}
-                    />
-                    <div className="absolute bottom-2 right-2 text-xs">
-                      <span className={`font-['Noto_Sans_JP'] ${formData.speechStyle.length > 200
-                        ? 'text-red-500'
-                        : formData.speechStyle.length > 100
-                          ? 'text-yellow-500'
-                          : 'text-gray-400'
-                        }`}>
-                        {formData.speechStyle.length}/200
-                      </span>
-                    </div>
-                  </div>
-                  {formData.speechStyle.length > 100 && formData.speechStyle.length <= 200 && (
-                    <p className="text-xs text-yellow-600 mt-1 font-['Noto_Sans_JP']">
-                      文字数が多めです（100文字程度推奨）
-                    </p>
-                  )}
-                  {formData.speechStyle.length > 200 && (
-                    <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      200文字を超えたため切り捨てられました
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-['Noto_Sans_JP']">
-                    💡 この口調設定は、AIアシストでの会話生成や草案作成時に反映されます
-                  </p>
-                </div>
-              </>
-            )}
-
-            <div className="flex space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
-              >
-                キャンセル
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP']"
-              >
-                {editingCharacter ? '更新' : '追加'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </Modal>
-
-      {/* 画像拡大表示モーダル */}
-      <ImageViewerModal
-        isOpen={isImageViewerOpen}
-        onClose={() => setIsImageViewerOpen(false)}
-        imageUrl={previewUrl}
-        characterName={formData.name || 'プレビュー'}
-      />
-    </>
-  );
-};
+import { EmptyState } from '../common/EmptyState';
+import { AILoadingIndicator } from '../common/AILoadingIndicator';
+import { ImageViewerModal } from './character/ImageViewerModal';
+import { CharacterModal } from './character/CharacterModal';
+import { CharacterCard } from './character/CharacterCard';
+import { CharacterPossessionChat } from '../tools/CharacterPossessionChat';
+import { CharacterDiary } from '../tools/CharacterDiary';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 export const CharacterStep: React.FC = () => {
   const { currentProject, updateProject } = useProject();
@@ -592,11 +21,23 @@ export const CharacterStep: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [enhancingId, setEnhancingId] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showRelationships, setShowRelationships] = useState(false);
+  const [possessionCharacterId, setPossessionCharacterId] = useState<string | null>(null);
+  const [diaryCharacterId, setDiaryCharacterId] = useState<string | null>(null);
+  const [confirmDialogState, setConfirmDialogState] = useState<{
+    isOpen: boolean;
+    type: 'ai-enhance' | 'delete' | null;
+    characterId: string | null;
+    characterName: string;
+  }>({
+    isOpen: false,
+    type: null,
+    characterId: null,
+    characterName: '',
+  });
   const [imageViewerState, setImageViewerState] = useState<{
     isOpen: boolean;
     imageUrl: string;
@@ -606,9 +47,6 @@ export const CharacterStep: React.FC = () => {
     imageUrl: '',
     characterName: ''
   });
-
-  // AIログ管理
-  const { aiLogs, addLog } = useAILog();
 
   // モーダルを開く（新規追加）
   const handleOpenAddModal = () => {
@@ -724,18 +162,71 @@ export const CharacterStep: React.FC = () => {
 
   const handleDeleteCharacter = (id: string) => {
     if (!currentProject) return;
-    updateProject({
-      characters: currentProject.characters.filter(c => c.id !== id),
+    const character = currentProject.characters.find(c => c.id === id);
+    if (!character) return;
+
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'delete',
+      characterId: id,
+      characterName: character.name,
     });
   };
 
-  const handleAIEnhance = async (character: Character) => {
+  const handleConfirmDelete = () => {
+    if (!currentProject || !confirmDialogState.characterId) return;
+    updateProject({
+      characters: currentProject.characters.filter(c => c.id !== confirmDialogState.characterId),
+    });
+    showSuccess('キャラクターを削除しました');
+    setConfirmDialogState({
+      isOpen: false,
+      type: null,
+      characterId: null,
+      characterName: '',
+    });
+  };
+
+  const handleRequestAIEnhance = (character: Character) => {
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'ai-enhance',
+      characterId: character.id,
+      characterName: character.name,
+    });
+  };
+
+  const handleAIEnhance = async () => {
     if (!isConfigured) {
       showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+      setConfirmDialogState({
+        isOpen: false,
+        type: null,
+        characterId: null,
+        characterName: '',
+      });
       return;
     }
 
-    if (!currentProject) return;
+    if (!currentProject || !confirmDialogState.characterId) return;
+
+    const character = currentProject.characters.find(c => c.id === confirmDialogState.characterId);
+    if (!character) {
+      setConfirmDialogState({
+        isOpen: false,
+        type: null,
+        characterId: null,
+        characterName: '',
+      });
+      return;
+    }
+
+    setConfirmDialogState({
+      isOpen: false,
+      type: null,
+      characterId: null,
+      characterName: '',
+    });
 
     // クラウドAIかどうかを判定
     const isCloudAI = settings.provider !== 'local';
@@ -802,15 +293,8 @@ export const CharacterStep: React.FC = () => {
         error: response.error,
         usage: response.usage,
       });
-
-      // AIログに記録
-      addLog({
-        type: 'enhance',
-        prompt,
-        response: response.content || '',
-        error: response.error,
-        characterName: character.name,
-      });
+      // AI応答はコンソールにログ出力のみ（詳細ログはサイドバーのCharacterAssistantPanelで管理）
+      console.log('AI Enhance Response logged.');
 
       if (response.error) {
         showError(`AI生成エラー: ${response.error}\n詳細はAIログを確認してください。`);
@@ -862,281 +346,23 @@ export const CharacterStep: React.FC = () => {
     }
   };
 
-  const handleAIGenerateCharacters = async () => {
-    if (!isConfigured) {
-      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
-      return;
-    }
-
-    if (!currentProject) return;
-
-    setIsGenerating(true);
-
-    try {
-      // プロジェクト設定から情報を取得
-      const projectInfo = {
-        title: currentProject.title || '未設定',
-        theme: currentProject.theme || currentProject.projectTheme || '未設定',
-        genre: currentProject.genre || '未設定',
-        mainGenre: currentProject.mainGenre || currentProject.genre || '未設定',
-        subGenre: currentProject.subGenre || '未設定',
-        targetReader: currentProject.targetReader || '未設定',
-        description: currentProject.description || '未設定',
-      };
-
-      // プロット情報を取得
-      const plotInfo = {
-        theme: currentProject.plot?.theme || '',
-        setting: currentProject.plot?.setting || '',
-        hook: currentProject.plot?.hook || '',
-        protagonistGoal: currentProject.plot?.protagonistGoal || '',
-        mainObstacle: currentProject.plot?.mainObstacle || '',
-      };
-
-      const prompt = aiService.buildPrompt('character', 'create', {
-        title: projectInfo.title,
-        theme: projectInfo.theme,
-        description: projectInfo.description,
-        mainGenre: projectInfo.mainGenre,
-        subGenre: projectInfo.subGenre,
-        targetReader: projectInfo.targetReader,
-        plotTheme: plotInfo.theme,
-        plotSetting: plotInfo.setting,
-        plotHook: plotInfo.hook,
-        protagonistGoal: plotInfo.protagonistGoal,
-        mainObstacle: plotInfo.mainObstacle,
-        role: '主要キャラクター',
-      });
-
-      console.log('AI Character Generation Request:', {
-        provider: settings.provider,
-        model: settings.model,
-        projectInfo,
-        prompt: prompt.substring(0, 100) + '...',
-      });
-
-      const response = await aiService.generateContent({
-        prompt,
-        type: 'character',
-        settings,
-      });
-
-      console.log('AI Character Generation Response:', {
-        success: !response.error,
-        contentLength: response.content?.length || 0,
-        error: response.error,
-      });
-
-      // AIログに記録
-      addLog({
-        type: 'generate',
-        prompt,
-        response: response.content || '',
-        error: response.error,
-      });
-
-      if (response.error) {
-        showError(`AI生成エラー: ${response.error}\n詳細はAIログを確認してください。`);
-        return;
-      }
-
-      // AIの回答を解析して複数のキャラクターを作成
-      const content = response.content;
-
-      const newCharacters: Character[] = [];
-
-      // キャラクター1を抽出
-      const character1Match = content.match(/【キャラクター1】\s*([\s\S]*?)(?=【キャラクター2】|$)/);
-      if (character1Match) {
-        const char1Content = character1Match[1];
-        const name1 = char1Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター1';
-        const basic1 = char1Content.match(/基本設定:\s*([^\n]+)/)?.[1]?.trim() || '';
-        const appearance1 = char1Content.match(/外見:\s*([\s\S]*?)(?=性格:|$)/)?.[1]?.trim() || '';
-        const personality1 = char1Content.match(/性格:\s*([\s\S]*?)(?=背景:|$)/)?.[1]?.trim() || '';
-        const background1 = char1Content.match(/背景:\s*([\s\S]*?)$/)?.[1]?.trim() || '';
-
-        newCharacters.push({
-          id: Date.now().toString(),
-          name: name1,
-          role: basic1 || '主要キャラクター',
-          appearance: appearance1.substring(0, 200),
-          personality: personality1.substring(0, 200),
-          background: background1.substring(0, 200),
-          image: '',
-        });
-      }
-
-      // キャラクター2を抽出
-      const character2Match = content.match(/【キャラクター2】\s*([\s\S]*?)(?=【キャラクター3】|$)/);
-      if (character2Match) {
-        const char2Content = character2Match[1];
-        const name2 = char2Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター2';
-        const basic2 = char2Content.match(/基本設定:\s*([^\n]+)/)?.[1]?.trim() || '';
-        const appearance2 = char2Content.match(/外見:\s*([\s\S]*?)(?=性格:|$)/)?.[1]?.trim() || '';
-        const personality2 = char2Content.match(/性格:\s*([\s\S]*?)(?=背景:|$)/)?.[1]?.trim() || '';
-        const background2 = char2Content.match(/背景:\s*([\s\S]*?)$/)?.[1]?.trim() || '';
-
-        newCharacters.push({
-          id: (Date.now() + 1).toString(),
-          name: name2,
-          role: basic2 || '主要キャラクター',
-          appearance: appearance2.substring(0, 200),
-          personality: personality2.substring(0, 200),
-          background: background2.substring(0, 200),
-          image: '',
-        });
-      }
-
-      // キャラクター3を抽出
-      const character3Match = content.match(/【キャラクター3】\s*([\s\S]*?)(?=【キャラクター4】|$)/);
-      if (character3Match) {
-        const char3Content = character3Match[1];
-        const name3 = char3Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター3';
-        const basic3 = char3Content.match(/基本設定:\s*([^\n]+)/)?.[1]?.trim() || '';
-        const appearance3 = char3Content.match(/外見:\s*([\s\S]*?)(?=性格:|$)/)?.[1]?.trim() || '';
-        const personality3 = char3Content.match(/性格:\s*([\s\S]*?)(?=背景:|$)/)?.[1]?.trim() || '';
-        const background3 = char3Content.match(/背景:\s*([\s\S]*?)$/)?.[1]?.trim() || '';
-
-        newCharacters.push({
-          id: (Date.now() + 2).toString(),
-          name: name3,
-          role: basic3 || '主要キャラクター',
-          appearance: appearance3.substring(0, 200),
-          personality: personality3.substring(0, 200),
-          background: background3.substring(0, 200),
-          image: '',
-        });
-      }
-
-      // キャラクター4を抽出
-      const character4Match = content.match(/【キャラクター4】\s*([\s\S]*?)(?=【キャラクター5】|$)/);
-      if (character4Match) {
-        const char4Content = character4Match[1];
-        const name4 = char4Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター4';
-        const basic4 = char4Content.match(/基本設定:\s*([^\n]+)/)?.[1]?.trim() || '';
-        const appearance4 = char4Content.match(/外見:\s*([\s\S]*?)(?=性格:|$)/)?.[1]?.trim() || '';
-        const personality4 = char4Content.match(/性格:\s*([\s\S]*?)(?=背景:|$)/)?.[1]?.trim() || '';
-        const background4 = char4Content.match(/背景:\s*([\s\S]*?)$/)?.[1]?.trim() || '';
-
-        newCharacters.push({
-          id: (Date.now() + 3).toString(),
-          name: name4,
-          role: basic4 || '主要キャラクター',
-          appearance: appearance4.substring(0, 200),
-          personality: personality4.substring(0, 200),
-          background: background4.substring(0, 200),
-          image: '',
-        });
-      }
-
-      // キャラクター5を抽出
-      const character5Match = content.match(/【キャラクター5】\s*([\s\S]*?)$/);
-      if (character5Match) {
-        const char5Content = character5Match[1];
-        const name5 = char5Content.match(/名前:\s*([^\n]+)/)?.[1]?.trim() || 'AI生成キャラクター5';
-        const basic5 = char5Content.match(/基本設定:\s*([^\n]+)/)?.[1]?.trim() || '';
-        const appearance5 = char5Content.match(/外見:\s*([\s\S]*?)(?=性格:|$)/)?.[1]?.trim() || '';
-        const personality5 = char5Content.match(/性格:\s*([\s\S]*?)(?=背景:|$)/)?.[1]?.trim() || '';
-        const background5 = char5Content.match(/背景:\s*([\s\S]*?)$/)?.[1]?.trim() || '';
-
-        newCharacters.push({
-          id: (Date.now() + 4).toString(),
-          name: name5,
-          role: basic5 || '主要キャラクター',
-          appearance: appearance5.substring(0, 200),
-          personality: personality5.substring(0, 200),
-          background: background5.substring(0, 200),
-          image: '',
-        });
-      }
-
-      // 既存のキャラクターに追加
-      if (newCharacters.length > 0) {
-        updateProject({
-          characters: [...currentProject.characters, ...newCharacters],
-        });
-
-        // ログエントリに生成されたキャラクター情報を追加（useAILogでは直接更新できないため、新しいログとして追加）
-        addLog({
-          type: 'generate',
-          prompt,
-          response: response.content || '',
-          error: response.error,
-          parsedCharacters: newCharacters,
-        });
-
-        const characterNames = newCharacters.map(c => c.name).join('、');
-        showSuccess(`${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`);
-      } else {
-        showError('キャラクターの生成に失敗しました。AIログを確認して詳細を確認してください。');
-      }
-
-    } catch (error) {
-      console.error('AI生成エラー:', error);
-      showError('AI生成中にエラーが発生しました');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // AIログをコピー（CharacterStep特有の形式に対応）
-  const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
-    const typeLabel = log.type === 'enhance' ? 'キャラクター詳細化' : 'キャラクター生成';
-    const logText = `【AIログ - ${typeLabel}】
-時刻: ${log.timestamp.toLocaleString('ja-JP')}
-${log.characterName ? `キャラクター: ${log.characterName}\n` : ''}
-
-【プロンプト】
-${log.prompt}
-
-【AI応答】
-${log.response}
-
-${log.error ? `【エラー】
-${log.error}` : ''}`;
-
-    navigator.clipboard.writeText(logText);
-    showSuccess('ログをクリップボードにコピーしました');
-  }, [showSuccess]);
-
-  // AIログをダウンロード（CharacterStep特有の形式に対応）
-  const handleDownloadLogs = useCallback(() => {
-    const logsText = aiLogs.map(log => {
-      const typeLabel = log.type === 'enhance' ? 'キャラクター詳細化' : 'キャラクター生成';
-      return `【AIログ - ${typeLabel}】
-時刻: ${log.timestamp.toLocaleString('ja-JP')}
-${log.characterName ? `キャラクター: ${log.characterName}\n` : ''}
-
-【プロンプト】
-${log.prompt}
-
-【AI応答】
-${log.response}
-
-${log.error ? `【エラー】
-${log.error}` : ''}
-
-${'='.repeat(80)}`;
-    }).join('\n\n');
-
-    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `character_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showSuccess('ログをダウンロードしました');
-  }, [aiLogs, showSuccess]);
-
   if (!currentProject) {
     return <div>プロジェクトを選択してください</div>;
   }
 
   return (
     <div className="max-w-6xl mx-auto">
+      {/* AI生成中のローディングインジケーター */}
+      {enhancingId && (
+        <div className="mb-6">
+          <AILoadingIndicator
+            message={`${currentProject.characters.find(c => c.id === enhancingId)?.name || 'キャラクター'}の詳細を生成中`}
+            estimatedTime={30}
+            variant="inline"
+          />
+        </div>
+      )}
+
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -1174,322 +400,68 @@ ${'='.repeat(80)}`;
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Characters List */}
-        <div className="lg:col-span-2 space-y-4">
-          {currentProject.characters.map((character, index) => {
-            const isExpanded = expandedCards.has(character.id);
-            const hasDetails = !!(character.appearance || character.personality || character.background);
-
-            return (
-              <div
-                key={character.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, index)}
-                onDragEnd={handleDragEnd}
-                onDoubleClick={() => handleOpenEditModal(character)}
-                className={`bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border transition-all duration-200 ${draggedIndex === index
-                  ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                  : dragOverIndex === index
-                    ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                    : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl hover:scale-[1.02]'
-                  }`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-5 w-5" />
-                      </div>
-                      <div className="w-16 h-24 rounded-lg flex items-center justify-center overflow-hidden relative group">
-                        {character.image ? (
-                          <div
-                            className="relative cursor-pointer w-full h-full"
-                            onClick={() => handleOpenCharacterImageViewer(character)}
-                          >
-                            <img
-                              src={character.image}
-                              alt={character.name}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
-                              <ZoomIn className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="bg-gradient-to-br from-pink-500 to-purple-600 w-full h-full rounded-lg flex items-center justify-center">
-                            <User className="h-8 w-8 text-white" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        {character.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                        {character.role}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleAIEnhance(character)}
-                      disabled={enhancingId === character.id || !isConfigured}
-                      className="p-2 text-pink-600 dark:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 rounded-lg transition-colors disabled:opacity-50"
-                      title="AI支援で詳細を補完"
-                    >
-                      {enhancingId === character.id ? (
-                        <Loader className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleOpenEditModal(character)}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                      title="キャラクターを編集"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCharacter(character.id)}
-                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="キャラクターを削除"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 詳細情報の折りたたみ */}
-                {hasDetails && (
-                  <>
-                    {!isExpanded && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleCardExpansion(character.id);
-                        }}
-                        className="w-full mt-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-center space-x-1 font-['Noto_Sans_JP']"
-                      >
-                        <span>詳細を表示</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                    )}
-
-                    {isExpanded && (
-                      <>
-                        <div className="space-y-3 mt-4">
-                          {character.appearance && (
-                            <div>
-                              <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">外見</h4>
-                              <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.appearance}</p>
-                            </div>
-                          )}
-
-                          {character.personality && (
-                            <div>
-                              <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">性格</h4>
-                              <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.personality}</p>
-                            </div>
-                          )}
-
-                          {character.background && (
-                            <div>
-                              <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">背景</h4>
-                              <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.background}</p>
-                            </div>
-                          )}
-
-                          {character.speechStyle && (
-                            <div>
-                              <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">口調・話し方</h4>
-                              <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.speechStyle}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCardExpansion(character.id);
-                          }}
-                          className="w-full mt-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-center space-x-1 font-['Noto_Sans_JP']"
-                        >
-                          <span>詳細を折りたたむ</span>
-                          <ChevronUp className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Add Character Button */}
-          <button
-            onClick={handleOpenAddModal}
-            className="w-full p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group"
-          >
-            <div className="text-center">
-              <Plus className="h-8 w-8 text-gray-400 group-hover:text-indigo-500 mx-auto mb-2" />
-              <p className="text-gray-600 dark:text-gray-400 group-hover:text-indigo-500 font-['Noto_Sans_JP']">
-                新しいキャラクターを追加
-              </p>
+      <div className="grid grid-cols-1 gap-6">
+        <div className="space-y-4">
+          {currentProject.characters.length === 0 ? (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-12">
+              <EmptyState
+                icon={User}
+                iconColor="text-pink-400 dark:text-pink-500"
+                title="まだキャラクターがありません"
+                description="物語に登場するキャラクターを追加しましょう。主人公、敵役、サブキャラクターなど、物語を彩る多様なキャラクターを設定できます。AI支援機能を使って、キャラクターの詳細を自動生成することも可能です。"
+                actionLabel="最初のキャラクターを追加"
+                onAction={handleOpenAddModal}
+              />
             </div>
-          </button>
+          ) : (
+            <>
+              {currentProject.characters.map((character, index) => {
+                const isExpanded = expandedCards.has(character.id);
+                const hasDetails = !!(character.appearance || character.personality || character.background);
+
+                return (
+                  <CharacterCard
+                    key={character.id}
+                    character={character}
+                    index={index}
+                    isExpanded={isExpanded}
+                    hasDetails={hasDetails}
+                    draggedIndex={draggedIndex}
+                    dragOverIndex={dragOverIndex}
+                    enhancingId={enhancingId}
+                    isConfigured={isConfigured}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onDragEnd={handleDragEnd}
+                    onDoubleClick={() => handleOpenEditModal(character)}
+                    onToggleExpansion={() => toggleCardExpansion(character.id)}
+                    onAIEnhance={() => handleRequestAIEnhance(character)}
+                    onEdit={() => handleOpenEditModal(character)}
+                    onDelete={() => handleDeleteCharacter(character.id)}
+                    onImageClick={() => handleOpenCharacterImageViewer(character)}
+                    onPossession={() => setPossessionCharacterId(character.id)}
+                    onDiary={() => setDiaryCharacterId(character.id)}
+                  />
+                );
+              })}
+
+              {/* Add Character Button */}
+              <button
+                onClick={handleOpenAddModal}
+                className="w-full p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group"
+              >
+                <div className="text-center">
+                  <Plus className="h-8 w-8 text-gray-400 group-hover:text-indigo-500 mx-auto mb-2" />
+                  <p className="text-gray-600 dark:text-gray-400 group-hover:text-indigo-500 font-['Noto_Sans_JP']">
+                    新しいキャラクターを追加
+                  </p>
+                </div>
+              </button>
+            </>
+          )}
         </div>
-
-        {/* AI Assistant Panel */}
-        <DraggableSidebar
-          items={[
-            {
-              id: 'aiAssistant',
-              title: 'AI支援アシスタント',
-              icon: Sparkles,
-              iconBgClass: 'bg-gradient-to-br from-pink-500 to-pink-600',
-              defaultExpanded: false,
-              className: 'bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 border-pink-200 dark:border-pink-800',
-              content: (
-                <div className="space-y-4">
-                  <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                    キャラクターの詳細設定でお困りですか？
-                    AIがお手伝いします
-                  </p>
-
-                  <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    <li>• 性格の詳細な設定</li>
-                    <li>• 背景設定の補完</li>
-                    <li>• 行動パターンの提案</li>
-                  </ul>
-
-                  <div className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-pink-200 dark:border-pink-700">
-                    <h4 className="font-semibold text-pink-700 dark:text-pink-300 mb-3 font-['Noto_Sans_JP']">
-                      AIキャラクター提案について
-                    </h4>
-                    <p className="text-sm text-pink-600 dark:text-pink-400 font-['Noto_Sans_JP'] mb-3">
-                      プロジェクトの設定（ジャンル、テーマ、ターゲット読者など）に基づいて、物語に適した3〜5人のキャラクターを自動生成します。
-                    </p>
-                    <ul className="space-y-1 text-xs text-pink-500 dark:text-pink-400 font-['Noto_Sans_JP'] mb-4">
-                      <li>• 各キャラクターの名前、役割、外見、性格、背景を設定</li>
-                      <li>• プロジェクトの世界観に合ったキャラクター関係性を考慮</li>
-                      <li>• 物語の展開に必要な多様なキャラクタータイプを提案</li>
-                    </ul>
-
-                    {settings.provider === 'local' && (
-                      <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                        <h5 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 font-['Noto_Sans_JP']">
-                          ⚠️ ローカルLLM使用時の注意
-                        </h5>
-                        <ul className="space-y-1 text-xs text-yellow-700 dark:text-yellow-300 font-['Noto_Sans_JP']">
-                          <li>• ローカルLLMは解析に失敗する場合があります</li>
-                          <li>• 失敗時はAIログで詳細な応答内容を確認できます</li>
-                          <li>• プロンプトを調整して再試行してください</li>
-                          <li>• より安定した結果には非ローカルLLMの使用を推奨します</li>
-                        </ul>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={handleAIGenerateCharacters}
-                      disabled={!isConfigured || isGenerating}
-                      className="w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    >
-                      {isGenerating ? (
-                        <div className="flex items-center justify-center space-x-2">
-                          <Loader className="h-4 w-4 animate-spin" />
-                          <span>生成中...</span>
-                        </div>
-                      ) : !isConfigured ? (
-                        'AI設定が必要'
-                      ) : (
-                        'AIキャラクター提案'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              id: 'progress',
-              title: '進捗状況',
-              icon: CheckCircle,
-              iconBgClass: 'bg-gradient-to-br from-mizu-500 to-mizu-600',
-              defaultExpanded: false,
-              className: 'bg-mizu-50 dark:bg-mizu-900/20 border-mizu-200 dark:border-mizu-700 shadow-md',
-              content: (
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-mizu-700 dark:text-mizu-300 font-['Noto_Sans_JP']">作成済みキャラクター</span>
-                    <span className="font-semibold text-mizu-900 dark:text-mizu-50">
-                      {currentProject.characters.length} 人
-                    </span>
-                  </div>
-                  <div className="w-full bg-mizu-200 dark:bg-mizu-700 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-mizu-500 to-mizu-600 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min((currentProject.characters.length / 5) * 100, 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-mizu-600 dark:text-mizu-400 font-['Noto_Sans_JP']">
-                    推奨: 3-5人程度
-                  </p>
-                </div>
-              ),
-            },
-            {
-              id: 'aiLogs',
-              title: 'AIログ',
-              icon: FileText,
-              iconBgClass: 'bg-gradient-to-br from-ai-500 to-ai-600',
-              className: 'bg-ai-50 dark:bg-ai-900/20 border-ai-200 dark:border-ai-700 shadow-md',
-              content: (
-                <AILogPanel
-                  logs={aiLogs}
-                  onCopyLog={handleCopyLog}
-                  onDownloadLogs={handleDownloadLogs}
-                  typeLabels={{
-                    'enhance': '詳細化',
-                    'generate': '生成',
-                  }}
-                  renderLogContent={(log) => (
-                    <div className="text-sm text-ai-700 dark:text-ai-300 font-['Noto_Sans_JP']">
-                      <div className="mb-2">
-                        <strong>プロンプト:</strong>
-                        <div className="mt-1 p-2 bg-unohana-50 dark:bg-sumi-800 rounded border border-ai-200 dark:border-ai-700 text-xs max-h-20 overflow-y-auto">
-                          {log.prompt.substring(0, 200)}...
-                        </div>
-                      </div>
-                      <div>
-                        <strong>応答:</strong>
-                        <div className="mt-1 p-2 bg-unohana-50 dark:bg-sumi-800 rounded border border-ai-200 dark:border-ai-700 text-xs max-h-20 overflow-y-auto">
-                          {log.response.substring(0, 300)}...
-                        </div>
-                      </div>
-                      {log.parsedCharacters && Array.isArray(log.parsedCharacters) && log.parsedCharacters.length > 0 && (
-                        <div className="mt-2">
-                          <strong>生成されたキャラクター:</strong>
-                          <div className="mt-1 text-xs text-ai-600 dark:text-ai-400">
-                            {log.parsedCharacters.map((c: Character) => c.name).join(', ')}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                />
-              ),
-            },
-          ]}
-          defaultOrder={['aiAssistant', 'progress', 'aiLogs']}
-          storageKey="characterStep_sidebarOrder"
-          onOrderChange={() => showSuccess('サイドバー項目の並び順を変更しました')}
-        />
       </div>
 
       {/* Character Modal */}
@@ -1513,6 +485,55 @@ ${'='.repeat(80)}`;
       <RelationshipDiagram
         isOpen={showRelationships}
         onClose={() => setShowRelationships(false)}
+      />
+
+      {/* キャラクター憑依モード */}
+      {possessionCharacterId && (
+        <CharacterPossessionChat
+          isOpen={!!possessionCharacterId}
+          onClose={() => setPossessionCharacterId(null)}
+          characterId={possessionCharacterId}
+        />
+      )}
+
+      {/* キャラクター本音日記 */}
+      {diaryCharacterId && (
+        <CharacterDiary
+          isOpen={!!diaryCharacterId}
+          onClose={() => setDiaryCharacterId(null)}
+          characterId={diaryCharacterId}
+        />
+      )}
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={confirmDialogState.isOpen}
+        onClose={() => setConfirmDialogState({
+          isOpen: false,
+          type: null,
+          characterId: null,
+          characterName: '',
+        })}
+        onConfirm={() => {
+          if (confirmDialogState.type === 'delete') {
+            handleConfirmDelete();
+          } else if (confirmDialogState.type === 'ai-enhance') {
+            handleAIEnhance();
+          }
+        }}
+        title={
+          confirmDialogState.type === 'delete'
+            ? 'キャラクターを削除しますか？'
+            : 'AI支援で詳細を補完しますか？'
+        }
+        message={
+          confirmDialogState.type === 'delete'
+            ? `「${confirmDialogState.characterName}」を削除します。\nこの操作は取り消せません。`
+            : `「${confirmDialogState.characterName}」の詳細情報をAIで補完します。\n既存の情報が更新される可能性があります。`
+        }
+        type={confirmDialogState.type === 'delete' ? 'danger' : 'warning'}
+        confirmLabel={confirmDialogState.type === 'delete' ? '削除' : '実行'}
+        cancelLabel="キャンセル"
       />
     </div>
   );

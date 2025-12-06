@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { CheckmarkAnimation } from './common/MicroInteractions';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -145,8 +146,22 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
     }
   }, [toast.duration, toast.persistent]);
 
+  const [showCheckmark, setShowCheckmark] = useState(false);
+
+  useEffect(() => {
+    if (toast.type === 'success') {
+      setShowCheckmark(true);
+      const timer = setTimeout(() => setShowCheckmark(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.type]);
+
   const iconMap = {
-    success: <CheckCircle className="h-5 w-5 text-green-500" />,
+    success: showCheckmark ? (
+      <CheckmarkAnimation show={true} size={20} />
+    ) : (
+      <CheckCircle className="h-5 w-5 text-green-500" />
+    ),
     error: <AlertCircle className="h-5 w-5 text-red-500" />,
     info: <Info className="h-5 w-5 text-blue-500" />,
     warning: <AlertTriangle className="h-5 w-5 text-yellow-500" />,

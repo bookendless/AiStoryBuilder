@@ -148,6 +148,11 @@ const parseJsonResponse = (content: string): ParsedResponse => {
     .replace(/```json\s*|\s*```/g, '') // コードブロックマーカーを除去
     .replace(/^[\s\n\r]*/, '') // 先頭の空白・改行を除去
     .replace(/[\s\n\r]*$/, ''); // 末尾の空白・改行を除去
+  
+  // {{ と }} で囲まれたJSONを正しく処理するため、外側の波括弧を1つ削除
+  if (jsonString.startsWith('{{') && jsonString.endsWith('}}')) {
+    jsonString = jsonString.slice(1, -1);
+  }
 
   // 空の場合は失敗
   if (!jsonString) {

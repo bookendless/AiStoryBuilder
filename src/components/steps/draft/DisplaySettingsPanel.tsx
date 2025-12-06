@@ -16,6 +16,7 @@ interface DisplaySettingsPanelProps {
   setMainLineHeight: React.Dispatch<React.SetStateAction<number>>;
   mainTextareaHeight: number;
   adjustMainTextareaHeight: (delta: number) => void;
+  setMainTextareaHeight: React.Dispatch<React.SetStateAction<number>>;
   handleResetDisplaySettings: () => void;
   mainControlButtonBase: string;
   mainControlButtonActive: string;
@@ -32,6 +33,7 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
   setMainLineHeight,
   mainTextareaHeight,
   adjustMainTextareaHeight,
+  setMainTextareaHeight,
   handleResetDisplaySettings,
   mainControlButtonBase,
   mainControlButtonActive,
@@ -40,6 +42,49 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
   isZenMode,
   setIsZenMode,
 }) => {
+  // スライダーのクリックとドラッグ処理
+  const sliderRef = React.useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const calculateValueFromPosition = React.useCallback((clientX: number) => {
+    if (!sliderRef.current) return;
+    const rect = sliderRef.current.getBoundingClientRect();
+    const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const newValue = MODAL_TEXTAREA_MIN_HEIGHT + 
+      percentage * (MODAL_TEXTAREA_MAX_HEIGHT - MODAL_TEXTAREA_MIN_HEIGHT);
+    const clampedValue = Math.max(
+      MODAL_TEXTAREA_MIN_HEIGHT,
+      Math.min(MODAL_TEXTAREA_MAX_HEIGHT, newValue)
+    );
+    setMainTextareaHeight(clampedValue);
+  }, [setMainTextareaHeight]);
+
+  const handleSliderMouseDown = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    calculateValueFromPosition(e.clientX);
+  }, [calculateValueFromPosition]);
+
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      calculateValueFromPosition(e.clientX);
+    }
+  }, [isDragging, calculateValueFromPosition]);
+
+  const handleMouseUp = React.useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4 space-y-4">
@@ -60,46 +105,50 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
         </div>
 
         <div className="space-y-3">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
-              フォントサイズ
-            </span>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {MODAL_FONT_SIZE_OPTIONS.map((size) => (
-                <button
-                  key={`display-font-${size}`}
-                  type="button"
-                  onClick={() => setMainFontSize(size)}
-                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainFontSize === size ? mainControlButtonActive : ''
-                    }`}
-                  aria-pressed={mainFontSize === size}
-                >
-                  {size}px
-                </button>
-              ))}
+          {/* フォントサイズと行間を横並び */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
+                フォントサイズ
+              </span>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {MODAL_FONT_SIZE_OPTIONS.map((size) => (
+                  <button
+                    key={`display-font-${size}`}
+                    type="button"
+                    onClick={() => setMainFontSize(size)}
+                    className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainFontSize === size ? mainControlButtonActive : ''
+                      }`}
+                    aria-pressed={mainFontSize === size}
+                  >
+                    {size}px
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
+                行間
+              </span>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {MODAL_LINE_HEIGHT_OPTIONS.map((value) => (
+                  <button
+                    key={`display-line-height-${value}`}
+                    type="button"
+                    onClick={() => setMainLineHeight(value)}
+                    className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainLineHeight === value ? mainControlButtonActive : ''
+                      }`}
+                    aria-pressed={mainLineHeight === value}
+                  >
+                    {value === MODAL_DEFAULT_LINE_HEIGHT ? '標準' : value.toFixed(1)}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
-              行間
-            </span>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {MODAL_LINE_HEIGHT_OPTIONS.map((value) => (
-                <button
-                  key={`display-line-height-${value}`}
-                  type="button"
-                  onClick={() => setMainLineHeight(value)}
-                  className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainLineHeight === value ? mainControlButtonActive : ''
-                    }`}
-                  aria-pressed={mainLineHeight === value}
-                >
-                  {value === MODAL_DEFAULT_LINE_HEIGHT ? '標準' : value.toFixed(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
+          {/* テキストエリアの高さ */}
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
@@ -120,11 +169,37 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
                 <Minus className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only">テキストエリアの高さを縮小</span>
               </button>
-              <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full relative">
+              <div
+                ref={sliderRef}
+                className="flex-1 h-6 bg-gray-200 dark:bg-gray-700 rounded-full relative cursor-pointer group"
+                onMouseDown={handleSliderMouseDown}
+                role="slider"
+                aria-valuemin={MODAL_TEXTAREA_MIN_HEIGHT}
+                aria-valuemax={MODAL_TEXTAREA_MAX_HEIGHT}
+                aria-valuenow={mainTextareaHeight}
+                aria-label="テキストエリアの高さ"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    adjustMainTextareaHeight(-MODAL_TEXTAREA_HEIGHT_STEP);
+                  } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    adjustMainTextareaHeight(MODAL_TEXTAREA_HEIGHT_STEP);
+                  }
+                }}
+              >
                 <div
                   className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-400 to-green-500 rounded-full transition-all"
                   style={{
                     width: `${((mainTextareaHeight - MODAL_TEXTAREA_MIN_HEIGHT) / (MODAL_TEXTAREA_MAX_HEIGHT - MODAL_TEXTAREA_MIN_HEIGHT)) * 100}%`,
+                  }}
+                />
+                {/* ドラッグ可能なハンドル */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white dark:bg-gray-300 border-2 border-emerald-500 dark:border-emerald-400 rounded-full shadow-md transition-all hover:scale-110 hover:shadow-lg"
+                  style={{
+                    left: `calc(${((mainTextareaHeight - MODAL_TEXTAREA_MIN_HEIGHT) / (MODAL_TEXTAREA_MAX_HEIGHT - MODAL_TEXTAREA_MIN_HEIGHT)) * 100}% - 8px)`,
                   }}
                 />
               </div>
@@ -140,30 +215,31 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
               </button>
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700 mt-2 pt-3">
-          <button
-            type="button"
-            onClick={() => setIsVerticalWriting((prev) => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] flex items-center gap-1.5 ${isVerticalWriting ? mainControlButtonActive : ''
-              }`}
-            aria-pressed={isVerticalWriting}
-          >
-            {isVerticalWriting ? <AlignJustify className="h-3.5 w-3.5" /> : <AlignLeft className="h-3.5 w-3.5" />}
-            {isVerticalWriting ? '縦書き' : '横書き'}
-          </button>
+          {/* 縦書きと禅モードを横並び */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => setIsVerticalWriting((prev) => !prev)}
+              className={`${mainControlButtonBase} px-3 py-2 text-xs font-['Noto_Sans_JP'] flex items-center justify-center gap-1.5 ${isVerticalWriting ? mainControlButtonActive : ''
+                }`}
+              aria-pressed={isVerticalWriting}
+            >
+              {isVerticalWriting ? <AlignJustify className="h-3.5 w-3.5" /> : <AlignLeft className="h-3.5 w-3.5" />}
+              {isVerticalWriting ? '縦書き' : '横書き'}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setIsZenMode((prev) => !prev)}
-            className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] flex items-center gap-1.5 ${isZenMode ? mainControlButtonActive : ''
-              }`}
-            aria-pressed={isZenMode}
-          >
-            {isZenMode ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
-            {isZenMode ? '禅モード解除' : '禅モード'}
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsZenMode((prev) => !prev)}
+              className={`${mainControlButtonBase} px-3 py-2 text-xs font-['Noto_Sans_JP'] flex items-center justify-center gap-1.5 ${isZenMode ? mainControlButtonActive : ''
+                }`}
+              aria-pressed={isZenMode}
+            >
+              {isZenMode ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+              {isZenMode ? '禅モード解除' : '禅モード'}
+            </button>
+          </div>
         </div>
       </div>
 

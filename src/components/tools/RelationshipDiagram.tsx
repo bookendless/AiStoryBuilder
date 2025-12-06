@@ -5,6 +5,8 @@ import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
+import { useToast } from '../Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface RelationshipDiagramProps {
   isOpen: boolean;
@@ -45,6 +47,7 @@ const relationshipTypes: Record<CharacterRelationship['type'], { label: string; 
 
 export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
+  const { showError, showWarning, showSuccess, showInfo } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -184,12 +187,16 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
 
   const handleAddRelationship = () => {
     if (!formData.from || !formData.to) {
-      alert('両方のキャラクターを選択してください');
+      showWarning('両方のキャラクターを選択してください', 5000, {
+        title: '選択エラー',
+      });
       return;
     }
 
     if (formData.from === formData.to) {
-      alert('自分自身との関係は設定できません');
+      showWarning('自分自身との関係は設定できません', 5000, {
+        title: '設定エラー',
+      });
       return;
     }
 
@@ -199,7 +206,9 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
     );
 
     if (exists && !editingRelationship) {
-      alert('この方向の関係は既に登録されています');
+      showWarning('この方向の関係は既に登録されています', 5000, {
+        title: '重複エラー',
+      });
       return;
     }
 
@@ -301,12 +310,16 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   // 関係性自動推論
   const handleInferRelationships = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      showError('AI設定が必要です。設定画面でAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
     if (characters.length < 2) {
-      alert('キャラクターが2人以上必要です。');
+      showWarning('キャラクターが2人以上必要です。', 5000, {
+        title: 'キャラクター不足',
+      });
       return;
     }
 
@@ -364,7 +377,9 @@ JSON配列形式で出力してください：
       });
 
       if (response.error) {
-        alert(`エラーが発生しました: ${response.error}`);
+        showError(`エラーが発生しました: ${response.error}`, 7000, {
+          title: 'AI生成エラー',
+        });
         setIsAIGenerating(false);
         return;
       }
@@ -425,12 +440,16 @@ JSON配列形式で出力してください：
           setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
-          alert('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。');
+          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+            title: '解析エラー',
+          });
         }
       }
     } catch (error) {
       console.error('関係性推論エラー:', error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      showError(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`, 7000, {
+        title: 'エラー',
+      });
     } finally {
       setIsAIGenerating(false);
     }
@@ -439,12 +458,16 @@ JSON配列形式で出力してください：
   // 関係性提案
   const handleSuggestRelationships = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      showError('AI設定が必要です。設定画面でAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
     if (characters.length < 2) {
-      alert('キャラクターが2人以上必要です。');
+      showWarning('キャラクターが2人以上必要です。', 5000, {
+        title: 'キャラクター不足',
+      });
       return;
     }
 
@@ -503,7 +526,9 @@ JSON配列形式で出力してください：
       });
 
       if (response.error) {
-        alert(`エラーが発生しました: ${response.error}`);
+        showError(`エラーが発生しました: ${response.error}`, 7000, {
+          title: 'AI生成エラー',
+        });
         setIsAIGenerating(false);
         return;
       }
@@ -564,12 +589,16 @@ JSON配列形式で出力してください：
           setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
-          alert('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。');
+          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+            title: '解析エラー',
+          });
         }
       }
     } catch (error) {
       console.error('関係性提案エラー:', error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      showError(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`, 7000, {
+        title: 'エラー',
+      });
     } finally {
       setIsAIGenerating(false);
     }
@@ -578,12 +607,16 @@ JSON配列形式で出力してください：
   // 整合性チェック
   const handleCheckConsistency = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      showError('AI設定が必要です。設定画面でAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
     if (relationships.length === 0) {
-      alert('関係性が登録されていません。');
+      showWarning('関係性が登録されていません。', 5000, {
+        title: 'データ不足',
+      });
       return;
     }
 
@@ -630,7 +663,9 @@ ${relationshipsText}
       });
 
       if (response.error) {
-        alert(`エラーが発生しました: ${response.error}`);
+        showError(`エラーが発生しました: ${response.error}`, 7000, {
+          title: 'AI生成エラー',
+        });
         setIsAIGenerating(false);
         return;
       }
@@ -685,7 +720,9 @@ ${relationshipsText}
       }
     } catch (error) {
       console.error('整合性チェックエラー:', error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      showError(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`, 7000, {
+        title: 'エラー',
+      });
     } finally {
       setIsAIGenerating(false);
     }
@@ -694,12 +731,16 @@ ${relationshipsText}
   // 関係性説明自動生成
   const handleGenerateDescription = async () => {
     if (!isConfigured) {
-      alert('AI設定が必要です。設定画面でAPIキーを設定してください。');
+      showError('AI設定が必要です。設定画面でAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
       return;
     }
 
     if (!formData.from || !formData.to) {
-      alert('両方のキャラクターを選択してください。');
+      showWarning('両方のキャラクターを選択してください。', 5000, {
+        title: '選択エラー',
+      });
       return;
     }
 
@@ -742,7 +783,9 @@ JSON形式で出力してください：
       });
 
       if (response.error) {
-        alert(`エラーが発生しました: ${response.error}`);
+        showError(`エラーが発生しました: ${response.error}`, 7000, {
+          title: 'AI生成エラー',
+        });
         setIsAIGenerating(false);
         return;
       }
@@ -788,7 +831,9 @@ JSON形式で出力してください：
       }
     } catch (error) {
       console.error('説明生成エラー:', error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      showError(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`, 7000, {
+        title: 'エラー',
+      });
     } finally {
       setIsAIGenerating(false);
     }
@@ -809,7 +854,9 @@ JSON形式で出力してください：
       }));
 
     if (relationshipsToAdd.length === 0) {
-      alert('追加する関係性を選択してください。');
+      showWarning('追加する関係性を選択してください。', 5000, {
+        title: '選択エラー',
+      });
       return;
     }
 
@@ -832,7 +879,9 @@ JSON形式で出力してください：
     });
 
     if (validRelationships.length === 0) {
-      alert('追加できる関係性がありません。既に登録されている可能性があります。');
+      showInfo('追加できる関係性がありません。既に登録されている可能性があります。', 5000, {
+        title: '追加不可',
+      });
       return;
     }
 
@@ -843,7 +892,7 @@ JSON形式で出力してください：
     setShowAIAssistant(false);
     setAiResults([]);
     setSelectedResults(new Set());
-    alert(`${validRelationships.length}件の関係性を追加しました。`);
+    showSuccess(`${validRelationships.length}件の関係性を追加しました。`);
   };
 
   // 結果の選択を切り替え
@@ -917,11 +966,15 @@ JSON形式で出力してください：
           <div className="flex-1 overflow-y-auto p-6">
             {viewMode === 'list' ? (
               relationships.length === 0 ? (
-                <div className="text-center py-12">
-                  <Network className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    まだ関係が登録されていません
-                  </p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <EmptyState
+                    icon={Network}
+                    iconColor="text-indigo-400 dark:text-indigo-500"
+                    title="まだ関係が登録されていません"
+                    description="キャラクター間の関係性を登録しましょう。友人、敵対、家族、恋愛、師弟、ライバルなど、物語を彩る多様な関係性を管理できます。AIアシスタント機能を使って、キャラクター設定から自動的に関係性を推論することも可能です。"
+                    actionLabel="最初の関係を追加"
+                    onAction={() => setShowAddForm(true)}
+                  />
                 </div>
               ) : (
                 <div className="grid gap-4">
@@ -1005,11 +1058,15 @@ JSON形式で出力してください：
             ) : (
               // フローチャート表示（SVG）
               !flowChartLayout || flowChartLayout.nodes.length === 0 ? (
-                <div className="text-center py-12">
-                  <GitBranch className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    まだ関係が登録されていません
-                  </p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <EmptyState
+                    icon={GitBranch}
+                    iconColor="text-indigo-400 dark:text-indigo-500"
+                    title="まだ関係が登録されていません"
+                    description="キャラクター間の関係性を登録すると、フローチャート形式で視覚的に表示されます。関係性を追加して、物語の人間関係を可視化しましょう。"
+                    actionLabel="最初の関係を追加"
+                    onAction={() => setShowAddForm(true)}
+                  />
                 </div>
               ) : (
                 <div className="relative w-full h-full overflow-auto">

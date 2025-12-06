@@ -1,9 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Download, FileText, File, Globe, Check, Copy, Search, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
+import { useToast } from '../Toast';
+import { escapeHtml, sanitizeFileName } from '../../utils/securityUtils';
 
 export const ExportStep: React.FC = () => {
   const { currentProject } = useProject();
+  const { showSuccess, showError } = useToast();
   const [selectedFormat, setSelectedFormat] = useState('txt');
   const [isExporting, setIsExporting] = useState(false);
   
@@ -33,11 +36,16 @@ export const ExportStep: React.FC = () => {
   const [lastExportPath, setLastExportPath] = useState<string | null>(null);
   
   // プレビュー機能の強化
-  const [previewHeight, setPreviewHeight] = useState(384); // max-h-96 = 384px
+  const PREVIEW_HEIGHT_DEFAULT = 384;
+  const PREVIEW_HEIGHT_MIN = 200;
+  const PREVIEW_HEIGHT_MAX = 800;
+  const PREVIEW_HEIGHT_STEP = 100;
+  const [previewHeight, setPreviewHeight] = useState(PREVIEW_HEIGHT_DEFAULT);
   const [previewSearch, setPreviewSearch] = useState('');
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const previewContentRef = useRef<HTMLPreElement | HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
   
   // セクション名と検索文字列のマッピング
   const sectionSearchMap: Record<string, string> = {
@@ -57,9 +65,19 @@ export const ExportStep: React.FC = () => {
     memo: 'クイックメモ',
   };
   
+  // 正規表現エスケープ関数
+  const escapeRegex = (str: string): string => {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  };
+
   // セクションまでスクロールする関数
   const scrollToSection = (sectionId: string) => {
     setSelectedSection(sectionId);
+    
+    // 既存のタイマーをクリア
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
     
     if (!previewRef.current || !previewContentRef.current) return;
     
@@ -67,50 +85,36 @@ export const ExportStep: React.FC = () => {
     if (!searchText) return;
     
     // 少し遅延を入れて、コンテンツがレンダリングされた後にスクロール
-    setTimeout(() => {
-      if (!previewContentRef.current) return;
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (!previewContentRef.current || !previewRef.current) return;
       
       const content = previewContentRef.current.textContent || '';
-      const index = content.indexOf(searchText);
+      const escapedSearchText = escapeRegex(searchText);
+      const regex = new RegExp(escapedSearchText, 'i');
+      const match = content.match(regex);
       
-      if (index !== -1) {
-        // テキストノード内の位置を計算
-        const textNode = previewContentRef.current.firstChild;
-        if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-          // 範囲を作成してスクロール
-          const range = document.createRange();
-          range.setStart(textNode, index);
-          range.setEnd(textNode, index);
-          
-          // 範囲を可視化するためにマーカー要素を作成
-          const marker = document.createElement('span');
-          marker.id = `section-marker-${sectionId}`;
-          marker.style.position = 'absolute';
-          marker.style.top = '0';
-          marker.style.left = '0';
-          marker.style.width = '1px';
-          marker.style.height = '1px';
-          marker.style.visibility = 'hidden';
-          
-          // より簡単な方法：テキストを検索して、その位置を計算
-          const container = previewRef.current;
-          if (container) {
-            const scrollPosition = (index / content.length) * container.scrollHeight;
-            container.scrollTo({
-              top: Math.max(0, scrollPosition - 20), // 少し上に余白を持たせる
-              behavior: 'smooth'
-            });
-          }
-        } else {
-          // HTMLコンテンツの場合、IDで検索
-          const element = previewContentRef.current.querySelector(`#section-${sectionId}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
+      if (match && match.index !== undefined) {
+        const container = previewRef.current;
+        if (container) {
+          const scrollPosition = (match.index / content.length) * container.scrollHeight;
+          container.scrollTo({
+            top: Math.max(0, scrollPosition - 20), // 少し上に余白を持たせる
+            behavior: 'smooth'
+          });
         }
       }
+      scrollTimeoutRef.current = null;
     }, 100);
   };
+
+  // コンポーネントのアンマウント時にタイマーをクリア
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const exportFormats = [
     { id: 'txt', name: 'テキスト (.txt)', icon: FileText, description: 'シンプルなテキスト形式' },
@@ -151,7 +155,8 @@ export const ExportStep: React.FC = () => {
         content = generateHtmlContent();
       }
       
-      const fileName = generateFileName();
+      const rawFileName = generateFileName();
+      const fileName = sanitizeFileName(rawFileName);
       
       // Tauri環境かどうかを確認（Tauri 2対応）
       const isTauri = typeof window !== 'undefined' && 
@@ -178,7 +183,7 @@ export const ExportStep: React.FC = () => {
           console.warn('クリップボードへのコピーに失敗しました', e);
         }
         
-        alert('エクスポートが完了しました');
+        showSuccess('エクスポートが完了しました');
         setIsExporting(false);
         return;
       }
@@ -193,10 +198,14 @@ export const ExportStep: React.FC = () => {
         
         if (lastExportPath) {
           // 最後に保存したパスからディレクトリを取得
-          const dirPath = lastExportPath.substring(0, Math.max(lastExportPath.lastIndexOf('/'), lastExportPath.lastIndexOf('\\')));
+          const lastSlash = Math.max(
+            lastExportPath.lastIndexOf('/'),
+            lastExportPath.lastIndexOf('\\')
+          );
+          const dirPath = lastSlash > 0 ? lastExportPath.substring(0, lastSlash) : '';
           filePath = await save({
             title: 'ファイルを保存',
-            defaultPath: `${dirPath}/${fileName}.${selectedFormat}`,
+            defaultPath: dirPath ? `${dirPath}/${fileName}.${selectedFormat}` : `${fileName}.${selectedFormat}`,
             filters: [
               {
                 name: 'Text Files',
@@ -229,7 +238,7 @@ export const ExportStep: React.FC = () => {
             console.warn('クリップボードへのコピーに失敗しました', e);
           }
           
-          alert('エクスポートが完了しました');
+          showSuccess('エクスポートが完了しました');
         }
       } catch (pluginError) {
         console.error('Tauri plugin error:', pluginError);
@@ -245,12 +254,14 @@ export const ExportStep: React.FC = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        alert('エクスポートが完了しました（ブラウザダウンロード）');
+        showSuccess('エクスポートが完了しました（ブラウザダウンロード）');
       }
       
     } catch (error) {
       console.error('Export error:', error);
-      alert('エクスポートに失敗しました: ' + (error as Error).message);
+      showError('エクスポートに失敗しました: ' + (error as Error).message, 7000, {
+        title: 'エクスポートエラー',
+      });
     } finally {
       setIsExporting(false);
     }
@@ -271,10 +282,12 @@ export const ExportStep: React.FC = () => {
     
     try {
       await navigator.clipboard.writeText(content);
-      alert('クリップボードにコピーしました');
+      showSuccess('クリップボードにコピーしました');
     } catch (error) {
       console.error('Copy error:', error);
-      alert('クリップボードへのコピーに失敗しました');
+      showError('クリップボードへのコピーに失敗しました', 5000, {
+        title: 'コピーエラー',
+      });
     }
   };
 
@@ -743,7 +756,7 @@ export const ExportStep: React.FC = () => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${currentProject.title}</title>
+    <title>${escapeHtml(currentProject.title)}</title>
     <style>
         body {
             font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
@@ -813,13 +826,13 @@ export const ExportStep: React.FC = () => {
     </style>
 </head>
 <body>
-    <h1>${currentProject.title}</h1>`;
+    <h1>${escapeHtml(currentProject.title)}</h1>`;
     
     if (exportOptions.basicInfo) {
       if (currentProject.description) {
         content += `
     <div class="summary">
-        <strong>概要:</strong> ${currentProject.description}
+        <strong>概要:</strong> ${escapeHtml(currentProject.description)}
     </div>`;
       }
       
@@ -829,13 +842,13 @@ export const ExportStep: React.FC = () => {
     <h2>基本情報</h2>
     <div class="metadata">`;
         if (currentProject.mainGenre) content += `
-        <p><strong>メインジャンル:</strong> ${currentProject.mainGenre}</p>`;
+        <p><strong>メインジャンル:</strong> ${escapeHtml(currentProject.mainGenre)}</p>`;
         if (currentProject.subGenre) content += `
-        <p><strong>サブジャンル:</strong> ${currentProject.subGenre}</p>`;
+        <p><strong>サブジャンル:</strong> ${escapeHtml(currentProject.subGenre)}</p>`;
         if (currentProject.targetReader) content += `
-        <p><strong>読者層:</strong> ${currentProject.targetReader}</p>`;
+        <p><strong>読者層:</strong> ${escapeHtml(currentProject.targetReader)}</p>`;
         if (currentProject.projectTheme) content += `
-        <p><strong>プロジェクトテーマ:</strong> ${currentProject.projectTheme}</p>`;
+        <p><strong>プロジェクトテーマ:</strong> ${escapeHtml(currentProject.projectTheme)}</p>`;
         content += `
     </div>`;
       }
@@ -847,13 +860,13 @@ export const ExportStep: React.FC = () => {
       currentProject.characters.forEach(char => {
         content += `
     <div class="character-card">
-        <h3>${char.name} (${char.role})</h3>`;
+        <h3>${escapeHtml(char.name)} (${escapeHtml(char.role)})</h3>`;
         if (char.appearance) content += `
-        <p><strong>外見:</strong> ${char.appearance}</p>`;
+        <p><strong>外見:</strong> ${escapeHtml(char.appearance)}</p>`;
         if (char.personality) content += `
-        <p><strong>性格:</strong> ${char.personality}</p>`;
+        <p><strong>性格:</strong> ${escapeHtml(char.personality)}</p>`;
         if (char.background) content += `
-        <p><strong>背景:</strong> ${char.background}</p>`;
+        <p><strong>背景:</strong> ${escapeHtml(char.background)}</p>`;
         content += `
     </div>`;
       });
@@ -864,72 +877,72 @@ export const ExportStep: React.FC = () => {
     <h2>プロット</h2>`;
       if (currentProject.plot.theme) content += `
     <div class="plot-item">
-        <strong>テーマ:</strong> ${currentProject.plot.theme}
+        <strong>テーマ:</strong> ${escapeHtml(currentProject.plot.theme)}
     </div>`;
       if (currentProject.plot.setting) content += `
     <div class="plot-item">
-        <strong>舞台:</strong> ${currentProject.plot.setting}
+        <strong>舞台:</strong> ${escapeHtml(currentProject.plot.setting)}
     </div>`;
       if (currentProject.plot.hook) content += `
     <div class="plot-item">
-        <strong>フック:</strong> ${currentProject.plot.hook}
+        <strong>フック:</strong> ${escapeHtml(currentProject.plot.hook)}
     </div>`;
       if (currentProject.plot.protagonistGoal) content += `
     <div class="plot-item">
-        <strong>主人公の目標:</strong> ${currentProject.plot.protagonistGoal}
+        <strong>主人公の目標:</strong> ${escapeHtml(currentProject.plot.protagonistGoal)}
     </div>`;
       if (currentProject.plot.mainObstacle) content += `
     <div class="plot-item">
-        <strong>主要な障害:</strong> ${currentProject.plot.mainObstacle}
+        <strong>主要な障害:</strong> ${escapeHtml(currentProject.plot.mainObstacle)}
     </div>`;
       
       // 構成詳細の追加
       if (currentProject.plot.structure === 'kishotenketsu') {
         if (currentProject.plot.ki) content += `
     <div class="plot-item">
-        <strong>起（導入）:</strong> ${currentProject.plot.ki}
+        <strong>起（導入）:</strong> ${escapeHtml(currentProject.plot.ki)}
     </div>`;
         if (currentProject.plot.sho) content += `
     <div class="plot-item">
-        <strong>承（展開）:</strong> ${currentProject.plot.sho}
+        <strong>承（展開）:</strong> ${escapeHtml(currentProject.plot.sho)}
     </div>`;
         if (currentProject.plot.ten) content += `
     <div class="plot-item">
-        <strong>転（転換）:</strong> ${currentProject.plot.ten}
+        <strong>転（転換）:</strong> ${escapeHtml(currentProject.plot.ten)}
     </div>`;
         if (currentProject.plot.ketsu) content += `
     <div class="plot-item">
-        <strong>結（結末）:</strong> ${currentProject.plot.ketsu}
+        <strong>結（結末）:</strong> ${escapeHtml(currentProject.plot.ketsu)}
     </div>`;
       } else if (currentProject.plot.structure === 'three-act') {
         if (currentProject.plot.act1) content += `
     <div class="plot-item">
-        <strong>第1幕（導入）:</strong> ${currentProject.plot.act1}
+        <strong>第1幕（導入）:</strong> ${escapeHtml(currentProject.plot.act1)}
     </div>`;
         if (currentProject.plot.act2) content += `
     <div class="plot-item">
-        <strong>第2幕（展開）:</strong> ${currentProject.plot.act2}
+        <strong>第2幕（展開）:</strong> ${escapeHtml(currentProject.plot.act2)}
     </div>`;
         if (currentProject.plot.act3) content += `
     <div class="plot-item">
-        <strong>第3幕（結末）:</strong> ${currentProject.plot.act3}
+        <strong>第3幕（結末）:</strong> ${escapeHtml(currentProject.plot.act3)}
     </div>`;
       } else if (currentProject.plot.structure === 'four-act') {
         if (currentProject.plot.fourAct1) content += `
     <div class="plot-item">
-        <strong>第1幕（秩序）:</strong> ${currentProject.plot.fourAct1}
+        <strong>第1幕（秩序）:</strong> ${escapeHtml(currentProject.plot.fourAct1)}
     </div>`;
         if (currentProject.plot.fourAct2) content += `
     <div class="plot-item">
-        <strong>第2幕（混沌）:</strong> ${currentProject.plot.fourAct2}
+        <strong>第2幕（混沌）:</strong> ${escapeHtml(currentProject.plot.fourAct2)}
     </div>`;
         if (currentProject.plot.fourAct3) content += `
     <div class="plot-item">
-        <strong>第3幕（秩序）:</strong> ${currentProject.plot.fourAct3}
+        <strong>第3幕（秩序）:</strong> ${escapeHtml(currentProject.plot.fourAct3)}
     </div>`;
         if (currentProject.plot.fourAct4) content += `
     <div class="plot-item">
-        <strong>第4幕（混沌）:</strong> ${currentProject.plot.fourAct4}
+        <strong>第4幕（混沌）:</strong> ${escapeHtml(currentProject.plot.fourAct4)}
     </div>`;
       }
     }
@@ -937,7 +950,7 @@ export const ExportStep: React.FC = () => {
     if (exportOptions.synopsis && currentProject.synopsis) {
       content += `
     <h2>あらすじ</h2>
-    <div class="draft-content">${currentProject.synopsis}</div>`;
+    <div class="draft-content">${escapeHtml(currentProject.synopsis)}</div>`;
     }
     
     if (exportOptions.chapters && currentProject.chapters.length > 0) {
@@ -946,9 +959,9 @@ export const ExportStep: React.FC = () => {
       currentProject.chapters.forEach((chapter, index) => {
         content += `
     <div class="chapter-item">
-        <h3>第${index + 1}章: ${chapter.title}</h3>`;
+        <h3>第${index + 1}章: ${escapeHtml(chapter.title)}</h3>`;
         if (chapter.summary) content += `
-        <p class="summary">${chapter.summary}</p>`;
+        <p class="summary">${escapeHtml(chapter.summary)}</p>`;
         
         content += `
     </div>`;
@@ -961,11 +974,12 @@ export const ExportStep: React.FC = () => {
       currentProject.imageBoard.forEach((image, index) => {
         content += `
     <div class="character-card" style="margin-bottom: 20px;">
-        <h3>${index + 1}. ${image.title} (${image.category})</h3>`;
+        <h3>${index + 1}. ${escapeHtml(image.title)} (${escapeHtml(image.category)})</h3>`;
         if (image.description) content += `
-        <p><strong>説明:</strong> ${image.description}</p>`;
+        <p><strong>説明:</strong> ${escapeHtml(image.description)}</p>`;
+        // URLは検証済みと仮定するが、alt属性はエスケープ
         content += `
-        <img src="${image.url}" alt="${image.title}" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 5px;">
+        <img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.title)}" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 5px;">
     </div>`;
       });
     }
@@ -973,7 +987,7 @@ export const ExportStep: React.FC = () => {
     if (exportOptions.draft && currentProject.draft) {
       content += `
     <h2>草案</h2>
-    <div class="draft-content">${currentProject.draft}</div>`;
+    <div class="draft-content">${escapeHtml(currentProject.draft)}</div>`;
     }
     
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
@@ -982,12 +996,12 @@ export const ExportStep: React.FC = () => {
       currentProject.glossary.forEach(term => {
         content += `
     <div class="character-card">
-        <h3>${term.term}`;
-        if (term.reading) content += ` (${term.reading})`;
-        content += ` [${term.category}]</h3>
-        <p><strong>定義:</strong> ${term.definition}</p>`;
+        <h3>${escapeHtml(term.term)}`;
+        if (term.reading) content += ` (${escapeHtml(term.reading)})`;
+        content += ` [${escapeHtml(term.category)}]</h3>
+        <p><strong>定義:</strong> ${escapeHtml(term.definition)}</p>`;
         if (term.notes) content += `
-        <p><strong>備考:</strong> ${term.notes}</p>`;
+        <p><strong>備考:</strong> ${escapeHtml(term.notes)}</p>`;
         content += `
     </div>`;
       });
@@ -1003,12 +1017,12 @@ export const ExportStep: React.FC = () => {
         const toName = toChar?.name || rel.to;
         content += `
     <div class="plot-item">
-        <h3>${fromName} → ${toName}</h3>
-        <p><strong>関係性:</strong> ${rel.type} (強度: ${rel.strength}/10)</p>`;
+        <h3>${escapeHtml(fromName)} → ${escapeHtml(toName)}</h3>
+        <p><strong>関係性:</strong> ${escapeHtml(rel.type)} (強度: ${rel.strength}/10)</p>`;
         if (rel.description) content += `
-        <p><strong>説明:</strong> ${rel.description}</p>`;
+        <p><strong>説明:</strong> ${escapeHtml(rel.description)}</p>`;
         if (rel.notes) content += `
-        <p><strong>備考:</strong> ${rel.notes}</p>`;
+        <p><strong>備考:</strong> ${escapeHtml(rel.notes)}</p>`;
         content += `
     </div>`;
       });
@@ -1021,14 +1035,15 @@ export const ExportStep: React.FC = () => {
       sortedTimeline.forEach(event => {
         content += `
     <div class="chapter-item">
-        <h3>${event.order}. ${event.title} [${event.category}]</h3>`;
+        <h3>${event.order}. ${escapeHtml(event.title)} [${escapeHtml(event.category)}]</h3>`;
         if (event.date) content += `
-        <p><strong>日付:</strong> ${event.date}</p>`;
+        <p><strong>日付:</strong> ${escapeHtml(event.date)}</p>`;
         content += `
-        <p>${event.description}</p>`;
+        <p>${escapeHtml(event.description)}</p>`;
         if (event.characterIds && event.characterIds.length > 0) {
           const charNames = event.characterIds
             .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .map(name => escapeHtml(name))
             .join(', ');
           content += `
         <p><strong>関連キャラクター:</strong> ${charNames}</p>`;
@@ -1036,7 +1051,7 @@ export const ExportStep: React.FC = () => {
         if (event.chapterId) {
           const chapter = currentProject.chapters.find(c => c.id === event.chapterId);
           if (chapter) content += `
-        <p><strong>関連章:</strong> ${chapter.title}</p>`;
+        <p><strong>関連章:</strong> ${escapeHtml(chapter.title)}</p>`;
         }
         content += `
     </div>`;
@@ -1049,11 +1064,12 @@ export const ExportStep: React.FC = () => {
       currentProject.worldSettings.forEach(setting => {
         content += `
     <div class="character-card">
-        <h3>${setting.title} [${setting.category}]</h3>
-        <div class="draft-content">${setting.content}</div>`;
+        <h3>${escapeHtml(setting.title)} [${escapeHtml(setting.category)}]</h3>
+        <div class="draft-content">${escapeHtml(setting.content)}</div>`;
         if (setting.tags && setting.tags.length > 0) {
+          const escapedTags = setting.tags.map(t => escapeHtml(t));
           content += `
-        <p><strong>タグ:</strong> ${setting.tags.join(', ')}</p>`;
+        <p><strong>タグ:</strong> ${escapedTags.map(t => `<span style="background: #e8e8e8; padding: 2px 6px; border-radius: 3px; margin-right: 4px;">#${t}</span>`).join(' ')}</p>`;
         }
         content += `
     </div>`;
@@ -1072,19 +1088,19 @@ export const ExportStep: React.FC = () => {
       currentProject.foreshadowings.forEach(foreshadowing => {
         content += `
     <div class="character-card" style="border-left-color: ${statusColors[foreshadowing.status] || '#e74c3c'};">
-        <h3>${foreshadowing.title}</h3>
+        <h3>${escapeHtml(foreshadowing.title)}</h3>
         <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
             <span style="background-color: ${statusColors[foreshadowing.status] || '#e74c3c'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8em;">
-                ${statusLabels[foreshadowing.status] || foreshadowing.status}
+                ${escapeHtml(statusLabels[foreshadowing.status] || foreshadowing.status)}
             </span>
             <span style="background-color: #ecf0f1; padding: 2px 8px; border-radius: 4px; font-size: 0.8em;">
-                ${categoryLabels[foreshadowing.category] || foreshadowing.category}
+                ${escapeHtml(categoryLabels[foreshadowing.category] || foreshadowing.category)}
             </span>
             <span style="font-size: 0.8em; color: ${foreshadowing.importance === 'high' ? '#e74c3c' : foreshadowing.importance === 'medium' ? '#f39c12' : '#7f8c8d'};">
-                ${importanceLabels[foreshadowing.importance] || foreshadowing.importance}
+                ${escapeHtml(importanceLabels[foreshadowing.importance] || foreshadowing.importance)}
             </span>
         </div>
-        <p>${foreshadowing.description}</p>`;
+        <p>${escapeHtml(foreshadowing.description)}</p>`;
         
         if (foreshadowing.points && foreshadowing.points.length > 0) {
           content += `
@@ -1095,11 +1111,11 @@ export const ExportStep: React.FC = () => {
             const chapterTitle = chapter?.title || '不明な章';
             content += `
             <li style="margin-bottom: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-                <strong>${pointTypeLabels[point.type] || point.type}</strong>: ${point.description}
-                <span style="color: #7f8c8d; font-size: 0.9em;"> (${chapterTitle})</span>`;
+                <strong>${escapeHtml(pointTypeLabels[point.type] || point.type)}</strong>: ${escapeHtml(point.description)}
+                <span style="color: #7f8c8d; font-size: 0.9em;"> (${escapeHtml(chapterTitle)})</span>`;
             if (point.lineReference) {
               content += `
-                <div style="margin-top: 4px; font-style: italic; color: #7f8c8d;">「${point.lineReference}」</div>`;
+                <div style="margin-top: 4px; font-style: italic; color: #7f8c8d;">「${escapeHtml(point.lineReference)}」</div>`;
             }
             content += `
             </li>`;
@@ -1111,6 +1127,7 @@ export const ExportStep: React.FC = () => {
         if (foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0) {
           const charNames = foreshadowing.relatedCharacterIds
             .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
+            .map(name => escapeHtml(name))
             .join(', ');
           content += `
         <p><strong>関連キャラクター:</strong> ${charNames}</p>`;
@@ -1120,21 +1137,22 @@ export const ExportStep: React.FC = () => {
           const chapter = currentProject.chapters.find(c => c.id === foreshadowing.plannedPayoffChapterId);
           if (chapter) {
             content += `
-        <p><strong>回収予定章:</strong> ${chapter.title}</p>`;
+        <p><strong>回収予定章:</strong> ${escapeHtml(chapter.title)}</p>`;
           }
           if (foreshadowing.plannedPayoffDescription) {
             content += `
-        <p><strong>回収予定方法:</strong> ${foreshadowing.plannedPayoffDescription}</p>`;
+        <p><strong>回収予定方法:</strong> ${escapeHtml(foreshadowing.plannedPayoffDescription)}</p>`;
           }
         }
         
         if (foreshadowing.tags && foreshadowing.tags.length > 0) {
+          const escapedTags = foreshadowing.tags.map(t => escapeHtml(t));
           content += `
-        <p><strong>タグ:</strong> ${foreshadowing.tags.map(t => `<span style="background: #e8e8e8; padding: 2px 6px; border-radius: 3px; margin-right: 4px;">#${t}</span>`).join(' ')}</p>`;
+        <p><strong>タグ:</strong> ${escapedTags.map(t => `<span style="background: #e8e8e8; padding: 2px 6px; border-radius: 3px; margin-right: 4px;">#${t}</span>`).join(' ')}</p>`;
         }
         if (foreshadowing.notes) {
           content += `
-        <p><strong>メモ:</strong> ${foreshadowing.notes}</p>`;
+        <p><strong>メモ:</strong> ${escapeHtml(foreshadowing.notes)}</p>`;
         }
         content += `
     </div>`;
@@ -1168,8 +1186,8 @@ export const ExportStep: React.FC = () => {
               if (value && value.trim().length > 0) {
                 content += `
     <div class="character-card">
-        <h3>${memoLabels[key] || key}</h3>
-        <div class="draft-content">${value}</div>
+        <h3>${escapeHtml(memoLabels[key] || key)}</h3>
+        <div class="draft-content">${escapeHtml(value)}</div>
     </div>`;
               }
             });
@@ -1440,14 +1458,14 @@ export const ExportStep: React.FC = () => {
           </h3>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setPreviewHeight(Math.max(200, previewHeight - 100))}
+              onClick={() => setPreviewHeight(Math.max(PREVIEW_HEIGHT_MIN, previewHeight - PREVIEW_HEIGHT_STEP))}
               className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               title="高さを減らす"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
             <button
-              onClick={() => setPreviewHeight(Math.min(800, previewHeight + 100))}
+              onClick={() => setPreviewHeight(Math.min(PREVIEW_HEIGHT_MAX, previewHeight + PREVIEW_HEIGHT_STEP))}
               className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               title="高さを増やす"
             >
@@ -1548,18 +1566,36 @@ export const ExportStep: React.FC = () => {
               {(() => {
                 const content = selectedFormat === 'md' ? generateMarkdownContent() : generateTxtContent();
                 if (previewSearch) {
-                  const searchRegex = new RegExp(previewSearch, 'gi');
-                  const parts = content.split(searchRegex);
-                  const matches = content.match(searchRegex);
-                  if (matches) {
-                    return parts.map((part, i) => (
-                      <React.Fragment key={i}>
-                        {part}
-                        {i < parts.length - 1 && (
-                          <mark className="bg-yellow-300 dark:bg-yellow-600">{matches[i]}</mark>
-                        )}
-                      </React.Fragment>
-                    ));
+                  try {
+                    const escapedSearch = escapeRegex(previewSearch);
+                    const searchRegex = new RegExp(escapedSearch, 'gi');
+                    const parts = content.split(searchRegex);
+                    const matches = content.match(searchRegex);
+                    if (matches) {
+                      return parts.map((part, i) => (
+                        <React.Fragment key={i}>
+                          {part}
+                          {i < parts.length - 1 && (
+                            <mark className="bg-yellow-300 dark:bg-yellow-600">{matches[i]}</mark>
+                          )}
+                        </React.Fragment>
+                      ));
+                    }
+                  } catch (error) {
+                    console.warn('検索正規表現エラー:', error);
+                    // エラー時は通常の文字列検索にフォールバック
+                    const index = content.toLowerCase().indexOf(previewSearch.toLowerCase());
+                    if (index !== -1) {
+                      return (
+                        <>
+                          {content.substring(0, index)}
+                          <mark className="bg-yellow-300 dark:bg-yellow-600">
+                            {content.substring(index, index + previewSearch.length)}
+                          </mark>
+                          {content.substring(index + previewSearch.length)}
+                        </>
+                      );
+                    }
                   }
                 }
                 return content;
@@ -1570,11 +1606,11 @@ export const ExportStep: React.FC = () => {
         
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
           <div>
-            総文字数: {(() => {
+            総文字数: {useMemo(() => {
               if (selectedFormat === 'html') return generateHtmlContent().length;
               if (selectedFormat === 'md') return generateMarkdownContent().length;
               return generateTxtContent().length;
-            })().toLocaleString()} 文字
+            }, [selectedFormat, exportOptions, currentProject]).toLocaleString()} 文字
           </div>
           <button
             onClick={handleCopyToClipboard}

@@ -7,6 +7,7 @@ import { useToast } from './Toast';
 import { OptimizedImage } from './OptimizedImage';
 import { databaseService } from '../services/databaseService';
 import { optimizeImageToWebP } from '../utils/performanceUtils';
+import { EmptyState } from './common/EmptyState';
 
 // 画像カードコンポーネント（メモ化）
 interface ImageCardProps {
@@ -1001,39 +1002,32 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
               onDrop={handleDrop}
             >
               {filteredImages.length === 0 ? (
-                <div className={`text-center py-16 rounded-lg border-2 border-dashed transition-all duration-200 ${isDraggingOver
-                    ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
-                    : 'border-transparent'
-                  }`}>
-                  <Image className={`h-16 w-16 mx-auto mb-4 transition-colors ${isDraggingOver
-                      ? 'text-indigo-500 dark:text-indigo-400'
-                      : 'text-gray-400 dark:text-gray-500'
-                    }`} />
-                  <h3 className={`text-xl font-bold mb-4 font-['Noto_Sans_JP'] transition-colors ${isDraggingOver
-                      ? 'text-indigo-600 dark:text-indigo-400'
-                      : 'text-gray-900 dark:text-white'
-                    }`}>
-                    {isDraggingOver
-                      ? 'ここにドロップして画像を追加'
-                      : selectedCategory === 'all'
-                        ? 'まだ画像がありません'
+                isDraggingOver ? (
+                  <div className="text-center py-16 rounded-lg border-4 border-dashed border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 transition-all duration-200">
+                    <Upload className="h-16 w-16 text-indigo-500 dark:text-indigo-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-2 font-['Noto_Sans_JP']">
+                      ここにドロップして画像を追加
+                    </h3>
+                    <p className="text-indigo-500 dark:text-indigo-300 font-['Noto_Sans_JP']">
+                      複数の画像を一度にドロップできます
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <EmptyState
+                      icon={Image}
+                      iconColor="text-indigo-400 dark:text-indigo-500"
+                      title={selectedCategory === 'all' 
+                        ? 'まだ画像がありません' 
                         : `${getCategoryInfo(selectedCategory).label}の画像がありません`}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6 font-['Noto_Sans_JP']">
-                    {isDraggingOver
-                      ? '複数の画像を一度にドロップできます'
-                      : 'インスピレーションとなる画像を追加して、創作の参考にしましょう'}
-                  </p>
-                  {!isDraggingOver && (
-                    <button
-                      onClick={() => setShowAddForm(true)}
-                      className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
-                    >
-                      <Plus className="h-5 w-5" />
-                      <span>最初の画像を追加</span>
-                    </button>
-                  )}
-                </div>
+                      description={selectedCategory === 'all'
+                        ? 'インスピレーションとなる画像を追加して、創作の参考にしましょう。キャラクターのイメージ、世界観、シーンの雰囲気など、物語を彩る画像を集められます。'
+                        : `${getCategoryInfo(selectedCategory).label}カテゴリの画像を追加して、創作の参考にしましょう。`}
+                      actionLabel="最初の画像を追加"
+                      onAction={() => setShowAddForm(true)}
+                    />
+                  </div>
+                )
               ) : (
                 <>
                   {isDraggingOver && (

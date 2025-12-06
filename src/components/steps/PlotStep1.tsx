@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Sparkles, Check, Loader2, BookOpen, Eye, Wand2, GripVertical, ChevronRight, FileText, X, AlertCircle, RefreshCw, Clock } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Check, Loader2, BookOpen, Wand2, GripVertical, ChevronRight, FileText, X, AlertCircle, RefreshCw, Clock } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
 import { useAutoSave } from '../common/hooks/useAutoSave';
-import { DraggableSidebar } from '../common/DraggableSidebar';
 
 type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
@@ -13,13 +12,42 @@ interface PlotStep1Props {
   onNavigateToStep?: (step: Step) => void;
 }
 
+// 定数定義
+const MAX_HISTORY_SIZE = 50;
+const MAX_HISTORY_INDEX = MAX_HISTORY_SIZE - 1;
+const HISTORY_DEBOUNCE_MS = 1000;
+const FIELD_MAX_LENGTHS = {
+  theme: 100,
+  setting: 300,
+  hook: 300,
+  protagonistGoal: 100,
+  mainObstacle: 100,
+  ending: 200,
+} as const;
+
+// 型定義
+type PlotFormData = {
+  theme: string;
+  setting: string;
+  hook: string;
+  protagonistGoal: string;
+  mainObstacle: string;
+  ending: string;
+};
+
+type FieldKey = keyof PlotFormData;
+
+type FieldOrderItem = {
+  key: string;
+  label: string;
+};
+
 export const PlotStep1: React.FC<PlotStep1Props> = () => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const { showError, showSuccess, showWarning } = useToast();
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generatingField, setGeneratingField] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PlotFormData>({
     theme: currentProject?.plot?.theme || '',
     setting: currentProject?.plot?.setting || '',
     hook: currentProject?.plot?.hook || '',
@@ -29,18 +57,19 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
   });
 
   // 入力履歴管理
-  const [history, setHistory] = useState<Array<typeof formData>>([]);
+  const [history, setHistory] = useState<Array<PlotFormData>>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const historyRef = useRef(false);
+  const isInitialMountRef = useRef(true);
 
   // ドラッグ&ドロップ用の状態
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [showDragTooltip, setShowDragTooltip] = useState<number | null>(null);
-  const [fieldOrder, setFieldOrder] = useState<Array<{key: string, label: string}>>([
+  const [fieldOrder, setFieldOrder] = useState<FieldOrderItem[]>([
     { key: 'theme', label: 'メインテーマ' },
     { key: 'setting', label: '舞台設定' },
-    { key: 'hook', label: 'フック要素' },
+    { key: 'hook', label: '物語の引き（冒頭の魅力）' },
     { key: 'protagonistGoal', label: '主人公の目標' },
     { key: 'mainObstacle', label: '主要な障害' },
     { key: 'ending', label: '物語の結末' },
@@ -53,7 +82,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
   // 自動保存
   const { isSaving, saveStatus, lastSaved, handleSave } = useAutoSave(
     formData,
-    async (value: typeof formData) => {
+    useCallback(async (value: PlotFormData) => {
       if (!currentProject) return;
       const updatedPlot = {
         ...currentProject.plot,
@@ -65,36 +94,38 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         ending: value.ending,
       };
       await updateProject({ plot: updatedPlot }, false);
-    }
+    }, [currentProject, updateProject])
   );
 
   // 入力履歴を保存する関数
-  const saveToHistory = useCallback((data: typeof formData) => {
+  const saveToHistory = useCallback((data: PlotFormData) => {
     if (historyRef.current) {
       historyRef.current = false;
       return;
     }
 
     setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
+      const currentIndex = historyIndex;
+      const newHistory = prev.slice(0, currentIndex + 1);
       newHistory.push({ ...data });
-      // 履歴は最大50件まで保持
-      if (newHistory.length > 50) {
+      // 履歴は最大件数まで保持
+      if (newHistory.length > MAX_HISTORY_SIZE) {
         newHistory.shift();
         return newHistory;
       }
       return newHistory;
     });
-    setHistoryIndex(prev => Math.min(prev + 1, 49));
+    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY_INDEX));
   }, [historyIndex]);
 
-  // フォームデータ変更時に履歴を保存
+  // フォームデータ変更時に履歴を保存（初回のみ）
   useEffect(() => {
-    if (history.length === 0) {
+    if (isInitialMountRef.current && history.length === 0) {
       // 初回のみ現在の状態を履歴に保存
+      isInitialMountRef.current = false;
       saveToHistory(formData);
     }
-  }, []);
+  }, [history.length, saveToHistory, formData]);
 
   // プロジェクトが変更されたときにformDataを更新
   useEffect(() => {
@@ -116,17 +147,22 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
 
   // フォームデータ変更時に履歴を保存（デバウンス付き）
   useEffect(() => {
+    // 初回マウント時はスキップ（上記のuseEffectで処理）
+    if (isInitialMountRef.current) {
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       saveToHistory(formData);
-    }, 1000);
+    }, HISTORY_DEBOUNCE_MS);
     return () => clearTimeout(timeoutId);
   }, [formData, saveToHistory]);
 
 
   // フォームデータをリセットする関数
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     if (window.confirm('すべての入力内容をリセットしますか？この操作は取り消せません。')) {
-      const resetData = {
+      const resetData: PlotFormData = {
         theme: '',
         setting: '',
         hook: '',
@@ -136,9 +172,8 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
       };
       setFormData(resetData);
       saveToHistory(resetData);
-      console.log('Form data reset successfully');
     }
-  };
+  }, [saveToHistory]);
 
   // テンプレート・サンプルデータ
   const templates = {
@@ -183,14 +218,14 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
   };
 
   // テンプレートを適用する関数
-  const applyTemplate = (fieldKey: keyof typeof formData, template: string) => {
+  const applyTemplate = useCallback((fieldKey: FieldKey, template: string) => {
     setFormData(prev => {
       const newData = { ...prev, [fieldKey]: template };
       saveToHistory(newData);
       return newData;
     });
     setShowTemplates(prev => ({ ...prev, [fieldKey]: false }));
-  };
+  }, [saveToHistory]);
 
   // フィールド間の依存関係定義
   const fieldDependencies = {
@@ -203,7 +238,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
       relatedFields: ['theme', 'hook'],
     },
     hook: {
-      description: 'フック要素はメインテーマや舞台設定と連携することで、より魅力的な導入になります。',
+      description: '物語の引き（冒頭の魅力）はメインテーマや舞台設定と連携することで、より魅力的な導入になります。',
       relatedFields: ['theme', 'setting', 'protagonistGoal'],
     },
     protagonistGoal: {
@@ -221,51 +256,61 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
   };
 
   // ドラッグ&ドロップハンドラー
-  const handleDragStart = (e: React.DragEvent, index: number) => {
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
     // ドラッグ中の視覚的フィードバック
     e.dataTransfer.setData('text/plain', '');
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
+    setDraggedIndex(prev => {
+      if (prev !== null && prev !== index) {
+        setDragOverIndex(index);
+      }
+      return prev;
+    });
+  }, []);
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setDragOverIndex(null);
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+  const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     setDragOverIndex(null);
     
-    if (draggedIndex === null || draggedIndex === dropIndex) {
-      setDraggedIndex(null);
-      return;
-    }
+    setDraggedIndex(prev => {
+      if (prev === null || prev === dropIndex) {
+        return null;
+      }
 
-    const newOrder = [...fieldOrder];
-    const draggedField = newOrder[draggedIndex];
-    newOrder.splice(draggedIndex, 1);
-    newOrder.splice(dropIndex, 0, draggedField);
-    
-    setFieldOrder(newOrder);
-    setDraggedIndex(null);
-    
-    // ローカルストレージに保存
-    localStorage.setItem('plotFieldOrder', JSON.stringify(newOrder));
-    showSuccess('フィールドの順序を変更しました', 2000);
-  };
+      const newOrder = [...fieldOrder];
+      const draggedField = newOrder[prev];
+      newOrder.splice(prev, 1);
+      newOrder.splice(dropIndex, 0, draggedField);
+      
+      setFieldOrder(newOrder);
+      
+      // ローカルストレージに保存（検証済みデータのみ）
+      try {
+        localStorage.setItem('plotFieldOrder', JSON.stringify(newOrder));
+        showSuccess('フィールドの順序を変更しました', 2000);
+      } catch (error) {
+        console.error('Failed to save field order:', error);
+        showError('フィールド順序の保存に失敗しました', 3000);
+      }
+      
+      return null;
+    });
+  }, [fieldOrder, showSuccess, showError]);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setDraggedIndex(null);
     setDragOverIndex(null);
-  };
+  }, []);
 
   // ローカルストレージからフィールド順序を読み込む
   useEffect(() => {
@@ -273,14 +318,27 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     if (savedOrder) {
       try {
         const parsed = JSON.parse(savedOrder);
-        if (Array.isArray(parsed) && parsed.length === fieldOrder.length) {
-          setFieldOrder(parsed);
+        // 型と構造の検証
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === fieldOrder.length &&
+          parsed.every((item: unknown) => 
+            typeof item === 'object' &&
+            item !== null &&
+            'key' in item &&
+            'label' in item &&
+            typeof item.key === 'string' &&
+            typeof item.label === 'string'
+          )
+        ) {
+          setFieldOrder(parsed as FieldOrderItem[]);
         }
       } catch (e) {
         console.error('Failed to parse saved field order:', e);
+        showError('フィールド順序の読み込みに失敗しました', 3000);
       }
     }
-  }, []);
+  }, [fieldOrder.length, showError]);
 
 
   // 文字数制限に基づいて内容を成形する関数
@@ -365,244 +423,6 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
     return formatted;
   };
 
-  // 基本設定専用のAI生成関数
-  const handleBasicAIGenerate = async () => {
-    if (!isConfigured) {
-      showWarning('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 5000);
-      return;
-    }
-
-    setIsGenerating(true);
-    
-    try {
-      // プロジェクトの詳細情報を取得
-      const context = getProjectContext();
-      if (!context) {
-        showError('プロジェクト情報が見つかりません。', 5000);
-        return;
-      }
-
-      // キャラクター情報の文字列化
-      const charactersInfo = context.characters.length > 0 
-        ? context.characters.map(c => `・${c.name} (${c.role})\n  性格: ${c.personality}\n  背景: ${c.background}`).join('\n')
-        : 'キャラクター未設定';
-
-      const prompt = `あなたは物語プロット生成の専門AIです。以下の指示を厳密に守って、指定されたJSON形式のみで出力してください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-作品説明: ${context.description || '説明未設定'}
-メインジャンル: ${context.mainGenre || context.genre}
-サブジャンル: ${context.subGenre || '未設定'}
-ターゲット読者: ${context.targetReader}
-プロジェクトテーマ: ${context.projectTheme}
-
-【キャラクター情報】
-${charactersInfo}
-
-【重要指示】以下のJSON形式以外は一切出力しないでください。説明文、コメント、その他のテキストは一切不要です。
-
-{
-  "メインテーマ": "ここに物語の核心となるメインテーマを100文字以内で記述",
-  "舞台設定": "ここにジャンルに合わせた世界観を表現して300文字以内で記述",
-  "フック要素": "ここに魅力的なフック要素を300文字以内で記述",
-  "主人公の目標": "ここに主人公が達成したい目標を100文字以内で記述",
-  "主要な障害": "ここに主人公の目標を阻む主要な障害を100文字以内で記述",
-  "物語の結末": "ここに物語の結末を200文字以内で記述"
-}
-
-【絶対に守るべきルール】
-1. 上記のJSON形式以外は一切出力しない
-2. 説明文、コメント、マークダウンは一切不要
-3. 項目名は必ず「メインテーマ」「舞台設定」「フック要素」「主人公の目標」「主要な障害」で記述
-4. 各項目の内容は指定された文字数以内で記述
-5. 日本語の内容のみで記述
-6. 改行文字は使用しない
-7. 特殊文字や装飾は使用しない
-
-【文字数制限】
-- メインテーマ：100文字以内
-- 舞台設定：300文字以内  
-- フック要素：300文字以内
-- 主人公の目標：100文字以内
-- 主要な障害：100文字以内
-- 物語の結末：200文字以内
-
-【出力例】
-{
-  "メインテーマ": "友情と成長をテーマにした青春物語",
-  "舞台設定": "現代の高校を舞台に、主人公の日常と非日常が交錯する世界観",
-  "フック要素": "謎の転校生との出会いが引き起こす予想外の展開",
-  "主人公の目標": "転校生の正体を突き止め、クラスメイトとの友情を深める",
-  "主要な障害": "転校生の秘密と、クラス内の対立関係",
-  "物語の結末": "主人公と転校生が和解し、クラス全体が団結して新しい関係を築く"
-}
-
-上記の形式で出力してください。`;
-
-      console.log('Basic AI Request:', {
-        provider: settings.provider,
-        model: settings.model,
-        prompt: prompt.substring(0, 100) + '...',
-      });
-
-      const response = await aiService.generateContent({
-        prompt,
-        type: 'plot',
-        settings,
-      });
-
-      console.log('Basic AI Response:', {
-        success: !response.error,
-        contentLength: response.content?.length || 0,
-        error: response.error,
-        usage: response.usage,
-      });
-
-      if (response.error) {
-        showError(`AI生成エラー: ${response.error}`, 7000);
-        return;
-      }
-
-      // 生成された内容を解析
-      const content = response.content;
-      console.log('Basic AI生の出力:', content);
-
-      // JSON形式の解析（強化版）
-      let parsedData: Record<string, unknown> | null = null;
-      try {
-        // 複数のJSON抽出パターンを試行
-        const jsonPatterns = [
-          // 1. 完全なJSONオブジェクト
-          /\{[\s\S]*?\}/,
-          // 2. 複数行にわたるJSON
-          /\{[\s\S]*\}/,
-          // 3. 基本設定専用のJSON
-          /\{\s*"メインテーマ"[\s\S]*?"フック要素"[\s\S]*?\}/
-        ];
-
-        for (const pattern of jsonPatterns) {
-          const jsonMatch = content.match(pattern);
-          if (jsonMatch) {
-            let jsonStr = jsonMatch[0];
-            
-            // JSON文字列のクリーニング
-            jsonStr = jsonStr
-              .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 制御文字を除去
-              .replace(/\s+/g, ' ') // 連続する空白を単一の空白に
-              .replace(/\n/g, ' ') // 改行を空白に
-              .trim();
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-              
-              // 基本設定のキーが存在するかチェック
-              const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害', '物語の結末'];
-              const validKeys = basicKeys.filter(key => Object.prototype.hasOwnProperty.call(parsed, key));
-              
-              if (validKeys.length >= 2) { // 最低2つのキーがあれば有効
-                console.log('基本設定JSON解析成功:', {
-                  pattern: pattern.toString(),
-                  validKeys: validKeys,
-                  content: jsonStr.substring(0, 200) + '...'
-                });
-                parsedData = parsed;
-                break;
-              }
-            } catch (parseError) {
-              console.warn('JSON解析エラー:', parseError);
-              continue;
-            }
-          }
-        }
-
-        if (!parsedData) {
-          console.warn('基本設定JSON解析に失敗、フォールバック解析を使用');
-        }
-      } catch (error) {
-        console.warn('基本設定JSON解析に失敗:', error);
-      }
-
-      // フィールド抽出関数
-      const extractBasicField = (label: string) => {
-        // JSON形式から抽出
-        if (parsedData && parsedData[label]) {
-          return String(parsedData[label]).trim();
-        }
-
-        // テキスト形式から抽出
-        const patterns = [
-          new RegExp(`${label}:\\s*([^\\n]+(?:\\n(?!\\w+:)[^\\n]*)*)`, 'i'),
-          new RegExp(`${label}\\s*[:：]\\s*([^\\n]+(?:\\n(?!\\w+\\s*[:：])[^\\n]*)*)`, 'i'),
-          new RegExp(`"${label}"\\s*:\\s*"([^"]*)"`, 'i'),
-          new RegExp(`'${label}'\\s*:\\s*'([^']*)'`, 'i')
-        ];
-
-        for (const pattern of patterns) {
-          const match = content.match(pattern);
-          if (match && match[1]) {
-            return match[1].trim().replace(/^["']|["']$/g, '');
-          }
-        }
-
-        return '';
-      };
-
-      const rawTheme = extractBasicField('メインテーマ');
-      const rawSetting = extractBasicField('舞台設定');
-      const rawHook = extractBasicField('フック要素');
-      const rawProtagonistGoal = extractBasicField('主人公の目標');
-      const rawMainObstacle = extractBasicField('主要な障害');
-      const rawEnding = extractBasicField('物語の結末');
-
-      // 文字数制限に基づいて内容を成形
-      const theme = formatContentToFit(rawTheme, 100, 'メインテーマ');
-      const setting = formatContentToFit(rawSetting, 300, '舞台設定');
-      const hook = formatContentToFit(rawHook, 300, 'フック要素');
-      const protagonistGoal = formatContentToFit(rawProtagonistGoal, 100, '主人公の目標');
-      const mainObstacle = formatContentToFit(rawMainObstacle, 100, '主要な障害');
-      const ending = formatContentToFit(rawEnding, 200, '物語の結末');
-
-      // 解析結果の確認
-      const extractedCount = [theme, setting, hook, protagonistGoal, mainObstacle, ending].filter(v => v).length;
-      if (extractedCount === 0) {
-        console.error('基本設定の解析に完全に失敗:', {
-          rawContent: content,
-          parsedData: parsedData,
-          extractedFields: { theme, setting, hook, protagonistGoal, mainObstacle, ending }
-        });
-        showError('基本設定の解析に失敗しました。AIがテンプレートを逸脱した出力をしています。もう一度お試しください。', 7000);
-        return;
-      } else if (extractedCount < 6) {
-        console.warn(`基本設定の一部項目のみ解析成功: ${extractedCount}/6項目`, {
-          extractedFields: { theme, setting, hook, protagonistGoal, mainObstacle, ending },
-          rawContent: content.substring(0, 500) + '...'
-        });
-        showWarning(`一部の基本設定項目のみ解析できました（${extractedCount}/6項目）。不完全な結果が適用されます。`, 5000);
-      } else {
-        showSuccess('基本設定の生成が完了しました', 3000);
-      }
-
-      // フォームデータを更新
-      setFormData(prev => ({
-        ...prev,
-        theme: theme || prev.theme,
-        setting: setting || prev.setting,
-        hook: hook || prev.hook,
-        protagonistGoal: protagonistGoal || prev.protagonistGoal,
-        mainObstacle: mainObstacle || prev.mainObstacle,
-        ending: ending || prev.ending,
-      }));
-
-    } catch (error) {
-      console.error('Basic AI生成エラー:', error);
-      const errorMessage = error instanceof Error ? error.message : '基本設定のAI生成中にエラーが発生しました';
-      showError(errorMessage, 5000);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   // プロジェクトの詳細情報を取得する関数
   const getProjectContext = () => {
     if (!currentProject) return null;
@@ -625,7 +445,7 @@ ${charactersInfo}
   };
 
   // 個別フィールドのAI提案関数
-  const handleFieldAIGenerate = async (fieldKey: 'theme' | 'setting' | 'hook' | 'protagonistGoal' | 'mainObstacle' | 'ending') => {
+  const handleFieldAIGenerate = useCallback(async (fieldKey: FieldKey) => {
     if (!isConfigured) {
       showWarning('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 5000);
       return;
@@ -641,12 +461,12 @@ ${charactersInfo}
       }
 
       const fieldConfig = {
-        theme: { label: 'メインテーマ', maxLength: 100, description: '物語の核心となるメインテーマ' },
-        setting: { label: '舞台設定', maxLength: 300, description: 'ジャンルに合わせた世界観' },
-        hook: { label: 'フック要素', maxLength: 300, description: '魅力的なフック要素' },
-        protagonistGoal: { label: '主人公の目標', maxLength: 100, description: '主人公が達成したい目標' },
-        mainObstacle: { label: '主要な障害', maxLength: 100, description: '主人公の目標を阻む主要な障害' },
-        ending: { label: '物語の結末', maxLength: 200, description: '物語の結末、主人公の成長や目標達成の結果' },
+        theme: { label: 'メインテーマ', maxLength: FIELD_MAX_LENGTHS.theme, description: '物語の核心となるメインテーマ' },
+        setting: { label: '舞台設定', maxLength: FIELD_MAX_LENGTHS.setting, description: 'ジャンルに合わせた世界観' },
+        hook: { label: '物語の引き（冒頭の魅力）', maxLength: FIELD_MAX_LENGTHS.hook, description: '魅力的な物語の引き（冒頭の魅力）' },
+        protagonistGoal: { label: '主人公の目標', maxLength: FIELD_MAX_LENGTHS.protagonistGoal, description: '主人公が達成したい目標' },
+        mainObstacle: { label: '主要な障害', maxLength: FIELD_MAX_LENGTHS.mainObstacle, description: '主人公の目標を阻む主要な障害' },
+        ending: { label: '物語の結末', maxLength: FIELD_MAX_LENGTHS.ending, description: '物語の結末、主人公の成長や目標達成の結果' },
       };
 
       const config = fieldConfig[fieldKey];
@@ -694,7 +514,7 @@ ${config.label}: ${config.description}を${config.maxLength}文字以内で記�
 【出力例】
 ${config.label === 'メインテーマ' ? '友情と成長をテーマにした青春物語' : 
   config.label === '舞台設定' ? '現代の高校を舞台に、主人公の日常と非日常が交錯する世界観' :
-  config.label === 'フック要素' ? '謎の転校生との出会いが引き起こす予想外の展開' :
+  config.label === '物語の引き（冒頭の魅力）' ? '謎の転校生との出会いが引き起こす予想外の展開' :
   config.label === '主人公の目標' ? '転校生の正体を突き止め、クラスメイトとの友情を深める' :
   '転校生の秘密と、クラス内の対立関係'}
 
@@ -714,9 +534,12 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
       let generatedContent = response.content?.trim() || '';
       
       // クォートや余分な文字を除去
+      // 正規表現を動的に構築（エスケープ処理）
+      const escapedLabel = config.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const labelPattern = new RegExp(`^${escapedLabel}\\s*[:：]\\s*`, 'i');
       generatedContent = generatedContent
         .replace(/^["']|["']$/g, '')
-        .replace(/^${config.label}[:：]\s*/i, '')
+        .replace(labelPattern, '')
         .trim();
 
       // 文字数制限に基づいて成形
@@ -743,80 +566,8 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
     } finally {
       setGeneratingField(null);
     }
-  };
+  }, [isConfigured, formData, settings, showError, showWarning, showSuccess, saveToHistory]);
 
-  // 基本設定完成度を計算する関数
-  const calculateBasicProgress = () => {
-    const fields = [
-      { key: 'theme', label: 'メインテーマ', value: formData.theme },
-      { key: 'setting', label: '舞台設定', value: formData.setting },
-      { key: 'hook', label: 'フック要素', value: formData.hook },
-      { key: 'protagonistGoal', label: '主人公の目標', value: formData.protagonistGoal },
-      { key: 'mainObstacle', label: '主要な障害', value: formData.mainObstacle },
-      { key: 'ending', label: '物語の結末', value: formData.ending },
-    ];
-
-    const completedFields = fields.filter(field => field.value.trim().length > 0);
-    const progressPercentage = (completedFields.length / fields.length) * 100;
-
-    return {
-      completed: completedFields.length,
-      total: fields.length,
-      percentage: progressPercentage,
-      fields: fields.map(field => ({
-        ...field,
-        completed: field.value.trim().length > 0
-      }))
-    };
-  };
-
-  // プレビュー要約を生成する関数
-  const generatePreview = useMemo(() => {
-    const progress = calculateBasicProgress();
-    
-    if (progress.percentage === 0) {
-      return null;
-    }
-
-    let preview = '';
-    
-    if (formData.theme) {
-      preview += `【テーマ】\n${formData.theme}\n\n`;
-    }
-    
-    if (formData.setting) {
-      preview += `【舞台】\n${formData.setting}\n\n`;
-    }
-    
-    if (formData.hook) {
-      preview += `【フック】\n${formData.hook}\n\n`;
-    }
-    
-    if (formData.protagonistGoal) {
-      preview += `【目標】\n${formData.protagonistGoal}\n\n`;
-    }
-    
-    if (formData.mainObstacle) {
-      preview += `【障害】\n${formData.mainObstacle}\n\n`;
-    }
-    
-    if (formData.ending) {
-      preview += `【結末】\n${formData.ending}\n\n`;
-    }
-
-    // 完成度が高い場合は物語風の要約を生成
-    if (progress.percentage === 100) {
-      preview += `【物語の概要】\n`;
-      preview += `${formData.theme}をテーマに、${formData.setting}という世界で展開される物語。`;
-      preview += `${formData.hook}という展開を通じて、主人公は${formData.protagonistGoal}を目指すが、`;
-      preview += `${formData.mainObstacle}という障害に直面する。`;
-      if (formData.ending) {
-        preview += `最終的に、${formData.ending}という結末を迎える。`;
-      }
-    }
-
-    return preview.trim();
-  }, [formData]);
 
   if (!currentProject) {
     return <div>プロジェクトを選択してください</div>;
@@ -838,8 +589,7 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="space-y-6">
           {/* 基本設定セクション */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
             <div className="mb-6">
@@ -852,15 +602,18 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
               {fieldOrder.map((field, index) => {
                 const fieldKey = field.key as keyof typeof formData;
                 const fieldConfig = {
-                  theme: { label: 'メインテーマ', maxLength: 100, rows: 2, placeholder: '例：友情と成長、愛と犠牲、正義と復讐、家族の絆、夢と現実の狭間', instruction: '一文で簡潔に表現してください（100文字以内）' },
-                  setting: { label: '舞台設定', maxLength: 300, rows: 3, placeholder: '例：現代の高校を舞台に、主人公の日常と非日常が交錯する世界観。クラスメイトとの人間関係や学校生活が物語の中心となる', instruction: 'ジャンルに合わせた詳細な世界観を表現してください（300文字以内）' },
-                  hook: { label: 'フック（読者を引き込む要素）', maxLength: 300, rows: 3, placeholder: '例：謎の転校生との出会いが引き起こす予想外の展開。主人公の過去の秘密が明かされることで、クラス全体の関係性が大きく変化する', instruction: '独創的で読者の興味を引く要素を展開してください（300文字以内）' },
-                  protagonistGoal: { label: '主人公の目標', maxLength: 100, rows: 2, placeholder: '例：転校生の正体を突き止め、クラスメイトとの友情を深める', instruction: '主人公が達成したい目標を明確に表現してください（100文字以内）' },
-                  mainObstacle: { label: '主要な障害', maxLength: 100, rows: 2, placeholder: '例：転校生の秘密と、クラス内の対立関係', instruction: '主人公の目標を阻む主要な障害を設定してください（100文字以内）' },
-                  ending: { label: '物語の結末', maxLength: 200, rows: 3, placeholder: '例：主人公と転校生が和解し、クラス全体が団結して新しい関係を築く', instruction: '物語の結末、主人公の成長や目標達成の結果を表現してください（200文字以内）' },
+                  theme: { label: 'メインテーマ', maxLength: FIELD_MAX_LENGTHS.theme, rows: 2, placeholder: '例：友情と成長、愛と犠牲、正義と復讐、家族の絆、夢と現実の狭間', instruction: `一文で簡潔に表現してください（${FIELD_MAX_LENGTHS.theme}文字以内）` },
+                  setting: { label: '舞台設定', maxLength: FIELD_MAX_LENGTHS.setting, rows: 3, placeholder: '例：現代の高校を舞台に、主人公の日常と非日常が交錯する世界観。クラスメイトとの人間関係や学校生活が物語の中心となる', instruction: `ジャンルに合わせた詳細な世界観を表現してください（${FIELD_MAX_LENGTHS.setting}文字以内）` },
+                  hook: { label: '物語の引き（冒頭の魅力）', maxLength: FIELD_MAX_LENGTHS.hook, rows: 3, placeholder: '例：謎の転校生との出会いが引き起こす予想外の展開。主人公の過去の秘密が明かされることで、クラス全体の関係性が大きく変化する', instruction: `独創的で読者の興味を引く要素を展開してください（${FIELD_MAX_LENGTHS.hook}文字以内）` },
+                  protagonistGoal: { label: '主人公の目標', maxLength: FIELD_MAX_LENGTHS.protagonistGoal, rows: 2, placeholder: '例：転校生の正体を突き止め、クラスメイトとの友情を深める', instruction: `主人公が達成したい目標を明確に表現してください（${FIELD_MAX_LENGTHS.protagonistGoal}文字以内）` },
+                  mainObstacle: { label: '主要な障害', maxLength: FIELD_MAX_LENGTHS.mainObstacle, rows: 2, placeholder: '例：転校生の秘密と、クラス内の対立関係', instruction: `主人公の目標を阻む主要な障害を設定してください（${FIELD_MAX_LENGTHS.mainObstacle}文字以内）` },
+                  ending: { label: '物語の結末', maxLength: FIELD_MAX_LENGTHS.ending, rows: 3, placeholder: '例：主人公と転校生が和解し、クラス全体が団結して新しい関係を築く', instruction: `物語の結末、主人公の成長や目標達成の結果を表現してください（${FIELD_MAX_LENGTHS.ending}文字以内）` },
                 };
                 const config = fieldConfig[fieldKey];
                 const dependencies = fieldDependencies[fieldKey];
+                // 必須項目の定義（メインテーマ、舞台設定、主人公の目標のみ必須）
+                const isRequired = fieldKey === 'theme' || fieldKey === 'setting' || fieldKey === 'protagonistGoal';
+                const isEmpty = !formData[fieldKey] || formData[fieldKey].trim().length === 0;
                 
                 return (
               <div
@@ -876,6 +629,8 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                     ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20 opacity-50 shadow-lg scale-95'
                     : dragOverIndex === index
                     ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 border-dashed'
+                    : isRequired && isEmpty
+                    ? 'border-sakura-300 dark:border-sakura-700 bg-sakura-50/30 dark:bg-sakura-900/10'
                     : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
@@ -900,9 +655,19 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-3">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                        {config.label}
-                      </label>
+                      <div className="flex items-center space-x-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                          {config.label}
+                        </label>
+                        {isRequired && (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-sakura-100 dark:bg-sakura-900/30 text-sakura-700 dark:text-sakura-400 border border-sakura-300 dark:border-sakura-700"
+                            aria-label="必須項目"
+                          >
+                            必須
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center space-x-1">
                         <button
                           onClick={() => setShowTemplates(prev => ({ ...prev, [fieldKey]: !prev[fieldKey] }))}
@@ -924,7 +689,7 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                           onClick={() => handleFieldAIGenerate(fieldKey)}
                           disabled={generatingField === fieldKey || !isConfigured}
                           className="flex items-center space-x-1 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                          title="このフィールドのみAI提案"
+                          title={`AIで${config.label}を生成`}
                         >
                           {generatingField === fieldKey ? (
                             <>
@@ -934,7 +699,8 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                           ) : (
                             <>
                               <Wand2 className="h-3 w-3" />
-                              <span>AI提案</span>
+                              <span className="hidden sm:inline">AIで{config.label}を生成</span>
+                              <span className="sm:hidden">AI生成</span>
                             </>
                           )}
                         </button>
@@ -1002,7 +768,7 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                       id={`field-${fieldKey}`}
                       value={formData[fieldKey]}
                       onChange={(e) => {
-                        setFormData({ ...formData, [fieldKey]: e.target.value });
+                        setFormData(prev => ({ ...prev, [fieldKey]: e.target.value }));
                       }}
                       placeholder={config.placeholder}
                       rows={config.rows}
@@ -1015,6 +781,13 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                       }`}
                     />
                     <div className="mt-2 space-y-1">
+                      {/* 必須項目のエラー表示 */}
+                      {isRequired && isEmpty && (
+                        <div className="flex items-start space-x-1 text-xs text-semantic-error font-['Noto_Sans_JP'] mb-1">
+                          <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <span>{config.label}は必須項目です。入力してください。</span>
+                        </div>
+                      )}
                       <div className="flex justify-between items-center">
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
                           {config.instruction}
@@ -1115,163 +888,6 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
               </button>
             </div>
           </div>
-        </div>
-
-        {/* AI Assistant Panel */}
-        <DraggableSidebar
-          items={[
-            {
-              id: 'aiAssistant',
-              title: 'AI提案アシスタント',
-              icon: Sparkles,
-              iconBgClass: 'bg-gradient-to-br from-purple-500 to-purple-600',
-              defaultExpanded: false,
-              className: 'bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800',
-              content: (
-                <div className="space-y-4">
-                  <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                    一貫性のある基本設定を生成します：
-                  </p>
-                  
-                  <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    <li>• <span className="font-semibold text-purple-600 dark:text-purple-400">基本設定提案</span>：メインテーマ、舞台設定、フック要素、結末を独立して提案</li>
-                    <li>• キャラクター設定との連携強化</li>
-                    <li>• ジャンルに適した設定パターン</li>
-                    <li>• 文字数制限による適切なボックスサイズ対応</li>
-                    <li>• 結末から逆算して物語を構築する機能（PlotStep2で利用可能）</li>
-                  </ul>
-
-                  <div className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-purple-200 dark:border-purple-700">
-                    <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-3 font-['Noto_Sans_JP']">
-                      AI基本設定提案について
-                    </h4>
-                    <p className="text-sm text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP'] mb-3">
-                      プロジェクトの設定（ジャンル、テーマ、キャラクターなど）に基づいて、一貫性のある物語の基本設定を自動生成します。
-                    </p>
-                    <ul className="space-y-1 text-xs text-purple-500 dark:text-purple-400 font-['Noto_Sans_JP'] mb-4">
-                      <li>• メインテーマ、舞台設定、フック要素、主人公の目標、主要な障害、物語の結末を設定</li>
-                      <li>• キャラクター設定と連携した一貫性のある物語基盤を構築</li>
-                      <li>• ジャンルに適した設定パターンと文字数制限を考慮</li>
-                      <li>• 結末を設定することで、PlotStep2で逆算プロンプティング機能が利用可能</li>
-                    </ul>
-                    
-                    <button
-                      onClick={handleBasicAIGenerate}
-                      disabled={isGenerating}
-                      className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] shadow-lg hover:shadow-xl"
-                    >
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          <span>生成中...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-5 w-5" />
-                          <span>基本設定をAI提案</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              id: 'progress',
-              title: '基本設定完成度',
-              icon: Check,
-              iconBgClass: 'bg-gradient-to-br from-green-500 to-emerald-500',
-              defaultExpanded: false,
-              content: (() => {
-                const progress = calculateBasicProgress();
-                return (
-                  <div className="space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">設定項目</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          {progress.completed} / {progress.total}
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all duration-500 ${
-                            progress.percentage === 100 
-                              ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
-                              : 'bg-gradient-to-r from-blue-500 to-cyan-500'
-                          }`}
-                          style={{ width: `${progress.percentage}%` }}
-                        />
-                      </div>
-                      <div className="text-center">
-                        <span className={`text-sm font-semibold ${
-                          progress.percentage === 100 
-                            ? 'text-green-600 dark:text-green-400' 
-                            : 'text-gray-900 dark:text-white'
-                        }`}>
-                          {progress.percentage.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-sm">
-                      {progress.fields.map((field) => (
-                        <div key={field.key} className="flex items-center space-x-2">
-                          <div className={`w-2 h-2 rounded-full ${
-                            field.completed 
-                              ? 'bg-green-500' 
-                              : 'bg-gray-300 dark:bg-gray-600'
-                          }`} />
-                          <span className={`font-['Noto_Sans_JP'] ${
-                            field.completed 
-                              ? 'text-gray-700 dark:text-gray-300' 
-                              : 'text-gray-500 dark:text-gray-500'
-                          }`}>
-                            {field.label}
-                          </span>
-                          {field.completed && (
-                            <Check className="h-3 w-3 text-green-500 ml-auto" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {progress.percentage === 100 && (
-                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                        <div className="flex items-center space-x-2">
-                          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          <span className="text-sm font-semibold text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
-                            基本設定完成！
-                          </span>
-                        </div>
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-['Noto_Sans_JP']">
-                          すべての基本設定項目が設定されました。次のステップに進むことができます。
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })(),
-            },
-            {
-              id: 'preview',
-              title: 'プレビュー・要約',
-              icon: Eye,
-              iconBgClass: 'bg-gradient-to-br from-indigo-500 to-blue-600',
-              content: generatePreview ? (
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700 max-h-96 overflow-y-auto">
-                  <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] leading-relaxed">
-                    {generatePreview}
-                  </pre>
-                </div>
-              ) : null,
-              className: 'bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border-indigo-200 dark:border-indigo-800',
-            },
-          ]}
-          defaultOrder={['aiAssistant', 'progress', 'preview']}
-          storageKey="plotStep1_sidebarOrder"
-          onOrderChange={() => showSuccess('サイドバー項目の並び順を変更しました')}
-        />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { databaseService } from '../services/databaseService';
 import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
 import { SavedEvaluation } from '../types/evaluation';
+import { EmotionMap } from '../types/emotion';
 
 export interface Character {
   id: string;
@@ -212,6 +213,7 @@ export interface Project {
     emotion?: string; // 感情描写（内面重視 / 行動で示す / 抑制的）
     tone?: string; // トーン（緊張感 / 穏やか / 希望 / 切なさ / 謎めいた）
   };
+  emotionMap?: EmotionMap; // 感情マップ
 }
 
 export interface StepProgress {

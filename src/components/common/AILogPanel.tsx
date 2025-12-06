@@ -10,6 +10,7 @@ interface AILogPanelProps {
   maxHeight?: string;
   renderLogContent?: (log: AILogEntry) => React.ReactNode;
   showWhenEmpty?: boolean;
+  compact?: boolean;
 }
 
 export const AILogPanel: React.FC<AILogPanelProps> = ({
@@ -20,6 +21,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
   maxHeight = 'max-h-96',
   renderLogContent,
   showWhenEmpty = true,
+  compact = false,
 }) => {
   const defaultTypeLabels: Record<string, string> = {
     'generate': '生成',
@@ -85,39 +87,39 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
         {logs.map((log) => (
           <div
             key={log.id}
-            className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600"
+            className={`bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 ${compact ? 'p-2' : 'p-3'}`}
           >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center space-x-2">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${getTypeBadgeClass(log.type)}`}>
-                                  {defaultTypeLabels[log.type] || log.type}
-                                </span>
-                                {log.characterName && (
-                                  <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                    {log.characterName}
-                                  </span>
-                                )}
-                                {log.fieldLabel && (
-                                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                    {log.fieldLabel}
-                                  </span>
-                                )}
-                                {log.structureType && (
-                                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                    {log.structureType}
-                                  </span>
-                                )}
-                                {log.chapterId && (
-                                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                    {log.chapterId}
-                                  </span>
-                                )}
-                                {log.suggestionType && (
-                                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                    {log.suggestionType}
-                                  </span>
-                                )}
-                              </div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <span className={`px-2 py-1 rounded text-xs font-medium ${getTypeBadgeClass(log.type)}`}>
+                  {defaultTypeLabels[log.type] || log.type}
+                </span>
+                {log.characterName && (
+                  <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    {log.characterName}
+                  </span>
+                )}
+                {log.fieldLabel && (
+                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    {log.fieldLabel}
+                  </span>
+                )}
+                {log.structureType && (
+                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    {log.structureType}
+                  </span>
+                )}
+                {log.chapterId && (
+                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    {log.chapterId}
+                  </span>
+                )}
+                {log.suggestionType && (
+                  <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                    {log.suggestionType}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center space-x-1">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {log.timestamp.toLocaleString('ja-JP', {
@@ -139,28 +141,28 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
               </div>
             </div>
 
-                            {log.error ? (
-                              <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
-                                <strong>エラー:</strong> {log.error}
-                              </div>
-                            ) : renderLogContent ? (
-                              renderLogContent(log)
-                            ) : (
-                              <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                                <div className="mb-2">
-                                  <strong>プロンプト:</strong>
-                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                                    {log.prompt.substring(0, 200)}...
-                                  </div>
-                                </div>
-                                <div>
-                                  <strong>応答:</strong>
-                                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                                    {log.response.substring(0, 300)}...
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+            {log.error ? (
+              <div className="text-sm text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                <strong>エラー:</strong> {log.error}
+              </div>
+            ) : renderLogContent ? (
+              renderLogContent(log)
+            ) : (
+              <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                <div className="mb-2">
+                  <strong>プロンプト:</strong>
+                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                    {log.prompt.substring(0, 200)}...
+                  </div>
+                </div>
+                <div>
+                  <strong>応答:</strong>
+                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
+                    {log.response.substring(0, 300)}...
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
