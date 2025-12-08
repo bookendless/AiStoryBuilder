@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Sparkles, Loader, FileText, CheckCircle } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -6,6 +6,7 @@ import { useToast } from '../Toast';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
+import { AILoadingIndicator } from '../common/AILoadingIndicator';
 
 // フィールド設定
 const FIELD_MAX_LENGTHS = {
@@ -38,6 +39,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
     const { showError, showSuccess, showWarning } = useToast();
     const [isGenerating, setIsGenerating] = useState(false);
     const { aiLogs, addLog } = useAILog({ projectId: currentProject?.id });
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // 現在のプロット設定を取得
     const plotData = currentProject?.plot || {
@@ -152,12 +154,40 @@ export const PlotStep1AssistantPanel: React.FC = () => {
         return formatted;
     }, []);
 
+    // キャンセルハンドラー
+    const handleCancel = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+            setIsGenerating(false);
+        }
+    }, []);
+
+    // クリーンアップ
+    useEffect(() => {
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+            }
+        };
+    }, []);
+
     // 基本設定全体のAI生成関数
     const handleBasicAIGenerate = useCallback(async () => {
         if (!isConfigured) {
             showWarning('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 5000);
             return;
         }
+
+        // 既存のリクエストをキャンセル
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         setIsGenerating(true);
         
@@ -174,6 +204,14 @@ export const PlotStep1AssistantPanel: React.FC = () => {
                 ? context.characters.map(c => `・${c.name} (${c.role})\n  性格: ${c.personality}\n  背景: ${c.background}`).join('\n')
                 : 'キャラクター未設定';
 
+            // あらすじ情報を取得（存在する場合のみ）
+            const synopsisInfo = currentProject?.synopsis && currentProject.synopsis.trim().length > 0
+                ? `\n【参考情報（優先度低）】
+あらすじ: ${currentProject.synopsis}
+
+（注：あらすじは参考情報としてのみ使用し、他の設定と矛盾する場合は他の設定を優先してください）`
+                : '';
+
             const prompt = `あなたは物語プロット生成の専門AIです。以下の指示を厳密に守って、指定されたJSON形式のみで出力してください。
 
 【プロジェクト情報】
@@ -186,7 +224,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
 
 【キャラクター情報】
 ${charactersInfo}
-
+${synopsisInfo}
 【重要指示】以下のJSON形式以外は一切出力しないでください。説明文、コメント、その他のテキストは一切不要です。
 
 {
@@ -231,7 +269,13 @@ ${charactersInfo}
                 prompt,
                 type: 'plot',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             // AIログに記録
             addLog({
@@ -379,13 +423,20 @@ ${charactersInfo}
             await updateProject({ plot: updatedPlot });
 
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('Basic AI生成エラー:', error);
             const errorMessage = error instanceof Error ? error.message : '基本設定のAI生成中にエラーが発生しました';
             showError(errorMessage, 5000);
         } finally {
-            setIsGenerating(false);
+            if (!abortController.signal.aborted) {
+                setIsGenerating(false);
+            }
+            abortControllerRef.current = null;
         }
-    }, [isConfigured, getProjectContext, settings, showError, showSuccess, showWarning, addLog, formatContentToFit, plotData, updateProject]);
+    }, [isConfigured, getProjectContext, settings, showError, showSuccess, showWarning, addLog, formatContentToFit, plotData, updateProject, currentProject]);
 
     // 基本設定完成度を計算
     const progress = useMemo(() => {
@@ -410,15 +461,70 @@ ${charactersInfo}
 
     const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
         const typeLabel = log.type === 'basic' ? '基本設定生成' : '生成';
-        const logText = `【AIログ - ${typeLabel}】\n時刻: ${log.timestamp.toLocaleString('ja-JP')}\n\n【プロンプト】\n${log.prompt}\n\n【AI応答】\n${log.response}\n${log.error ? `\n【エラー】\n${log.error}` : ''}`;
+        const logText = `【AIログ - ${typeLabel}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}`;
         navigator.clipboard.writeText(logText);
         showSuccess('ログをクリップボードにコピーしました');
     }, [showSuccess]);
+
+    // ログダウンロード機能
+    const handleDownloadLogs = useCallback(() => {
+        const typeLabels: Record<string, string> = {
+            'basic': '基本設定生成',
+        };
+        const logsText = aiLogs.map(log => {
+            const typeLabel = typeLabels[log.type] || log.type;
+            return `【AIログ - ${typeLabel}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${'='.repeat(80)}`;
+        }).join('\n\n');
+
+        const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `plot_step1_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showSuccess('ログをダウンロードしました');
+    }, [aiLogs, showSuccess]);
 
     if (!currentProject) return null;
 
     return (
         <div className="space-y-4">
+            {/* AI生成中のローディングインジケーター */}
+            {isGenerating && (
+                <AILoadingIndicator
+                    message="基本設定を生成中"
+                    estimatedTime={30}
+                    variant="inline"
+                    cancellable={true}
+                    onCancel={handleCancel}
+                />
+            )}
+
             {/* AI基本設定提案（メイン） */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2 flex items-center">
@@ -497,6 +603,7 @@ ${charactersInfo}
                     <AILogPanel
                         logs={aiLogs}
                         onCopyLog={handleCopyLog}
+                        onDownloadLogs={handleDownloadLogs}
                         typeLabels={{
                             'basic': '基本設定生成',
                         }}

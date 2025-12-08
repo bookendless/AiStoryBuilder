@@ -2,16 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   AlertCircle,
-  Lightbulb,
   RefreshCw,
-  Download,
-  Settings,
   BarChart3,
   Activity,
-  Zap,
-  Heart,
   X,
-  CheckCircle,
   Info,
 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
@@ -28,7 +22,6 @@ import {
 } from '../../types/emotion';
 import {
   generateEmotionMap,
-  analyzeOverallEmotionMap,
 } from '../../services/emotionAnalysisService';
 
 interface EmotionMapVisualizerProps {
@@ -106,7 +99,9 @@ const EmotionCurveChart: React.FC<{
       y = padding.top + chartHeight - ((chapter.overallScore - minValue) / valueRange) * chartHeight;
     } else {
       // 選択された感情の平均を使用
-      const avgEmotion = selectedEmotions.reduce((sum, type) => sum + chapter.emotions[type], 0) / selectedEmotions.length;
+      const avgEmotion = selectedEmotions
+        .filter((type): type is EmotionType => type !== 'overall')
+        .reduce((sum, type) => sum + chapter.emotions[type], 0) / selectedEmotions.filter((type) => type !== 'overall').length;
       y = padding.top + chartHeight - ((avgEmotion - 0) / 100) * chartHeight;
     }
     
@@ -240,8 +235,9 @@ const EmotionCurveChart: React.FC<{
                 cy={point.y}
                 r={outerRingRadius + 6}
                 fill="transparent"
-                title={`第${index + 1}章をクリックして詳細を表示\n総合スコア: ${point.chapter.overallScore.toFixed(1)}`}
-              />
+              >
+                <title>{`第${index + 1}章をクリックして詳細を表示\n総合スコア: ${point.chapter.overallScore.toFixed(1)}`}</title>
+              </circle>
             </g>
           );
         })}

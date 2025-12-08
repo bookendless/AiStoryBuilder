@@ -56,7 +56,7 @@ export class HttpService {
       method = 'GET',
       headers = {},
       body,
-      timeout = 30000
+      timeout = 45000
     } = options;
 
     try {
@@ -65,12 +65,6 @@ export class HttpService {
       const fetchToUse = tauriFetch || window.fetch.bind(window);
       const isUsingTauri = tauriFetch !== null;
       
-      console.log('HTTP Request:', {
-        url,
-        method,
-        isTauriEnv: isTauri(),
-        isUsingTauriFetch: isUsingTauri
-      });
       
       // Tauri環境用のオプション
       const fetchOptions: RequestInit & { connectTimeout?: number } = {
@@ -99,6 +93,11 @@ export class HttpService {
             data = JSON.parse(responseText) as T;
           } catch {
             data = responseText as T;
+          }
+
+          // エラーレスポンスのログ出力（簡略版）
+          if (response.status >= 400) {
+            console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
           }
 
           return {
@@ -132,13 +131,12 @@ export class HttpService {
         headers: Object.fromEntries(response.headers.entries()),
       };
     } catch (error) {
-      console.error('HTTP Request Error:', {
-        url,
-        method,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        isTauriEnv: isTauri()
-      });
+      // エラーログは簡略化（APIキーを含む可能性があるため）
+      if (error instanceof Error) {
+        console.error(`HTTP Request Error: ${method} ${url} - ${error.message}`);
+      } else {
+        console.error(`HTTP Request Error: ${method} ${url}`);
+      }
       
       // より詳細なエラー情報を提供
       if (error instanceof Error) {
@@ -196,6 +194,126 @@ export class HttpService {
   }
 
   /**
+   * multipart/form-data形式でのPOSTリクエストを実行する
+   * @param url URL
+   * @param formData FormDataオブジェクト
+   * @param options オプション
+   */
+  async postFormData<T = unknown>(
+    url: string,
+    formData: FormData,
+    options?: {
+      headers?: Record<string, string>;
+      timeout?: number;
+    }
+  ): Promise<HttpResponse<T>> {
+    const timeout = options?.timeout || 45000;
+
+    try {
+      // Tauri環境かブラウザ環境かで適切なfetchを使用
+      const tauriFetch = await getTauriFetch();
+      const fetchToUse = tauriFetch || window.fetch.bind(window);
+      const isUsingTauri = tauriFetch !== null;
+
+      // multipart/form-dataの場合はContent-Typeヘッダーを設定しない
+      // （ブラウザが自動的にboundaryを設定するため）
+      const headers: Record<string, string> = { ...(options?.headers || {}) };
+      // Content-Typeが明示的に設定されていない場合のみ削除
+      if (!headers['Content-Type'] && !headers['content-type']) {
+        // FormDataを使用する場合、ブラウザが自動的にContent-Typeを設定するため
+        // ヘッダーからContent-Typeを削除する必要はないが、明示的に設定しない
+      }
+
+      // Tauri環境用のオプション
+      const fetchOptions: RequestInit & { connectTimeout?: number } = {
+        method: 'POST',
+        headers,
+        body: formData,
+      };
+
+      // Tauri環境ではconnectTimeoutを設定
+      if (isUsingTauri) {
+        fetchOptions.connectTimeout = timeout;
+      } else {
+        // ブラウザ環境ではAbortControllerでタイムアウトを実装
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        fetchOptions.signal = controller.signal;
+
+        try {
+          const response = await fetchToUse(url, fetchOptions);
+          clearTimeout(timeoutId);
+
+          const responseText = await response.text();
+          let data: T;
+
+          try {
+            data = JSON.parse(responseText) as T;
+          } catch {
+            data = responseText as T;
+          }
+
+          // エラーレスポンスのログ出力（簡略版）
+          if (response.status >= 400) {
+            console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+          }
+
+          return {
+            data,
+            status: response.status,
+            statusText: response.statusText || '',
+            headers: Object.fromEntries(response.headers.entries()),
+          };
+        } catch (error) {
+          clearTimeout(timeoutId);
+          throw error;
+        }
+      }
+
+      // Tauri環境での実行
+      const response = await fetchToUse(url, fetchOptions);
+
+      const responseText = await response.text();
+      let data: T;
+
+      try {
+        data = JSON.parse(responseText) as T;
+      } catch {
+        data = responseText as T;
+      }
+
+      return {
+        data,
+        status: response.status,
+        statusText: response.statusText || '',
+        headers: Object.fromEntries(response.headers.entries()),
+      };
+    } catch (error) {
+      // エラーログは簡略化（APIキーを含む可能性があるため）
+      if (error instanceof Error) {
+        console.error(`HTTP FormData Request Error: POST ${url} - ${error.message}`);
+      } else {
+        console.error(`HTTP FormData Request Error: POST ${url}`);
+      }
+
+      // より詳細なエラー情報を提供
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error(`タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`);
+        } else if (error.message.includes('fetch')) {
+          throw new Error(`ネットワークエラー: ${error.message}`);
+        } else if (error.message.includes('timeout')) {
+          throw new Error(`タイムアウトエラー: ${error.message}`);
+        } else {
+          throw new Error(`HTTPリクエストエラー: ${error.message}`);
+        }
+      } else {
+        throw new Error(`不明なエラー: ${String(error)}`);
+      }
+    }
+  }
+
+  /**
    * ストリーミングリクエストを実行する
    * @param url URL
    * @param data リクエストボディ
@@ -232,7 +350,7 @@ export class HttpService {
       };
 
       if (isUsingTauri) {
-        fetchOptions.connectTimeout = options?.timeout || 30000;
+        fetchOptions.connectTimeout = options?.timeout || 45000;
       }
 
       const response = await fetchToUse(url, fetchOptions);

@@ -13,8 +13,14 @@ import { CharacterCard } from './character/CharacterCard';
 import { CharacterPossessionChat } from '../tools/CharacterPossessionChat';
 import { CharacterDiary } from '../tools/CharacterDiary';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { StepNavigation } from '../common/StepNavigation';
+import { Step } from '../../App';
 
-export const CharacterStep: React.FC = () => {
+interface CharacterStepProps {
+  onNavigateToStep?: (step: Step) => void;
+}
+
+export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const { showError, showSuccess } = useToast();
@@ -268,6 +274,7 @@ export const CharacterStep: React.FC = () => {
         background: character.background || '未設定',
         speechStyle: speechStyleInfo ? `\n${speechStyleInfo}` : '',
         imageAnalysis: imageAnalysisInstruction,
+        synopsis: currentProject?.synopsis || '',
       });
 
       console.log('AI Request:', {
@@ -350,8 +357,28 @@ export const CharacterStep: React.FC = () => {
     return <div>プロジェクトを選択してください</div>;
   }
 
+  // ステップナビゲーション用のハンドラー
+  const handlePreviousStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('plot1');
+    }
+  };
+
+  const handleNextStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('plot2');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
+      {/* ステップナビゲーション */}
+      <StepNavigation
+        currentStep="character"
+        onPrevious={handlePreviousStep}
+        onNext={handleNextStep}
+      />
+
       {/* AI生成中のローディングインジケーター */}
       {enhancingId && (
         <div className="mb-6">
@@ -443,6 +470,7 @@ export const CharacterStep: React.FC = () => {
                     onImageClick={() => handleOpenCharacterImageViewer(character)}
                     onPossession={() => setPossessionCharacterId(character.id)}
                     onDiary={() => setDiaryCharacterId(character.id)}
+                    onUpdate={handleUpdateCharacter}
                   />
                 );
               })}

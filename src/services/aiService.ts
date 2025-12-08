@@ -1,4 +1,4 @@
-import { AIRequest, AIResponse, AIProvider } from '../types/ai';
+import { AIRequest, AIResponse, AIProvider, AISettings } from '../types/ai';
 import { EvaluationRequest, EvaluationResult } from '../types/evaluation';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
@@ -11,7 +11,7 @@ export const AI_PROVIDERS: AIProvider[] = [
     id: 'openai',
     name: 'OpenAI GPT',
     requiresApiKey: true,
-    description: 'OpenAI Responses / Chat Completions API。gpt-4.1系やo1系の最新モデルを利用できます。',
+    description: 'OpenAI Responses / Chat Completions API。gpt-5.1系やo系の最新モデルを利用できます。',
     apiDocsUrl: 'https://platform.openai.com/docs/api-reference/chat',
     recommendedUses: [
       '高品質な文章生成と草案執筆',
@@ -20,6 +20,28 @@ export const AI_PROVIDERS: AIProvider[] = [
     ],
     regions: ['Global', 'US', 'EU'],
     models: [
+      // --- 追加: GPT-5.1 系（フル版・Mini版）
+      {
+        id: 'gpt-5.1',
+        name: 'GPT-5.1',
+        description: '最新世代の汎用マルチモーダルモデル（最高品質・高度推論対応）。創作・分析・ツール連携に最適。',
+        maxTokens: 200000,
+        capabilities: ['テキスト', 'ビジョン', '音声入力', 'ツール呼び出し', '高度推論', 'チェーン・オブ・ソート'],
+        recommendedUse: '長編創作、深い論理検証、外部ツール（プラグイン）との連携が必要なケース。',
+        latencyClass: 'reasoning',
+      },
+      {
+        id: 'gpt-5.1-mini',
+        name: 'GPT-5.1 Mini',
+        description: 'GPT-5.1 の高速・コスト効率版。多くの生成タスクで高品質を維持しつつ低レイテンシを実現。',
+        maxTokens: 128000,
+        capabilities: ['テキスト', 'ビジョン', '音声入力'],
+        recommendedUse: 'プロトタイピング、大量生成、対話型の高速応答が必要な場面。',
+        latencyClass: 'fast',
+      },
+
+      // --- 既存モデル群（順序は維持） ---
+
       {
         id: 'gpt-4.1-mini',
         name: 'GPT-4.1 Mini',
@@ -55,6 +77,33 @@ export const AI_PROVIDERS: AIProvider[] = [
         capabilities: ['テキスト', 'ビジョン'],
         recommendedUse: '大量トライアルや高速応答が必要な操作',
         latencyClass: 'fast',
+      },
+      {
+        id: 'o4-mini',
+        name: 'OpenAI o4-mini',
+        description: '2025年6月リリースの最新コスト効率Reasoningモデル',
+        maxTokens: 128000,
+        capabilities: ['テキスト', '推論', 'Chain-of-thought'],
+        recommendedUse: '日常的な推論タスク、軽量な論理検証',
+        latencyClass: 'fast',
+      },
+      {
+        id: 'o3-pro',
+        name: 'OpenAI o3-pro',
+        description: '2025年6月リリース。プロユーザー向けの高度推論モデル',
+        maxTokens: 200000,
+        capabilities: ['テキスト', '高度推論', '分析'],
+        recommendedUse: '複雑なプロット構築、深い洞察が必要な分析',
+        latencyClass: 'reasoning',
+      },
+      {
+        id: 'o3-mini',
+        name: 'OpenAI o3-mini',
+        description: '2025年1月リリース。コーディング・数学・科学に特化した軽量モデル',
+        maxTokens: 128000,
+        capabilities: ['テキスト', '推論', 'コード'],
+        recommendedUse: 'ロジックチェック、整合性検証',
+        latencyClass: 'reasoning',
       },
       {
         id: 'o1-mini',
@@ -98,7 +147,7 @@ export const AI_PROVIDERS: AIProvider[] = [
     id: 'claude',
     name: 'Anthropic Claude',
     requiresApiKey: true,
-    description: 'Claude 3 / 3.5 ファミリー。長文要約や整合性チェックに強みがあります。',
+    description: 'Claude 4 / 4.5 ファミリー。長文要約や整合性チェックに強みがあります。',
     apiDocsUrl: 'https://docs.anthropic.com/en/api/messages',
     recommendedUses: [
       '長文の推敲や構造化された要約',
@@ -108,14 +157,33 @@ export const AI_PROVIDERS: AIProvider[] = [
     regions: ['US', 'EU', 'JP (Preview)'],
     models: [
       {
-        id: 'claude-3-5-sonnet-20241022',
-        name: 'Claude 3.5 Sonnet',
-        description: '最新Sonnet。バランスと出力品質が高い推奨モデル',
+        id: 'claude-opus-4-20250514',
+        name: 'Claude Opus 4',
+        description: '2025年11月登場。Anthropic史上最も賢いモデル',
         maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン', '長文推論'],
-        recommendedUse: '草案レベルの執筆や高度な分析',
+        capabilities: ['テキスト', 'ビジョン', '高度推論', 'エージェント'],
+        recommendedUse: '最高難易度の執筆、複雑な構成の完全な制御',
         latencyClass: 'standard',
       },
+      {
+        id: 'claude-sonnet-4-5-20250929',
+        name: 'Claude Sonnet 4.5',
+        description: '2025年9月登場。Sonnetの最新世代',
+        maxTokens: 200000,
+        capabilities: ['テキスト', 'ビジョン', '長文推論'],
+        recommendedUse: '日常的な執筆の主力モデル',
+        latencyClass: 'standard',
+      },
+      {
+        id: 'claude-haiku-4-5-20251001',
+        name: 'Claude Haiku 4.5',
+        description: '2025年10月登場。驚異的な速度と知能を両立',
+        maxTokens: 200000,
+        capabilities: ['テキスト', 'ビジョン'],
+        recommendedUse: '高速チャット、大量のアイデア出し',
+        latencyClass: 'fast',
+      },
+
       {
         id: 'claude-3-5-haiku-20241022',
         name: 'Claude 3.5 Haiku',
@@ -169,11 +237,11 @@ export const AI_PROVIDERS: AIProvider[] = [
     models: [
       {
         id: 'gemini-3-pro-preview',
-        name: 'Gemini 3 Pro (Preview)',
-        description: '最新世代の最強モデル。マルチモーダル理解とエージェント機能に優れる',
-        maxTokens: 1048576,
+        name: 'Gemini 3.0 Pro (Preview)',
+        description: '2025年11月リリース。最高性能のマルチモーダルモデル',
+        maxTokens: 2000000,
         capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
-        recommendedUse: '高度な推論タスクや複雑なマルチモーダル処理',
+        recommendedUse: 'あらゆる高度なタスク、長大なコンテキスト処理',
         latencyClass: 'standard',
       },
       {
@@ -322,6 +390,7 @@ const PROMPTS: PromptTemplates = {
 {speechStyle}
 
 {imageAnalysis}
+{synopsis}
 
 以下の形式で具体的に回答してください（各項目は2-3行程度）：
 【外見の詳細】
@@ -408,6 +477,7 @@ const PROMPTS: PromptTemplates = {
 フック要素: {plotHook}
 主人公の目標: {protagonistGoal}
 主要な障害: {mainObstacle}
+{synopsis}
 
 【重要】作品のタイトル、テーマ、内容、およびプロット詳細情報に合ったキャラクター設定を心がけてください：
 - 作品タイトルから物語の方向性や雰囲気を読み取り、それに適したキャラクターを設定
@@ -1744,17 +1814,296 @@ const PROMPTS: PromptTemplates = {
   "warnings": ["注意すべき点"]
 }}`
   },
+
+  imageToStory: {
+    analyze: `以下の画像を分析し、この画像からインスピレーションを得た物語プロジェクトを提案してください。
+
+【画像分析の観点】
+1. **視覚的な要素**: 画像に写っている人物、風景、物体、色合い、雰囲気
+2. **感情的な印象**: 画像から感じられる感情やムード
+3. **物語の可能性**: この画像から展開できそうな物語の方向性
+4. **世界観**: 画像が示唆する時代設定や世界観
+
+【出力形式】
+以下のJSON形式で出力してください：
+{
+  "title": "物語のタイトル（30文字以内）",
+  "theme": "物語のテーマ（例：成長・自己発見、友情・絆、恋愛・愛など）",
+  "mainGenre": "メインジャンル（例：一般小説、恋愛小説、ミステリー、SF、ファンタジーなど）",
+  "subGenre": "サブジャンル（任意、例：学園、現代、異世界など）",
+  "targetReader": "ターゲット読者（例：10代、20代、30代、全年齢など）",
+  "description": "プロジェクトの説明・概要（200文字程度）",
+  "synopsis": "物語のあらすじ（500文字程度）",
+  "imageAnalysis": "画像から読み取った要素の分析（100文字程度）"
+}
+
+【重要】
+- 画像の内容を正確に分析し、それに基づいた物語を提案してください
+- タイトルは画像の印象を反映した魅力的なものにしてください
+- あらすじは画像から展開できる具体的な物語の流れを含めてください
+- 画像分析では、視覚的な要素と感情的な印象を簡潔にまとめてください`,
+  },
+
+  audioToStory: {
+    analyze: `{transcription}
+
+上記の音声の文字起こし結果を分析し、この音声からインスピレーションを得た物語プロジェクトを提案してください。
+
+【音声分析の観点】
+1. **内容の理解**: 音声で語られている内容やテーマ
+2. **感情的な印象**: 音声から感じられる感情やムード
+3. **話者の特徴**: 話し方、口調、背景が推測できる要素
+4. **物語の可能性**: この音声から展開できそうな物語の方向性
+
+【出力形式】
+以下のJSON形式で出力してください：
+{
+  "title": "物語のタイトル（30文字以内）",
+  "theme": "物語のテーマ（例：成長・自己発見、友情・絆、恋愛・愛など）",
+  "mainGenre": "メインジャンル（例：一般小説、恋愛小説、ミステリー、SF、ファンタジーなど）",
+  "subGenre": "サブジャンル（任意、例：学園、現代、異世界など）",
+  "targetReader": "ターゲット読者（例：10代、20代、30代、全年齢など）",
+  "description": "プロジェクトの説明・概要（200文字程度）",
+  "synopsis": "物語のあらすじ（500文字程度）",
+  "audioAnalysis": "音声から読み取った要素の分析（100文字程度）",
+  "transcription": "音声の文字起こし（可能な場合）"
+}
+
+【重要】
+- 音声の内容を正確に理解し、それに基づいた物語を提案してください
+- タイトルは音声のテーマを反映した魅力的なものにしてください
+- あらすじは音声から展開できる具体的な物語の流れを含めてください
+- 音声分析では、内容と感情的な印象を簡潔にまとめてください`,
+  },
+
+  audioImageToStory: {
+    analyze: `以下の音声と画像を統合的に分析し、これらからインスピレーションを得た物語プロジェクトを提案してください。
+
+【音声分析の観点】
+1. **内容の理解**: 音声で語られている内容やテーマ
+2. **感情的な印象**: 音声から感じられる感情やムード
+3. **話者の特徴**: 話し方、口調、背景が推測できる要素
+4. **物語の可能性**: この音声から展開できそうな物語の方向性
+
+【画像分析の観点】
+1. **視覚的な要素**: 画像に写っている人物、風景、物体、色合い、雰囲気
+2. **感情的な印象**: 画像から感じられる感情やムード
+3. **物語の可能性**: この画像から展開できそうな物語の方向性
+4. **世界観**: 画像が示唆する時代設定や世界観
+
+【統合分析の観点】
+1. **音声と画像の関連性**: 音声の内容と画像の視覚的要素がどのように関連しているか
+2. **補完的な情報**: 音声と画像が互いにどのような情報を補完しているか
+3. **統合された物語**: 両方のメディアから得られた情報を統合して、より豊かな物語を構築
+
+【出力形式】
+以下のJSON形式で出力してください：
+{
+  "title": "物語のタイトル（30文字以内）",
+  "theme": "物語のテーマ（例：成長・自己発見、友情・絆、恋愛・愛など）",
+  "mainGenre": "メインジャンル（例：一般小説、恋愛小説、ミステリー、SF、ファンタジーなど）",
+  "subGenre": "サブジャンル（任意、例：学園、現代、異世界など）",
+  "targetReader": "ターゲット読者（例：10代、20代、30代、全年齢など）",
+  "description": "プロジェクトの説明・概要（200文字程度）",
+  "synopsis": "物語のあらすじ（500文字程度）",
+  "audioAnalysis": "音声から読み取った要素の分析（100文字程度）",
+  "imageAnalysis": "画像から読み取った要素の分析（100文字程度）",
+  "integratedAnalysis": "音声と画像を統合した分析結果（100文字程度）"
+}
+
+【重要】
+- 音声と画像の両方の内容を正確に分析し、それらを統合して物語を提案してください
+- タイトルは音声と画像の両方の印象を反映した魅力的なものにしてください
+- あらすじは音声と画像から展開できる具体的な物語の流れを含めてください
+- 統合分析では、音声と画像がどのように関連し、互いに補完し合っているかを簡潔にまとめてください`,
+  },
 };
 
 class AIService {
+  // モデル名に基づいてmax_tokensとmax_completion_tokensを切り替えるヘルパー関数
+  private isNewModel(model: string): boolean {
+    return model.startsWith('gpt-5') || model.startsWith('o');
+  }
+
+  // ログ出力用のプロンプトマスキング（機密情報保護）
+  private maskSensitiveInfo(text: string, maxLength: number = 100): string {
+    if (!text || text.length <= maxLength) {
+      return text || '';
+    }
+    // 機密情報と思われるパターンをマスク
+    const masked = text
+      .substring(0, maxLength)
+      .replace(/api[_-]?key\s*[:=]\s*[\w-]+/gi, 'api_key=***')
+      .replace(/sk-[a-zA-Z0-9]+/g, 'sk-***')
+      .replace(/password\s*[:=]\s*[\w-]+/gi, 'password=***');
+    return masked + '...';
+  }
+
+  // ローカルエンドポイントの検証
+  private validateLocalEndpoint(endpoint: string): boolean {
+    if (!endpoint || typeof endpoint !== 'string') {
+      return false;
+    }
+
+    try {
+      const url = new URL(endpoint);
+      
+      // プロトコルの検証
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return false;
+      }
+
+      // ホスト名の検証（localhost、127.0.0.1、::1のみ許可）
+      const hostname = url.hostname.toLowerCase();
+      const allowedHosts = ['localhost', '127.0.0.1', '::1', '[::1]'];
+      
+      if (!allowedHosts.includes(hostname)) {
+        return false;
+      }
+
+      // ポート番号の検証（1-65535）
+      const port = url.port ? parseInt(url.port, 10) : (url.protocol === 'https:' ? 443 : 80);
+      if (isNaN(port) || port < 1 || port > 65535) {
+        return false;
+      }
+
+      return true;
+    } catch {
+      // URL解析に失敗した場合は無効
+      return false;
+    }
+  }
+
+  /**
+   * Whisper APIを使用して音声をテキストに変換する
+   * @param audioFile 音声ファイル
+   * @param apiKey OpenAI APIキー
+   * @returns 変換されたテキスト
+   */
+  async transcribeAudio(audioFile: File, apiKey: string): Promise<string> {
+    try {
+      // Tauri環境検出（Tauri 2対応）
+      const isTauriEnv = typeof window !== 'undefined' &&
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+
+      // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+      const apiUrl = isTauriEnv || !import.meta.env.DEV
+        ? 'https://api.openai.com/v1/audio/transcriptions'
+        : '/api/openai/v1/audio/transcriptions';
+
+      // FormDataを作成
+      const formData = new FormData();
+      formData.append('file', audioFile);
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'ja'); // 日本語を指定
+      formData.append('response_format', 'text'); // テキスト形式で返す
+
+      // APIキーの復号化
+      const decryptedApiKey = decryptApiKey(apiKey);
+
+      // 開発環境のみログ出力（機密情報をマスク）
+      if (import.meta.env.DEV) {
+        console.log('Whisper API Request:', {
+          fileName: audioFile.name,
+          fileSize: audioFile.size,
+          fileType: audioFile.type,
+          apiUrl: apiUrl.replace(/key=[^&]+/, 'key=***'),
+        });
+      }
+
+      // multipart/form-data形式でリクエストを送信
+      const response = await httpService.postFormData<string>(
+        apiUrl,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${decryptedApiKey}`,
+          },
+          timeout: 120000, // 音声変換は時間がかかる可能性があるため120秒
+        }
+      );
+
+      if (response.status >= 400) {
+        let errorMessage = `HTTP ${response.status}`;
+        
+        // エラーレスポンスの解析を試みる
+        try {
+          const errorData = typeof response.data === 'string' 
+            ? JSON.parse(response.data) as { error?: { message?: string; type?: string } }
+            : response.data as { error?: { message?: string; type?: string } };
+          
+          if (errorData.error?.message) {
+            errorMessage = errorData.error.message;
+          }
+          
+          // 特定のエラーコードに対する詳細なメッセージ
+          if (response.status === 401) {
+            errorMessage = 'APIキーが無効です。AI設定でAPIキーを確認してください。';
+          } else if (response.status === 429) {
+            errorMessage = 'レート制限に達しました。しばらく待ってから再試行してください。';
+          } else if (response.status === 413) {
+            errorMessage = '音声ファイルが大きすぎます。10MB以下のファイルを選択してください。';
+          } else if (response.status === 400) {
+            errorMessage = errorData.error?.message || '音声ファイルの形式が正しくありません。';
+          }
+        } catch (parseError) {
+          // JSON解析に失敗した場合は、レスポンスデータをそのまま使用
+          if (typeof response.data === 'string') {
+            errorMessage = response.data;
+          }
+        }
+        
+        throw new Error(`Whisper API エラー: ${errorMessage}`);
+      }
+
+      // レスポンスはテキスト形式で返される
+      const transcription = typeof response.data === 'string' 
+        ? response.data 
+        : String(response.data);
+
+      if (!transcription || transcription.trim().length === 0) {
+        throw new Error('音声の文字起こし結果が空です。音声ファイルに音声が含まれているか確認してください。');
+      }
+
+      return transcription.trim();
+    } catch (error) {
+      console.error('Whisper API Error:', error);
+      
+      // より詳細なエラーメッセージを提供
+      if (error instanceof Error) {
+        // 既に詳細なメッセージが含まれている場合はそのまま返す
+        if (error.message.includes('Whisper API エラー')) {
+          throw error;
+        }
+        
+        // ネットワークエラーの場合
+        if (error.message.includes('ネットワークエラー') || error.message.includes('fetch')) {
+          throw new Error('Whisper APIへの接続に失敗しました。ネットワーク接続を確認してください。');
+        }
+        
+        // タイムアウトエラーの場合
+        if (error.message.includes('タイムアウト')) {
+          throw new Error('音声の文字起こしがタイムアウトしました。ファイルサイズが大きすぎる可能性があります。');
+        }
+        
+        // その他のエラー
+        throw new Error(`音声の文字起こしに失敗しました: ${error.message}`);
+      }
+      
+      throw new Error('音声の文字起こしに失敗しました。不明なエラーが発生しました。');
+    }
+  }
+
   private async callOpenAI(request: AIRequest): Promise<AIResponse> {
     try {
-      if (!request.settings.apiKey) {
+      // apiKeysから取得、なければapiKeyから取得
+      const apiKeyForProvider = request.settings.apiKeys?.['openai'] || request.settings.apiKey;
+      if (!apiKeyForProvider) {
         throw new Error('OpenAI APIキーが設定されていません');
       }
 
       // APIキーの復号化
-      const apiKey = decryptApiKey(request.settings.apiKey);
+      const apiKey = decryptApiKey(apiKeyForProvider);
 
       // Tauri環境検出（Tauri 2対応）
       const isTauriEnv = typeof window !== 'undefined' &&
@@ -1785,7 +2134,9 @@ class AIService {
         userContent = request.prompt;
       }
 
-      const requestBody = {
+      // モデル名に基づいて適切なパラメータを選択
+      const isNewModelType = this.isNewModel(request.settings.model);
+      const requestBody: any = {
         model: request.settings.model,
         messages: [
           {
@@ -1798,51 +2149,67 @@ class AIService {
           },
         ],
         temperature: request.settings.temperature,
-        max_tokens: request.settings.maxTokens,
         stream: !!request.onStream, // ストリーミング有効化
       };
 
-      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は60秒（OpenAIのデフォルト）
-      const timeout = request.timeout ?? 60000;
+      // GPT-5.1系やo系モデルはmax_completion_tokens、それ以外はmax_tokensを使用
+      if (isNewModelType) {
+        requestBody.max_completion_tokens = request.settings.maxTokens;
+      } else {
+        requestBody.max_tokens = request.settings.maxTokens;
+      }
+
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒（OpenAIのデフォルト、高度なモデルの思考時間を考慮）
+      const timeout = request.timeout ?? 180000;
 
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
 
-        await httpService.postStream(
-          apiUrl,
-          requestBody,
-          (chunk) => {
-            // SSEの解析
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  const content = data.choices?.[0]?.delta?.content || '';
-                  if (content) {
-                    fullContent += content;
-                    request.onStream!(content);
+        try {
+          await httpService.postStream(
+            apiUrl,
+            requestBody,
+            (chunk) => {
+              // SSEの解析
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6));
+                    const content = data.choices?.[0]?.delta?.content || '';
+                    if (content) {
+                      fullContent += content;
+                      request.onStream!(content);
+                    }
+                  } catch (e) {
+                    console.warn('SSE parse error:', e);
                   }
-                } catch (e) {
-                  console.warn('SSE parse error:', e);
                 }
               }
-            }
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
             },
-            timeout, // request.timeoutが指定されている場合はそれを使用
-            signal: request.signal
-          }
-        );
+            {
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+              },
+              timeout, // request.timeoutが指定されている場合はそれを使用
+              signal: request.signal
+            }
+          );
 
-        return {
-          content: fullContent,
-        };
+          return {
+            content: fullContent,
+          };
+        } catch (streamError) {
+          // ストリーミング中のエラーを適切に処理
+          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
+          console.error('OpenAI streaming error:', streamError);
+          return {
+            content: fullContent, // 既に受信したコンテンツは返す
+            error: `ストリーミングエラー: ${errorMessage}`,
+          };
+        }
       }
 
       // 通常のリクエスト（非ストリーミング）
@@ -1884,12 +2251,14 @@ class AIService {
 
   private async callClaude(request: AIRequest): Promise<AIResponse> {
     try {
-      if (!request.settings.apiKey) {
+      // apiKeysから取得、なければapiKeyから取得
+      const apiKeyForProvider = request.settings.apiKeys?.['claude'] || request.settings.apiKey;
+      if (!apiKeyForProvider) {
         throw new Error('Claude APIキーが設定されていません');
       }
 
       // APIキーの復号化
-      const apiKey = decryptApiKey(request.settings.apiKey);
+      const apiKey = decryptApiKey(apiKeyForProvider);
 
       // Tauri環境検出（Tauri 2対応）
       const isTauriEnv = typeof window !== 'undefined' &&
@@ -1900,15 +2269,18 @@ class AIService {
         ? 'https://api.anthropic.com/v1/messages'
         : '/api/anthropic/v1/messages';
 
-      console.log('Claude API Request:', {
-        model: request.settings.model,
-        prompt: request.prompt.substring(0, 100) + '...',
-        hasImage: !!request.image,
-        temperature: request.settings.temperature,
-        maxTokens: request.settings.maxTokens,
-        apiUrl,
-        stream: !!request.onStream
-      });
+      // 開発環境のみログ出力（機密情報をマスク）
+      if (import.meta.env.DEV) {
+        console.log('Claude API Request:', {
+          model: request.settings.model,
+          prompt: this.maskSensitiveInfo(request.prompt, 100),
+          hasImage: !!request.image,
+          temperature: request.settings.temperature,
+          maxTokens: request.settings.maxTokens,
+          apiUrl: apiUrl.replace(/\/api\/anthropic\/v1\/messages/, '/api/anthropic/v1/messages'), // エンドポイントのみ表示
+          stream: !!request.onStream
+        });
+      }
 
       // 画像がある場合のコンテンツ構築
       let userContent: string | Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }>;
@@ -1954,57 +2326,72 @@ class AIService {
         stream: !!request.onStream,
       };
 
-      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は60秒（Claudeのデフォルト）
-      const timeout = request.timeout ?? 60000;
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒（Claudeのデフォルト、高度なモデルの思考時間を考慮）
+      const timeout = request.timeout ?? 180000;
+
+      // ブラウザ環境でプロキシ経由の場合は、anthropic-dangerous-direct-browser-accessヘッダーが必要
+      const headers: Record<string, string> = {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      };
+      
+      // ブラウザ環境でプロキシ経由の場合のみ、このヘッダーを追加
+      if (!isTauriEnv && import.meta.env.DEV) {
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      }
 
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
 
-        await httpService.postStream(
-          apiUrl,
-          requestBody,
-          (chunk) => {
-            // SSEの解析
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
+        try {
+          await httpService.postStream(
+            apiUrl,
+            requestBody,
+            (chunk) => {
+              // SSEの解析
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
 
-              const dataStr = line.slice(6).trim();
-              if (dataStr === '[DONE]') continue;
+                const dataStr = line.slice(6).trim();
+                if (dataStr === '[DONE]') continue;
 
-              try {
-                const data = JSON.parse(dataStr);
-                if (data.type === 'content_block_delta' && data.delta?.text) {
-                  const content = data.delta.text;
-                  fullContent += content;
-                  request.onStream!(content);
+                try {
+                  const data = JSON.parse(dataStr);
+                  if (data.type === 'content_block_delta' && data.delta?.text) {
+                    const content = data.delta.text;
+                    fullContent += content;
+                    request.onStream!(content);
+                  }
+                } catch (e) {
+                  console.warn('SSE parse error:', e);
                 }
-              } catch (e) {
-                console.warn('SSE parse error:', e);
               }
-            }
-          },
-          {
-            headers: {
-              'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01',
             },
-            timeout, // request.timeoutが指定されている場合はそれを使用
-            signal: request.signal
-          }
-        );
+            {
+              headers,
+              timeout, // request.timeoutが指定されている場合はそれを使用
+              signal: request.signal
+            }
+          );
 
-        return {
-          content: fullContent,
-        };
+          return {
+            content: fullContent,
+          };
+        } catch (streamError) {
+          // ストリーミング中のエラーを適切に処理
+          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
+          console.error('Claude streaming error:', streamError);
+          return {
+            content: fullContent, // 既に受信したコンテンツは返す
+            error: `ストリーミングエラー: ${errorMessage}`,
+          };
+        }
       }
 
       const response = await httpService.post(apiUrl, requestBody, {
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
+        headers,
         timeout, // request.timeoutが指定されている場合はそれを使用
       });
 
@@ -2042,12 +2429,14 @@ class AIService {
 
   private async callGemini(request: AIRequest): Promise<AIResponse> {
     try {
-      if (!request.settings.apiKey) {
+      // apiKeysから取得、なければapiKeyから取得
+      const apiKeyForProvider = request.settings.apiKeys?.['gemini'] || request.settings.apiKey;
+      if (!apiKeyForProvider) {
         throw new Error('Gemini APIキーが設定されていません');
       }
 
       // APIキーの復号化
-      const apiKey = decryptApiKey(request.settings.apiKey);
+      const apiKey = decryptApiKey(apiKeyForProvider);
 
       // Tauri環境検出（Tauri 2対応）
       const isTauriEnv = typeof window !== 'undefined' &&
@@ -2061,21 +2450,21 @@ class AIService {
         ? `https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:${method}?key=${apiKey}`
         : `/api/gemini/v1beta/models/${request.settings.model}:${method}?key=${apiKey}`;
 
-      console.log('Gemini API Request:', {
-        model: request.settings.model,
-        prompt: request.prompt.substring(0, 100) + '...',
-        hasImage: !!request.image,
-        temperature: request.settings.temperature,
-        maxTokens: request.settings.maxTokens,
-        apiUrl,
-        stream: !!request.onStream
-      }, {
-        headers: {
-          'x-goog-api-key': apiKey,
-        },
-      });
+      // 開発環境のみログ出力（機密情報をマスク）
+      if (import.meta.env.DEV) {
+        console.log('Gemini API Request:', {
+          model: request.settings.model,
+          prompt: this.maskSensitiveInfo(request.prompt, 100),
+          hasImage: !!request.image,
+          hasAudio: !!request.audio,
+          temperature: request.settings.temperature,
+          maxTokens: request.settings.maxTokens,
+          apiUrl: apiUrl.replace(/key=[^&]+/, 'key=***'), // APIキーをマスク
+          stream: !!request.onStream
+        });
+      }
 
-      // 画像がある場合のパーツ構築
+      // 画像または音声がある場合のパーツ構築
       const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [
         {
           text: request.prompt,
@@ -2085,6 +2474,21 @@ class AIService {
       if (request.image) {
         // Base64データURLからBase64部分とMIMEタイプを抽出
         const match = request.image.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          const mimeType = match[1];
+          const base64Data = match[2];
+          parts.push({
+            inline_data: {
+              mime_type: mimeType,
+              data: base64Data,
+            },
+          });
+        }
+      }
+
+      if (request.audio) {
+        // Base64データURLからBase64部分とMIMEタイプを抽出
+        const match = request.audio.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
           const mimeType = match[1];
           const base64Data = match[2];
@@ -2112,55 +2516,65 @@ class AIService {
         },
       };
 
-      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は120秒（Geminiのデフォルト）
-      const timeout = request.timeout ?? 120000;
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒（Geminiのデフォルト、高度なモデルの思考時間を考慮）
+      const timeout = request.timeout ?? 180000;
 
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
 
-        // GeminiのストリーミングはJSONの配列が送られてくる特殊な形式
-        // 通常のSSEとは異なり、]で終わるJSON配列のストリーム
-        // ここでは簡易的にパースする
+        try {
+          // GeminiのストリーミングはJSONの配列が送られてくる特殊な形式
+          // 通常のSSEとは異なり、]で終わるJSON配列のストリーム
+          // ここでは簡易的にパースする
 
-        await httpService.postStream(
-          apiUrl,
-          requestBody,
-          (chunk) => {
-            // チャンク処理が複雑なため、Geminiの場合は
-            // 行ごとに分割して処理を試みる
+          await httpService.postStream(
+            apiUrl,
+            requestBody,
+            (chunk) => {
+              // チャンク処理が複雑なため、Geminiの場合は
+              // 行ごとに分割して処理を試みる
 
-            // Note: GeminiのREST APIストリーミングは単純なSSEではなく、
-            // JSON配列が徐々に送られてくる形式。
-            // 完全な実装にはストリーミングJSONパーサーが必要だが、
-            // ここでは簡易的にtextフィールドを抽出する
+              // Note: GeminiのREST APIストリーミングは単純なSSEではなく、
+              // JSON配列が徐々に送られてくる形式。
+              // 完全な実装にはストリーミングJSONパーサーが必要だが、
+              // ここでは簡易的にtextフィールドを抽出する
 
-            // 簡易実装: "text": "..." を正規表現で探す
-            const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
-            let match;
-            while ((match = regex.exec(chunk)) !== null) {
-              try {
-                // JSON文字列のエスケープを解除
-                const text = JSON.parse(`"${match[1]}"`);
-                fullContent += text;
-                request.onStream!(text);
-              } catch (e) {
-                console.warn('Gemini stream parse error:', e);
+              // 簡易実装: "text": "..." を正規表現で探す
+              const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
+              let match;
+              while ((match = regex.exec(chunk)) !== null) {
+                try {
+                  // JSON文字列のエスケープを解除
+                  const text = JSON.parse(`"${match[1]}"`);
+                  fullContent += text;
+                  request.onStream!(text);
+                } catch (e) {
+                  console.warn('Gemini stream parse error:', e);
+                }
               }
+            },
+            {
+              timeout, // request.timeoutが指定されている場合はそれを使用
+              signal: request.signal
             }
-          },
-          {
-            timeout, // request.timeoutが指定されている場合はそれを使用
-            signal: request.signal
-          }
-        );
+          );
 
-        return {
-          content: fullContent,
-        };
+          return {
+            content: fullContent,
+          };
+        } catch (streamError) {
+          // ストリーミング中のエラーを適切に処理
+          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
+          console.error('Gemini streaming error:', streamError);
+          return {
+            content: fullContent, // 既に受信したコンテンツは返す
+            error: `ストリーミングエラー: ${errorMessage}`,
+          };
+        }
       }
 
-      // Gemini APIは長文生成に時間がかかることがあるため、タイムアウトを120秒に設定（request.timeoutが指定されている場合はそれを使用）
+      // Gemini APIは長文生成に時間がかかることがあるため、タイムアウトを180秒に設定（request.timeoutが指定されている場合はそれを使用、高度なモデルの思考時間を考慮）
       const response = await httpService.post(apiUrl, requestBody, {
         timeout, // request.timeoutが指定されている場合はそれを使用
       });
@@ -2279,18 +2693,18 @@ class AIService {
       };
     } catch (error) {
       console.error('Gemini API Error:', error);
-      
+
       // より詳細なエラーメッセージを提供
       let errorMessage = 'Unknown error';
       if (error instanceof Error) {
         errorMessage = error.message;
-        
+
         // 開発環境での接続エラーの場合、より詳細な情報を提供
         if (errorMessage.includes('ネットワークエラー') || errorMessage.includes('Failed to fetch') || errorMessage.includes('ERR_CONNECTION_REFUSED')) {
           const isDev = import.meta.env.DEV;
           const isTauriEnv = typeof window !== 'undefined' &&
             ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-          
+
           if (isDev && !isTauriEnv) {
             errorMessage = `ネットワークエラー: Gemini APIへの接続に失敗しました。\n\n` +
               `【考えられる原因】\n` +
@@ -2304,7 +2718,7 @@ class AIService {
           }
         }
       }
-      
+
       return {
         content: '',
         error: errorMessage,
@@ -2318,6 +2732,28 @@ class AIService {
 
       if (!endpoint) {
         throw new Error('ローカルエンドポイントが設定されていません');
+      }
+
+      // エンドポイントの検証（セキュリティ強化）
+      // まず、完全なURLとして検証
+      let validatedEndpoint = endpoint;
+      if (!this.validateLocalEndpoint(endpoint)) {
+        // 相対パスの場合は、デフォルトのlocalhostと結合して検証
+        if (endpoint.startsWith('/')) {
+          validatedEndpoint = `http://localhost:1234${endpoint}`;
+        } else if (!endpoint.includes('://')) {
+          // プロトコルがない場合はhttp://を追加
+          validatedEndpoint = `http://${endpoint}`;
+        } else {
+          // 既にプロトコルがあるが検証に失敗した場合
+          throw new Error('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。');
+        }
+        
+        // 再度検証
+        if (!this.validateLocalEndpoint(validatedEndpoint)) {
+          throw new Error('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。');
+        }
+        endpoint = validatedEndpoint;
       }
 
       // エンドポイントにパスが含まれていない場合は追加
@@ -2357,16 +2793,19 @@ class AIService {
       // max_tokensを制限（Local LLMでは適度に設定）
       const maxTokens = Math.min(request.settings.maxTokens, 8192);
 
-      console.log('Local LLM Request:', {
-        endpoint: apiEndpoint,
-        originalEndpoint: endpoint,
-        model: request.settings.model,
-        promptLength: truncatedPrompt.length,
-        originalPromptLength: request.prompt.length,
-        temperature: request.settings.temperature,
-        maxTokens: maxTokens,
-        stream: !!request.onStream
-      });
+      // 開発環境のみログ出力（機密情報をマスク）
+      if (import.meta.env.DEV) {
+        console.log('Local LLM Request:', {
+          endpoint: apiEndpoint,
+          originalEndpoint: endpoint,
+          model: request.settings.model,
+          promptLength: truncatedPrompt.length,
+          originalPromptLength: request.prompt.length,
+          temperature: request.settings.temperature,
+          maxTokens: maxTokens,
+          stream: !!request.onStream
+        });
+      }
 
       const requestBody = {
         model: request.settings.model || 'local-model',
@@ -2385,44 +2824,54 @@ class AIService {
         stream: !!request.onStream,
       };
 
-      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は120秒（Local LLMのデフォルト）
-      const timeout = request.timeout ?? 120000;
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒（Local LLMのデフォルト、高度なモデルの思考時間を考慮）
+      const timeout = request.timeout ?? 180000;
 
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
 
-        await httpService.postStream(
-          apiEndpoint,
-          requestBody,
-          (chunk) => {
-            // OpenAI互換のSSE解析
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  const content = data.choices?.[0]?.delta?.content || '';
-                  if (content) {
-                    fullContent += content;
-                    request.onStream!(content);
+        try {
+          await httpService.postStream(
+            apiEndpoint,
+            requestBody,
+            (chunk) => {
+              // OpenAI互換のSSE解析
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6));
+                    const content = data.choices?.[0]?.delta?.content || '';
+                    if (content) {
+                      fullContent += content;
+                      request.onStream!(content);
+                    }
+                  } catch (_e) {
+                    // JSONパースエラーは無視（不完全なチャンクの可能性）
                   }
-                } catch (_e) {
-                  // JSONパースエラーは無視（不完全なチャンクの可能性）
                 }
               }
+            },
+            {
+              timeout, // request.timeoutが指定されている場合はそれを使用
+              signal: request.signal
             }
-          },
-          {
-            timeout, // request.timeoutが指定されている場合はそれを使用
-            signal: request.signal
-          }
-        );
+          );
 
-        return {
-          content: fullContent,
-        };
+          return {
+            content: fullContent,
+          };
+        } catch (streamError) {
+          // ストリーミング中のエラーを適切に処理
+          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
+          console.error('Local LLM streaming error:', streamError);
+          return {
+            content: fullContent, // 既に受信したコンテンツは返す
+            error: `ストリーミングエラー: ${errorMessage}`,
+          };
+        }
       }
 
       const response = await httpService.post(apiEndpoint, requestBody, {
@@ -2494,6 +2943,25 @@ class AIService {
     }
   }
 
+  // プロバイダーに応じたAPIキーを取得（apiKeysから、またはapiKeyから）
+  private getApiKeyForProvider(settings: AISettings): string {
+    if (settings.provider === 'local') {
+      return ''; // ローカルLLMはAPIキー不要
+    }
+    
+    // apiKeysから現在のプロバイダーのAPIキーを取得
+    if (settings.apiKeys?.[settings.provider]) {
+      return settings.apiKeys[settings.provider];
+    }
+    
+    // 後方互換性のため、apiKeyからも取得を試みる
+    if (settings.apiKey) {
+      return settings.apiKey;
+    }
+    
+    return '';
+  }
+
   async generateContent(request: AIRequest): Promise<AIResponse> {
     try {
       const { prompt, settings } = request;
@@ -2501,12 +2969,20 @@ class AIService {
       // 入力値のサニタイゼーション
       const sanitizedPrompt = sanitizeInput(prompt);
 
-      if (!settings.apiKey && settings.provider !== 'local') {
+      // プロバイダーに応じたAPIキーを取得
+      const apiKey = this.getApiKeyForProvider(settings);
+      if (!apiKey && settings.provider !== 'local') {
         return {
           content: '',
           error: 'APIキーが設定されていません'
         };
       }
+
+      // settingsにAPIキーを設定（後方互換性のため）
+      const settingsWithApiKey = {
+        ...settings,
+        apiKey: apiKey || settings.apiKey
+      };
 
       // プロンプトの検証
       if (!sanitizedPrompt.trim()) {
@@ -2518,35 +2994,29 @@ class AIService {
 
       // 再試行機能付きでAPI呼び出しを実行
       const isLocalProvider = settings.provider === 'local';
-      
+
       // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、
-      // そうでない場合はプロバイダーごとのデフォルト値を使用
-      const defaultTimeout = isLocalProvider
-        ? 120000
-        : request.settings.provider === 'gemini'
-          ? 120000
-          : 60000;
+      // そうでない場合は180秒（全プロバイダー共通、高度なモデルの思考時間を考慮）
+      const defaultTimeout = 180000;
       const timeout = request.timeout ?? defaultTimeout;
-      
+
       const response = await retryApiCall(
         async () => {
           switch (settings.provider) {
             case 'openai':
-              return this.callOpenAI({ ...request, prompt: sanitizedPrompt });
+              return this.callOpenAI({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
             case 'claude':
-              return this.callClaude({ ...request, prompt: sanitizedPrompt });
+              return this.callClaude({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
             case 'gemini':
-              return this.callGemini({ ...request, prompt: sanitizedPrompt });
+              return this.callGemini({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
             case 'local':
-              return this.callLocal({ ...request, prompt: sanitizedPrompt });
+              return this.callLocal({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
             default:
               throw new Error('サポートされていないプロバイダーです');
           }
         },
         {
-          // プロバイダーごとのタイムアウト設定
-          // Gemini APIは長文生成に時間がかかるため、120秒に設定
-          // ローカルLLMも120秒、その他のAPIは60秒
+          // タイムアウト設定: 全プロバイダー共通で180秒（高度なモデルの思考時間を考慮）
           // 全章生成など長時間かかる処理の場合は、request.timeoutで延長可能
           timeout,
           retryConfig: {
@@ -2725,6 +3195,22 @@ class AIService {
     Object.entries(variables).forEach(([key, value]) => {
       prompt = prompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
     });
+
+    // synopsisが空の場合は、参考情報セクション全体を削除
+    if (!variables.synopsis || variables.synopsis.trim().length === 0) {
+      // {synopsis}プレースホルダーとその前後の改行を削除
+      prompt = prompt.replace(/\n{synopsis}\n?/g, '');
+      prompt = prompt.replace(/{synopsis}\n?/g, '');
+      // 【参考情報（優先度低）】から始まるセクションを削除
+      prompt = prompt.replace(/\n【参考情報（優先度低）】[\s\S]*?（注：あらすじは参考情報としてのみ使用し、他の設定と矛盾する場合は他の設定を優先してください）\n?/g, '');
+    } else {
+      // synopsisが存在する場合は、適切な形式に整形
+      const synopsisSection = `\n【参考情報（優先度低）】
+あらすじ: ${variables.synopsis}
+
+（注：あらすじは参考情報としてのみ使用し、他の設定と矛盾する場合は他の設定を優先してください）`;
+      prompt = prompt.replace(/{synopsis}/g, synopsisSection);
+    }
 
     return prompt;
   }

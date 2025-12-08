@@ -35,12 +35,25 @@ const getDefaultSettings = (): AISettings => {
     defaultModel = 'local-model';
   }
 
+  // apiKeysオブジェクトを構築（環境変数から）
+  const apiKeys: Record<string, string> = {};
+  if (openaiKey) {
+    apiKeys['openai'] = encryptApiKey(openaiKey);
+  }
+  if (claudeKey) {
+    apiKeys['claude'] = encryptApiKey(claudeKey);
+  }
+  if (geminiKey) {
+    apiKeys['gemini'] = encryptApiKey(geminiKey);
+  }
+
   return {
     provider: defaultProvider,
     model: defaultModel,
     temperature: 0.7,
     maxTokens: 3000,
-    apiKey: openaiKey || claudeKey || geminiKey || '', // 空文字列をデフォルトに
+    apiKey: openaiKey || claudeKey || geminiKey || '', // 後方互換性のため、現在のプロバイダーのAPIキー
+    apiKeys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined, // プロバイダーごとのAPIキー
     localEndpoint: localEndpoint,
   };
 };
@@ -74,12 +87,37 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         const selectedModel = selectedProvider?.models.find(m => m.id === parsed.model);
         const modelMaxTokens = selectedModel?.maxTokens || 8192;
         
+        // 既存のapiKeyからapiKeysへの移行（後方互換性）
+        let apiKeys = parsed.apiKeys || envSettings.apiKeys || {};
+        if (parsed.apiKey && !parsed.apiKeys) {
+          // 既存のapiKeyがあるがapiKeysがない場合、現在のプロバイダーに移行
+          const currentProvider = parsed.provider || envSettings.provider;
+          if (currentProvider && currentProvider !== 'local') {
+            apiKeys = { ...apiKeys, [currentProvider]: parsed.apiKey };
+          }
+        }
+        
+        // 現在のプロバイダーのAPIキーを取得（apiKeysから、またはapiKeyから）
+        const currentProvider = parsed.provider || envSettings.provider;
+        let currentApiKey = '';
+        if (currentProvider && currentProvider !== 'local') {
+          if (apiKeys[currentProvider]) {
+            currentApiKey = apiKeys[currentProvider];
+          } else if (parsed.apiKey) {
+            currentApiKey = parsed.apiKey;
+          } else if (envSettings.apiKey) {
+            currentApiKey = envSettings.apiKey;
+          }
+        }
+        
         // 設定のバリデーション（手動入力のAPIキーが優先）
         const validated = {
           ...envSettings,
           ...parsed,
-          // 手動入力されたAPIキーがある場合はそれを優先、なければ環境変数を使用
-          apiKey: parsed.apiKey || envSettings.apiKey || '',
+          // apiKeysを設定
+          apiKeys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined,
+          // 現在のプロバイダーのAPIキーをapiKeyにも設定（後方互換性）
+          apiKey: currentApiKey,
           temperature: Math.max(0, Math.min(1, parsed.temperature || envSettings.temperature)),
           maxTokens: Math.max(100, Math.min(modelMaxTokens, parsed.maxTokens || envSettings.maxTokens)),
         };
@@ -113,10 +151,49 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       }
     }
     
-    // APIキーを暗号化して保存
-    if (updated.apiKey) {
-      const encryptedKey = encryptApiKey(updated.apiKey);
-      updated.apiKey = encryptedKey;
+    // apiKeysオブジェクトを初期化（存在しない場合）
+    if (!updated.apiKeys) {
+      updated.apiKeys = {};
+    }
+    
+    // APIキーが提供された場合、プロバイダーに応じてapiKeysに保存
+    if (newSettings.apiKey !== undefined) {
+      const provider = updated.provider;
+      if (provider && provider !== 'local') {
+        // APIキーを暗号化してapiKeysに保存
+        const encryptedKey = encryptApiKey(newSettings.apiKey);
+        updated.apiKeys = {
+          ...updated.apiKeys,
+          [provider]: encryptedKey,
+        };
+        // 後方互換性のため、apiKeyフィールドにも現在のプロバイダーのAPIキーを設定
+        updated.apiKey = encryptedKey;
+      }
+    }
+    
+    // プロバイダーが変更された場合、apiKeysから現在のプロバイダーのAPIキーを取得
+    if (newSettings.provider && newSettings.provider !== 'local') {
+      const currentProviderKey = updated.apiKeys?.[newSettings.provider];
+      if (currentProviderKey) {
+        updated.apiKey = currentProviderKey;
+      } else {
+        // apiKeysに存在しない場合は、環境変数から取得を試みる
+        const envKey = 
+          newSettings.provider === 'openai' ? import.meta.env.VITE_OPENAI_API_KEY :
+          newSettings.provider === 'claude' ? import.meta.env.VITE_CLAUDE_API_KEY :
+          newSettings.provider === 'gemini' ? import.meta.env.VITE_GEMINI_API_KEY :
+          '';
+        if (envKey) {
+          const encryptedEnvKey = encryptApiKey(envKey);
+          updated.apiKeys = {
+            ...updated.apiKeys,
+            [newSettings.provider]: encryptedEnvKey,
+          };
+          updated.apiKey = encryptedEnvKey;
+        } else {
+          updated.apiKey = '';
+        }
+      }
     }
     
     console.log('Final settings to save:', JSON.stringify(updated, null, 2));
@@ -129,9 +206,9 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   };
 
   const isConfigured = Boolean(
-    (settings.provider === 'openai' && settings.apiKey) ||
-    (settings.provider === 'claude' && settings.apiKey) ||
-    (settings.provider === 'gemini' && settings.apiKey) ||
+    (settings.provider === 'openai' && (settings.apiKey || settings.apiKeys?.['openai'])) ||
+    (settings.provider === 'claude' && (settings.apiKey || settings.apiKeys?.['claude'])) ||
+    (settings.provider === 'gemini' && (settings.apiKey || settings.apiKeys?.['gemini'])) ||
     (settings.provider === 'local' && settings.localEndpoint)
   );
 

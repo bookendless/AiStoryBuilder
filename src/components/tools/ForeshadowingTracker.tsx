@@ -33,6 +33,7 @@ import { Modal } from '../common/Modal';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { EmptyState } from '../common/EmptyState';
+import { parseAIResponse } from '../../utils/aiResponseParser';
 
 interface ForeshadowingTrackerProps {
   isOpen: boolean;
@@ -73,7 +74,7 @@ const pointTypeConfig: Record<ForeshadowingPoint['type'], { label: string; icon:
 
 export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
-  const { showWarning } = useToast();
+  const { showWarning, showError } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -615,31 +616,26 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
   // ヘルパー関数：AIレスポンスからJSONを安全にパース
   const parseAIJsonResponse = (content: string): unknown => {
-    // まずMarkdownコードブロックを除去
-    let jsonStr = content;
+    if (!content || typeof content !== 'string') {
+      throw new Error('無効な応答内容です');
+    }
+
+    // aiResponseParserのparseAIResponseを使用
+    const parsed = parseAIResponse(content, 'json');
     
-    // ```json ... ``` または ``` ... ``` のパターンを除去
-    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      jsonStr = codeBlockMatch[1].trim();
+    if (!parsed.success) {
+      // エラーの詳細をログに記録
+      console.error('JSON parsing failed:', parsed.error);
+      console.debug('Raw content (first 500 chars):', content.substring(0, 500));
+      
+      throw new Error(parsed.error || 'JSONの解析に失敗しました');
     }
     
-    // 最初の { から最後の } までを抽出
-    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('JSONオブジェクトが見つかりませんでした');
+    if (!parsed.data) {
+      throw new Error('JSONデータが見つかりませんでした');
     }
     
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      // 制御文字を除去して再試行
-      const cleanedJson = jsonMatch[0]
-        .replace(/[\x00-\x1F\x7F]/g, '') // 制御文字を除去
-        .replace(/,\s*}/g, '}')  // 末尾カンマを除去
-        .replace(/,\s*]/g, ']'); // 末尾カンマを除去
-      return JSON.parse(cleanedJson);
-    }
+    return parsed.data;
   };
 
   // ヘルパー関数：プロジェクト情報をプロンプト用にフォーマット
@@ -724,11 +720,24 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       }
       
       // JSONをパース
+      if (!response.content) {
+        throw new Error('AIからの応答が空です');
+      }
+      
       const parsed = parseAIJsonResponse(response.content) as { suggestions?: typeof aiSuggestions };
+      
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI応答の形式が正しくありません');
+      }
+      
       setAiSuggestions(parsed.suggestions || []);
     } catch (error) {
       console.error('AI suggest error:', error);
-      setAiError(error instanceof Error ? error.message : '伏線提案の生成に失敗しました');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '伏線提案の生成に失敗しました';
+      setAiError(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsAILoading(false);
     }
@@ -756,12 +765,25 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         throw new Error(response.error);
       }
       
+      if (!response.content) {
+        throw new Error('AIからの応答が空です');
+      }
+      
       const parsed = parseAIJsonResponse(response.content) as typeof consistencyResult;
+      
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI応答の形式が正しくありません');
+      }
+      
       setConsistencyResult(parsed);
       setShowConsistencyModal(true);
     } catch (error) {
       console.error('AI consistency check error:', error);
-      setAiError(error instanceof Error ? error.message : '整合性チェックに失敗しました');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '整合性チェックに失敗しました';
+      setAiError(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsAILoading(false);
     }
@@ -809,12 +831,25 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         throw new Error(response.error);
       }
       
+      if (!response.content) {
+        throw new Error('AIからの応答が空です');
+      }
+      
       const parsed = parseAIJsonResponse(response.content) as typeof enhanceResult;
+      
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI応答の形式が正しくありません');
+      }
+      
       setEnhanceResult(parsed);
       setShowEnhanceModal(true);
     } catch (error) {
       console.error('AI enhance error:', error);
-      setAiError(error instanceof Error ? error.message : '伏線強化提案の生成に失敗しました');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '伏線強化提案の生成に失敗しました';
+      setAiError(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsAILoading(false);
     }
@@ -867,12 +902,25 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         throw new Error(response.error);
       }
       
+      if (!response.content) {
+        throw new Error('AIからの応答が空です');
+      }
+      
       const parsed = parseAIJsonResponse(response.content) as typeof payoffResult;
+      
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI応答の形式が正しくありません');
+      }
+      
       setPayoffResult(parsed);
       setShowPayoffModal(true);
     } catch (error) {
       console.error('AI payoff suggest error:', error);
-      setAiError(error instanceof Error ? error.message : '回収タイミング提案の生成に失敗しました');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '回収タイミング提案の生成に失敗しました';
+      setAiError(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsAILoading(false);
     }

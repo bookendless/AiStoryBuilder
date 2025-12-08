@@ -276,6 +276,29 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </button>
 
+              {/* AI設定（ホーム画面の時だけ常時表示） */}
+              {currentStep === 'home' && (
+                <button
+                  onClick={() => setShowAISettings(true)}
+                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                  aria-label="AI設定を開く"
+                  title="AI設定"
+                >
+                  <div className="relative">
+                    <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                    {!isConfigured && (
+                      <span
+                        className="absolute -top-1 -right-1 w-2 h-2 bg-sakura-500 rounded-full"
+                        aria-label="設定が必要"
+                      />
+                    )}
+                  </div>
+                  <span className="hidden md:inline text-sm font-['Noto_Sans_JP']">
+                    AI設定
+                  </span>
+                </button>
+              )}
+
               {/* 三点リーダーメニュー */}
               <div className="relative" ref={moreMenuRef}>
                 <button
@@ -291,28 +314,30 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* ドロップダウンメニュー */}
                 {showMoreMenu && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-unohana-50 dark:bg-sumi-800 rounded-lg shadow-xl border border-usuzumi-200 dark:border-usuzumi-700 py-2 z-50">
-                    {/* AI設定 */}
-                    <button
-                      onClick={() => {
-                        setShowAISettings(true);
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
-                      aria-label="AI設定を開く"
-                    >
-                      <div className="relative">
-                        <Settings className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
-                        {!isConfigured && (
-                          <span
-                            className="absolute -top-1 -right-1 w-2 h-2 bg-sakura-500 rounded-full"
-                            aria-label="設定が必要"
-                          />
-                        )}
-                      </div>
-                      <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
-                        AI設定
-                      </span>
-                    </button>
+                    {/* AI設定（ホーム画面以外の時だけ表示） */}
+                    {currentStep !== 'home' && (
+                      <button
+                        onClick={() => {
+                          setShowAISettings(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
+                        aria-label="AI設定を開く"
+                      >
+                        <div className="relative">
+                          <Settings className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                          {!isConfigured && (
+                            <span
+                              className="absolute -top-1 -right-1 w-2 h-2 bg-sakura-500 rounded-full"
+                              aria-label="設定が必要"
+                            />
+                          )}
+                        </div>
+                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
+                          AI設定
+                        </span>
+                      </button>
+                    )}
 
                     {/* ヘルプ */}
                     {currentStep !== 'home' && (

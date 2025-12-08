@@ -35,6 +35,8 @@ import { useExport } from './draft/hooks/useExport';
 import { useAllChaptersGeneration } from './draft/hooks/useAllChaptersGeneration';
 import { useToast } from '../Toast';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
+import { StepNavigation } from '../common/StepNavigation';
+import { Step } from '../../App';
 import type {
   AIStatusTone,
   ChapterHistoryEntry,
@@ -44,7 +46,11 @@ import type {
 } from './draft/types';
 
 
-export const DraftStep: React.FC = () => {
+interface DraftStepProps {
+  onNavigateToStep?: (step: Step) => void;
+}
+
+export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject, createManualBackup } = useProject();
   const { isConfigured, settings } = useAI();
   const { showError, showSuccess, showWarning } = useToast();
@@ -1376,19 +1382,49 @@ useEffect(() => {
 
   // 章が存在しない場合の表示
   if (currentProject.chapters.length === 0) {
+    // ステップナビゲーション用のハンドラー
+    const handlePreviousStep = () => {
+      if (onNavigateToStep) {
+        onNavigateToStep('chapter');
+      }
+    };
+
+    const handleNextStep = () => {
+      if (onNavigateToStep) {
+        onNavigateToStep('review');
+      }
+    };
+
     return (
-      <div className="p-8 text-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-          草案作成
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
-          草案を作成するには、まず章立てを完成させてください。
-        </p>
-        <div className="text-center">
-          <BookOpen className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-          <p className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-            「章立て」ステップで章を作成してから戻ってきてください。
+      <div className="max-w-6xl mx-auto">
+        {/* ステップナビゲーション */}
+        <StepNavigation
+          currentStep="draft"
+          onPrevious={handlePreviousStep}
+          onNext={handleNextStep}
+        />
+
+        <div className="p-8 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
+            草案作成
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-4">
+            草案を作成するには、まず章立てを完成させてください。
           </p>
+          <div className="text-center">
+            <BookOpen className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] mb-6">
+              「章立て」ステップで章を作成してから戻ってきてください。
+            </p>
+            {onNavigateToStep && (
+              <button
+                onClick={() => onNavigateToStep('chapter')}
+                className="px-6 py-3 bg-gradient-to-r from-blue-400 to-cyan-500 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-['Noto_Sans_JP']"
+              >
+                章立てステップに移動
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

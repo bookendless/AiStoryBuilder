@@ -108,18 +108,17 @@ export const AILoadingIndicator: React.FC<AILoadingIndicatorProps> = ({
   };
 
   const content = (
-    <div className={`flex flex-col items-center justify-center space-y-4 ${className}`}>
+    <div className={`relative flex flex-col items-center justify-center space-y-4 ${className}`}>
       {/* キャンセルボタン */}
       {cancellable && onCancel && (
-        <div className="absolute top-4 right-4 z-10">
-          <button
-            onClick={onCancel}
-            className="p-2 rounded-full bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-800 backdrop-blur-sm transition-colors shadow-lg"
-            aria-label="キャンセル"
-          >
-            <X className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-          </button>
-        </div>
+        <button
+          onClick={onCancel}
+          className="absolute top-2 right-2 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 backdrop-blur-sm transition-colors shadow-lg border border-gray-200 dark:border-gray-700"
+          aria-label="キャンセル"
+          title="キャンセル"
+        >
+          <X className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+        </button>
       )}
 
       <div className="relative">
@@ -186,7 +185,8 @@ export const AILoadingIndicator: React.FC<AILoadingIndicatorProps> = ({
     );
   }
 
-  return <div className="py-8">{content}</div>;
+  // inline variant (default)
+  return <div className="relative py-8">{content}</div>;
 };
 
 

@@ -14,8 +14,9 @@ import { usePlotForm } from './plot2/hooks/usePlotForm';
 import { usePlotHistory } from './plot2/hooks/usePlotHistory';
 import { useSidebarState } from './plot2/hooks/useSidebarState';
 import { PlotStructureSection } from './plot2/components/PlotStructureSection';
+import { StepNavigation } from '../common/StepNavigation';
 
-export const PlotStep2: React.FC<PlotStep2Props> = () => {
+export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const { showSuccess, showWarning, showError, showInfo } = useToast();
@@ -597,8 +598,27 @@ export const PlotStep2: React.FC<PlotStep2Props> = () => {
     return <div>プロジェクトを選択してください</div>;
   }
 
+  // ステップナビゲーション用のハンドラー
+  const handlePreviousStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('character');
+    }
+  };
+
+  const handleNextStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('synopsis');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
+      {/* ステップナビゲーション */}
+      <StepNavigation
+        currentStep="plot2"
+        onPrevious={handlePreviousStep}
+        onNext={handleNextStep}
+      />
 
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">

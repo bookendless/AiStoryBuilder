@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Sparkles, Loader, CheckCircle, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -6,6 +6,7 @@ import { useToast } from '../Toast';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
+import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { extractCharactersFromContent } from '../../utils/characterParser';
 import { CHARACTER_GENERATION } from '../../constants/character';
 
@@ -15,6 +16,26 @@ export const CharacterAssistantPanel: React.FC = () => {
     const { showError, showSuccess } = useToast();
     const [isGenerating, setIsGenerating] = useState(false);
     const { aiLogs, addLog } = useAILog();
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    // キャンセルハンドラー
+    const handleCancel = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+            setIsGenerating(false);
+        }
+    }, []);
+
+    // クリーンアップ
+    useEffect(() => {
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+            }
+        };
+    }, []);
 
     const handleAIGenerateCharacters = async () => {
         if (!isConfigured) {
@@ -23,6 +44,15 @@ export const CharacterAssistantPanel: React.FC = () => {
         }
 
         if (!currentProject) return;
+
+        // 既存のリクエストをキャンセル
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         setIsGenerating(true);
 
@@ -60,13 +90,20 @@ export const CharacterAssistantPanel: React.FC = () => {
                 protagonistGoal: plotInfo.protagonistGoal,
                 mainObstacle: plotInfo.mainObstacle,
                 role: '主要キャラクター',
+                synopsis: currentProject?.synopsis || '',
             });
 
             const response = await aiService.generateContent({
                 prompt,
                 type: 'character',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             // AIログに記録
             addLog({
@@ -107,27 +144,105 @@ export const CharacterAssistantPanel: React.FC = () => {
             }
 
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('AI生成エラー:', error);
             showError('AI生成中にエラーが発生しました');
         } finally {
-            setIsGenerating(false);
+            if (!abortController.signal.aborted) {
+                setIsGenerating(false);
+            }
+            abortControllerRef.current = null;
         }
     };
 
     const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
-        const typeLabel = log.type === 'enhance' ? 'キャラクター詳細化' : 'キャラクター生成';
-        const logText = `【AIログ - ${typeLabel}】\n時刻: ${log.timestamp.toLocaleString('ja-JP')}\n...`; // Simplified for brevity
-        navigator.clipboard.writeText(logText); // Ideally utilize the full logic from before
+        const typeLabels: Record<string, string> = {
+            'enhance': 'キャラクター詳細化',
+            'generate': 'キャラクター生成',
+        };
+        const typeLabel = typeLabels[log.type] || log.type;
+        const logText = `【AIログ - ${typeLabel}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.characterName ? `キャラクター名: ${log.characterName}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${log.parsedCharacters && log.parsedCharacters.length > 0 ? `【解析されたキャラクター数】
+${log.parsedCharacters.length}人
+
+【解析されたキャラクターの詳細】
+${log.parsedCharacters.map((c: any, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}`;
+        navigator.clipboard.writeText(logText);
         showSuccess('ログをクリップボードにコピーしました');
     }, [showSuccess]);
 
-    // Note: Simplified copy/download logic for this step to avoid massive file size, 
-    // relying on AILogPanel's internal display mostly.
+    // ログダウンロード機能
+    const handleDownloadLogs = useCallback(() => {
+        const typeLabels: Record<string, string> = {
+            'enhance': 'キャラクター詳細化',
+            'generate': 'キャラクター生成',
+        };
+        const logsText = aiLogs.map(log => {
+            const typeLabel = typeLabels[log.type] || log.type;
+            return `【AIログ - ${typeLabel}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.characterName ? `キャラクター名: ${log.characterName}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${log.parsedCharacters && log.parsedCharacters.length > 0 ? `【解析されたキャラクター数】
+${log.parsedCharacters.length}人
+
+【解析されたキャラクターの詳細】
+${log.parsedCharacters.map((c: any, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}
+
+${'='.repeat(80)}`;
+        }).join('\n\n');
+
+        const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `character_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showSuccess('ログをダウンロードしました');
+    }, [aiLogs, showSuccess]);
 
     if (!currentProject) return null;
 
     return (
         <div className="space-y-6">
+            {/* AI生成中のローディングインジケーター */}
+            {isGenerating && (
+                <AILoadingIndicator
+                    message="キャラクターを生成中"
+                    estimatedTime={30}
+                    variant="inline"
+                    cancellable={true}
+                    onCancel={handleCancel}
+                />
+            )}
+
             {/* AI Assistant Section */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2 flex items-center">
@@ -201,7 +316,7 @@ export const CharacterAssistantPanel: React.FC = () => {
                     <AILogPanel
                         logs={aiLogs}
                         onCopyLog={handleCopyLog}
-                        onDownloadLogs={() => { }} // Simplified
+                        onDownloadLogs={handleDownloadLogs}
                         typeLabels={{
                             'enhance': '詳細化',
                             'generate': '生成',

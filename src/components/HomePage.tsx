@@ -1,9 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles } from 'lucide-react';
+import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { NewProjectModal } from './NewProjectModal';
 import { ProjectSettingsModal } from './ProjectSettingsModal';
+import { ImageToStoryModal } from './ImageToStoryModal';
+import { AudioToStoryModal } from './AudioToStoryModal';
+import { AudioImageToStoryModal } from './AudioImageToStoryModal';
+import { StoryProposalModal } from './StoryProposalModal';
 import { Project } from '../contexts/ProjectContext';
 import { useToast } from './Toast';
 import { getUserFriendlyError } from '../utils/errorHandler';
@@ -14,6 +18,7 @@ import { Card } from './common/Card';
 import { EmptyState } from './common/EmptyState';
 import { SkeletonLoader } from './common/SkeletonLoader';
 import { ConfirmDialog } from './common/ConfirmDialog';
+import { StoryProposal } from '../utils/storyProposalParser';
 
 // プロジェクトカードコンポーネント（メモ化）
 interface ProjectCardProps {
@@ -277,6 +282,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const { projects, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
   const { showError, showSuccess } = useToast();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showImageToStoryModal, setShowImageToStoryModal] = useState(false);
+  const [showAudioToStoryModal, setShowAudioToStoryModal] = useState(false);
+  const [showAudioImageToStoryModal, setShowAudioImageToStoryModal] = useState(false);
+  const [showStoryProposalModal, setShowStoryProposalModal] = useState(false);
+  const [storyProposal, setStoryProposal] = useState<StoryProposal | null>(null);
   const [showContextHelp, setShowContextHelp] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
@@ -475,14 +485,30 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
             80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう
           </p>
 
-          <button
-            id="new-project-btn"
-            onClick={() => setShowNewProjectModal(true)}
-            className="inline-flex items-center space-x-2 bg-semantic-primary text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-semibold text-base sm:text-lg hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-          >
-            <Plus className="h-6 w-6" />
-            <span>新しいプロジェクトを作成</span>
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+            <button
+              onClick={() => setShowImageToStoryModal(true)}
+              className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              <Image className="h-4 w-4" />
+              <span>画像から物語を作る</span>
+            </button>
+            <button
+              id="new-project-btn"
+              onClick={() => setShowNewProjectModal(true)}
+              className="inline-flex items-center space-x-2 bg-semantic-primary text-white px-8 sm:px-10 py-4 sm:py-5 rounded-full font-semibold text-lg sm:text-xl hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              <Plus className="h-7 w-7" />
+              <span>新しいプロジェクトを作成</span>
+            </button>
+            <button
+              onClick={() => setShowAudioToStoryModal(true)}
+              className="inline-flex items-center space-x-2 bg-purple-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              <Mic className="h-4 w-4" />
+              <span>音声から物語を作る</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats Section */}
@@ -497,7 +523,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
             </div>
           </Card>
 
-          <Card className="p-6 border-usuzumi-200 dark:border-usuzumi-700">
+          <Card
+            className={`p-6 border-usuzumi-200 dark:border-usuzumi-700 ${
+              projects.length >= 5
+                ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 hover:scale-[1.02] transition-all duration-200'
+                : ''
+            }`}
+            onClick={projects.length >= 5 ? () => setShowAudioImageToStoryModal(true) : undefined}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-2xl font-bold text-sumi-900 dark:text-usuzumi-50">6</p>
@@ -687,6 +720,50 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         isOpen={showNewProjectModal}
         onClose={() => setShowNewProjectModal(false)}
         onNavigateToStep={onNavigateToStep}
+      />
+
+      {/* Image to Story Modal */}
+      <ImageToStoryModal
+        isOpen={showImageToStoryModal}
+        onClose={() => setShowImageToStoryModal(false)}
+        onProposalGenerated={(proposal) => {
+          setStoryProposal(proposal);
+          setShowImageToStoryModal(false);
+          setShowStoryProposalModal(true);
+        }}
+      />
+
+      {/* Audio to Story Modal */}
+      <AudioToStoryModal
+        isOpen={showAudioToStoryModal}
+        onClose={() => setShowAudioToStoryModal(false)}
+        onProposalGenerated={(proposal) => {
+          setStoryProposal(proposal);
+          setShowAudioToStoryModal(false);
+          setShowStoryProposalModal(true);
+        }}
+      />
+
+      {/* Audio and Image to Story Modal (Hidden Feature) */}
+      <AudioImageToStoryModal
+        isOpen={showAudioImageToStoryModal}
+        onClose={() => setShowAudioImageToStoryModal(false)}
+        onProposalGenerated={(proposal) => {
+          setStoryProposal(proposal);
+          setShowAudioImageToStoryModal(false);
+          setShowStoryProposalModal(true);
+        }}
+      />
+
+      {/* Story Proposal Modal */}
+      <StoryProposalModal
+        isOpen={showStoryProposalModal}
+        onClose={() => {
+          setShowStoryProposalModal(false);
+          setStoryProposal(null);
+        }}
+        onNavigateToStep={onNavigateToStep}
+        proposal={storyProposal}
       />
 
       {/* Context Help */}

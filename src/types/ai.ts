@@ -23,7 +23,8 @@ export interface AIModel {
 export interface AISettings {
   provider: string;
   model: string;
-  apiKey?: string;
+  apiKey?: string; // 後方互換性のため残す（現在のプロバイダーのAPIキー）
+  apiKeys?: Record<string, string>; // プロバイダーごとのAPIキー（プロバイダーIDをキーとして暗号化されたAPIキーを保存）
   localEndpoint?: string;
   temperature: number;
   maxTokens: number;
@@ -32,9 +33,10 @@ export interface AISettings {
 export interface AIRequest {
   prompt: string;
   context?: string;
-  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world' | 'foreshadowing' | 'evaluation';
+  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world' | 'foreshadowing' | 'evaluation' | 'imageToStory' | 'audioToStory';
   settings: AISettings;
   image?: string; // Base64エンコードされた画像データ（data:image/...形式）
+  audio?: string; // Base64エンコードされた音声データ（data:audio/...形式）
   onStream?: (chunk: string) => void; // ストリーミング用のコールバック
   signal?: AbortSignal; // 中断用のシグナル
   timeout?: number; // タイムアウト時間（ミリ秒）。全章生成など長時間かかる処理で使用

@@ -7,11 +7,17 @@ import { useToast } from '../Toast';
 import { getUserFriendlyError } from '../../utils/errorHandler';
 import { useAutoSave } from '../common/hooks/useAutoSave';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
+import { StepNavigation } from '../common/StepNavigation';
+import { Step } from '../../App';
 
 // 定数定義
 const TARGET_WORD_COUNT = 500; // 目標文字数
 
-export const SynopsisStep: React.FC = () => {
+interface SynopsisStepProps {
+  onNavigateToStep?: (step: Step) => void;
+}
+
+export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const { showError, showErrorWithDetails } = useToast();
@@ -33,6 +39,9 @@ export const SynopsisStep: React.FC = () => {
   // プロジェクトが変更されたときにあらすじを初期化
   useEffect(() => {
     if (currentProject?.synopsis !== undefined) {
+      // デバッグ: プロジェクトのあらすじを確認
+      console.log('SynopsisStep: プロジェクトのあらすじ:', currentProject.synopsis);
+      console.log('SynopsisStep: あらすじの長さ:', currentProject.synopsis?.length || 0);
       setSynopsis(currentProject.synopsis || '');
     }
   }, [currentProject?.synopsis, currentProject?.id]);
@@ -252,8 +261,28 @@ export const SynopsisStep: React.FC = () => {
   const wordCount = synopsis.length;
   const targetWordCount = TARGET_WORD_COUNT;
 
+  // ステップナビゲーション用のハンドラー
+  const handlePreviousStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('plot2');
+    }
+  };
+
+  const handleNextStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('chapter');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
+      {/* ステップナビゲーション */}
+      <StepNavigation
+        currentStep="synopsis"
+        onPrevious={handlePreviousStep}
+        onNext={handleNextStep}
+      />
+
       {/* AI生成中のローディングインジケーター */}
       {isGenerating && (
         <div className="mb-6">

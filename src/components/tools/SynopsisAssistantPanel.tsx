@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Sparkles, FileText, CheckCircle, BookOpen, Loader } from 'lucide-react';
 import { useProject, Project } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
 import { aiService } from '../../services/aiService';
 import { getUserFriendlyError } from '../../utils/errorHandler';
+import { AILoadingIndicator } from '../common/AILoadingIndicator';
 
 /**
  * SynopsisAssistantPanel - ツールサイドバー用のあらすじAI支援パネル
@@ -19,6 +20,9 @@ export const SynopsisAssistantPanel: React.FC = () => {
     const [isGeneratingStyle, setIsGeneratingStyle] = useState(false);
     const [isGeneratingFullSynopsis, setIsGeneratingFullSynopsis] = useState(false);
     const [activeStyleType, setActiveStyleType] = useState<string | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const styleAbortControllerRef = useRef<AbortController | null>(null);
+    const fullSynopsisAbortControllerRef = useRef<AbortController | null>(null);
 
     // 現在のシノプシスをProjectContextから取得
     const synopsis = currentProject?.synopsis || '';
@@ -143,6 +147,50 @@ export const SynopsisAssistantPanel: React.FC = () => {
         };
     }, [currentProject, promptVariables, buildChaptersInfo]);
 
+    // キャンセルハンドラー
+    const handleCancel = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+            setIsGenerating(false);
+        }
+    }, []);
+
+    const handleCancelStyle = useCallback(() => {
+        if (styleAbortControllerRef.current) {
+            styleAbortControllerRef.current.abort();
+            styleAbortControllerRef.current = null;
+            setIsGeneratingStyle(false);
+            setActiveStyleType(null);
+        }
+    }, []);
+
+    const handleCancelFullSynopsis = useCallback(() => {
+        if (fullSynopsisAbortControllerRef.current) {
+            fullSynopsisAbortControllerRef.current.abort();
+            fullSynopsisAbortControllerRef.current = null;
+            setIsGeneratingFullSynopsis(false);
+        }
+    }, []);
+
+    // クリーンアップ
+    useEffect(() => {
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+            }
+            if (styleAbortControllerRef.current) {
+                styleAbortControllerRef.current.abort();
+                styleAbortControllerRef.current = null;
+            }
+            if (fullSynopsisAbortControllerRef.current) {
+                fullSynopsisAbortControllerRef.current.abort();
+                fullSynopsisAbortControllerRef.current = null;
+            }
+        };
+    }, []);
+
     const handleAIGenerate = async () => {
         if (!isConfigured) {
             showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
@@ -154,6 +202,15 @@ export const SynopsisAssistantPanel: React.FC = () => {
             return;
         }
 
+        // 既存のリクエストをキャンセル
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
         setIsGenerating(true);
 
         try {
@@ -163,7 +220,13 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 prompt,
                 type: 'synopsis',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             if (response.error) {
                 const errorInfo = getUserFriendlyError(response.error);
@@ -174,10 +237,17 @@ export const SynopsisAssistantPanel: React.FC = () => {
             updateSynopsis(response.content);
             showSuccess('あらすじを生成しました');
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('AI generation error:', error);
             showError('AI生成中にエラーが発生しました');
         } finally {
-            setIsGenerating(false);
+            if (!abortController.signal.aborted) {
+                setIsGenerating(false);
+            }
+            abortControllerRef.current = null;
         }
     };
 
@@ -192,6 +262,15 @@ export const SynopsisAssistantPanel: React.FC = () => {
             showError('あらすじが入力されていません。先にあらすじを入力してください。');
             return;
         }
+
+        // 既存のリクエストをキャンセル
+        if (styleAbortControllerRef.current) {
+            styleAbortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        styleAbortControllerRef.current = abortController;
 
         setIsGeneratingStyle(true);
         setActiveStyleType(styleType);
@@ -211,7 +290,13 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 prompt,
                 type: 'synopsis',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             if (response.error) {
                 const errorInfo = getUserFriendlyError(response.error);
@@ -222,11 +307,18 @@ export const SynopsisAssistantPanel: React.FC = () => {
             updateSynopsis(response.content);
             showSuccess(`文体を調整しました（${styleType}）`);
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('Style adjustment error:', error);
             showError('文体調整中にエラーが発生しました');
         } finally {
-            setIsGeneratingStyle(false);
-            setActiveStyleType(null);
+            if (!abortController.signal.aborted) {
+                setIsGeneratingStyle(false);
+                setActiveStyleType(null);
+            }
+            styleAbortControllerRef.current = null;
         }
     };
 
@@ -247,6 +339,15 @@ export const SynopsisAssistantPanel: React.FC = () => {
             return;
         }
 
+        // 既存のリクエストをキャンセル
+        if (fullSynopsisAbortControllerRef.current) {
+            fullSynopsisAbortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        fullSynopsisAbortControllerRef.current = abortController;
+
         setIsGeneratingFullSynopsis(true);
 
         try {
@@ -256,7 +357,13 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 prompt,
                 type: 'synopsis',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             if (response.error) {
                 const errorInfo = getUserFriendlyError(response.error);
@@ -267,10 +374,17 @@ export const SynopsisAssistantPanel: React.FC = () => {
             updateSynopsis(response.content);
             showSuccess('全体あらすじを生成しました');
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('Full synopsis generation error:', error);
             showError('全体あらすじ生成中にエラーが発生しました');
         } finally {
-            setIsGeneratingFullSynopsis(false);
+            if (!abortController.signal.aborted) {
+                setIsGeneratingFullSynopsis(false);
+            }
+            fullSynopsisAbortControllerRef.current = null;
         }
     };
 
@@ -280,6 +394,35 @@ export const SynopsisAssistantPanel: React.FC = () => {
 
     return (
         <div className="space-y-4">
+            {/* AI生成中のローディングインジケーター */}
+            {isGenerating && (
+                <AILoadingIndicator
+                    message="あらすじを生成中"
+                    estimatedTime={30}
+                    variant="inline"
+                    cancellable={true}
+                    onCancel={handleCancel}
+                />
+            )}
+            {isGeneratingStyle && (
+                <AILoadingIndicator
+                    message={`文体を調整中（${activeStyleType === 'readable' ? '読みやすく' : activeStyleType === 'summary' ? '要点抽出' : '魅力的に'}）`}
+                    estimatedTime={20}
+                    variant="inline"
+                    cancellable={true}
+                    onCancel={handleCancelStyle}
+                />
+            )}
+            {isGeneratingFullSynopsis && (
+                <AILoadingIndicator
+                    message="全体あらすじを生成中"
+                    estimatedTime={60}
+                    variant="inline"
+                    cancellable={true}
+                    onCancel={handleCancelFullSynopsis}
+                />
+            )}
+
             {/* AIあらすじ提案（メイン） */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2 flex items-center">

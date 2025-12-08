@@ -5,6 +5,8 @@ import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
 import { useAutoSave } from '../common/hooks/useAutoSave';
+import { StepNavigation } from '../common/StepNavigation';
+import { AIGenerateButton } from '../common/AIGenerateButton';
 
 type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
@@ -42,7 +44,7 @@ type FieldOrderItem = {
   label: string;
 };
 
-export const PlotStep1: React.FC<PlotStep1Props> = () => {
+export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
   const { showError, showSuccess, showWarning } = useToast();
@@ -483,6 +485,14 @@ export const PlotStep1: React.FC<PlotStep1Props> = () => {
         })
         .join('\n');
 
+      // あらすじ情報を取得（存在する場合のみ）
+      const synopsisInfo = currentProject?.synopsis && currentProject.synopsis.trim().length > 0
+        ? `\n【参考情報（優先度低）】
+あらすじ: ${currentProject.synopsis}
+
+（注：あらすじは参考情報としてのみ使用し、他の設定と矛盾する場合は他の設定を優先してください）`
+        : '';
+
       const prompt = `あなたは物語プロット生成の専門AIです。以下の指示を厳密に守って、指定された形式のみで出力してください。
 
 【プロジェクト情報】
@@ -499,7 +509,7 @@ ${charactersInfo}
 ${existingContext ? `【既存の設定】
 ${existingContext}
 
-` : ''}【生成する項目】
+` : ''}${synopsisInfo}【生成する項目】
 ${config.label}: ${config.description}を${config.maxLength}文字以内で記述してください。
 
 【重要指示】
@@ -566,15 +576,33 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
     } finally {
       setGeneratingField(null);
     }
-  }, [isConfigured, formData, settings, showError, showWarning, showSuccess, saveToHistory]);
+  }, [isConfigured, formData, settings, showError, showWarning, showSuccess, saveToHistory, currentProject]);
 
 
   if (!currentProject) {
     return <div>プロジェクトを選択してください</div>;
   }
 
+  // ステップナビゲーション用のハンドラー
+  const handlePreviousStep = () => {
+    // plot1が最初のステップなので、前のステップはない
+  };
+
+  const handleNextStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('character');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
+      {/* ステップナビゲーション */}
+      <StepNavigation
+        currentStep="plot1"
+        onPrevious={handlePreviousStep}
+        onNext={handleNextStep}
+      />
+
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-600">
@@ -685,25 +713,15 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                           <ChevronRight className="h-3 w-3" />
                           <span>関連</span>
                         </button>
-                        <button
-                          onClick={() => handleFieldAIGenerate(fieldKey)}
-                          disabled={generatingField === fieldKey || !isConfigured}
-                          className="flex items-center space-x-1 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                          title={`AIで${config.label}を生成`}
-                        >
-                          {generatingField === fieldKey ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              <span>生成中</span>
-                            </>
-                          ) : (
-                            <>
-                              <Wand2 className="h-3 w-3" />
-                              <span className="hidden sm:inline">AIで{config.label}を生成</span>
-                              <span className="sm:hidden">AI生成</span>
-                            </>
-                          )}
-                        </button>
+                        <AIGenerateButton
+                          target={config.label}
+                          onGenerate={() => handleFieldAIGenerate(fieldKey)}
+                          isLoading={generatingField === fieldKey}
+                          disabled={!isConfigured}
+                          variant="secondary"
+                          size="sm"
+                          className="text-xs"
+                        />
                       </div>
                     </div>
                     

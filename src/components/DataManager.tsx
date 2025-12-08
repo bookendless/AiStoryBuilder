@@ -38,9 +38,11 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
   const [manualBackups, setManualBackups] = useState<BackupItem[]>([]);
   const [autoBackups, setAutoBackups] = useState<BackupItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'backups' | 'history' | 'aiLogs' | 'cleanup' | 'import-export'>('overview');
-  const [cleanupDate, setCleanupDate] = useState<string>('');
-  const [cleanupProjectId, setCleanupProjectId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'backups' | 'cleanup' | 'import-export'>('overview');
+  const [historyCleanupDate, setHistoryCleanupDate] = useState<string>('');
+  const [historyCleanupProjectId, setHistoryCleanupProjectId] = useState<string>('');
+  const [aiLogCleanupDate, setAiLogCleanupDate] = useState<string>('');
+  const [aiLogCleanupProjectId, setAiLogCleanupProjectId] = useState<string>('');
   const [projectData, setProjectData] = useState<{
     historyCount: number;
     aiLogCount: number;
@@ -445,8 +447,6 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         {[
           { id: 'overview', label: '概要', icon: HardDrive },
           { id: 'backups', label: 'バックアップ', icon: Copy },
-          { id: 'history', label: '履歴管理', icon: Clock },
-          { id: 'aiLogs', label: 'AIログ管理', icon: FileText },
           { id: 'cleanup', label: 'クリーンアップ', icon: Eraser },
           { id: 'import-export', label: 'インポート・エクスポート', icon: Download },
         ].map((tab) => {
@@ -454,7 +454,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'overview' | 'backups' | 'history' | 'aiLogs' | 'cleanup' | 'import-export')}
+              onClick={() => setActiveTab(tab.id as 'overview' | 'backups' | 'cleanup' | 'import-export')}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors font-['Noto_Sans_JP'] ${activeTab === tab.id
                   ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -587,22 +587,6 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
               )}
             </div>
 
-            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
-              <h4 className="font-bold text-red-800 dark:text-red-400 mb-2 font-['Noto_Sans_JP']">
-                危険な操作
-              </h4>
-              <p className="text-sm text-red-700 dark:text-red-300 mb-4 font-['Noto_Sans_JP']">
-                すべてのプロジェクトとバックアップを削除します。この操作は取り消せません。
-              </p>
-              <button
-                onClick={handleClearAllData}
-                disabled={isLoading}
-                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>すべてのデータを削除</span>
-              </button>
-            </div>
           </div>
         )}
 
@@ -761,107 +745,6 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
           </div>
         )}
 
-        {activeTab === 'history' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-                履歴管理
-              </h3>
-              {!currentProject ? (
-                <div className="text-center py-8">
-                  <Clock className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    プロジェクトを選択して履歴を管理してください
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      {currentProject.title} の履歴
-                    </p>
-                    <button
-                      onClick={async () => {
-                        if (!confirm('このプロジェクトのすべての履歴を削除しますか？')) return;
-                        setIsLoading(true);
-                        try {
-                          await databaseService.deleteProjectHistory(currentProject.id);
-                          await loadStats();
-                          showSuccess('履歴を削除しました', 3000);
-                        } catch (error) {
-                          showError('履歴の削除に失敗しました', 5000);
-                        } finally {
-                          setIsLoading(false);
-                        }
-                      }}
-                      disabled={isLoading}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
-                    >
-                      <Trash2 className="h-4 w-4 inline mr-2" />
-                      すべての履歴を削除
-                    </button>
-                  </div>
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      履歴は章ごとに管理されています。各章の履歴は草案編集画面の「履歴管理」タブから確認・削除できます。
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'aiLogs' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-                AIログ管理
-              </h3>
-              {!currentProject ? (
-                <div className="text-center py-8">
-                  <FileText className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    プロジェクトを選択してAIログを管理してください
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      {currentProject.title} のAIログ
-                    </p>
-                    <button
-                      onClick={async () => {
-                        if (!confirm('このプロジェクトのすべてのAIログを削除しますか？')) return;
-                        setIsLoading(true);
-                        try {
-                          await databaseService.deleteProjectAILogs(currentProject.id);
-                          await loadStats();
-                          showSuccess('AIログを削除しました', 3000);
-                        } catch (error) {
-                          showError('AIログの削除に失敗しました', 5000);
-                        } finally {
-                          setIsLoading(false);
-                        }
-                      }}
-                      disabled={isLoading}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
-                    >
-                      <Trash2 className="h-4 w-4 inline mr-2" />
-                      すべてのAIログを削除
-                    </button>
-                  </div>
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      AIログは章ごとに管理されています。各章のAIログは草案編集画面の「AIログ」タブから確認・削除できます。
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {activeTab === 'cleanup' && (
           <div className="space-y-6">
@@ -873,145 +756,276 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                 古いデータや不要なデータを削除して、ストレージを最適化します。
               </p>
 
-              {/* 履歴のクリーンアップ */}
-              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800 mb-4">
+              {/* 1. LocalStorageのクリーンアップ（最上部、フル幅） */}
+              <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800 mb-4">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
-                  履歴のクリーンアップ
+                  LocalStorageのクリーンアップ
                 </h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                      削除する日付を選択（この日付より古い履歴を削除）
-                    </label>
-                    <input
-                      type="date"
-                      value={cleanupDate}
-                      onChange={(e) => setCleanupDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                      プロジェクトを選択（空欄の場合は全プロジェクト）
-                    </label>
-                    <select
-                      value={cleanupProjectId}
-                      onChange={(e) => setCleanupProjectId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
+                  移行済みの履歴データや、存在しないプロジェクトの設定データを削除します。
+                </p>
+                <button
+                  onClick={async () => {
+                    if (!confirm('LocalStorageの不要なデータを削除しますか？')) {
+                      return;
+                    }
+                    setIsLoading(true);
+                    try {
+                      const result = await databaseService.cleanupLocalStorage();
+                      showSuccess(`${result.cleaned}件のデータを削除しました`, 3000);
+                    } catch (error) {
+                      showError('LocalStorageのクリーンアップに失敗しました', 5000);
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
+                >
+                  <Eraser className="h-4 w-4 inline mr-2" />
+                  LocalStorageをクリーンアップ
+                </button>
+              </div>
+
+              {/* 2. 日付指定クリーンアップ（グリッド2列） */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* 履歴のクリーンアップ */}
+                <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
+                    履歴のクリーンアップ
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                        削除する日付を選択（この日付より古い履歴を削除）
+                      </label>
+                      <input
+                        type="date"
+                        value={historyCleanupDate}
+                        onChange={(e) => setHistoryCleanupDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                        プロジェクトを選択（空欄の場合は全プロジェクト）
+                      </label>
+                      <select
+                        value={historyCleanupProjectId}
+                        onChange={(e) => setHistoryCleanupProjectId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      >
+                        <option value="">全プロジェクト</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!historyCleanupDate) {
+                          showError('日付を選択してください', 3000);
+                          return;
+                        }
+                        if (!confirm(`選択した日付より古い履歴を削除しますか？${historyCleanupProjectId ? `\n対象: ${projects.find(p => p.id === historyCleanupProjectId)?.title || ''}` : '\n対象: 全プロジェクト'}`)) {
+                          return;
+                        }
+                        setIsLoading(true);
+                        try {
+                          const cutoffDate = new Date(historyCleanupDate);
+                          const deleted = await databaseService.deleteHistoryEntriesBeforeDate(
+                            cutoffDate,
+                            historyCleanupProjectId || undefined
+                          );
+                          await loadStats();
+                          showSuccess(`${deleted}件の履歴を削除しました`, 3000);
+                          setHistoryCleanupDate('');
+                          setHistoryCleanupProjectId('');
+                        } catch (error) {
+                          showError('履歴の削除に失敗しました', 5000);
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }}
+                      disabled={isLoading || !historyCleanupDate}
+                      className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
                     >
-                      <option value="">全プロジェクト</option>
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.title}
-                        </option>
-                      ))}
-                    </select>
+                      <Trash2 className="h-4 w-4 inline mr-2" />
+                      履歴を削除
+                    </button>
                   </div>
-                  <button
-                    onClick={async () => {
-                      if (!cleanupDate) {
-                        showError('日付を選択してください', 3000);
-                        return;
-                      }
-                      if (!confirm(`選択した日付より古い履歴を削除しますか？${cleanupProjectId ? `\n対象: ${projects.find(p => p.id === cleanupProjectId)?.title || ''}` : '\n対象: 全プロジェクト'}`)) {
-                        return;
-                      }
-                      setIsLoading(true);
-                      try {
-                        const cutoffDate = new Date(cleanupDate);
-                        const deleted = await databaseService.deleteHistoryEntriesBeforeDate(
-                          cutoffDate,
-                          cleanupProjectId || undefined
-                        );
-                        await loadStats();
-                        showSuccess(`${deleted}件の履歴を削除しました`, 3000);
-                        setCleanupDate('');
-                        setCleanupProjectId('');
-                      } catch (error) {
-                        showError('履歴の削除に失敗しました', 5000);
-                      } finally {
-                        setIsLoading(false);
-                      }
-                    }}
-                    disabled={isLoading || !cleanupDate}
-                    className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                  >
-                    <Trash2 className="h-4 w-4 inline mr-2" />
-                    履歴を削除
-                  </button>
+                </div>
+
+                {/* AIログのクリーンアップ */}
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
+                    AIログのクリーンアップ
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                        削除する日付を選択（この日付より古いAIログを削除）
+                      </label>
+                      <input
+                        type="date"
+                        value={aiLogCleanupDate}
+                        onChange={(e) => setAiLogCleanupDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                        プロジェクトを選択（空欄の場合は全プロジェクト）
+                      </label>
+                      <select
+                        value={aiLogCleanupProjectId}
+                        onChange={(e) => setAiLogCleanupProjectId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      >
+                        <option value="">全プロジェクト</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!aiLogCleanupDate) {
+                          showError('日付を選択してください', 3000);
+                          return;
+                        }
+                        if (!confirm(`選択した日付より古いAIログを削除しますか？${aiLogCleanupProjectId ? `\n対象: ${projects.find(p => p.id === aiLogCleanupProjectId)?.title || ''}` : '\n対象: 全プロジェクト'}`)) {
+                          return;
+                        }
+                        setIsLoading(true);
+                        try {
+                          const cutoffDate = new Date(aiLogCleanupDate);
+                          const deleted = await databaseService.deleteAILogEntriesBeforeDate(
+                            cutoffDate,
+                            aiLogCleanupProjectId || undefined
+                          );
+                          await loadStats();
+                          showSuccess(`${deleted}件のAIログを削除しました`, 3000);
+                          setAiLogCleanupDate('');
+                          setAiLogCleanupProjectId('');
+                        } catch (error) {
+                          showError('AIログの削除に失敗しました', 5000);
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }}
+                      disabled={isLoading || !aiLogCleanupDate}
+                      className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
+                    >
+                      <Trash2 className="h-4 w-4 inline mr-2" />
+                      AIログを削除
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* AIログのクリーンアップ */}
-              <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-800 mb-4">
-                <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
-                  AIログのクリーンアップ
-                </h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                      削除する日付を選択（この日付より古いAIログを削除）
-                    </label>
-                    <input
-                      type="date"
-                      value={cleanupDate}
-                      onChange={(e) => setCleanupDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-                      プロジェクトを選択（空欄の場合は全プロジェクト）
-                    </label>
-                    <select
-                      value={cleanupProjectId}
-                      onChange={(e) => setCleanupProjectId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    >
-                      <option value="">全プロジェクト</option>
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!cleanupDate) {
-                        showError('日付を選択してください', 3000);
-                        return;
-                      }
-                      if (!confirm(`選択した日付より古いAIログを削除しますか？${cleanupProjectId ? `\n対象: ${projects.find(p => p.id === cleanupProjectId)?.title || ''}` : '\n対象: 全プロジェクト'}`)) {
-                        return;
-                      }
-                      setIsLoading(true);
-                      try {
-                        const cutoffDate = new Date(cleanupDate);
-                        const deleted = await databaseService.deleteAILogEntriesBeforeDate(
-                          cutoffDate,
-                          cleanupProjectId || undefined
-                        );
-                        await loadStats();
-                        showSuccess(`${deleted}件のAIログを削除しました`, 3000);
-                        setCleanupDate('');
-                        setCleanupProjectId('');
-                      } catch (error) {
-                        showError('AIログの削除に失敗しました', 5000);
-                      } finally {
-                        setIsLoading(false);
-                      }
-                    }}
-                    disabled={isLoading || !cleanupDate}
-                    className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
-                  >
-                    <Trash2 className="h-4 w-4 inline mr-2" />
-                    AIログを削除
-                  </button>
+              {/* 3. プロジェクト別クリーンアップ（グリッド2列） */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* 履歴削除（現在のプロジェクト） */}
+                <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
+                    履歴の削除
+                  </h4>
+                  {!currentProject ? (
+                    <div className="text-center py-4">
+                      <Clock className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        プロジェクトを選択して履歴を管理してください
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        {currentProject.title} のすべての履歴を削除します
+                      </p>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                          履歴は章ごとに管理されています。各章の履歴は草案編集画面の「履歴管理」タブから確認・削除できます。
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('このプロジェクトのすべての履歴を削除しますか？')) return;
+                          setIsLoading(true);
+                          try {
+                            await databaseService.deleteProjectHistory(currentProject.id);
+                            await loadStats();
+                            await loadProjectData();
+                            showSuccess('履歴を削除しました', 3000);
+                          } catch (error) {
+                            showError('履歴の削除に失敗しました', 5000);
+                          } finally {
+                            setIsLoading(false);
+                          }
+                        }}
+                        disabled={isLoading}
+                        className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
+                      >
+                        <Trash2 className="h-4 w-4 inline mr-2" />
+                        すべての履歴を削除
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* AIログ削除（現在のプロジェクト） */}
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
+                    AIログの削除
+                  </h4>
+                  {!currentProject ? (
+                    <div className="text-center py-4">
+                      <FileText className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        プロジェクトを選択してAIログを管理してください
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        {currentProject.title} のすべてのAIログを削除します
+                      </p>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                          AIログは章ごとに管理されています。各章のAIログは草案編集画面の「AIログ」タブから確認・削除できます。
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('このプロジェクトのすべてのAIログを削除しますか？')) return;
+                          setIsLoading(true);
+                          try {
+                            await databaseService.deleteProjectAILogs(currentProject.id);
+                            await loadStats();
+                            await loadProjectData();
+                            showSuccess('AIログを削除しました', 3000);
+                          } catch (error) {
+                            showError('AIログの削除に失敗しました', 5000);
+                          } finally {
+                            setIsLoading(false);
+                          }
+                        }}
+                        disabled={isLoading}
+                        className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
+                      >
+                        <Trash2 className="h-4 w-4 inline mr-2" />
+                        すべてのAIログを削除
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* データベース最適化 */}
+              {/* 4. データベース最適化（フル幅） */}
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
                   データベース最適化（VACUUM相当）
@@ -1127,34 +1141,21 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
-              {/* LocalStorageのクリーンアップ */}
-              <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
-                <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
-                  LocalStorageのクリーンアップ
+              {/* 5. すべての削除（最下部、フル幅） */}
+              <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
+                <h4 className="font-bold text-red-800 dark:text-red-400 mb-2 font-['Noto_Sans_JP']">
+                  危険な操作
                 </h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
-                  移行済みの履歴データや、存在しないプロジェクトの設定データを削除します。
+                <p className="text-sm text-red-700 dark:text-red-300 mb-4 font-['Noto_Sans_JP']">
+                  すべてのプロジェクトとバックアップを削除します。この操作は取り消せません。
                 </p>
                 <button
-                  onClick={async () => {
-                    if (!confirm('LocalStorageの不要なデータを削除しますか？')) {
-                      return;
-                    }
-                    setIsLoading(true);
-                    try {
-                      const result = await databaseService.cleanupLocalStorage();
-                      showSuccess(`${result.cleaned}件のデータを削除しました`, 3000);
-                    } catch (error) {
-                      showError('LocalStorageのクリーンアップに失敗しました', 5000);
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}
+                  onClick={handleClearAllData}
                   disabled={isLoading}
-                  className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
+                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
                 >
-                  <Eraser className="h-4 w-4 inline mr-2" />
-                  LocalStorageをクリーンアップ
+                  <Trash2 className="h-4 w-4" />
+                  <span>すべてのデータを削除</span>
                 </button>
               </div>
             </div>

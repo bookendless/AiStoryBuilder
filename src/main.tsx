@@ -6,14 +6,22 @@ import './index.css';
 // グローバルエラーハンドラー: ブラウザ拡張機能のエラーを無視
 window.addEventListener('error', (event) => {
   // Extension context invalidated エラーは無視（ブラウザ拡張機能のリロード時に発生）
+  const message = event.message || '';
+  const filename = event.filename || '';
+  const errorString = event.error?.toString() || '';
+  
   if (
-    event.message?.includes('Extension context invalidated') ||
-    event.message?.includes('content.js') ||
-    event.filename?.includes('content.js') ||
-    event.filename?.includes('extension')
+    message.includes('Extension context invalidated') ||
+    message.includes('content.js') ||
+    filename.includes('content.js') ||
+    filename.includes('extension') ||
+    filename.includes('chrome-extension://') ||
+    filename.includes('moz-extension://') ||
+    errorString.includes('Extension context invalidated')
   ) {
     event.preventDefault();
-    console.warn('ブラウザ拡張機能のエラーを無視しました:', event.message);
+    event.stopPropagation();
+    // コンソールに表示しない（完全に無視）
     return false;
   }
 });
@@ -21,13 +29,18 @@ window.addEventListener('error', (event) => {
 // 未処理のPromise拒否をハンドル
 window.addEventListener('unhandledrejection', (event) => {
   // Extension context invalidated エラーは無視
+  const reason = event.reason || {};
+  const reasonString = String(reason);
+  const reasonMessage = reason?.message || '';
+  
   if (
-    event.reason?.message?.includes('Extension context invalidated') ||
-    event.reason?.message?.includes('content.js') ||
-    String(event.reason).includes('Extension context invalidated')
+    reasonMessage.includes('Extension context invalidated') ||
+    reasonMessage.includes('content.js') ||
+    reasonString.includes('Extension context invalidated') ||
+    reasonString.includes('content.js')
   ) {
     event.preventDefault();
-    console.warn('ブラウザ拡張機能のPromise拒否を無視しました:', event.reason);
+    // コンソールに表示しない（完全に無視）
     return false;
   }
 });

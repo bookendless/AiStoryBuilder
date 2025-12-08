@@ -235,7 +235,7 @@ interface ProjectContextType {
   projects: Project[];
   setProjects: (projects: Project[]) => void;
   updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
-  createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle']) => Project;
+  createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
   saveProject: () => Promise<void>;
   createManualBackup: (description?: string) => Promise<void>;
   loadProject: (id: string) => Promise<void>;
@@ -304,18 +304,32 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, []);
 
   // 現在のプロジェクトが変更されたら自動保存を開始
+  // useRefを使用して、コールバック関数内から最新のcurrentProjectを参照する
+  const currentProjectRef = React.useRef<Project | null>(currentProject);
+  React.useEffect(() => {
+    currentProjectRef.current = currentProject;
+  }, [currentProject]);
+
   useSafeEffect(() => {
     if (currentProject) {
-      const startAutoSave = async () => {
+      const initAutoSave = async () => {
         try {
-          await databaseService.startAutoSave(currentProject, () => {
-            setLastSaved(new Date());
-          });
+          // プロジェクト取得関数を渡すことでクロージャ問題を回避
+          await databaseService.startAutoSave(
+            () => currentProjectRef.current,
+            (success, error) => {
+              if (success) {
+                setLastSaved(new Date());
+              } else if (error) {
+                console.error('自動保存エラー:', error);
+              }
+            }
+          );
         } catch (err) {
           console.error('自動保存開始エラー:', err);
         }
       };
-      startAutoSave();
+      initAutoSave();
     } else {
       try {
         databaseService.stopAutoSave();
@@ -362,7 +376,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  const createNewProject = (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle']): Project => {
+  const createNewProject = (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string): Project => {
+    // デバッグ: あらすじの値を確認
+    console.log('createNewProject で受け取ったあらすじ:', synopsis);
+    console.log('あらすじの型:', typeof synopsis);
+    console.log('あらすじの長さ:', synopsis?.length || 0);
+
     const newProject: Project = {
       id: Date.now().toString(),
       title,
@@ -406,7 +425,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         fourAct3: '',
         fourAct4: '',
       },
-      synopsis: '',
+      synopsis: synopsis || '',
       chapters: [],
       draft: '',
       createdAt: new Date(),
@@ -422,6 +441,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     setProjects(prev => [...prev, newProject]);
     setCurrentProject(newProject);
+
+    // デバッグ: 作成されたプロジェクトのあらすじを確認
+    console.log('作成されたプロジェクトのあらすじ:', newProject.synopsis);
+    console.log('作成されたプロジェクトのあらすじの長さ:', newProject.synopsis?.length || 0);
 
     return newProject;
   };

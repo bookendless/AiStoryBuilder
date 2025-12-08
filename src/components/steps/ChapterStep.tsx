@@ -6,8 +6,14 @@ import { ChapterFormModal } from './chapter/ChapterFormModal';
 import { ChapterHistoryModal } from './chapter/ChapterHistoryModal';
 import { ChapterList } from './chapter/ChapterList';
 import { ChapterHistory, ChapterFormData } from './chapter/types';
+import { StepNavigation } from '../common/StepNavigation';
+import { Step } from '../../App';
 
-export const ChapterStep: React.FC = () => {
+interface ChapterStepProps {
+  onNavigateToStep?: (step: Step) => void;
+}
+
+export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject, deleteChapter } = useProject();
   const { showSuccess } = useToast();
 
@@ -412,8 +418,28 @@ export const ChapterStep: React.FC = () => {
     return <div>プロジェクトを選択してください</div>;
   }
 
+  // ステップナビゲーション用のハンドラー
+  const handlePreviousStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('synopsis');
+    }
+  };
+
+  const handleNextStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('draft');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
+      {/* ステップナビゲーション */}
+      <StepNavigation
+        currentStep="chapter"
+        onPrevious={handlePreviousStep}
+        onNext={handleNextStep}
+      />
+
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-cyan-500">

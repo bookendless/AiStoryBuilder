@@ -388,9 +388,17 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
 
   const handleClear = () => {
     setMessages([]);
+    setShowQuickActions(true); // クリア時にテンプレートを再表示
   };
 
-
+  // テンプレートを再表示する関数
+  const handleShowTemplates = () => {
+    setShowQuickActions(true);
+    // テンプレート表示エリアまでスクロール
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
 
   if (!isOpen) return null;
 
@@ -581,11 +589,19 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
           {/* クイックアクション（メッセージがある場合） */}
           {messages.length > 0 && showQuickActions && isConfigured && (
             <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <div className="flex items-center space-x-2 mb-2">
-                <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                  クイックアクション
-                </p>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                    クイックアクション
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowQuickActions(false)}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 font-['Noto_Sans_JP']"
+                >
+                  非表示
+                </button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 <button
@@ -639,6 +655,19 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
 
         {/* 入力エリア */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          {/* テンプレート再表示ボタン（メッセージがある場合のみ表示） */}
+          {messages.length > 0 && !showQuickActions && isConfigured && (
+            <div className="mb-3 flex items-center justify-center">
+              <button
+                onClick={handleShowTemplates}
+                className="flex items-center space-x-2 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors font-['Noto_Sans_JP']"
+                title="操作テンプレートを表示"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>テンプレートを表示</span>
+              </button>
+            </div>
+          )}
           <div className="flex items-end space-x-2">
             <textarea
               ref={inputRef}

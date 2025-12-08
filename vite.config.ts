@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import type { ProxyOptions } from 'vite';
 
 // Tauri 2.0ではViteの設定を調整する必要があります
 export default defineConfig({
@@ -40,21 +41,21 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api\/openai/, ''),
-      },
+      } as ProxyOptions,
       // クラウドAPI（Claude/Anthropic）
       '/api/anthropic': {
         target: 'https://api.anthropic.com',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
-      },
+      } as ProxyOptions,
       // クラウドAPI（Gemini）
       '/api/gemini': {
         target: 'https://generativelanguage.googleapis.com',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
-      },
+      } as ProxyOptions,
     },
   },
   build: {

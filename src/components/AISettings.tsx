@@ -24,7 +24,18 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
   const buildInitialFormData = useCallback(() => {
     const initialData = { ...settings };
-    initialData.apiKey = settings.apiKey ? decryptApiKey(settings.apiKey) : '';
+    
+    // プロバイダーに応じてapiKeysからAPIキーを取得、なければapiKeyから取得
+    let decryptedApiKey = '';
+    if (initialData.provider && initialData.provider !== 'local') {
+      if (initialData.apiKeys?.[initialData.provider]) {
+        decryptedApiKey = decryptApiKey(initialData.apiKeys[initialData.provider]);
+      } else if (initialData.apiKey) {
+        decryptedApiKey = decryptApiKey(initialData.apiKey);
+      }
+    }
+    initialData.apiKey = decryptedApiKey;
+    
     // ローカルLLMの場合はlocalEndpointを確実に設定
     if (initialData.provider === 'local' && !initialData.localEndpoint) {
       initialData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
@@ -107,7 +118,6 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       saveData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
     }
 
-    console.log('Saving AI settings:', JSON.stringify(saveData, null, 2));
     updateSettings(saveData);
     onClose();
   };
@@ -123,8 +133,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       // httpServiceを使用してテストを実行
       const { httpService } = await import('../services/httpService');
 
+      // Tauri環境チェック（Tauri 2対応）
+      const isTauriEnv = typeof window !== 'undefined' &&
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+
       if (formData.provider === 'openai') {
-        const response = await httpService.post('https://api.openai.com/v1/chat/completions', {
+        // モデル名に基づいて適切なパラメータを選択
+        const isNewModel = formData.model.startsWith('gpt-5') || formData.model.startsWith('o');
+        const requestBody: any = {
           model: formData.model,
           messages: [
             {
@@ -132,8 +148,21 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               content: testPrompt,
             },
           ],
-          max_tokens: 50,
-        }, {
+        };
+
+        // GPT-5.1系やo系モデルはmax_completion_tokens、それ以外はmax_tokensを使用
+        if (isNewModel) {
+          requestBody.max_completion_tokens = 50;
+        } else {
+          requestBody.max_tokens = 50;
+        }
+
+        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
+        const apiUrl = (!isTauriEnv && import.meta.env.DEV)
+          ? '/api/openai/v1/chat/completions'
+          : 'https://api.openai.com/v1/chat/completions';
+
+        const response = await httpService.post(apiUrl, requestBody, {
           headers: {
             'Authorization': `Bearer ${formData.apiKey}`,
           },
@@ -147,7 +176,30 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         if (!formData.apiKey) {
           throw new Error('Claude APIキーが設定されていません');
         }
-        const response = await httpService.post('https://api.anthropic.com/v1/messages', {
+        
+        // APIキーの検証（基本的な形式チェック）
+        if (!formData.apiKey.startsWith('sk-ant-')) {
+          throw new Error('Claude APIキーの形式が正しくありません（sk-ant-で始まる必要があります）');
+        }
+        
+        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
+        const apiUrl = (!isTauriEnv && import.meta.env.DEV)
+          ? '/api/anthropic/v1/messages'
+          : 'https://api.anthropic.com/v1/messages';
+
+
+        // ブラウザ環境でプロキシ経由の場合は、anthropic-dangerous-direct-browser-accessヘッダーが必要
+        const headers: Record<string, string> = {
+          'x-api-key': formData.apiKey,
+          'anthropic-version': '2023-06-01',
+        };
+        
+        // ブラウザ環境でプロキシ経由の場合のみ、このヘッダーを追加
+        if (!isTauriEnv && import.meta.env.DEV) {
+          headers['anthropic-dangerous-direct-browser-access'] = 'true';
+        }
+
+        const response = await httpService.post(apiUrl, {
           model: formData.model,
           max_tokens: 50,
           messages: [
@@ -157,18 +209,36 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             },
           ],
         }, {
-          headers: {
-            'x-api-key': formData.apiKey,
-            'anthropic-version': '2023-06-01',
-          },
+          headers,
         });
 
         if (response.status >= 400) {
-          const errorData = response.data as { error?: { message?: string } };
-          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
+          const errorData = response.data as { error?: { message?: string; type?: string } };
+          const errorMessage = errorData.error?.message || response.statusText;
+          const errorType = errorData.error?.type || 'unknown';
+          
+          
+          // 401エラーの場合、より詳細なメッセージを提供
+          if (response.status === 401) {
+            throw new Error(`認証エラー (401): APIキーが無効です。\nエラー詳細: ${errorMessage}\n\nAPIキーが正しく設定されているか確認してください。`);
+          }
+          
+          // 404エラーの場合、モデルが見つからないが接続自体は成功している
+          if (response.status === 404 && errorType === 'not_found_error') {
+            throw new Error(`モデルが見つかりません (404): 指定されたモデル「${formData.model}」は存在しないか、利用できません。\nエラー詳細: ${errorMessage}\n\n利用可能なモデルを選択してください。`);
+          }
+          
+          throw new Error(`API エラー (${response.status}): ${errorMessage}`);
         }
       } else if (formData.provider === 'gemini') {
-        const response = await httpService.post(`https://generativelanguage.googleapis.com/v1beta/models/${formData.model}:generateContent?key=${formData.apiKey}`, {
+        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
+        const baseUrl = (!isTauriEnv && import.meta.env.DEV)
+          ? '/api/gemini'
+          : 'https://generativelanguage.googleapis.com';
+        
+        const apiUrl = `${baseUrl}/v1beta/models/${formData.model}:generateContent${!isTauriEnv && import.meta.env.DEV ? '' : `?key=${formData.apiKey}`}`;
+
+        const response = await httpService.post(apiUrl, {
           contents: [{
             parts: [{
               text: testPrompt,
@@ -235,13 +305,6 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         }
         // Tauri環境では常に元のエンドポイントを使用（HTTPプラグインがlocalhostにアクセス可能）
 
-        console.log('Testing local LLM connection:', {
-          originalEndpoint: endpoint,
-          apiEndpoint,
-          isTauriEnv,
-          isDev: import.meta.env.DEV
-        });
-
         const response = await httpService.post(apiEndpoint, {
           model: formData.model || 'local-model',
           messages: [
@@ -253,11 +316,6 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           max_tokens: 50,
         }, {
           timeout: 60000,
-        });
-
-        console.log('Local LLM test response:', {
-          status: response.status,
-          statusText: response.statusText
         });
 
         if (response.status >= 400) {
@@ -316,11 +374,22 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 onClick={() => {
                   const newModel = provider.models[0].id;
                   const newModelData = provider.models[0];
+                  
+                  // プロバイダーに応じてapiKeysからAPIキーを取得
+                  let apiKeyForProvider = '';
+                  if (provider.id !== 'local' && settings.apiKeys?.[provider.id]) {
+                    apiKeyForProvider = decryptApiKey(settings.apiKeys[provider.id]);
+                  } else if (provider.id !== 'local' && settings.apiKey) {
+                    // 後方互換性のため、apiKeyからも取得を試みる
+                    apiKeyForProvider = decryptApiKey(settings.apiKey);
+                  }
+                  
                   const updateData = {
                     ...formData,
                     provider: provider.id,
                     model: newModel,
-                    maxTokens: Math.min(formData.maxTokens, newModelData.maxTokens)
+                    maxTokens: Math.min(formData.maxTokens, newModelData.maxTokens),
+                    apiKey: apiKeyForProvider
                   };
 
                   // ローカルLLMの場合はlocalEndpointを設定

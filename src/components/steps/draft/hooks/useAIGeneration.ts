@@ -688,6 +688,12 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           }
         }
         
+        // Gemini APIのレスポンスで時々付く {{ と }} を削除
+        jsonContent = jsonContent
+          .replace(/^\{\{/, '')
+          .replace(/\}\}$/, '')
+          .trim();
+        
         // JSONオブジェクトを抽出（複数行に対応、最も長いマッチを選択）
         const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
         let jsonString = '';
@@ -703,7 +709,11 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         // JSON文字列のクリーニング
         jsonString = jsonString
           .replace(/^[\s\n\r]*/, '')
-          .replace(/[\s\n\r]*$/, '');
+          .replace(/[\s\n\r]*$/, '')
+          // Gemini APIのレスポンスで時々付く {{ と }} を削除
+          .replace(/^\{\{/, '')
+          .replace(/\}\}$/, '')
+          .trim();
         
         if (jsonString && jsonString.startsWith('{')) {
           const critiqueData = JSON.parse(jsonString);
@@ -821,6 +831,12 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           }
         }
         
+        // Gemini APIのレスポンスで時々付く {{ と }} を削除
+        jsonContent = jsonContent
+          .replace(/^\{\{/, '')
+          .replace(/\}\}$/, '')
+          .trim();
+        
         // JSONオブジェクトを抽出（複数行に対応、最も長いマッチを選択）
         const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
         let jsonString = '';
@@ -836,7 +852,11 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         // JSON文字列のクリーニング
         jsonString = jsonString
           .replace(/^[\s\n\r]*/, '')
-          .replace(/[\s\n\r]*$/, '');
+          .replace(/[\s\n\r]*$/, '')
+          // Gemini APIのレスポンスで時々付く {{ と }} を削除
+          .replace(/^\{\{/, '')
+          .replace(/\}\}$/, '')
+          .trim();
         
         if (jsonString && jsonString.startsWith('{')) {
           try {

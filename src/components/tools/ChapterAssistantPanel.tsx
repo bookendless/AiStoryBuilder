@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Sparkles, Loader, CheckCircle, FileText, BookOpen } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -16,6 +16,8 @@ export const ChapterAssistantPanel: React.FC = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
     const { aiLogs, addLog } = useAILog();
+    const basicAbortControllerRef = useRef<AbortController | null>(null);
+    const structureAbortControllerRef = useRef<AbortController | null>(null);
 
     // 構成バランスの状態管理
     const [structureProgress, setStructureProgress] = useState<StructureProgress>({
@@ -353,6 +355,37 @@ export const ChapterAssistantPanel: React.FC = () => {
         return newChapters;
     }, []);
 
+    // キャンセルハンドラー
+    const handleCancelBasic = useCallback(() => {
+        if (basicAbortControllerRef.current) {
+            basicAbortControllerRef.current.abort();
+            basicAbortControllerRef.current = null;
+            setIsGenerating(false);
+        }
+    }, []);
+
+    const handleCancelStructure = useCallback(() => {
+        if (structureAbortControllerRef.current) {
+            structureAbortControllerRef.current.abort();
+            structureAbortControllerRef.current = null;
+            setIsGeneratingStructure(false);
+        }
+    }, []);
+
+    // クリーンアップ
+    useEffect(() => {
+        return () => {
+            if (basicAbortControllerRef.current) {
+                basicAbortControllerRef.current.abort();
+                basicAbortControllerRef.current = null;
+            }
+            if (structureAbortControllerRef.current) {
+                structureAbortControllerRef.current.abort();
+                structureAbortControllerRef.current = null;
+            }
+        };
+    }, []);
+
     // 基本章立て生成
     const handleAIGenerate = async () => {
         if (!isConfigured) {
@@ -364,6 +397,15 @@ export const ChapterAssistantPanel: React.FC = () => {
 
         if (!currentProject) return;
 
+        // 既存のリクエストをキャンセル
+        if (basicAbortControllerRef.current) {
+            basicAbortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        basicAbortControllerRef.current = abortController;
+
         setIsGenerating(true);
 
         try {
@@ -372,7 +414,13 @@ export const ChapterAssistantPanel: React.FC = () => {
                 prompt,
                 type: 'chapter',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             if (response.error) {
                 // エラーの場合はログを保存
@@ -435,6 +483,10 @@ export const ChapterAssistantPanel: React.FC = () => {
             }
 
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             const errorMessage = error instanceof Error ? error.message : '不明なエラー';
             addLog({
                 type: 'basic',
@@ -447,7 +499,10 @@ export const ChapterAssistantPanel: React.FC = () => {
                 details: 'ログを確認するにはAIログセクションを確認してください。',
             });
         } finally {
-            setIsGenerating(false);
+            if (!abortController.signal.aborted) {
+                setIsGenerating(false);
+            }
+            basicAbortControllerRef.current = null;
         }
     };
 
@@ -472,6 +527,15 @@ export const ChapterAssistantPanel: React.FC = () => {
             return;
         }
 
+        // 既存のリクエストをキャンセル
+        if (structureAbortControllerRef.current) {
+            structureAbortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        structureAbortControllerRef.current = abortController;
+
         setIsGeneratingStructure(true);
 
         try {
@@ -480,7 +544,13 @@ export const ChapterAssistantPanel: React.FC = () => {
                 prompt: prompt,
                 type: 'chapter',
                 settings: settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             if (response.content && !response.error) {
                 const newChapters = parseAIResponse(response.content);
@@ -533,6 +603,10 @@ export const ChapterAssistantPanel: React.FC = () => {
                 });
             }
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             const errorMessage = error instanceof Error ? error.message : '不明なエラー';
             addLog({
                 type: 'structure',
@@ -546,7 +620,10 @@ export const ChapterAssistantPanel: React.FC = () => {
                 details: 'ログを確認するにはAIログセクションを確認してください。',
             });
         } finally {
-            setIsGeneratingStructure(false);
+            if (!abortController.signal.aborted) {
+                setIsGeneratingStructure(false);
+            }
+            structureAbortControllerRef.current = null;
         }
     };
 
@@ -807,6 +884,12 @@ ${'='.repeat(80)}`;
                         }
                         estimatedTime={60}
                         variant="inline"
+                        cancellable={true}
+                        onCancel={
+                            isGeneratingStructure
+                                ? handleCancelStructure
+                                : handleCancelBasic
+                        }
                     />
                 </div>
             )}

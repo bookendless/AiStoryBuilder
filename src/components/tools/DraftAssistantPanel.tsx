@@ -620,8 +620,31 @@ export const DraftAssistantPanel: React.FC = () => {
     const isSelfRefining = isGenerating && currentGenerationAction === 'selfRefine';
     const chapterLogs = selectedChapterId ? improvementLogs[selectedChapterId] || [] : [];
     
+    // 生成中のメッセージを取得
+    const getGeneratingMessage = () => {
+        if (isFullDraftGenerating) return '章全体を生成中';
+        if (isContinueGenerating) return '続きを生成中';
+        if (isDescriptionGenerating) return '描写を強化中';
+        if (isStyleGenerating) return '文体を調整中';
+        if (isShortenGenerating) return '文章を短縮中';
+        if (isImproving) return '章全体を改善中';
+        if (isSelfRefining) return '弱点を特定して修正中';
+        return 'AI生成中';
+    };
+
     return (
         <div className="space-y-4">
+            {/* AI生成中のローディングインジケーター */}
+            {isGenerating && (
+                <AILoadingIndicator
+                    message={getGeneratingMessage()}
+                    estimatedTime={60}
+                    variant="inline"
+                    cancellable={true}
+                    onCancel={handleCancelGeneration}
+                />
+            )}
+
             {/* 章選択UI */}
             {currentProject.chapters.length > 0 && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-4">
@@ -994,7 +1017,40 @@ ${log.error ? `【エラー】\n${log.error}` : ''}`;
                                         navigator.clipboard.writeText(logText);
                                         showSuccess('ログをクリップボードにコピーしました');
                                     }}
-                                    onDownloadLogs={() => {}}
+                                    onDownloadLogs={() => {
+                                        const typeLabels: Record<string, string> = {
+                                            generateSingle: '章生成',
+                                            continue: '続き生成',
+                                        };
+                                        const logsText = aiLogs.map(log => {
+                                            const typeLabel = typeLabels[log.type] || log.type;
+                                            return `【AIログ - ${typeLabel}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+${log.chapterId ? `章ID: ${log.chapterId}\n` : ''}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】
+${log.error}` : ''}
+
+${'='.repeat(80)}`;
+                                        }).join('\n\n');
+
+                                        const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `draft_ai_logs_${selectedChapterId || 'all'}_${new Date().toISOString().split('T')[0]}.txt`;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                        URL.revokeObjectURL(url);
+                                        showSuccess('ログをダウンロードしました');
+                                    }}
                                     typeLabels={{
                                         generateSingle: '章生成',
                                         continue: '続き生成',

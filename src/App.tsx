@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ToolsSidebar } from './components/ToolsSidebar';
@@ -11,7 +11,7 @@ import { ChapterStep } from './components/steps/ChapterStep';
 import { DraftStep } from './components/steps/DraftStep';
 import { ReviewStep } from './components/steps/ReviewStep';
 import { ExportStep } from './components/steps/ExportStep';
-import { ProjectProvider } from './contexts/ProjectContext';
+import { ProjectProvider, useProject } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
 import { ToastProvider } from './components/Toast';
 import { OfflineNotifier } from './components/OfflineNotifier';
@@ -127,6 +127,40 @@ function App() {
     </ToastProvider>
   );
 }
+
+// ステップ変更時の自動保存を処理するコンポーネント
+const StepChangeAutoSave: React.FC<{ currentStep: Step }> = ({ currentStep }) => {
+  const { currentProject, saveProject } = useProject();
+  const isInitialMount = useRef(true);
+  const previousStepRef = useRef<Step>('home');
+
+  useEffect(() => {
+    // 初回マウント時はスキップ
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      previousStepRef.current = currentStep;
+      return;
+    }
+
+    // ステップが実際に変更された場合のみ保存
+    if (previousStepRef.current !== currentStep && currentProject) {
+      // ホームに戻る場合も、他のステップから移動する場合も保存
+      const saveBeforeNavigation = async () => {
+        try {
+          await saveProject();
+          console.log('ステップ移動時にプロジェクトを保存しました');
+        } catch (error) {
+          console.error('ステップ移動時の保存エラー:', error);
+          // エラーが発生してもステップ移動は続行
+        }
+      };
+      saveBeforeNavigation();
+      previousStepRef.current = currentStep;
+    }
+  }, [currentStep, currentProject, saveProject]);
+
+  return null;
+};
 
 const AppContent: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('home');
@@ -259,17 +293,17 @@ const AppContent: React.FC = () => {
       case 'home':
         return <HomePage onNavigateToStep={setCurrentStep} />;
       case 'character':
-        return <CharacterStep />;
+        return <CharacterStep onNavigateToStep={setCurrentStep} />;
       case 'plot1':
         return <PlotStep1 onNavigateToStep={setCurrentStep} />;
       case 'plot2':
         return <PlotStep2 onNavigateToStep={setCurrentStep} />;
       case 'synopsis':
-        return <SynopsisStep />;
+        return <SynopsisStep onNavigateToStep={setCurrentStep} />;
       case 'chapter':
-        return <ChapterStep />;
+        return <ChapterStep onNavigateToStep={setCurrentStep} />;
       case 'draft':
-        return <DraftStep />;
+        return <DraftStep onNavigateToStep={setCurrentStep} />;
       case 'review':
         return <ReviewStep />;
       case 'export':
@@ -282,6 +316,7 @@ const AppContent: React.FC = () => {
   return (
     <AIProvider>
       <ProjectProvider>
+        <StepChangeAutoSave currentStep={currentStep} />
         <OfflineNotifier />
         {/* スキップリンク */}
         <a

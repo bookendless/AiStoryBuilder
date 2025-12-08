@@ -4,6 +4,43 @@ import { DataCache } from '../utils/performanceUtils';
 import { ChapterHistoryEntry } from '../components/steps/draft/types';
 import { AILogEntry } from '../components/common/types';
 
+// カスタムエラー型定義
+export class DatabaseError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly originalError?: unknown
+  ) {
+    super(message);
+    this.name = 'DatabaseError';
+    Object.setPrototypeOf(this, DatabaseError.prototype);
+  }
+}
+
+export class DatabaseValidationError extends DatabaseError {
+  constructor(message: string, originalError?: unknown) {
+    super(message, 'VALIDATION_ERROR', originalError);
+    this.name = 'DatabaseValidationError';
+    Object.setPrototypeOf(this, DatabaseValidationError.prototype);
+  }
+}
+
+export class DatabaseNotFoundError extends DatabaseError {
+  constructor(message: string, public readonly resourceId?: string) {
+    super(message, 'NOT_FOUND');
+    this.name = 'DatabaseNotFoundError';
+    Object.setPrototypeOf(this, DatabaseNotFoundError.prototype);
+  }
+}
+
+export class DatabaseStorageError extends DatabaseError {
+  constructor(message: string, originalError?: unknown) {
+    super(message, 'STORAGE_ERROR', originalError);
+    this.name = 'DatabaseStorageError';
+    Object.setPrototypeOf(this, DatabaseStorageError.prototype);
+  }
+}
+
 export interface StoredProject extends Project {
   version: number;
   lastSaved: Date;
@@ -81,7 +118,7 @@ class StoryBuilderDatabase extends Dexie {
 
   constructor() {
     super('StoryBuilderDB');
-    
+
     try {
       // バージョン2: 既存のテーブル
       this.version(2).stores({
@@ -130,20 +167,30 @@ class StoryBuilderDatabase extends Dexie {
   }
 }
 
-// データベースインスタンスの作成を安全に行う
+// データベースインスタンスの作成
+// エラーが発生した場合はアプリケーション側でハンドリングできるようにする
 let db: StoryBuilderDatabase;
+let dbInitError: Error | null = null;
+
 try {
   db = new StoryBuilderDatabase();
 } catch (error) {
   console.error('データベース作成エラー:', error);
-  // フォールバック用のダミーデータベースを作成
-  db = new StoryBuilderDatabase();
+  dbInitError = error instanceof Error ? error : new Error('データベースの初期化に失敗しました');
+  // 最低限の動作のために再試行（一度だけ）
+  try {
+    db = new StoryBuilderDatabase();
+  } catch (retryError) {
+    // 再試行も失敗した場合は、ダミーのインスタンスを作成
+    // 実際の操作時にエラーをスローする
+    db = new StoryBuilderDatabase();
+  }
 }
 
 class DatabaseService {
-  private autoSaveTimer: number | null = null;
+  private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
   private autoSaveInterval = 180000; // 3分
-  
+
   // パフォーマンス最適化のためのキャッシュ
   private projectCache = new DataCache<StoredProject>(50, 5 * 60 * 1000); // 50件、5分
   private settingsCache = new DataCache<AppSettings>(20, 10 * 60 * 1000); // 20件、10分
@@ -156,9 +203,27 @@ class DatabaseService {
     }, 5 * 60 * 1000); // 5分ごと
   }
 
-  // プロジェクト保存（強化版）
+  // データベース初期化エラーをチェック
+  checkDatabaseHealth(): void {
+    if (dbInitError) {
+      throw new DatabaseStorageError(
+        'データベースの初期化に失敗しています。ブラウザを再起動してください。',
+        dbInitError
+      );
+    }
+  }
+
+  // プロジェクト保存（強化版 - トランザクション保護付き）
   async saveProject(project: Project): Promise<void> {
+    // データベースの健全性をチェック
+    this.checkDatabaseHealth();
+
     try {
+      // 入力検証
+      if (!project || !project.id || !project.title) {
+        throw new DatabaseValidationError('プロジェクトのIDとタイトルは必須です');
+      }
+
       const storedProject: StoredProject = {
         ...project,
         version: 1,
@@ -166,32 +231,41 @@ class DatabaseService {
         updatedAt: new Date(),
       };
 
-      // 既存のプロジェクトがあるかチェック
-      const existingProject = await db.projects.get(project.id);
-      
-      if (existingProject) {
-        // 既存のプロジェクトを更新
-        await db.projects.update(project.id, {
-          ...storedProject,
-          id: project.id // IDは更新しない
-        });
-      } else {
-        // 新しいプロジェクトを追加
-        await db.projects.add(storedProject);
-      }
-      
-      // キャッシュを更新
+      // トランザクション内で保存と確認を行う（競合状態を防止）
+      await db.transaction('rw', db.projects, async () => {
+        // 既存のプロジェクトがあるかチェック
+        const existingProject = await db.projects.get(project.id);
+
+        if (existingProject) {
+          // 既存のプロジェクトを更新
+          await db.projects.update(project.id, {
+            ...storedProject,
+            id: project.id // IDは更新しない
+          });
+        } else {
+          // 新しいプロジェクトを追加
+          await db.projects.add(storedProject);
+        }
+
+        // トランザクション内で保存確認（原子性を保証）
+        const savedProject = await db.projects.get(project.id);
+        if (!savedProject) {
+          throw new DatabaseStorageError('保存後の確認でプロジェクトが見つかりません');
+        }
+      });
+
+      // キャッシュを更新（トランザクション成功後）
       this.projectCache.set(project.id, storedProject);
-      
-      // 保存の確実性を高めるため、即座に読み込み確認
-      const savedProject = await db.projects.get(project.id);
-      if (!savedProject) {
-        throw new Error('保存後の確認でプロジェクトが見つかりません');
-      }
-      
+
       console.log(`プロジェクト "${project.title}" を確実に保存しました`);
     } catch (error) {
+      // 既にカスタムエラーの場合はそのまま再スロー
+      if (error instanceof DatabaseError) {
+        throw error;
+      }
+
       console.error('プロジェクト保存エラー:', error);
+
       // ConstraintErrorの場合は再試行
       if (error instanceof Error && error.name === 'ConstraintError') {
         try {
@@ -203,11 +277,16 @@ class DatabaseService {
           });
           console.log(`プロジェクト "${project.title}" を更新しました`);
         } catch (retryError) {
-          console.error('プロジェクト更新再試行エラー:', retryError);
-          throw retryError;
+          throw new DatabaseStorageError(
+            `プロジェクトの保存に失敗しました: ${(retryError as Error).message}`,
+            retryError
+          );
         }
       } else {
-        throw error;
+        throw new DatabaseStorageError(
+          `プロジェクトの保存に失敗しました: ${(error as Error).message}`,
+          error
+        );
       }
     }
   }
@@ -215,12 +294,17 @@ class DatabaseService {
   // プロジェクト読み込み（画像マイグレーション対応）
   async loadProject(id: string): Promise<Project | null> {
     try {
+      // 入力検証
+      if (!id || typeof id !== 'string') {
+        throw new DatabaseValidationError('プロジェクトIDが無効です');
+      }
+
       // キャッシュから取得を試行
       const cachedProject = this.projectCache.get(id);
       if (cachedProject) {
         const { version: _version, lastSaved: _lastSaved, ...project } = cachedProject;
         // 画像マイグレーションを実行（非同期、エラーは無視）
-        this.migrateProjectImages(project).catch(err => 
+        this.migrateProjectImages(project).catch(err =>
           console.warn('画像マイグレーションエラー（無視）:', err)
         );
         return project;
@@ -228,23 +312,33 @@ class DatabaseService {
 
       // データベースから取得
       const storedProject = await db.projects.get(id);
-      if (!storedProject) return null;
+      if (!storedProject) {
+        return null; // 見つからない場合はnullを返す（エラーではない）
+      }
 
       // キャッシュに保存
       this.projectCache.set(id, storedProject);
 
       // StoredProject から Project に変換
       const { version: _version, lastSaved: _lastSaved, ...project } = storedProject;
-      
+
       // 画像マイグレーションを実行（非同期、エラーは無視）
-      this.migrateProjectImages(project).catch(err => 
+      this.migrateProjectImages(project).catch(err =>
         console.warn('画像マイグレーションエラー（無視）:', err)
       );
-      
+
       return project;
     } catch (error) {
+      // 既にカスタムエラーの場合はそのまま再スロー
+      if (error instanceof DatabaseError) {
+        throw error;
+      }
+
       console.error('プロジェクト読み込みエラー:', error);
-      return null;
+      throw new DatabaseStorageError(
+        `プロジェクトの読み込みに失敗しました: ${(error as Error).message}`,
+        error
+      );
     }
   }
 
@@ -314,10 +408,45 @@ class DatabaseService {
 
   // プロジェクト削除
   async deleteProject(id: string): Promise<void> {
-    await db.projects.delete(id);
-    // 関連するバックアップも削除
-    await db.backups.where('projectId').equals(id).delete();
-    console.log(`プロジェクト ${id} を削除しました`);
+    try {
+      // 入力検証
+      if (!id || typeof id !== 'string') {
+        throw new DatabaseValidationError('プロジェクトIDが無効です');
+      }
+
+      // プロジェクトが存在するか確認
+      const project = await db.projects.get(id);
+      if (!project) {
+        throw new DatabaseNotFoundError(`プロジェクトが見つかりません: ${id}`, id);
+      }
+
+      // トランザクションで削除（原子性を保証）
+      await db.transaction('rw', db.projects, db.backups, db.chapterHistories, db.aiLogs, async () => {
+        await db.projects.delete(id);
+        // 関連するバックアップも削除
+        await db.backups.where('projectId').equals(id).delete();
+        // 関連する履歴も削除
+        await db.chapterHistories.where('projectId').equals(id).delete();
+        // 関連するAIログも削除
+        await db.aiLogs.where('projectId').equals(id).delete();
+      });
+
+      // キャッシュからも削除
+      this.projectCache.delete(id);
+
+      console.log(`プロジェクト ${id} を削除しました`);
+    } catch (error) {
+      // 既にカスタムエラーの場合はそのまま再スロー
+      if (error instanceof DatabaseError) {
+        throw error;
+      }
+
+      console.error('プロジェクト削除エラー:', error);
+      throw new DatabaseStorageError(
+        `プロジェクトの削除に失敗しました: ${(error as Error).message}`,
+        error
+      );
+    }
   }
 
   // プロジェクト複製
@@ -348,24 +477,24 @@ class DatabaseService {
             controller.close();
           }
         });
-        
+
         const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
         const chunks: Uint8Array[] = [];
         const reader = compressedStream.getReader();
-        
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           chunks.push(value);
         }
-        
+
         const compressed = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
         let offset = 0;
         for (const chunk of chunks) {
           compressed.set(chunk, offset);
           offset += chunk.length;
         }
-        
+
         // Base64エンコード（大きな配列に対応）
         // String.fromCharCodeは引数が多すぎるとスタックオーバーフローになるため、
         // チャンクに分割して処理する
@@ -375,14 +504,14 @@ class DatabaseService {
           const chunk = compressed.slice(i, i + chunkSize);
           binaryString += String.fromCharCode(...chunk);
         }
-        
+
         return btoa(binaryString);
       } catch (error) {
         console.warn('圧縮に失敗、非圧縮で保存します:', error);
         return data;
       }
     }
-    
+
     // CompressionStreamが使えない場合は非圧縮で保存
     return data;
   }
@@ -399,31 +528,31 @@ class DatabaseService {
             controller.close();
           }
         });
-        
+
         const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
         const chunks: Uint8Array[] = [];
         const reader = decompressedStream.getReader();
-        
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           chunks.push(value);
         }
-        
+
         const decompressed = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
         let offset = 0;
         for (const chunk of chunks) {
           decompressed.set(chunk, offset);
           offset += chunk.length;
         }
-        
+
         return new TextDecoder().decode(decompressed);
       } catch (error) {
         console.warn('展開に失敗:', error);
         throw error;
       }
     }
-    
+
     // DecompressionStreamが使えない場合はそのまま返す（非圧縮データ）
     return compressedData;
   }
@@ -433,11 +562,11 @@ class DatabaseService {
     try {
       // プロジェクトデータをJSON文字列に変換
       const jsonData = JSON.stringify(project);
-      
+
       // 圧縮を試みる（10KB以上のデータのみ圧縮）
       let compressedData: string;
       let isCompressed = false;
-      
+
       if (jsonData.length > 10 * 1024) {
         try {
           compressedData = await this.compressData(jsonData);
@@ -492,11 +621,11 @@ class DatabaseService {
   // バックアップ一覧取得
   async getBackups(projectId: string, type?: 'manual' | 'auto'): Promise<ProjectBackup[]> {
     let query = db.backups.where('projectId').equals(projectId);
-    
+
     if (type) {
       query = query.and(backup => backup.type === type);
     }
-    
+
     const backups = await query.toArray();
     return backups.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
@@ -519,7 +648,7 @@ class DatabaseService {
 
     try {
       let projectData: Project;
-      
+
       // 圧縮されている場合は展開
       if (backup.compressed && typeof backup.data === 'string') {
         const decompressed = await this.decompressData(backup.data);
@@ -578,24 +707,38 @@ class DatabaseService {
   }
 
   // 自動保存開始
-  async startAutoSave(project: Project, callback: () => void): Promise<void> {
+  // 注意: getProject 関数を渡すことで、常に最新のプロジェクト状態を取得できます
+  async startAutoSave(
+    getProject: () => Project | null,
+    callback: (success: boolean, error?: Error) => void
+  ): Promise<void> {
     this.stopAutoSave();
-    
+
     const settings = await this.getSettings();
     this.autoSaveInterval = settings.autoSaveInterval;
-    
+
     this.autoSaveTimer = setInterval(async () => {
       try {
+        // 最新のプロジェクト状態を取得（クロージャ問題を回避）
+        const currentProject = getProject();
+
+        // プロジェクトが null の場合はスキップ
+        if (!currentProject) {
+          console.log('自動保存: プロジェクトが見つかりません、スキップします');
+          return;
+        }
+
         // プロジェクトの保存
-        await this.saveProject(project);
-        
+        await this.saveProject(currentProject);
+
         // 自動バックアップも作成
-        await this.createBackup(project, '自動バックアップ', 'auto');
-        
-        callback();
+        await this.createBackup(currentProject, '自動バックアップ', 'auto');
+
+        callback(true);
         console.log('自動保存・自動バックアップ完了');
       } catch (error) {
         console.error('自動保存エラー:', error);
+        callback(false, error instanceof Error ? error : new Error('自動保存に失敗しました'));
         // エラーが発生してもアプリケーションは継続
       }
     }, this.autoSaveInterval);
@@ -636,10 +779,10 @@ class DatabaseService {
   async importData(jsonData: string): Promise<void> {
     try {
       const data = JSON.parse(jsonData);
-      
+
       // バージョン1のデータ（履歴・ログなし）とバージョン2のデータ（履歴・ログあり）に対応
       const isVersion2 = data.version === 2;
-      
+
       if (data.projects && this.isArray(data.projects)) {
         // プロジェクトの日付フィールドを変換
         const processedProjects = data.projects.map((project: unknown) => {
@@ -653,37 +796,37 @@ class DatabaseService {
             createdAt: this.safeDateConversion(project.createdAt),
             updatedAt: this.safeDateConversion(project.updatedAt),
             // imageBoardのaddedAtも変換
-            imageBoard: this.isArray(project.imageBoard) 
+            imageBoard: this.isArray(project.imageBoard)
               ? project.imageBoard.map((img: unknown) => {
-                  if (!this.isObject(img)) return img;
-                  return {
-                    ...img,
-                    addedAt: this.safeDateConversion(img.addedAt)
-                  };
-                })
+                if (!this.isObject(img)) return img;
+                return {
+                  ...img,
+                  addedAt: this.safeDateConversion(img.addedAt)
+                };
+              })
               : [],
             // chaptersの日付も変換（もしあれば）
             chapters: this.isArray(project.chapters)
               ? project.chapters.map((chapter: unknown) => {
-                  if (!this.isObject(chapter)) return chapter;
-                  const result: Record<string, unknown> = { ...chapter };
-                  
-                  if (chapter.createdAt) {
-                    result.createdAt = this.safeDateConversion(chapter.createdAt);
-                  }
-                  if (chapter.updatedAt) {
-                    result.updatedAt = this.safeDateConversion(chapter.updatedAt);
-                  }
-                  
-                  return result;
-                })
+                if (!this.isObject(chapter)) return chapter;
+                const result: Record<string, unknown> = { ...chapter };
+
+                if (chapter.createdAt) {
+                  result.createdAt = this.safeDateConversion(chapter.createdAt);
+                }
+                if (chapter.updatedAt) {
+                  result.updatedAt = this.safeDateConversion(chapter.updatedAt);
+                }
+
+                return result;
+              })
               : [],
           };
         }).filter((project: unknown): project is StoredProject => project !== null);
-        
+
         await db.projects.bulkPut(processedProjects);
       }
-      
+
       if (data.backups && this.isArray(data.backups)) {
         // バックアップの日付フィールドを変換（圧縮対応）
         const processedBackups = data.backups.map((backup: unknown) => {
@@ -693,7 +836,7 @@ class DatabaseService {
           }
 
           const backupData = backup.data;
-          
+
           // 圧縮されている場合は文字列のまま、そうでない場合はオブジェクトとして処理
           if (typeof backupData === 'string') {
             // 圧縮データまたはJSON文字列
@@ -711,15 +854,15 @@ class DatabaseService {
               updatedAt: this.safeDateConversion(backupData.updatedAt),
               imageBoard: this.isArray(backupData.imageBoard)
                 ? backupData.imageBoard.map((img: unknown) => {
-                    if (!this.isObject(img)) return img;
-                    return {
-                      ...img,
-                      addedAt: this.safeDateConversion(img.addedAt)
-                    };
-                  })
+                  if (!this.isObject(img)) return img;
+                  return {
+                    ...img,
+                    addedAt: this.safeDateConversion(img.addedAt)
+                  };
+                })
                 : []
             });
-            
+
             return {
               ...backup,
               createdAt: this.safeDateConversion(backup.createdAt),
@@ -731,10 +874,10 @@ class DatabaseService {
             return null;
           }
         }).filter((backup: unknown): backup is ProjectBackup => backup !== null);
-        
+
         await db.backups.bulkPut(processedBackups);
       }
-      
+
       if (data.settings && this.isArray(data.settings)) {
         await db.settings.bulkPut(data.settings);
       }
@@ -746,12 +889,12 @@ class DatabaseService {
             if (!this.isObject(history)) return null;
             return {
               ...history,
-              timestamp: typeof history.timestamp === 'number' 
-                ? history.timestamp 
+              timestamp: typeof history.timestamp === 'number'
+                ? history.timestamp
                 : Date.now(),
             };
           }).filter((h: unknown): h is StoredChapterHistoryEntry => h !== null);
-          
+
           await db.chapterHistories.bulkPut(processedHistories);
         }
 
@@ -763,7 +906,7 @@ class DatabaseService {
               timestamp: this.safeDateConversion(log.timestamp),
             };
           }).filter((l: unknown): l is StoredAILogEntry => l !== null);
-          
+
           await db.aiLogs.bulkPut(processedAILogs);
         }
       }
@@ -834,7 +977,7 @@ class DatabaseService {
         .equals(projectId)
         .filter(entry => entry.chapterId === chapterId)
         .sortBy('timestamp');
-      
+
       return allEntries
         .reverse()
         .map(({ projectId: _, chapterId: __, ...entry }) => entry);
@@ -902,7 +1045,7 @@ class DatabaseService {
         .equals(projectId)
         .filter(entry => entry.chapterId === chapterId)
         .sortBy('timestamp');
-      
+
       if (allEntries.length > maxEntries) {
         const toDelete = allEntries.slice(0, allEntries.length - maxEntries);
         await Promise.all(toDelete.map(e => db.chapterHistories.delete(e.id)));
@@ -929,12 +1072,13 @@ class DatabaseService {
 
   // 日付指定で履歴を削除
   async deleteHistoryEntriesBeforeDate(cutoffDate: Date, projectId?: string): Promise<number> {
-    let query = db.chapterHistories.where('timestamp').below(cutoffDate.getTime());
-    
+    const cutoffTimestamp = cutoffDate.getTime();
+    let query = db.chapterHistories.where('timestamp').below(cutoffTimestamp);
+
     const entries = await query.toArray();
-    
+
     // プロジェクトIDが指定されている場合はフィルタリング
-    const filteredEntries = projectId 
+    const filteredEntries = projectId
       ? entries.filter(e => e.projectId === projectId)
       : entries;
 
@@ -1010,7 +1154,7 @@ class DatabaseService {
     logEntry: Omit<StoredAILogEntry, 'id' | 'timestamp'>
   ): Promise<string> {
     const settings = await this.getSettings();
-    
+
     // 永続化が無効の場合は保存しない
     if (settings.persistAILogs === false) {
       return '';
@@ -1038,7 +1182,7 @@ class DatabaseService {
   // AIログエントリの取得（プロジェクト別）
   async getAILogEntries(projectId: string, chapterId?: string): Promise<StoredAILogEntry[]> {
     let query = db.aiLogs.where('projectId').equals(projectId);
-    
+
     if (chapterId) {
       query = query.filter(log => log.chapterId === chapterId);
     }
@@ -1094,8 +1238,7 @@ class DatabaseService {
     const settings = await this.getSettings();
     if (!settings.autoCleanupAILogs || !settings.aiLogRetentionDays) return;
 
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - (settings.aiLogRetentionDays || 30));
+    const cutoffDate = Date.now() - (settings.aiLogRetentionDays || 30) * 24 * 60 * 60 * 1000;
 
     const expiredEntries = await db.aiLogs
       .where('timestamp')
@@ -1110,13 +1253,14 @@ class DatabaseService {
 
   // 日付指定でAIログを削除
   async deleteAILogEntriesBeforeDate(cutoffDate: Date, projectId?: string): Promise<number> {
+    const cutoffTimestamp = cutoffDate.getTime();
     const entries = await db.aiLogs
       .where('timestamp')
-      .below(cutoffDate)
+      .below(cutoffTimestamp)
       .toArray();
 
     // プロジェクトIDが指定されている場合はフィルタリング
-    const filteredEntries = projectId 
+    const filteredEntries = projectId
       ? entries.filter(e => e.projectId === projectId)
       : entries;
 
@@ -1138,7 +1282,7 @@ class DatabaseService {
     try {
       // すべてのLocalStorageキーを取得
       const keys = Object.keys(localStorage);
-      
+
       // プロジェクトIDのリストを取得（存在するプロジェクトのみ）
       const projects = await this.getAllProjects();
       const projectIds = new Set(projects.map(p => p.id));
@@ -1180,7 +1324,7 @@ class DatabaseService {
     };
   }
 
-  // データベース統計の拡張
+  // データベース統計の拡張（正確な容量計算版）
   async getStats(): Promise<{
     projectCount: number;
     backupCount: number;
@@ -1189,30 +1333,137 @@ class DatabaseService {
     imageCount: number;
     totalSize: string;
   }> {
-    const projectCount = await db.projects.count();
-    const backupCount = await db.backups.count();
-    const historyCount = await db.chapterHistories.count();
-    const aiLogCount = await db.aiLogs.count();
-    const imageCount = await db.images.count();
-    
-    // 簡易的なサイズ計算
-    const projects = await db.projects.toArray();
-    const backups = await db.backups.toArray();
-    const histories = await db.chapterHistories.toArray();
-    const aiLogs = await db.aiLogs.toArray();
-    
-    // 画像のサイズ計算（Blobのサイズを合計）
-    const images = await db.images.toArray();
-    const imageSize = images.reduce((sum, img) => sum + img.compressedSize, 0);
-    
-    const totalSize = JSON.stringify([...projects, ...backups, ...histories, ...aiLogs]).length + imageSize;
-    
+    // カウントは並列実行で高速化
+    const [projectCount, backupCount, historyCount, aiLogCount, imageCount] = await Promise.all([
+      db.projects.count(),
+      db.backups.count(),
+      db.chapterHistories.count(),
+      db.aiLogs.count(),
+      db.images.count(),
+    ]);
+
+    // サイズ計算：実際のデータサイズを計算（パフォーマンスを考慮して最適化）
+
+    // 1. 画像のサイズ（compressedSizeフィールドを使用）
+    let imageSize = 0;
+    if (imageCount > 0) {
+      if (imageCount > 1000) {
+        // 画像が多い場合はサンプリング（最大1000件）
+        const sampleSize = 1000;
+        const sampleImages = await db.images
+          .orderBy('compressedSize')
+          .reverse()
+          .limit(sampleSize)
+          .toArray();
+        const avgSize = sampleImages.reduce((sum, img) => sum + img.compressedSize, 0) / sampleSize;
+        imageSize = avgSize * imageCount;
+      } else {
+        // 画像が少ない場合は全件取得して正確に計算
+        const images = await db.images.toArray();
+        imageSize = images.reduce((sum, img) => sum + img.compressedSize, 0);
+      }
+    }
+
+    // 2. プロジェクトのサイズ（実際のJSONサイズを計算）
+    let projectSize = 0;
+    if (projectCount > 0) {
+      if (projectCount > 100) {
+        // プロジェクトが多い場合はサンプリング
+        const sampleSize = 100;
+        const sampleProjects = await db.projects.limit(sampleSize).toArray();
+        const avgSize = sampleProjects.reduce((sum, p) => {
+          return sum + new Blob([JSON.stringify(p)]).size;
+        }, 0) / sampleSize;
+        projectSize = avgSize * projectCount;
+      } else {
+        // プロジェクトが少ない場合は全件取得して正確に計算
+        const projects = await db.projects.toArray();
+        projectSize = projects.reduce((sum, p) => {
+          return sum + new Blob([JSON.stringify(p)]).size;
+        }, 0);
+      }
+    }
+
+    // 3. バックアップのサイズ（圧縮状態を考慮）
+    let backupSize = 0;
+    if (backupCount > 0) {
+      if (backupCount > 100) {
+        // バックアップが多い場合はサンプリング
+        const sampleSize = 100;
+        const sampleBackups = await db.backups.limit(sampleSize).toArray();
+        const avgSize = sampleBackups.reduce((sum, b) => {
+          if (typeof b.data === 'string') {
+            // 文字列データ（圧縮済みまたは非圧縮）のサイズ
+            return sum + new Blob([b.data]).size;
+          } else {
+            // オブジェクトデータのサイズ
+            return sum + new Blob([JSON.stringify(b.data)]).size;
+          }
+        }, 0) / sampleSize;
+        backupSize = avgSize * backupCount;
+      } else {
+        // バックアップが少ない場合は全件取得して正確に計算
+        const backups = await db.backups.toArray();
+        backupSize = backups.reduce((sum, b) => {
+          if (typeof b.data === 'string') {
+            // 文字列データ（圧縮済みまたは非圧縮）のサイズ
+            return sum + new Blob([b.data]).size;
+          } else {
+            // オブジェクトデータのサイズ
+            return sum + new Blob([JSON.stringify(b.data)]).size;
+          }
+        }, 0);
+      }
+    }
+
+    // 4. 履歴のサイズ（実際のJSONサイズを計算）
+    let historySize = 0;
+    if (historyCount > 0) {
+      if (historyCount > 1000) {
+        // 履歴が多い場合はサンプリング
+        const sampleSize = 1000;
+        const sampleHistories = await db.chapterHistories.limit(sampleSize).toArray();
+        const avgSize = sampleHistories.reduce((sum, h) => {
+          return sum + new Blob([JSON.stringify(h)]).size;
+        }, 0) / sampleSize;
+        historySize = avgSize * historyCount;
+      } else {
+        // 履歴が少ない場合は全件取得して正確に計算
+        const histories = await db.chapterHistories.toArray();
+        historySize = histories.reduce((sum, h) => {
+          return sum + new Blob([JSON.stringify(h)]).size;
+        }, 0);
+      }
+    }
+
+    // 5. AIログのサイズ（実際のJSONサイズを計算）
+    let aiLogSize = 0;
+    if (aiLogCount > 0) {
+      if (aiLogCount > 1000) {
+        // AIログが多い場合はサンプリング
+        const sampleSize = 1000;
+        const sampleAILogs = await db.aiLogs.limit(sampleSize).toArray();
+        const avgSize = sampleAILogs.reduce((sum, log) => {
+          return sum + new Blob([JSON.stringify(log)]).size;
+        }, 0) / sampleSize;
+        aiLogSize = avgSize * aiLogCount;
+      } else {
+        // AIログが少ない場合は全件取得して正確に計算
+        const aiLogs = await db.aiLogs.toArray();
+        aiLogSize = aiLogs.reduce((sum, log) => {
+          return sum + new Blob([JSON.stringify(log)]).size;
+        }, 0);
+      }
+    }
+
+    const totalSize = projectSize + backupSize + historySize + aiLogSize + imageSize;
+
     // KBまたはMB形式で表示（1MB以上はMB表示）
     const sizeInKB = totalSize / 1024;
-    const sizeDisplay = sizeInKB >= 1024 
+    const sizeDisplay = sizeInKB >= 1024
       ? `${(sizeInKB / 1024).toFixed(2)} MB`
       : `${sizeInKB.toFixed(1)} KB`;
-    
+
     return {
       projectCount,
       backupCount,
@@ -1223,13 +1474,31 @@ class DatabaseService {
     };
   }
 
-  // データエクスポートの拡張
+  // データエクスポートの拡張（パフォーマンス最適化版）
   async exportData(): Promise<string> {
-    const projects = await db.projects.toArray();
-    const backups = await db.backups.toArray();
-    const settings = await db.settings.toArray();
-    const histories = await db.chapterHistories.toArray();
-    const aiLogs = await db.aiLogs.toArray();
+    // データ量を事前にチェック
+    const [projectCount, backupCount, historyCount, aiLogCount] = await Promise.all([
+      db.projects.count(),
+      db.backups.count(),
+      db.chapterHistories.count(),
+      db.aiLogs.count(),
+    ]);
+
+    const totalRecords = projectCount + backupCount + historyCount + aiLogCount;
+
+    // 大量データの場合は警告（10,000件以上）
+    if (totalRecords > 10000) {
+      console.warn(`大量のデータをエクスポートします（${totalRecords}件）。処理に時間がかかる可能性があります。`);
+    }
+
+    // 並列でデータを取得（メモリ使用量に注意）
+    const [projects, backups, settings, histories, aiLogs] = await Promise.all([
+      db.projects.toArray(),
+      db.backups.toArray(),
+      db.settings.toArray(),
+      db.chapterHistories.toArray(),
+      db.aiLogs.toArray(),
+    ]);
 
     const exportData = {
       version: 2,
@@ -1241,7 +1510,19 @@ class DatabaseService {
       aiLogs,
     };
 
-    return JSON.stringify(exportData, null, 2);
+    // JSON文字列化（大きなデータの場合は時間がかかる可能性がある）
+    try {
+      return JSON.stringify(exportData, null, 2);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('circular')) {
+        throw new Error('循環参照が検出されました。データの構造を確認してください。');
+      }
+      // メモリ不足の可能性
+      if (error instanceof RangeError) {
+        throw new Error('データが大きすぎてエクスポートできません。データを削減してから再試行してください。');
+      }
+      throw error;
+    }
   }
 
   // ==================== 画像Blobストレージ管理機能 ====================
@@ -1256,7 +1537,7 @@ class DatabaseService {
   ): Promise<string> {
     try {
       const { optimizeImageToWebP } = await import('../utils/performanceUtils');
-      
+
       // WebP形式に変換
       const webpBlob = await optimizeImageToWebP(
         blob instanceof File ? blob : new File([blob], 'image', { type: originalFormat }),
@@ -1288,6 +1569,7 @@ class DatabaseService {
   }
 
   // 画像を取得（BlobからURLを生成）
+  // 注意: 生成されたURLは使用後にrevokeImageUrl()で解放する必要があります
   async getImageUrl(imageId: string): Promise<string | null> {
     try {
       const storedImage = await db.images.get(imageId);
@@ -1303,6 +1585,15 @@ class DatabaseService {
     } catch (error) {
       console.error('画像取得エラー:', error);
       return null;
+    }
+  }
+
+  // 画像URLを解放（メモリリーク防止）
+  revokeImageUrl(url: string): void {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.warn('画像URL解放エラー:', error);
     }
   }
 
@@ -1364,7 +1655,7 @@ class DatabaseService {
   }
 
   // 未使用画像のクリーンアップ（参照カウントが0で、一定期間アクセスされていない）
-  async cleanupUnusedImages(daysUnused: number = 180): Promise<number> {
+  async cleanupUnusedImages(daysUnused: number = 180): Promise<{ count: number; totalSize: number }> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysUnused);
 
@@ -1374,12 +1665,15 @@ class DatabaseService {
       .and(img => img.lastAccessed < cutoffDate)
       .toArray();
 
+    // 削除前にサイズを計算
+    const totalSize = unusedImages.reduce((sum, img) => sum + img.compressedSize, 0);
+
     if (unusedImages.length > 0) {
       await Promise.all(unusedImages.map(img => db.images.delete(img.id)));
       console.log(`${unusedImages.length}件の未使用画像を削除しました`);
     }
 
-    return unusedImages.length;
+    return { count: unusedImages.length, totalSize };
   }
 
   // Base64画像をBlobストレージに移行
@@ -1389,7 +1683,7 @@ class DatabaseService {
       const base64Data = base64Url.split(',')[1] || base64Url;
       const mimeMatch = base64Url.match(/data:([^;]+);/);
       const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
-      
+
       const binaryString = atob(base64Data);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
@@ -1468,48 +1762,51 @@ class DatabaseService {
     try {
       // 1. 未使用画像の削除
       if (removeUnusedImages) {
-        const unusedCount = await this.cleanupUnusedImages(daysUnused);
-        removedImages = unusedCount;
-        
-        // 削除された画像のサイズを概算（平均サイズを仮定）
-        const deletedImages = await db.images
-          .where('referenceCount')
-          .equals(0)
-          .and(img => {
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - daysUnused);
-            return img.lastAccessed < cutoffDate;
-          })
-          .toArray();
-        
-        freedSpaceBytes += deletedImages.reduce((sum, img) => sum + img.compressedSize, 0);
+        const result = await this.cleanupUnusedImages(daysUnused);
+        removedImages = result.count;
+        freedSpaceBytes += result.totalSize;
       }
 
       // 2. 孤立した画像の削除（どのプロジェクトからも参照されていない）
       if (removeOrphanedImages) {
         const allProjects = await this.getAllProjects();
         const usedImageIds = new Set<string>();
-        
+
         // すべてのプロジェクトで使用されている画像IDを収集
         for (const project of allProjects) {
           if (project.imageBoard) {
             for (const image of project.imageBoard) {
-              if (image.imageId) {
-                usedImageIds.add(image.imageId);
+              // imageIdプロパティが存在するかチェック（型安全性のため）
+              if ('imageId' in image && image.imageId) {
+                usedImageIds.add(image.imageId as string);
               }
             }
           }
         }
 
-        // 使用されていない画像を検索
-        const allImages = await db.images.toArray();
-        const orphanedImages = allImages.filter(img => !usedImageIds.has(img.id));
-        
-        if (orphanedImages.length > 0) {
-          await Promise.all(orphanedImages.map(img => db.images.delete(img.id)));
-          removedOrphanedImages = orphanedImages.length;
-          freedSpaceBytes += orphanedImages.reduce((sum, img) => sum + img.compressedSize, 0);
-          console.log(`${orphanedImages.length}件の孤立した画像を削除しました`);
+        // 使用されていない画像を検索（バッチ処理でメモリ効率化）
+        // 全画像を一度に取得せず、IDのみを取得してからフィルタリング
+        const allImageIds = await db.images.toCollection().primaryKeys();
+        const orphanedImageIds = allImageIds.filter(id => !usedImageIds.has(id as string));
+
+        if (orphanedImageIds.length > 0) {
+          // 削除前にサイズを計算（必要な画像のみ取得）
+          const orphanedImages = await Promise.all(
+            orphanedImageIds.map(id => db.images.get(id as string))
+          );
+          const validImages = orphanedImages.filter((img): img is StoredImage => img !== undefined);
+
+          freedSpaceBytes += validImages.reduce((sum, img) => sum + img.compressedSize, 0);
+
+          // バッチ削除（100件ずつ処理してメモリ負荷を軽減）
+          const batchSize = 100;
+          for (let i = 0; i < orphanedImageIds.length; i += batchSize) {
+            const batch = orphanedImageIds.slice(i, i + batchSize);
+            await Promise.all(batch.map(id => db.images.delete(id as string)));
+          }
+
+          removedOrphanedImages = orphanedImageIds.length;
+          console.log(`${orphanedImageIds.length}件の孤立した画像を削除しました`);
         }
       }
 
@@ -1537,21 +1834,21 @@ class DatabaseService {
       // 注意: この処理は時間がかかり、大量のメモリを使用する可能性があります
       if (compactDatabase) {
         console.log('データベースの再構築を開始します...');
-        
+
         // すべてのデータをエクスポート
         const exportData = await this.exportData();
         const data = JSON.parse(exportData);
-        
+
         // すべてのテーブルをクリア
         await db.projects.clear();
         await db.backups.clear();
         await db.chapterHistories.clear();
         await db.aiLogs.clear();
         // 画像テーブルは保持（Blobデータのため再構築が困難）
-        
+
         // データを再インポート
         await this.importData(exportData);
-        
+
         console.log('データベースの再構築が完了しました');
       }
 

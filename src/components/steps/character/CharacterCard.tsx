@@ -1,6 +1,7 @@
 import React from 'react';
 import { User, Sparkles, Edit3, Trash2, Loader, GripVertical, ZoomIn, ChevronDown, ChevronUp, MessageSquare, BookOpen } from 'lucide-react';
 import { Character } from '../../../contexts/ProjectContext';
+import { InlineEditor } from '../../common/InlineEditor';
 
 interface CharacterCardProps {
   character: Character;
@@ -24,6 +25,7 @@ interface CharacterCardProps {
   onImageClick: () => void;
   onPossession?: () => void;
   onDiary?: () => void;
+  onUpdate?: (character: Character) => void;
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = ({
@@ -48,6 +50,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onImageClick,
   onPossession,
   onDiary,
+  onUpdate,
 }) => {
   return (
     <div
@@ -94,13 +97,39 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               )}
             </div>
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-              {character.name}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-              {character.role}
-            </p>
+          <div className="flex-1 min-w-0">
+            <div className="mb-1">
+              {onUpdate ? (
+                <InlineEditor
+                  value={character.name}
+                  onSave={(value) => onUpdate({ ...character, name: value })}
+                  placeholder="キャラクター名"
+                  className="text-xl font-bold"
+                  maxLength={50}
+                  showEditIcon={true}
+                />
+              ) : (
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  {character.name}
+                </h3>
+              )}
+            </div>
+            <div>
+              {onUpdate ? (
+                <InlineEditor
+                  value={character.role}
+                  onSave={(value) => onUpdate({ ...character, role: value })}
+                  placeholder="役割・立場"
+                  className="text-sm"
+                  maxLength={100}
+                  showEditIcon={true}
+                />
+              ) : (
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                  {character.role}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -176,31 +205,79 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           {isExpanded && (
             <>
               <div className="space-y-3 mt-4">
-                {character.appearance && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">外見</h4>
-                    <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.appearance}</p>
-                  </div>
-                )}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">外見</h4>
+                  {onUpdate ? (
+                    <InlineEditor
+                      value={character.appearance || ''}
+                      onSave={(value) => onUpdate({ ...character, appearance: value })}
+                      placeholder="外見・特徴を入力"
+                      multiline={true}
+                      rows={2}
+                      maxLength={200}
+                      className="text-gray-700 dark:text-gray-300"
+                    />
+                  ) : (
+                    <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                      {character.appearance || '未設定'}
+                    </p>
+                  )}
+                </div>
 
-                {character.personality && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">性格</h4>
-                    <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.personality}</p>
-                  </div>
-                )}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">性格</h4>
+                  {onUpdate ? (
+                    <InlineEditor
+                      value={character.personality || ''}
+                      onSave={(value) => onUpdate({ ...character, personality: value })}
+                      placeholder="性格を入力"
+                      multiline={true}
+                      rows={2}
+                      maxLength={200}
+                      className="text-gray-700 dark:text-gray-300"
+                    />
+                  ) : (
+                    <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                      {character.personality || '未設定'}
+                    </p>
+                  )}
+                </div>
 
-                {character.background && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">背景</h4>
-                    <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.background}</p>
-                  </div>
-                )}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">背景</h4>
+                  {onUpdate ? (
+                    <InlineEditor
+                      value={character.background || ''}
+                      onSave={(value) => onUpdate({ ...character, background: value })}
+                      placeholder="背景・過去を入力"
+                      multiline={true}
+                      rows={2}
+                      maxLength={200}
+                      className="text-gray-700 dark:text-gray-300"
+                    />
+                  ) : (
+                    <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                      {character.background || '未設定'}
+                    </p>
+                  )}
+                </div>
 
                 {character.speechStyle && (
                   <div>
                     <h4 className="font-semibold text-gray-900 dark:text-white mb-1 font-['Noto_Sans_JP']">口調・話し方</h4>
-                    <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.speechStyle}</p>
+                    {onUpdate ? (
+                      <InlineEditor
+                        value={character.speechStyle}
+                        onSave={(value) => onUpdate({ ...character, speechStyle: value })}
+                        placeholder="口調・話し方を入力"
+                        multiline={true}
+                        rows={2}
+                        maxLength={200}
+                        className="text-gray-700 dark:text-gray-300"
+                      />
+                    ) : (
+                      <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{character.speechStyle}</p>
+                    )}
                   </div>
                 )}
               </div>

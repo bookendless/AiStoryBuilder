@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { Sparkles, AlertCircle, Loader2, CheckCircle, FileText, Download } from 'lucide-react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { Sparkles, AlertCircle, Loader2, CheckCircle, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
@@ -10,7 +10,6 @@ import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import type { PlotStructureType, PlotFormData, ConsistencyCheck } from '../steps/plot2/types';
 import { PLOT_STRUCTURE_CONFIGS, AI_LOG_TYPE_LABELS } from '../steps/plot2/constants';
 import { getProjectContext, getStructureFields, formatCharactersInfo } from '../steps/plot2/utils';
-import { usePlotForm } from '../steps/plot2/hooks/usePlotForm';
 
 export const PlotStep2AssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -19,15 +18,80 @@ export const PlotStep2AssistantPanel: React.FC = () => {
     const [isGenerating, setIsGenerating] = useState<string | null>(null);
     const { aiLogs, addLog } = useAILog();
     const [consistencyCheck, setConsistencyCheck] = useState<ConsistencyCheck | null>(null);
+    const structureAbortControllerRef = useRef<AbortController | null>(null);
+    const consistencyAbortControllerRef = useRef<AbortController | null>(null);
 
-    // PlotStep2のフォームデータとプロット構造を取得
-    const {
-        formData,
-        setFormData,
-    } = usePlotForm({ currentProject, updateProject });
-    
-    // plotStructureは直接currentProjectから取得して即座に反映
+    // plotStructureとformDataは直接currentProjectから取得して即座に反映
+    // これにより、PlotStep2との状態競合を防ぐ
     const plotStructure = (currentProject?.plot?.structure || 'kishotenketsu') as PlotStructureType;
+
+    // formDataをcurrentProjectから直接構築（読み取り専用）
+    const formData: PlotFormData = useMemo(() => ({
+        ki: currentProject?.plot?.ki || '',
+        sho: currentProject?.plot?.sho || '',
+        ten: currentProject?.plot?.ten || '',
+        ketsu: currentProject?.plot?.ketsu || '',
+        act1: currentProject?.plot?.act1 || '',
+        act2: currentProject?.plot?.act2 || '',
+        act3: currentProject?.plot?.act3 || '',
+        fourAct1: currentProject?.plot?.fourAct1 || '',
+        fourAct2: currentProject?.plot?.fourAct2 || '',
+        fourAct3: currentProject?.plot?.fourAct3 || '',
+        fourAct4: currentProject?.plot?.fourAct4 || '',
+        hj1: currentProject?.plot?.hj1 || '',
+        hj2: currentProject?.plot?.hj2 || '',
+        hj3: currentProject?.plot?.hj3 || '',
+        hj4: currentProject?.plot?.hj4 || '',
+        hj5: currentProject?.plot?.hj5 || '',
+        hj6: currentProject?.plot?.hj6 || '',
+        hj7: currentProject?.plot?.hj7 || '',
+        hj8: currentProject?.plot?.hj8 || '',
+        bs1: currentProject?.plot?.bs1 || '',
+        bs2: currentProject?.plot?.bs2 || '',
+        bs3: currentProject?.plot?.bs3 || '',
+        bs4: currentProject?.plot?.bs4 || '',
+        bs5: currentProject?.plot?.bs5 || '',
+        bs6: currentProject?.plot?.bs6 || '',
+        bs7: currentProject?.plot?.bs7 || '',
+        ms1: currentProject?.plot?.ms1 || '',
+        ms2: currentProject?.plot?.ms2 || '',
+        ms3: currentProject?.plot?.ms3 || '',
+        ms4: currentProject?.plot?.ms4 || '',
+        ms5: currentProject?.plot?.ms5 || '',
+        ms6: currentProject?.plot?.ms6 || '',
+        ms7: currentProject?.plot?.ms7 || '',
+    }), [currentProject?.plot]);
+
+    // キャンセルハンドラー
+    const handleCancelStructure = useCallback(() => {
+        if (structureAbortControllerRef.current) {
+            structureAbortControllerRef.current.abort();
+            structureAbortControllerRef.current = null;
+            setIsGenerating(null);
+        }
+    }, []);
+
+    const handleCancelConsistency = useCallback(() => {
+        if (consistencyAbortControllerRef.current) {
+            consistencyAbortControllerRef.current.abort();
+            consistencyAbortControllerRef.current = null;
+            setIsGenerating(null);
+        }
+    }, []);
+
+    // クリーンアップ
+    useEffect(() => {
+        return () => {
+            if (structureAbortControllerRef.current) {
+                structureAbortControllerRef.current.abort();
+                structureAbortControllerRef.current = null;
+            }
+            if (consistencyAbortControllerRef.current) {
+                consistencyAbortControllerRef.current.abort();
+                consistencyAbortControllerRef.current = null;
+            }
+        };
+    }, []);
 
     // 構成全体の生成
     const handleStructureAIGenerate = useCallback(async () => {
@@ -39,6 +103,15 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             });
             return;
         }
+
+        // 既存のリクエストをキャンセル
+        if (structureAbortControllerRef.current) {
+            structureAbortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        structureAbortControllerRef.current = abortController;
 
         setIsGenerating('structure');
 
@@ -184,7 +257,13 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 prompt,
                 type: 'plot',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             addLog({
                 type: 'generateStructure',
@@ -224,64 +303,76 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                         return typeof value === 'string' ? value : defaultValue;
                     };
 
+                    // updateProjectを使用してプロジェクトを直接更新
+                    // これにより、PlotStep2のusePlotFormフックと競合しない
+                    let plotUpdates: Record<string, string> = {};
+
                     if (plotStructure === 'kishotenketsu') {
-                        setFormData(prev => ({
-                            ...prev,
-                            ki: getStringValue('起（導入）', prev.ki),
-                            sho: getStringValue('承（展開）', prev.sho),
-                            ten: getStringValue('転（転換）', prev.ten),
-                            ketsu: getStringValue('結（結末）', prev.ketsu),
-                        }));
+                        plotUpdates = {
+                            ki: getStringValue('起（導入）', formData.ki),
+                            sho: getStringValue('承（展開）', formData.sho),
+                            ten: getStringValue('転（転換）', formData.ten),
+                            ketsu: getStringValue('結（結末）', formData.ketsu),
+                        };
                     } else if (plotStructure === 'three-act') {
-                        setFormData(prev => ({
-                            ...prev,
-                            act1: getStringValue('第1幕（導入）', prev.act1),
-                            act2: getStringValue('第2幕（展開）', prev.act2),
-                            act3: getStringValue('第3幕（結末）', prev.act3),
-                        }));
+                        plotUpdates = {
+                            act1: getStringValue('第1幕（導入）', formData.act1),
+                            act2: getStringValue('第2幕（展開）', formData.act2),
+                            act3: getStringValue('第3幕（結末）', formData.act3),
+                        };
                     } else if (plotStructure === 'four-act') {
-                        setFormData(prev => ({
-                            ...prev,
-                            fourAct1: getStringValue('第1幕（秩序）', prev.fourAct1),
-                            fourAct2: getStringValue('第2幕（混沌）', prev.fourAct2),
-                            fourAct3: getStringValue('第3幕（秩序）', prev.fourAct3),
-                            fourAct4: getStringValue('第4幕（混沌）', prev.fourAct4),
-                        }));
+                        plotUpdates = {
+                            fourAct1: getStringValue('第1幕（秩序）', formData.fourAct1),
+                            fourAct2: getStringValue('第2幕（混沌）', formData.fourAct2),
+                            fourAct3: getStringValue('第3幕（秩序）', formData.fourAct3),
+                            fourAct4: getStringValue('第4幕（混沌）', formData.fourAct4),
+                        };
                     } else if (plotStructure === 'heroes-journey') {
-                        setFormData(prev => ({
-                            ...prev,
-                            hj1: getStringValue('日常の世界', prev.hj1),
-                            hj2: getStringValue('冒険への誘い', prev.hj2),
-                            hj3: getStringValue('境界越え', prev.hj3),
-                            hj4: getStringValue('試練と仲間', prev.hj4),
-                            hj5: getStringValue('最大の試練', prev.hj5),
-                            hj6: getStringValue('報酬', prev.hj6),
-                            hj7: getStringValue('帰路', prev.hj7),
-                            hj8: getStringValue('復活と帰還', prev.hj8),
-                        }));
+                        plotUpdates = {
+                            hj1: getStringValue('日常の世界', formData.hj1),
+                            hj2: getStringValue('冒険への誘い', formData.hj2),
+                            hj3: getStringValue('境界越え', formData.hj3),
+                            hj4: getStringValue('試練と仲間', formData.hj4),
+                            hj5: getStringValue('最大の試練', formData.hj5),
+                            hj6: getStringValue('報酬', formData.hj6),
+                            hj7: getStringValue('帰路', formData.hj7),
+                            hj8: getStringValue('復活と帰還', formData.hj8),
+                        };
                     } else if (plotStructure === 'beat-sheet') {
-                        setFormData(prev => ({
-                            ...prev,
-                            bs1: getStringValue('導入 (Setup)', prev.bs1),
-                            bs2: getStringValue('決断 (Break into Two)', prev.bs2),
-                            bs3: getStringValue('試練 (Fun and Games)', prev.bs3),
-                            bs4: getStringValue('転換点 (Midpoint)', prev.bs4),
-                            bs5: getStringValue('危機 (All Is Lost)', prev.bs5),
-                            bs6: getStringValue('クライマックス (Finale)', prev.bs6),
-                            bs7: getStringValue('結末 (Final Image)', prev.bs7),
-                        }));
+                        plotUpdates = {
+                            bs1: getStringValue('導入 (Setup)', formData.bs1),
+                            bs2: getStringValue('決断 (Break into Two)', formData.bs2),
+                            bs3: getStringValue('試練 (Fun and Games)', formData.bs3),
+                            bs4: getStringValue('転換点 (Midpoint)', formData.bs4),
+                            bs5: getStringValue('危機 (All Is Lost)', formData.bs5),
+                            bs6: getStringValue('クライマックス (Finale)', formData.bs6),
+                            bs7: getStringValue('結末 (Final Image)', formData.bs7),
+                        };
                     } else if (plotStructure === 'mystery-suspense') {
-                        setFormData(prev => ({
-                            ...prev,
-                            ms1: getStringValue('発端（事件発生）', prev.ms1),
-                            ms2: getStringValue('捜査（初期）', prev.ms2),
-                            ms3: getStringValue('仮説とミスリード', prev.ms3),
-                            ms4: getStringValue('第二の事件/急展開', prev.ms4),
-                            ms5: getStringValue('手がかりの統合', prev.ms5),
-                            ms6: getStringValue('解決（真相解明）', prev.ms6),
-                            ms7: getStringValue('エピローグ', prev.ms7),
-                        }));
+                        plotUpdates = {
+                            ms1: getStringValue('発端（事件発生）', formData.ms1),
+                            ms2: getStringValue('捜査（初期）', formData.ms2),
+                            ms3: getStringValue('仮説とミスリード', formData.ms3),
+                            ms4: getStringValue('第二の事件/急展開', formData.ms4),
+                            ms5: getStringValue('手がかりの統合', formData.ms5),
+                            ms6: getStringValue('解決（真相解明）', formData.ms6),
+                            ms7: getStringValue('エピローグ', formData.ms7),
+                        };
                     }
+
+                    // プロジェクトを直接更新（即座に保存）
+                    const currentPlot = currentProject?.plot;
+                    await updateProject({
+                        plot: {
+                            theme: currentPlot?.theme || '',
+                            setting: currentPlot?.setting || '',
+                            hook: currentPlot?.hook || '',
+                            protagonistGoal: currentPlot?.protagonistGoal || '',
+                            mainObstacle: currentPlot?.mainObstacle || '',
+                            ...currentPlot,
+                            ...plotUpdates,
+                        }
+                    }, true);
 
                     showSuccess(`${PLOT_STRUCTURE_CONFIGS[plotStructure].label}の内容を生成しました`);
                 } catch (error) {
@@ -296,14 +387,21 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 });
             }
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('AI生成エラー:', error);
             showError('AI生成中にエラーが発生しました。', 7000, {
                 title: 'AI生成エラー',
             });
         } finally {
-            setIsGenerating(null);
+            if (!abortController.signal.aborted) {
+                setIsGenerating(null);
+            }
+            structureAbortControllerRef.current = null;
         }
-    }, [isConfigured, currentProject, plotStructure, formData, settings, addLog, showError, setFormData, isGenerating]);
+    }, [isConfigured, currentProject, plotStructure, formData, settings, addLog, showError, showSuccess, updateProject, isGenerating]);
 
     // 一貫性チェック
     const checkConsistency = useCallback(async () => {
@@ -315,6 +413,15 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             });
             return;
         }
+
+        // 既存のリクエストをキャンセル
+        if (consistencyAbortControllerRef.current) {
+            consistencyAbortControllerRef.current.abort();
+        }
+
+        // 新しいAbortControllerを作成
+        const abortController = new AbortController();
+        consistencyAbortControllerRef.current = abortController;
 
         setIsGenerating('consistency');
 
@@ -345,7 +452,13 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 prompt,
                 type: 'plot',
                 settings,
+                signal: abortController.signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (abortController.signal.aborted) {
+                return;
+            }
 
             addLog({
                 type: 'consistency',
@@ -394,12 +507,19 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 }
             }
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('一貫性チェックエラー:', error);
             showError('一貫性チェック中にエラーが発生しました。', 7000, {
                 title: '一貫性チェックエラー',
             });
         } finally {
-            setIsGenerating(null);
+            if (!abortController.signal.aborted) {
+                setIsGenerating(null);
+            }
+            consistencyAbortControllerRef.current = null;
         }
     }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, showError, isGenerating]);
 
@@ -498,6 +618,12 @@ ${'='.repeat(80)}`;
                     }
                     estimatedTime={30}
                     variant="inline"
+                    cancellable={true}
+                    onCancel={
+                        isGenerating === 'consistency'
+                            ? handleCancelConsistency
+                            : handleCancelStructure
+                    }
                 />
             )}
 
