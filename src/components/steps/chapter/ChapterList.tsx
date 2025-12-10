@@ -142,7 +142,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
                         </p>
                         {chapter.characters && chapter.characters.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {chapter.characters.slice(0, 3).map((characterId) => {
+                            {chapter.characters.slice(0, 3).map((characterId: string) => {
                               const character = currentProject.characters.find(c => c.id === characterId);
                               const characterName = character ? character.name : characterId;
                               return (
@@ -279,7 +279,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
                       <span className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
                         登場キャラクター:
                       </span>
-                      {chapter.characters.map((characterId) => {
+                      {chapter.characters.map((characterId: string) => {
                         const character = currentProject.characters.find(c => c.id === characterId);
                         const characterName = character ? character.name : characterId;
                         return (

@@ -21,7 +21,8 @@ import {
     Download,
     History,
     Trash2,
-    ChevronRight
+    ChevronRight,
+    Search
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 
@@ -233,7 +234,14 @@ ${result.detailedAnalysis}
         <div className="h-full flex flex-col gap-6 p-6 max-w-7xl mx-auto overflow-y-auto">
             <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-2">
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">作品評価 / Review</h2>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-teal-400 to-teal-600">
+                            <Search className="h-5 w-5 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                            作品評価 / Review
+                        </h2>
+                    </div>
                     <p className="text-gray-600 dark:text-gray-400">
                         AIを使って作品を多角的に分析・評価し、改善点を見つけましょう。
                     </p>

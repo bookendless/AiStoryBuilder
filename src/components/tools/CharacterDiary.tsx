@@ -43,11 +43,34 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
   const character = currentProject?.characters.find(c => c.id === characterId);
 
   // 日記をローカルストレージから読み込み
+  const loadDiaries = useCallback(() => {
+    if (!currentProject || !characterId) return;
+    try {
+      const key = `character_diary_${currentProject.id}_${characterId}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const diariesWithDates = parsed.map((d: any) => ({
+          ...d,
+          createdAt: new Date(d.createdAt),
+        }));
+        // 日付順（新しい順）にソート
+        diariesWithDates.sort((a: CharacterDiaryEntry, b: CharacterDiaryEntry) =>
+          b.createdAt.getTime() - a.createdAt.getTime()
+        );
+        setDiaries(diariesWithDates);
+      }
+    } catch (error) {
+      console.error('日記の読み込みに失敗しました:', error);
+    }
+  }, [currentProject, characterId]);
+
   useEffect(() => {
     if (isOpen && characterId && currentProject) {
       loadDiaries();
     }
-  }, [isOpen, characterId, currentProject]);
+  }, [isOpen, characterId, currentProject, loadDiaries]);
 
   // モーダルが閉じられたら生成をキャンセル
   useEffect(() => {
@@ -60,27 +83,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
     }
   }, [isOpen]);
 
-  const loadDiaries = useCallback(() => {
-    if (!currentProject || !characterId) return;
-    try {
-      const key = `character_diary_${currentProject.id}_${characterId}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const diariesWithDates = parsed.map((d: any) => ({
-          ...d,
-          createdAt: new Date(d.createdAt),
-        }));
-        // 日付順（新しい順）にソート
-        diariesWithDates.sort((a: CharacterDiaryEntry, b: CharacterDiaryEntry) => 
-          b.createdAt.getTime() - a.createdAt.getTime()
-        );
-        setDiaries(diariesWithDates);
-      }
-    } catch (error) {
-      console.error('日記の読み込みに失敗しました:', error);
-    }
-  }, [currentProject, characterId]);
+
 
   // 日記をローカルストレージに保存
   const saveDiaries = useCallback((updatedDiaries: CharacterDiaryEntry[]) => {
@@ -114,7 +117,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
       return;
     }
 
-    const chapter = chapterId 
+    const chapter = chapterId
       ? currentProject.chapters.find(c => c.id === chapterId)
       : currentProject.chapters[currentProject.chapters.length - 1]; // 最後の章
 

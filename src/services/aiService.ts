@@ -1947,7 +1947,7 @@ class AIService {
 
     try {
       const url = new URL(endpoint);
-      
+
       // プロトコルの検証
       if (url.protocol !== 'http:' && url.protocol !== 'https:') {
         return false;
@@ -1956,7 +1956,7 @@ class AIService {
       // ホスト名の検証（localhost、127.0.0.1、::1のみ許可）
       const hostname = url.hostname.toLowerCase();
       const allowedHosts = ['localhost', '127.0.0.1', '::1', '[::1]'];
-      
+
       if (!allowedHosts.includes(hostname)) {
         return false;
       }
@@ -2025,17 +2025,17 @@ class AIService {
 
       if (response.status >= 400) {
         let errorMessage = `HTTP ${response.status}`;
-        
+
         // エラーレスポンスの解析を試みる
         try {
-          const errorData = typeof response.data === 'string' 
+          const errorData = typeof response.data === 'string'
             ? JSON.parse(response.data) as { error?: { message?: string; type?: string } }
             : response.data as { error?: { message?: string; type?: string } };
-          
+
           if (errorData.error?.message) {
             errorMessage = errorData.error.message;
           }
-          
+
           // 特定のエラーコードに対する詳細なメッセージ
           if (response.status === 401) {
             errorMessage = 'APIキーが無効です。AI設定でAPIキーを確認してください。';
@@ -2046,19 +2046,19 @@ class AIService {
           } else if (response.status === 400) {
             errorMessage = errorData.error?.message || '音声ファイルの形式が正しくありません。';
           }
-        } catch (parseError) {
+        } catch (_parseError) {
           // JSON解析に失敗した場合は、レスポンスデータをそのまま使用
           if (typeof response.data === 'string') {
             errorMessage = response.data;
           }
         }
-        
+
         throw new Error(`Whisper API エラー: ${errorMessage}`);
       }
 
       // レスポンスはテキスト形式で返される
-      const transcription = typeof response.data === 'string' 
-        ? response.data 
+      const transcription = typeof response.data === 'string'
+        ? response.data
         : String(response.data);
 
       if (!transcription || transcription.trim().length === 0) {
@@ -2068,28 +2068,28 @@ class AIService {
       return transcription.trim();
     } catch (error) {
       console.error('Whisper API Error:', error);
-      
+
       // より詳細なエラーメッセージを提供
       if (error instanceof Error) {
         // 既に詳細なメッセージが含まれている場合はそのまま返す
         if (error.message.includes('Whisper API エラー')) {
           throw error;
         }
-        
+
         // ネットワークエラーの場合
         if (error.message.includes('ネットワークエラー') || error.message.includes('fetch')) {
           throw new Error('Whisper APIへの接続に失敗しました。ネットワーク接続を確認してください。');
         }
-        
+
         // タイムアウトエラーの場合
         if (error.message.includes('タイムアウト')) {
           throw new Error('音声の文字起こしがタイムアウトしました。ファイルサイズが大きすぎる可能性があります。');
         }
-        
+
         // その他のエラー
         throw new Error(`音声の文字起こしに失敗しました: ${error.message}`);
       }
-      
+
       throw new Error('音声の文字起こしに失敗しました。不明なエラーが発生しました。');
     }
   }
@@ -2136,6 +2136,7 @@ class AIService {
 
       // モデル名に基づいて適切なパラメータを選択
       const isNewModelType = this.isNewModel(request.settings.model);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const requestBody: any = {
         model: request.settings.model,
         messages: [
@@ -2334,7 +2335,7 @@ class AIService {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       };
-      
+
       // ブラウザ環境でプロキシ経由の場合のみ、このヘッダーを追加
       if (!isTauriEnv && import.meta.env.DEV) {
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
@@ -2607,6 +2608,7 @@ class AIService {
       }
 
       // 200番台の応答でも、candidatesが空の場合は安全フィルターなどでブロックされた可能性がある
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data = response.data as any;
       if (data && data.candidates && Array.isArray(data.candidates) && data.candidates.length === 0) {
         console.warn('Gemini API response has empty candidates array - possibly blocked by safety filters');
@@ -2627,6 +2629,7 @@ class AIService {
 
         // promptFeedbackが存在する場合、詳細なエラーメッセージを構築
         if (data.promptFeedback) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const feedback = data.promptFeedback as any;
           let errorMessage = 'Gemini API の応答が安全フィルターによってブロックされました。\n\n';
 
@@ -2635,12 +2638,14 @@ class AIService {
           }
 
           if (feedback.safetyRatings && Array.isArray(feedback.safetyRatings)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const blockedCategories = feedback.safetyRatings.filter((rating: any) =>
               rating.blocked === true || rating.probability === 'HIGH'
             );
 
             if (blockedCategories.length > 0) {
               errorMessage += '【ブロックされたカテゴリ】\n';
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               blockedCategories.forEach((rating: any) => {
                 const category = rating.category || '不明';
                 const probability = rating.probability || '不明';
@@ -2748,7 +2753,7 @@ class AIService {
           // 既にプロトコルがあるが検証に失敗した場合
           throw new Error('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。');
         }
-        
+
         // 再度検証
         if (!this.validateLocalEndpoint(validatedEndpoint)) {
           throw new Error('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。');
@@ -2948,17 +2953,17 @@ class AIService {
     if (settings.provider === 'local') {
       return ''; // ローカルLLMはAPIキー不要
     }
-    
+
     // apiKeysから現在のプロバイダーのAPIキーを取得
     if (settings.apiKeys?.[settings.provider]) {
       return settings.apiKeys[settings.provider];
     }
-    
+
     // 後方互換性のため、apiKeyからも取得を試みる
     if (settings.apiKey) {
       return settings.apiKey;
     }
-    
+
     return '';
   }
 
@@ -3068,7 +3073,7 @@ class AIService {
                 error: response.error
               };
             }
-          } catch (e) {
+          } catch (_e) {
             // JSON解析に失敗しても、draftタイプの場合は生の応答を返す
             console.debug('Draft type response: JSON parsing skipped, returning raw content');
           }
@@ -3111,7 +3116,7 @@ class AIService {
     }
   }
 
-  async evaluateStory(request: EvaluationRequest, settings: any): Promise<EvaluationResult> {
+  async evaluateStory(request: EvaluationRequest, settings: AISettings): Promise<EvaluationResult> {
     try {
       const promptVariables = {
         title: request.context?.title || '不明',

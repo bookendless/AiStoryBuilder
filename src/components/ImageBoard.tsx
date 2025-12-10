@@ -208,11 +208,18 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   });
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    url: string;
+    imageId?: string;
+    title: string;
+    description: string;
+    category: ImageItem['category'];
+  }>({
     url: '',
+    imageId: undefined,
     title: '',
     description: '',
-    category: 'reference' as ImageItem['category'],
+    category: 'reference',
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -286,15 +293,6 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
   }, [formData, selectedFile, isOpen, currentProject, autoSaveImage]);
 
-  // ファイルをBase64に変換する関数
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
 
   // ファイル処理関数（単一ファイル用）- Blobストレージ対応
   const processFile = async (file: File): Promise<{ imageId: string; url: string } | null> => {
@@ -313,7 +311,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
     try {
       // 画像のサイズを取得
-      const img = new Image();
+      const img = document.createElement('img');
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = reject;
@@ -534,7 +532,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
         imageBoard: [...currentProject.imageBoard, newImage],
       });
 
-      setFormData({ url: '', imageId: undefined, title: '', description: '', category: 'reference' });
+      setFormData({ url: '', title: '', description: '', category: 'reference' });
       setSelectedFile(null);
       setPreviewUrl('');
       setShowAddForm(false);
@@ -552,7 +550,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     if (!currentProject) return;
     
     // 削除する画像を取得
-    const imageToDelete = currentProject.imageBoard.find(img => img.id === id);
+    const imageToDelete = currentProject.imageBoard.find(img => img.id === id) as ImageItem | undefined;
     
     try {
       // Blobストレージから削除（参照カウントを減らす）
@@ -957,7 +955,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                     <button
                       onClick={() => {
                         setShowAddForm(false);
-                        setFormData({ url: '', title: '', description: '', category: 'reference' });
+                        setFormData({ url: '', imageId: undefined, title: '', description: '', category: 'reference' });
                         setSelectedFile(null);
                         setPreviewUrl('');
                         if (fileInputRef.current) {

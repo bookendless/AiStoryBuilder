@@ -26,6 +26,76 @@ export const ExportStep: React.FC = () => {
     foreshadowings: true,
     memo: true,
   });
+
+  // プリセット定義
+  const exportPresets = {
+    full: {
+      name: '完全版',
+      description: 'すべての項目を含む',
+      options: {
+        basicInfo: true,
+        characters: true,
+        plot: true,
+        synopsis: true,
+        chapters: true,
+        imageBoard: true,
+        draft: true,
+        glossary: true,
+        relationships: true,
+        timeline: true,
+        worldSettings: true,
+        foreshadowings: true,
+        memo: true,
+      },
+    },
+    draftOnly: {
+      name: '草案のみ',
+      description: '草案のみをエクスポート',
+      options: {
+        basicInfo: false,
+        characters: false,
+        plot: false,
+        synopsis: false,
+        chapters: false,
+        imageBoard: false,
+        draft: true,
+        glossary: false,
+        relationships: false,
+        timeline: false,
+        worldSettings: false,
+        foreshadowings: false,
+        memo: false,
+      },
+    },
+    settingsOnly: {
+      name: '設定資料のみ',
+      description: '設定資料のみをエクスポート（草案・メモを除く）',
+      options: {
+        basicInfo: true,
+        characters: true,
+        plot: true,
+        synopsis: true,
+        chapters: true,
+        imageBoard: true,
+        draft: false,
+        glossary: true,
+        relationships: true,
+        timeline: true,
+        worldSettings: true,
+        foreshadowings: true,
+        memo: false,
+      },
+    },
+  };
+
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+
+  // プリセットを適用する関数
+  const applyPreset = (presetKey: keyof typeof exportPresets) => {
+    const preset = exportPresets[presetKey];
+    setExportOptions(preset.options);
+    setSelectedPreset(presetKey);
+  };
   
   // ファイル名のカスタマイズ
   const [customFileName, setCustomFileName] = useState('');
@@ -380,10 +450,35 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (exportOptions.draft && currentProject.draft) {
-      content += '草案\n';
-      content += '-'.repeat(20) + '\n';
-      content += `${currentProject.draft}\n\n`;
+    if (exportOptions.draft) {
+      // すべての章の草案を結合
+      const allDrafts = currentProject.chapters
+        .map((chapter, index) => {
+          const chapterDraft = chapter.draft || '';
+          if (chapterDraft.trim()) {
+            return `【第${index + 1}章: ${chapter.title}】\n${chapterDraft}`;
+          }
+          return null;
+        })
+        .filter((draft): draft is string => draft !== null);
+      
+      // プロジェクト全体の草案がある場合は追加
+      const projectDraft = currentProject.draft?.trim() || '';
+      
+      if (allDrafts.length > 0 || projectDraft) {
+        content += '草案\n';
+        content += '-'.repeat(20) + '\n';
+        
+        // 章の草案を追加
+        if (allDrafts.length > 0) {
+          content += allDrafts.join('\n\n') + '\n\n';
+        }
+        
+        // プロジェクト全体の草案がある場合は追加
+        if (projectDraft && !allDrafts.some(d => d.includes(projectDraft))) {
+          content += `${projectDraft}\n\n`;
+        }
+      }
     }
     
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
@@ -608,9 +703,34 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (exportOptions.draft && currentProject.draft) {
-      content += '## 草案\n\n';
-      content += `${currentProject.draft}\n\n`;
+    if (exportOptions.draft) {
+      // すべての章の草案を結合
+      const allDrafts = currentProject.chapters
+        .map((chapter, index) => {
+          const chapterDraft = chapter.draft || '';
+          if (chapterDraft.trim()) {
+            return `### 第${index + 1}章: ${chapter.title}\n\n${chapterDraft}`;
+          }
+          return null;
+        })
+        .filter((draft): draft is string => draft !== null);
+      
+      // プロジェクト全体の草案がある場合は追加
+      const projectDraft = currentProject.draft?.trim() || '';
+      
+      if (allDrafts.length > 0 || projectDraft) {
+        content += '## 草案\n\n';
+        
+        // 章の草案を追加
+        if (allDrafts.length > 0) {
+          content += allDrafts.join('\n\n') + '\n\n';
+        }
+        
+        // プロジェクト全体の草案がある場合は追加
+        if (projectDraft && !allDrafts.some(d => d.includes(projectDraft))) {
+          content += `${projectDraft}\n\n`;
+        }
+      }
     }
     
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
@@ -984,10 +1104,37 @@ export const ExportStep: React.FC = () => {
       });
     }
     
-    if (exportOptions.draft && currentProject.draft) {
-      content += `
-    <h2>草案</h2>
-    <div class="draft-content">${escapeHtml(currentProject.draft)}</div>`;
+    if (exportOptions.draft) {
+      // すべての章の草案を結合
+      const allDrafts = currentProject.chapters
+        .map((chapter, index) => {
+          const chapterDraft = chapter.draft || '';
+          if (chapterDraft.trim()) {
+            return `<h3>第${index + 1}章: ${escapeHtml(chapter.title)}</h3>
+    <div class="draft-content">${escapeHtml(chapterDraft)}</div>`;
+          }
+          return null;
+        })
+        .filter((draft): draft is string => draft !== null);
+      
+      // プロジェクト全体の草案がある場合は追加
+      const projectDraft = currentProject.draft?.trim() || '';
+      
+      if (allDrafts.length > 0 || projectDraft) {
+        content += `
+    <h2>草案</h2>`;
+        
+        // 章の草案を追加
+        if (allDrafts.length > 0) {
+          content += allDrafts.join('\n');
+        }
+        
+        // プロジェクト全体の草案がある場合は追加
+        if (projectDraft && !allDrafts.some(d => d.includes(escapeHtml(projectDraft)))) {
+          content += `
+    <div class="draft-content">${escapeHtml(projectDraft)}</div>`;
+        }
+      }
     }
     
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
@@ -1198,10 +1345,14 @@ export const ExportStep: React.FC = () => {
       }
     }
     
+    // 日付を安全に変換
+    const createdAtDate = currentProject.createdAt instanceof Date ? currentProject.createdAt : new Date(currentProject.createdAt);
+    const updatedAtDate = currentProject.updatedAt instanceof Date ? currentProject.updatedAt : new Date(currentProject.updatedAt);
+    
     content += `
     <div class="metadata">
-        <p><strong>作成日:</strong> ${currentProject.createdAt.toLocaleDateString('ja-JP')}</p>
-        <p><strong>更新日:</strong> ${currentProject.updatedAt.toLocaleDateString('ja-JP')}</p>
+        <p><strong>作成日:</strong> ${createdAtDate.toLocaleDateString('ja-JP')}</p>
+        <p><strong>更新日:</strong> ${updatedAtDate.toLocaleDateString('ja-JP')}</p>
     </div>
 </body>
 </html>`;
@@ -1214,8 +1365,8 @@ export const ExportStep: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-8">
+    <div className="max-w-full">
+      <div className="mb-4 lg:mb-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-amber-500">
             <Download className="h-5 w-5 text-white" />
@@ -1229,10 +1380,10 @@ export const ExportStep: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {/* Export Options */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-          <div className="mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
+          <div className="mb-4 lg:mb-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
               エクスポート形式
             </h3>
@@ -1245,7 +1396,7 @@ export const ExportStep: React.FC = () => {
                 <button
                   key={format.id}
                   onClick={() => setSelectedFormat(format.id)}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                  className={`w-full p-3 lg:p-4 rounded-lg border-2 transition-all text-left ${
                     selectedFormat === format.id
                       ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                       : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700'
@@ -1275,7 +1426,7 @@ export const ExportStep: React.FC = () => {
           </div>
 
           {/* ファイル名のカスタマイズ */}
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
               ファイル名設定
             </h4>
@@ -1326,7 +1477,34 @@ export const ExportStep: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2">
+          {/* プリセット選択 */}
+          <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+              プリセット
+            </h4>
+            <div className="grid grid-cols-1 gap-2 mb-4">
+              {Object.entries(exportPresets).map(([key, preset]) => (
+                <button
+                  key={key}
+                  onClick={() => applyPreset(key as keyof typeof exportPresets)}
+                  className={`p-3 rounded-lg border-2 transition-all text-left ${
+                    selectedPreset === key
+                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                      : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700'
+                  }`}
+                >
+                  <div className="font-semibold text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP']">
+                    {preset.name}
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-1">
+                    {preset.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2">
             <button
               onClick={handleExport}
               disabled={isExporting}
@@ -1346,8 +1524,8 @@ export const ExportStep: React.FC = () => {
         </div>
 
         {/* Project Summary */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 font-['Noto_Sans_JP']">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 lg:mb-6 font-['Noto_Sans_JP']">
             プロジェクト概要
           </h3>
 
@@ -1391,7 +1569,23 @@ export const ExportStep: React.FC = () => {
 
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {currentProject.draft.length}
+                  {useMemo(() => {
+                    // すべての章の草案文字数を合計
+                    const chapterDraftLength = currentProject.chapters.reduce((sum, chapter) => {
+                      return sum + (chapter.draft?.length || 0);
+                    }, 0);
+                    
+                    // プロジェクト全体の草案文字数を追加（重複を避ける）
+                    const projectDraft = currentProject.draft?.trim() || '';
+                    const projectDraftLength = projectDraft.length;
+                    
+                    // プロジェクト全体の草案が章の草案に含まれていない場合のみ追加
+                    const isProjectDraftInChapters = currentProject.chapters.some(
+                      chapter => chapter.draft?.includes(projectDraft)
+                    );
+                    
+                    return chapterDraftLength + (isProjectDraftInChapters ? 0 : projectDraftLength);
+                  }, [currentProject])}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                   草案文字数
@@ -1424,12 +1618,13 @@ export const ExportStep: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={exportOptions[option.key as keyof typeof exportOptions]}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setExportOptions({
                           ...exportOptions,
                           [option.key]: e.target.checked,
-                        })
-                      }
+                        });
+                        setSelectedPreset(null); // カスタム設定に変更されたらプリセット選択を解除
+                      }}
                       className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
@@ -1442,8 +1637,8 @@ export const ExportStep: React.FC = () => {
 
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
               <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
-                <div>作成日: {currentProject.createdAt.toLocaleDateString('ja-JP')}</div>
-                <div>更新日: {currentProject.updatedAt.toLocaleDateString('ja-JP')}</div>
+                <div>作成日: {currentProject.createdAt instanceof Date ? currentProject.createdAt.toLocaleDateString('ja-JP') : new Date(currentProject.createdAt).toLocaleDateString('ja-JP')}</div>
+                <div>更新日: {currentProject.updatedAt instanceof Date ? currentProject.updatedAt.toLocaleDateString('ja-JP') : new Date(currentProject.updatedAt).toLocaleDateString('ja-JP')}</div>
               </div>
             </div>
           </div>
@@ -1451,7 +1646,7 @@ export const ExportStep: React.FC = () => {
       </div>
 
       {/* エクスポートプレビュー */}
-      <div className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+      <div className="mt-4 lg:mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
             エクスポートプレビュー

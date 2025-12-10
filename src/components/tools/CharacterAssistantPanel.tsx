@@ -181,7 +181,8 @@ ${log.parsedCharacters && log.parsedCharacters.length > 0 ? `【解析された�
 ${log.parsedCharacters.length}人
 
 【解析されたキャラクターの詳細】
-${log.parsedCharacters.map((c: any, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}`;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ${log.parsedCharacters.map((c: any, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}`;
         navigator.clipboard.writeText(logText);
         showSuccess('ログをクリップボードにコピーしました');
     }, [showSuccess]);

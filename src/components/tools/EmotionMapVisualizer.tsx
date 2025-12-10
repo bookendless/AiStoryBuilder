@@ -497,14 +497,16 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
 
         {/* データがない場合 */}
         {!emotionMap && !isAnalyzing && (
-          <EmptyState
-            icon={TrendingUp}
-            iconColor="text-indigo-400 dark:text-indigo-500"
-            title="感情マップがありません"
-            description="「分析開始」ボタンをクリックして、章の感情を分析してください。"
-            actionLabel="分析開始"
-            onAction={handleAnalyze}
-          />
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <EmptyState
+              icon={TrendingUp}
+              iconColor="text-indigo-400 dark:text-indigo-500"
+              title="感情マップがありません"
+              description="各章の感情をAIで分析し、物語全体の感情の流れを可視化できます。感情の起伏やリズムを確認して、読者の共感を高める物語作りに活用しましょう。曲線グラフやヒートマップで、章ごとの感情の強弱や変化を一目で把握できます。"
+              actionLabel="分析開始"
+              onAction={handleAnalyze}
+            />
+          </div>
         )}
 
         {/* 感情マップの表示 */}

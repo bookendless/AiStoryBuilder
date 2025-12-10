@@ -521,7 +521,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             }
             consistencyAbortControllerRef.current = null;
         }
-    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, showError, isGenerating]);
+    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, showError, showSuccess, isGenerating]);
 
     // 進捗状況を計算
     const progress = useMemo(() => {

@@ -96,3 +96,10 @@ export const extractCharactersFromContent = (
 
 
 
+
+
+
+
+
+
+

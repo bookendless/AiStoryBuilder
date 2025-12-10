@@ -1,7 +1,8 @@
 import React from 'react';
 import { Sparkles, Check, FileText, BookOpen, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
-import { useProject } from '../../../contexts/ProjectContext';
+import { useProject, Chapter } from '../../../contexts/ProjectContext';
 import { AILogPanel } from '../../common/AILogPanel';
+import { AILogEntry } from '../../common/types';
 import { SidebarSectionId, StructureProgress } from './types';
 
 interface ChapterSidebarProps {
@@ -9,11 +10,11 @@ interface ChapterSidebarProps {
   expandedSections: Set<SidebarSectionId>;
   expandedChapters: Set<string>;
   searchQuery: string;
-  filteredChapters: any[];
+  filteredChapters: Chapter[];
   structureProgress: StructureProgress;
   isGenerating: boolean;
   isGeneratingStructure: boolean;
-  aiLogs: any[];
+  aiLogs: AILogEntry[];
   draggedSectionIndex: number | null;
   dragOverSectionIndex: number | null;
   onToggleSection: (sectionId: SidebarSectionId) => void;
@@ -21,7 +22,7 @@ interface ChapterSidebarProps {
   onAIGenerate: () => void;
   onStructureProgressChange: (section: keyof StructureProgress) => void;
   onStructureBasedAIGenerate: () => void;
-  onCopyLog: (log: any) => void;
+  onCopyLog: (log: AILogEntry) => void;
   onDownloadLogs: () => void;
   onSectionDragStart: (e: React.DragEvent, index: number) => void;
   onSectionDragOver: (e: React.DragEvent, index: number) => void;
@@ -287,11 +288,11 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             maxHeight="max-h-96"
             renderLogContent={(log) => (
               <>
-                {log.parsedChapters && log.parsedChapters.length > 0 && (
+                {log.parsedChapters && Array.isArray(log.parsedChapters) && log.parsedChapters.length > 0 && (
                   <div className="mt-2">
                     <strong>解析された章 ({log.parsedChapters.length}章):</strong>
                     <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                      {log.parsedChapters.map((c: any) => c.title).join(', ')}
+                      {log.parsedChapters.map((c: { title?: string }) => c.title || '').filter(Boolean).join(', ')}
                     </div>
                   </div>
                 )}
@@ -416,6 +417,9 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
     </div>
   );
 };
+
+
+
 
 
 

@@ -33,7 +33,7 @@ export interface AISettings {
 export interface AIRequest {
   prompt: string;
   context?: string;
-  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world' | 'foreshadowing' | 'evaluation' | 'imageToStory' | 'audioToStory';
+  type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world' | 'foreshadowing' | 'evaluation' | 'imageToStory' | 'audioToStory' | 'audioImageToStory';
   settings: AISettings;
   image?: string; // Base64エンコードされた画像データ（data:image/...形式）
   audio?: string; // Base64エンコードされた音声データ（data:audio/...形式）

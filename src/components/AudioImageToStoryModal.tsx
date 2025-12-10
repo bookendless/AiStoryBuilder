@@ -22,7 +22,6 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
 }) => {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +90,6 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
       // 圧縮されたBlobをBase64に変換
       const base64 = await fileToBase64(new File([compressedBlob], file.name, { type: file.type }));
       setImagePreviewUrl(base64);
-      setImageFile(file);
     } catch (error) {
       console.error('画像の圧縮エラー:', error);
       showError('画像の処理に失敗しました。', 5000, {
@@ -121,7 +119,6 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
   // 画像ファイルクリア
   const handleClearImage = () => {
     setImagePreviewUrl(null);
-    setImageFile(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
     }
@@ -253,7 +250,6 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
     if (!isOpen) {
       setAudioFile(null);
       setImagePreviewUrl(null);
-      setImageFile(null);
       setIsAnalyzing(false);
       setAnalysisProgress('');
       if (audioInputRef.current) {
@@ -470,6 +466,7 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
     </Modal>
   );
 };
+
 
 
 

@@ -29,7 +29,7 @@ const categoryColors: Record<TimelineEvent['category'], string> = {
 
 export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
-  const { showError, showWarning, showSuccess, showInfo } = useToast();
+  const { showError, showWarning, showSuccess } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -54,9 +54,9 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
   const [consistencyCheckResult, setConsistencyCheckResult] = useState<string>('');
   const { settings, isConfigured } = useAI();
 
-  const timeline = currentProject?.timeline || [];
-  const chapters = currentProject?.chapters || [];
-  const characters = currentProject?.characters || [];
+  const timeline = useMemo(() => currentProject?.timeline || [], [currentProject?.timeline]);
+  const chapters = useMemo(() => currentProject?.chapters || [], [currentProject?.chapters]);
+  const characters = useMemo(() => currentProject?.characters || [], [currentProject?.characters]);
 
   // フィルタリング
   const filteredTimeline = useMemo(() => {
@@ -1092,8 +1092,8 @@ JSON配列形式で出力してください：
                     setConsistencyCheckResult('');
                   }}
                   className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'extract'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                 >
                   <Zap className="h-5 w-5 mx-auto mb-1" />
@@ -1108,8 +1108,8 @@ JSON配列形式で出力してください：
                     setConsistencyCheckResult('');
                   }}
                   className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'suggest'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                 >
                   <Wand2 className="h-5 w-5 mx-auto mb-1" />
@@ -1124,8 +1124,8 @@ JSON配列形式で出力してください：
                     setConsistencyCheckResult('');
                   }}
                   className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'check'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                 >
                   <CheckCircle className="h-5 w-5 mx-auto mb-1" />
@@ -1140,8 +1140,8 @@ JSON配列形式で出力してください：
                     setConsistencyCheckResult('');
                   }}
                   className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'generate'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                 >
                   <Lightbulb className="h-5 w-5 mx-auto mb-1" />
@@ -1299,8 +1299,8 @@ JSON配列形式で出力してください：
                       <div
                         key={idx}
                         className={`border rounded-lg p-4 cursor-pointer transition-colors ${selectedResults.has(idx)
-                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                           }`}
                         onClick={() => toggleResultSelection(idx)}
                       >

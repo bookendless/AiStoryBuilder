@@ -47,7 +47,7 @@ const relationshipTypes: Record<CharacterRelationship['type'], { label: string; 
 
 export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
-  const { showError, showWarning, showSuccess, showInfo } = useToast();
+  const { showError, showWarning, showSuccess } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -71,8 +71,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   const [consistencyCheckResult, setConsistencyCheckResult] = useState<string>('');
   const { settings, isConfigured } = useAI();
 
-  const relationships = currentProject?.relationships || [];
-  const characters = currentProject?.characters || [];
+  const relationships = useMemo(() => currentProject?.relationships || [], [currentProject?.relationships]);
+  const characters = useMemo(() => currentProject?.characters || [], [currentProject?.characters]);
 
   const getCharacterName = (id: string) => {
     return characters.find(c => c.id === id)?.name || '不明';
@@ -329,7 +329,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
 
     try {
       const projectContext = getProjectContext();
-      
+
       // 登録済みキャラクター名のリストを作成
       const characterNames = characters.map(c => c.name).join('、');
 
@@ -477,7 +477,7 @@ JSON配列形式で出力してください：
 
     try {
       const projectContext = getProjectContext();
-      
+
       // 登録済みキャラクター名のリストを作成
       const characterNames = characters.map(c => c.name).join('、');
 
@@ -879,7 +879,7 @@ JSON形式で出力してください：
     });
 
     if (validRelationships.length === 0) {
-      showInfo('追加できる関係性がありません。既に登録されている可能性があります。', 5000, {
+      showWarning('追加できる関係性がありません。既に登録されている可能性があります。', 5000, {
         title: '追加不可',
       });
       return;

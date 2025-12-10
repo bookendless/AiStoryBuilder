@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, User, StopCircle, Sparkles, X } from 'lucide-react';
+import { Send, User, StopCircle, Sparkles } from 'lucide-react';
 import { useAI } from '../../contexts/AIContext';
-import { useProject, Character } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
@@ -41,24 +41,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // チャットが開いたらフォーカス
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-      // 会話履歴をローカルストレージから復元
-      loadConversationHistory();
-    }
-  }, [isOpen, characterId]);
-
-  // キャラクターが変更されたら会話履歴をクリア
-  useEffect(() => {
-    if (characterId) {
-      setMessages([]);
-      sessionIdRef.current = generateUUID();
-      loadConversationHistory();
-    }
-  }, [characterId]);
-
+  // Move loadConversationHistory definition before useEffect
   // 会話履歴をローカルストレージから読み込み
   const loadConversationHistory = useCallback(() => {
     if (!currentProject || !characterId) return;
@@ -74,6 +57,26 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
       console.error('会話履歴の読み込みに失敗しました:', error);
     }
   }, [currentProject, characterId]);
+
+  // チャットが開いたらフォーカス
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+      // 会話履歴をローカルストレージから復元
+      loadConversationHistory();
+    }
+  }, [isOpen, characterId, loadConversationHistory]);
+
+  // キャラクターが変更されたら会話履歴をクリア
+  useEffect(() => {
+    if (characterId) {
+      setMessages([]);
+      sessionIdRef.current = generateUUID();
+      loadConversationHistory();
+    }
+  }, [characterId, loadConversationHistory]);
+
+  // loadConversationHistory removed from here
 
   // 会話履歴をローカルストレージに保存
   const saveConversationHistory = useCallback((msgs: PossessionMessage[]) => {
@@ -120,25 +123,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     }).join('\n');
   };
 
-  // プロジェクト情報をコンテキストとして構築
-  const buildProjectContext = (): string => {
-    if (!currentProject) return '';
 
-    let context = `タイトル: ${currentProject.title}\n`;
-    context += `テーマ: ${currentProject.theme || currentProject.projectTheme || '未設定'}\n`;
-    if (currentProject.mainGenre || currentProject.genre) {
-      context += `ジャンル: ${currentProject.mainGenre || currentProject.genre}\n`;
-    }
-    if (currentProject.plot) {
-      if (currentProject.plot.theme) {
-        context += `プロットテーマ: ${currentProject.plot.theme}\n`;
-      }
-      if (currentProject.plot.setting) {
-        context += `舞台設定: ${currentProject.plot.setting}\n`;
-      }
-    }
-    return context;
-  };
 
   // 会話履歴をフォーマット
   const formatConversationHistory = (msgs: PossessionMessage[]): string => {
@@ -184,7 +169,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
       // プロンプトを構築
       const characterRelationships = getCharacterRelationships();
       const conversationHistory = formatConversationHistory(messages);
-      const projectContext = buildProjectContext();
+      // const projectContext = buildProjectContext();
 
       // 口調の指示を構築
       const speechStyleInstruction = character.speechStyle
@@ -471,6 +456,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     </Modal>
   );
 };
+
 
 
 

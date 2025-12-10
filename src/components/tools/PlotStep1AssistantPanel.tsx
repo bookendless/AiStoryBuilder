@@ -10,23 +10,12 @@ import { AILoadingIndicator } from '../common/AILoadingIndicator';
 
 // フィールド設定
 const FIELD_MAX_LENGTHS = {
-  theme: 100,
-  setting: 300,
-  hook: 300,
-  protagonistGoal: 100,
-  mainObstacle: 100,
-  ending: 200,
-} as const;
-
-type FieldKey = 'theme' | 'setting' | 'hook' | 'protagonistGoal' | 'mainObstacle' | 'ending';
-
-const FIELD_CONFIG = {
-  theme: { label: 'メインテーマ', maxLength: FIELD_MAX_LENGTHS.theme, description: '物語の核心となるメインテーマ' },
-  setting: { label: '舞台設定', maxLength: FIELD_MAX_LENGTHS.setting, description: 'ジャンルに合わせた世界観' },
-  hook: { label: 'フック要素', maxLength: FIELD_MAX_LENGTHS.hook, description: '魅力的なフック要素' },
-  protagonistGoal: { label: '主人公の目標', maxLength: FIELD_MAX_LENGTHS.protagonistGoal, description: '主人公が達成したい目標' },
-  mainObstacle: { label: '主要な障害', maxLength: FIELD_MAX_LENGTHS.mainObstacle, description: '主人公の目標を阻む主要な障害' },
-  ending: { label: '物語の結末', maxLength: FIELD_MAX_LENGTHS.ending, description: '物語の結末、主人公の成長や目標達成の結果' },
+    theme: 100,
+    setting: 300,
+    hook: 300,
+    protagonistGoal: 100,
+    mainObstacle: 100,
+    ending: 200,
 } as const;
 
 /**
@@ -54,7 +43,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
     // プロジェクトの詳細情報を取得する関数
     const getProjectContext = useCallback(() => {
         if (!currentProject) return null;
-        
+
         return {
             title: currentProject.title,
             description: currentProject.description,
@@ -75,24 +64,24 @@ export const PlotStep1AssistantPanel: React.FC = () => {
     // 文字数制限に基づいて内容を成形する関数
     const formatContentToFit = useCallback((content: string, maxLength: number, fieldName: string): string => {
         if (!content) return '';
-        
+
         let formatted = content.trim();
-        
+
         // 基本的なクリーニング
         formatted = formatted
             .replace(/^["']|["']$/g, '') // クォートの除去
             .replace(/\s+/g, ' ') // 連続する空白を単一の空白に
             .replace(/\n+/g, ' ') // 改行を空白に
             .trim();
-        
+
         // 文字数制限を超えている場合の処理
         if (formatted.length > maxLength) {
             console.warn(`${fieldName}の文字数が制限を超過: ${formatted.length}/${maxLength}文字`);
-            
+
             // 1. 文の境界で切り詰めを試行（句読点で分割）
             const sentences = formatted.split(/[。！？]/);
             let truncated = '';
-            
+
             for (const sentence of sentences) {
                 const testLength = truncated.length + sentence.length + (truncated ? 1 : 0);
                 if (testLength <= maxLength) {
@@ -101,12 +90,12 @@ export const PlotStep1AssistantPanel: React.FC = () => {
                     break;
                 }
             }
-            
+
             // 2. 文の境界で切り詰めができなかった場合、カンマや読点で切り詰め
             if (!truncated || truncated.length < maxLength * 0.6) {
                 const commaSentences = formatted.split(/[、,]/);
                 truncated = '';
-                
+
                 for (const sentence of commaSentences) {
                     const testLength = truncated.length + sentence.length + (truncated ? 1 : 0);
                     if (testLength <= maxLength) {
@@ -116,7 +105,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
                     }
                 }
             }
-            
+
             // 3. それでも適切に切り詰められない場合、単語境界で切り詰め
             if (!truncated || truncated.length < maxLength * 0.5) {
                 // 日本語の場合は文字単位、英語の場合は単語単位で切り詰め
@@ -140,17 +129,17 @@ export const PlotStep1AssistantPanel: React.FC = () => {
                     }
                 }
             }
-            
+
             formatted = truncated;
             console.log(`${fieldName}を成形: ${formatted.length}/${maxLength}文字`);
-            
+
             // 最終チェック：まだ制限を超えている場合は強制的に切り詰め
             if (formatted.length > maxLength) {
                 formatted = formatted.substring(0, maxLength - 3) + '...';
                 console.warn(`${fieldName}を強制切り詰め: ${formatted.length}/${maxLength}文字`);
             }
         }
-        
+
         return formatted;
     }, []);
 
@@ -190,7 +179,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
         abortControllerRef.current = abortController;
 
         setIsGenerating(true);
-        
+
         try {
             // プロジェクトの詳細情報を取得
             const context = getProjectContext();
@@ -200,7 +189,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
             }
 
             // キャラクター情報の文字列化
-            const charactersInfo = context.characters.length > 0 
+            const charactersInfo = context.characters.length > 0
                 ? context.characters.map(c => `・${c.name} (${c.role})\n  性格: ${c.personality}\n  背景: ${c.background}`).join('\n')
                 : 'キャラクター未設定';
 
@@ -311,7 +300,7 @@ ${synopsisInfo}
                     const jsonMatch = content.match(pattern);
                     if (jsonMatch) {
                         let jsonStr = jsonMatch[0];
-                        
+
                         // JSON文字列のクリーニング
                         jsonStr = jsonStr
                             .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 制御文字を除去
@@ -321,11 +310,11 @@ ${synopsisInfo}
 
                         try {
                             const parsed = JSON.parse(jsonStr);
-                            
+
                             // 基本設定のキーが存在するかチェック
                             const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害', '物語の結末'];
                             const validKeys = basicKeys.filter(key => Object.prototype.hasOwnProperty.call(parsed, key));
-                            
+
                             if (validKeys.length >= 2) { // 最低2つのキーがあれば有効
                                 console.log('基本設定JSON解析成功:', {
                                     pattern: pattern.toString(),
@@ -573,20 +562,18 @@ ${'='.repeat(80)}`;
                     </div>
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                         <div
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                                progress.percentage === 100
+                            className={`h-2 rounded-full transition-all duration-500 ${progress.percentage === 100
                                     ? 'bg-gradient-to-r from-green-500 to-emerald-500'
                                     : 'bg-gradient-to-r from-blue-500 to-cyan-500'
-                            }`}
+                                }`}
                             style={{ width: `${progress.percentage}%` }}
                         />
                     </div>
                     <div className="text-center">
-                        <span className={`text-sm font-semibold ${
-                            progress.percentage === 100
+                        <span className={`text-sm font-semibold ${progress.percentage === 100
                                 ? 'text-green-600 dark:text-green-400'
                                 : 'text-gray-900 dark:text-white'
-                        }`}>
+                            }`}>
                             {progress.percentage.toFixed(0)}%
                         </span>
                     </div>

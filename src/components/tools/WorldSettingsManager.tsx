@@ -55,7 +55,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
   const [selectedSettingForAI, setSelectedSettingForAI] = useState<WorldSetting | null>(null);
   const { settings, isConfigured } = useAI();
 
-  const worldSettings = currentProject?.worldSettings || [];
+  const worldSettings = useMemo(() => currentProject?.worldSettings || [], [currentProject?.worldSettings]);
 
   // フィルタリング
   const filteredSettings = useMemo(() => {
@@ -529,8 +529,8 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${selectedCategory === 'all'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
               >
                 すべて ({categoryCounts.all || 0})
@@ -540,8 +540,8 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                   key={category}
                   onClick={() => setSelectedCategory(category)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${selectedCategory === category
-                      ? `${color} text-white`
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? `${color} text-white`
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                 >
                   {label} ({categoryCounts[category] || 0})
@@ -839,8 +839,8 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                   setAiError(null);
                 }}
                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'generate'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
               >
                 <Wand2 className="h-4 w-4 inline mr-2" />
@@ -853,8 +853,8 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                   setAiError(null);
                 }}
                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'enhance'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 disabled={worldSettings.length === 0}
               >
@@ -868,8 +868,8 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                   setAiError(null);
                 }}
                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'expand'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 disabled={worldSettings.length === 0}
               >

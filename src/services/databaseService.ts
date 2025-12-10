@@ -180,7 +180,7 @@ try {
   // 最低限の動作のために再試行（一度だけ）
   try {
     db = new StoryBuilderDatabase();
-  } catch (retryError) {
+  } catch (_retryError) {
     // 再試行も失敗した場合は、ダミーのインスタンスを作成
     // 実際の操作時にエラーをスローする
     db = new StoryBuilderDatabase();
@@ -1073,7 +1073,7 @@ class DatabaseService {
   // 日付指定で履歴を削除
   async deleteHistoryEntriesBeforeDate(cutoffDate: Date, projectId?: string): Promise<number> {
     const cutoffTimestamp = cutoffDate.getTime();
-    let query = db.chapterHistories.where('timestamp').below(cutoffTimestamp);
+    const query = db.chapterHistories.where('timestamp').below(cutoffTimestamp);
 
     const entries = await query.toArray();
 
@@ -1837,7 +1837,7 @@ class DatabaseService {
 
         // すべてのデータをエクスポート
         const exportData = await this.exportData();
-        const data = JSON.parse(exportData);
+        const _data = JSON.parse(exportData);
 
         // すべてのテーブルをクリア
         await db.projects.clear();

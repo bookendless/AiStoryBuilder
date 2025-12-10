@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Bookmark, 
-  Plus, 
-  Search, 
-  Edit2, 
-  Trash2, 
-  Save, 
-  X, 
-  ChevronDown, 
+import {
+  Bookmark,
+  Plus,
+  Search,
+  Edit2,
+  Trash2,
+  Save,
+  X,
+  ChevronDown,
   ChevronUp,
   AlertCircle,
   CheckCircle,
@@ -79,7 +79,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     isOpen,
     onClose,
   });
-  
+
   // 状態管理
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -88,7 +88,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   const [editingForeshadowing, setEditingForeshadowing] = useState<Foreshadowing | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showPointForm, setShowPointForm] = useState<string | null>(null); // 伏線IDを保持
-  
+
   // フォームデータ
   const [formData, setFormData] = useState<Partial<Foreshadowing>>({
     title: '',
@@ -103,10 +103,10 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     tags: [],
     notes: '',
   });
-  
+
   // 始まりの章（設置する章）
   const [plantChapterId, setPlantChapterId] = useState<string>('');
-  
+
   // ポイント追加フォーム
   const [pointFormData, setPointFormData] = useState<Partial<ForeshadowingPoint>>({
     chapterId: '',
@@ -114,12 +114,12 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     description: '',
     lineReference: '',
   });
-  
+
   const [tagInput, setTagInput] = useState('');
-  
+
   // ビュー切り替え
   const [currentView, setCurrentView] = useState<'list' | 'timeline' | 'stats'>('list');
-  
+
   // AI関連のステート
   const { settings: aiSettings } = useAI();
   const [isAILoading, setIsAILoading] = useState(false);
@@ -165,9 +165,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   } | null>(null);
   const [showPayoffModal, setShowPayoffModal] = useState(false);
 
-  const foreshadowings = currentProject?.foreshadowings || [];
-  const chapters = currentProject?.chapters || [];
-  const characters = currentProject?.characters || [];
+  const foreshadowings = useMemo(() => currentProject?.foreshadowings || [], [currentProject?.foreshadowings]);
+  const chapters = useMemo(() => currentProject?.chapters || [], [currentProject?.chapters]);
+  const characters = useMemo(() => currentProject?.characters || [], [currentProject?.characters]);
 
   // フィルタリング
   const filteredForeshadowings = useMemo(() => {
@@ -267,7 +267,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       const lastPoint = sortedPoints[sortedPoints.length - 1];
       const startChapterIdx = firstPoint ? chapters.findIndex(c => c.id === firstPoint.chapterId) : -1;
       const endChapterIdx = lastPoint ? chapters.findIndex(c => c.id === lastPoint.chapterId) : -1;
-      const plannedPayoffIdx = f.plannedPayoffChapterId 
+      const plannedPayoffIdx = f.plannedPayoffChapterId
         ? chapters.findIndex(c => c.id === f.plannedPayoffChapterId)
         : -1;
 
@@ -341,7 +341,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     }
 
     const now = new Date();
-    
+
     // 始まりの章が設定されていれば、自動的に設置ポイントを追加
     const initialPoints: ForeshadowingPoint[] = [];
     if (plantChapterId) {
@@ -412,7 +412,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
     // 既存のポイントを取得
     let updatedPoints = [...(formData.points || [])];
-    
+
     // 始まりの章が設定されていて、まだ設置ポイントがない場合は追加
     if (plantChapterId) {
       const hasPlantPoint = updatedPoints.some(p => p.type === 'plant' && p.chapterId === plantChapterId);
@@ -498,7 +498,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         } else if (newPoint.type === 'hint' && f.status === 'planted') {
           newStatus = 'hinted';
         }
-        
+
         return {
           ...f,
           points: [...f.points, newPoint],
@@ -529,7 +529,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     const updatedForeshadowings = foreshadowings.map(f => {
       if (f.id === foreshadowingId) {
         const newPoints = f.points.filter(p => p.id !== pointId);
-        
+
         // ステータスを再計算
         let newStatus: Foreshadowing['status'] = 'planted';
         if (newPoints.some(p => p.type === 'payoff')) {
@@ -537,7 +537,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         } else if (newPoints.some(p => p.type === 'hint')) {
           newStatus = 'hinted';
         }
-        
+
         return {
           ...f,
           points: newPoints,
@@ -622,19 +622,19 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
     // aiResponseParserのparseAIResponseを使用
     const parsed = parseAIResponse(content, 'json');
-    
+
     if (!parsed.success) {
       // エラーの詳細をログに記録
       console.error('JSON parsing failed:', parsed.error);
       console.debug('Raw content (first 500 chars):', content.substring(0, 500));
-      
+
       throw new Error(parsed.error || 'JSONの解析に失敗しました');
     }
-    
+
     if (!parsed.data) {
       throw new Error('JSONデータが見つかりませんでした');
     }
-    
+
     return parsed.data;
   };
 
@@ -657,27 +657,27 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       existingForeshadowings: '',
       foreshadowings: '',
     };
-    
+
     const structureInfo = currentProject.plot.structure === 'kishotenketsu'
       ? `起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`
       : currentProject.plot.structure === 'three-act'
-      ? `第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`
-      : `第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`;
-    
-    const charactersInfo = characters.map(c => 
+        ? `第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`
+        : `第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`;
+
+    const charactersInfo = characters.map(c =>
       `- ${c.name}（${c.role}）: ${c.personality || '性格未設定'}`
     ).join('\n') || '未設定';
-    
-    const chaptersInfo = chapters.map((c, idx) => 
+
+    const chaptersInfo = chapters.map((c, idx) =>
       `第${idx + 1}章: ${c.title}${c.summary ? ` - ${c.summary}` : ''}`
     ).join('\n') || '未設定';
-    
+
     const existingForeshadowingsInfo = foreshadowings.map(f => {
       const categoryInfo = categoryConfig[f.category] || categoryConfig.other;
       const statusInfo = statusConfig[f.status] || statusConfig.planted;
       return `- ${f.title}（${categoryInfo.label}）[${statusInfo.label}]: ${f.description}`;
     }).join('\n') || 'なし';
-    
+
     return {
       title: currentProject.title,
       mainGenre: currentProject.mainGenre || currentProject.genre || '未設定',
@@ -700,41 +700,41 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // AI伏線提案
   const handleAISuggest = async () => {
     if (!currentProject) return;
-    
+
     setIsAILoading(true);
     setAiError(null);
     setAiSuggestions([]);
-    
+
     try {
       const projectInfo = buildProjectInfo();
       const prompt = aiService.buildPrompt('foreshadowing', 'suggest', projectInfo);
-      
+
       const response = await aiService.generateContent({
         prompt,
         type: 'foreshadowing',
         settings: aiSettings,
       });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       // JSONをパース
       if (!response.content) {
         throw new Error('AIからの応答が空です');
       }
-      
+
       const parsed = parseAIJsonResponse(response.content) as { suggestions?: typeof aiSuggestions };
-      
+
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('AI応答の形式が正しくありません');
       }
-      
+
       setAiSuggestions(parsed.suggestions || []);
     } catch (error) {
       console.error('AI suggest error:', error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
+      const errorMessage = error instanceof Error
+        ? error.message
         : '伏線提案の生成に失敗しました';
       setAiError(errorMessage);
       showError(errorMessage);
@@ -746,41 +746,41 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // AI整合性チェック
   const handleConsistencyCheck = async () => {
     if (!currentProject || foreshadowings.length === 0) return;
-    
+
     setIsAILoading(true);
     setAiError(null);
     setConsistencyResult(null);
-    
+
     try {
       const projectInfo = buildProjectInfo();
       const prompt = aiService.buildPrompt('foreshadowing', 'checkConsistency', projectInfo);
-      
+
       const response = await aiService.generateContent({
         prompt,
         type: 'foreshadowing',
         settings: aiSettings,
       });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       if (!response.content) {
         throw new Error('AIからの応答が空です');
       }
-      
+
       const parsed = parseAIJsonResponse(response.content) as typeof consistencyResult;
-      
+
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('AI応答の形式が正しくありません');
       }
-      
+
       setConsistencyResult(parsed);
       setShowConsistencyModal(true);
     } catch (error) {
       console.error('AI consistency check error:', error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
+      const errorMessage = error instanceof Error
+        ? error.message
         : '整合性チェックに失敗しました';
       setAiError(errorMessage);
       showError(errorMessage);
@@ -792,19 +792,19 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // AI伏線強化提案
   const handleEnhanceForeshadowing = async (foreshadowing: Foreshadowing) => {
     if (!currentProject) return;
-    
+
     setIsAILoading(true);
     setAiError(null);
     setEnhanceResult(null);
     setSelectedForEnhance(foreshadowing);
-    
+
     try {
       const projectInfo = buildProjectInfo();
       const relatedChars = foreshadowing.relatedCharacterIds?.map(id => getCharacterName(id)).join(', ') || 'なし';
-      const currentPoints = foreshadowing.points.map(p => 
+      const currentPoints = foreshadowing.points.map(p =>
         `${pointTypeConfig[p.type].label}: ${p.description} (${getChapterTitle(p.chapterId)})`
       ).join('\n') || 'なし';
-      
+
       const categoryInfo = categoryConfig[foreshadowing.category] || categoryConfig.other;
       const importanceInfo = importanceConfig[foreshadowing.importance] || importanceConfig.medium;
       const statusInfo = statusConfig[foreshadowing.status] || statusConfig.planted;
@@ -820,33 +820,33 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         relatedCharacters: relatedChars,
         themeConnection: `この伏線はプロジェクトのテーマ「${projectInfo.theme}」と関連している可能性があります。`,
       });
-      
+
       const response = await aiService.generateContent({
         prompt,
         type: 'foreshadowing',
         settings: aiSettings,
       });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       if (!response.content) {
         throw new Error('AIからの応答が空です');
       }
-      
+
       const parsed = parseAIJsonResponse(response.content) as typeof enhanceResult;
-      
+
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('AI応答の形式が正しくありません');
       }
-      
+
       setEnhanceResult(parsed);
       setShowEnhanceModal(true);
     } catch (error) {
       console.error('AI enhance error:', error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
+      const errorMessage = error instanceof Error
+        ? error.message
         : '伏線強化提案の生成に失敗しました';
       setAiError(errorMessage);
       showError(errorMessage);
@@ -858,19 +858,19 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // AI回収タイミング提案
   const handleSuggestPayoff = async (foreshadowing: Foreshadowing) => {
     if (!currentProject) return;
-    
+
     setIsAILoading(true);
     setAiError(null);
     setPayoffResult(null);
     setSelectedForPayoff(foreshadowing);
-    
+
     try {
       const projectInfo = buildProjectInfo();
       const relatedChars = foreshadowing.relatedCharacterIds?.map(id => {
         const char = characters.find(c => c.id === id);
         return char ? `${char.name}（${char.role}）: ${char.personality || '性格未設定'}` : '';
       }).filter(Boolean).join('\n') || 'なし';
-      const currentPoints = foreshadowing.points.map(p => 
+      const currentPoints = foreshadowing.points.map(p =>
         `${pointTypeConfig[p.type].label}: ${p.description} (${getChapterTitle(p.chapterId)})`
       ).join('\n') || 'なし';
       const otherForeshadowings = foreshadowings
@@ -880,7 +880,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
           return `- ${f.title}（${statusInfo.label}）`;
         })
         .join('\n') || 'なし';
-      
+
       const prompt = aiService.buildPrompt('foreshadowing', 'suggestPayoff', {
         ...projectInfo,
         foreshadowingTitle: foreshadowing.title,
@@ -891,33 +891,33 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         relatedCharacters: relatedChars,
         otherForeshadowings,
       });
-      
+
       const response = await aiService.generateContent({
         prompt,
         type: 'foreshadowing',
         settings: aiSettings,
       });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       if (!response.content) {
         throw new Error('AIからの応答が空です');
       }
-      
+
       const parsed = parseAIJsonResponse(response.content) as typeof payoffResult;
-      
+
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('AI応答の形式が正しくありません');
       }
-      
+
       setPayoffResult(parsed);
       setShowPayoffModal(true);
     } catch (error) {
       console.error('AI payoff suggest error:', error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
+      const errorMessage = error instanceof Error
+        ? error.message
         : '回収タイミング提案の生成に失敗しました';
       setAiError(errorMessage);
       showError(errorMessage);
@@ -929,18 +929,18 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   // AI提案から伏線を追加
   const handleAddFromSuggestion = (suggestion: typeof aiSuggestions[0]) => {
     const now = new Date();
-    
+
     // 関連キャラクターのIDを検索
     const relatedCharacterIds = suggestion.relatedCharacters
       .map(name => characters.find(c => c.name === name)?.id)
       .filter((id): id is string => !!id);
-    
+
     // 推奨章のIDを検索
     const plantChapterMatch = suggestion.plantChapter.match(/第(\d+)章/);
     const payoffChapterMatch = suggestion.payoffChapter.match(/第(\d+)章/);
     const plantChapterId = plantChapterMatch ? chapters[parseInt(plantChapterMatch[1]) - 1]?.id : undefined;
     const payoffChapterId = payoffChapterMatch ? chapters[parseInt(payoffChapterMatch[1]) - 1]?.id : undefined;
-    
+
     // 設置ポイントを自動作成
     const initialPoints: ForeshadowingPoint[] = plantChapterId ? [{
       id: `${Date.now()}-plant`,
@@ -949,7 +949,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       description: suggestion.plantDescription,
       createdAt: now,
     }] : [];
-    
+
     const newForeshadowing: Foreshadowing = {
       id: Date.now().toString(),
       title: suggestion.title,
@@ -966,11 +966,11 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       createdAt: now,
       updatedAt: now,
     };
-    
+
     updateProject({
       foreshadowings: [...foreshadowings, newForeshadowing],
     });
-    
+
     // 提案リストから削除
     setAiSuggestions(prev => prev.filter(s => s.title !== suggestion.title));
   };
@@ -1004,33 +1004,30 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
             <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
               <button
                 onClick={() => setCurrentView('list')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${
-                  currentView === 'list'
+                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'list'
                     ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 <List className="h-4 w-4" />
                 <span>リスト</span>
               </button>
               <button
                 onClick={() => setCurrentView('timeline')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${
-                  currentView === 'timeline'
+                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'timeline'
                     ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 <Calendar className="h-4 w-4" />
                 <span>タイムライン</span>
               </button>
               <button
                 onClick={() => setCurrentView('stats')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${
-                  currentView === 'stats'
+                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'stats'
                     ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 <BarChart3 className="h-4 w-4" />
                 <span>統計</span>
@@ -1043,575 +1040,572 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
           {/* リストビュー専用のヘッダー */}
           {currentView === 'list' && (
-          <>
-          {/* ヘッダーアクション */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              {/* ステータスタブ */}
-              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                <button
-                  onClick={() => setSelectedStatus('all')}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${
-                    selectedStatus === 'all'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  全て ({statusCounts.all || 0})
-                </button>
-                {Object.entries(statusConfig).map(([key, config]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedStatus(key)}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${
-                      selectedStatus === key
-                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {config.label} ({statusCounts[key] || 0})
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              {/* AI機能ボタン */}
-              <button
-                onClick={() => setShowAIPanel(!showAIPanel)}
-                disabled={isAILoading}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                  showAIPanel
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                }`}
-              >
-                {isAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                <span className="text-sm font-['Noto_Sans_JP']">AI</span>
-              </button>
-              
-              <button
-                onClick={() => {
-                  resetForm();
-                  setEditingForeshadowing(null);
-                  setShowAddForm(true);
-                }}
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-lg hover:from-rose-600 hover:to-pink-700 transition-colors"
-              >
-                <Plus className="h-5 w-5" />
-                <span className="font-['Noto_Sans_JP']">追加</span>
-              </button>
-            </div>
-          </div>
-
-          {/* AIパネル */}
-          {showAIPanel && (
-            <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-xl">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-semibold text-purple-900 dark:text-purple-100 font-['Noto_Sans_JP'] flex items-center space-x-2">
-                  <Sparkles className="h-5 w-5" />
-                  <span>AI伏線アシスタント</span>
-                </h4>
-                <button
-                  onClick={() => setShowAIPanel(false)}
-                  className="text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              
-              {/* AIエラー表示 */}
-              {aiError && (
-                <div className="mb-3 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
-                  <p className="text-sm text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">{aiError}</p>
-                </div>
-              )}
-              
-              {/* AI機能ボタン群 */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
-                <button
-                  onClick={handleAISuggest}
-                  disabled={isAILoading}
-                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
-                >
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm font-['Noto_Sans_JP']">伏線提案</span>
-                </button>
-                <button
-                  onClick={handleConsistencyCheck}
-                  disabled={isAILoading || foreshadowings.length === 0}
-                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
-                >
-                  <Shield className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-['Noto_Sans_JP']">整合性チェック</span>
-                </button>
-              </div>
-              
-              {/* AI提案リスト */}
-              {aiSuggestions.length > 0 && (
-                <div className="space-y-3">
-                  <h5 className="text-sm font-semibold text-purple-800 dark:text-purple-200 font-['Noto_Sans_JP']">
-                    💡 AI提案（{aiSuggestions.length}件）
-                  </h5>
-                  <div className="max-h-60 overflow-y-auto space-y-2">
-                    {aiSuggestions.map((suggestion, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700"
+            <>
+              {/* ヘッダーアクション */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  {/* ステータスタブ */}
+                  <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                    <button
+                      onClick={() => setSelectedStatus('all')}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${selectedStatus === 'all'
+                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                    >
+                      全て ({statusCounts.all || 0})
+                    </button>
+                    {Object.entries(statusConfig).map(([key, config]) => (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedStatus(key)}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${selectedStatus === key
+                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                          }`}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                {suggestion.title}
-                              </span>
-                              <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryConfig[suggestion.category]?.color || 'bg-gray-500'}`}>
-                                {categoryConfig[suggestion.category]?.label || suggestion.category}
-                              </span>
-                              <span className={`text-xs ${importanceConfig[suggestion.importance]?.color || 'text-gray-500'}`}>
-                                {importanceConfig[suggestion.importance]?.stars || ''}
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-2">
-                              {suggestion.description}
-                            </p>
-                            <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP'] space-y-1">
-                              <p>📍 設置: {suggestion.plantChapter} - {suggestion.plantDescription}</p>
-                              <p>🎯 回収: {suggestion.payoffChapter} - {suggestion.payoffDescription}</p>
-                              <p>✨ 効果: {suggestion.effect}</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleAddFromSuggestion(suggestion)}
-                            className="ml-2 px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP']"
-                          >
-                            採用
-                          </button>
-                        </div>
-                      </div>
+                        {config.label} ({statusCounts[key] || 0})
+                      </button>
                     ))}
                   </div>
                 </div>
-              )}
-              
-              {/* ローディング表示 */}
-              {isAILoading && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
-                  <span className="ml-2 text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">
-                    AI分析中...
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* フィルタ */}
-          <div className="flex items-center space-x-4 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="伏線を検索..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
-              />
-            </div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
-            >
-              <option value="all">全カテゴリ</option>
-              {Object.entries(categoryConfig).map(([key, config]) => (
-                <option key={key} value={key}>{config.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 伏線リスト */}
-          <div className="flex-1 overflow-y-auto space-y-4">
-            {filteredForeshadowings.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <EmptyState
-                  icon={Bookmark}
-                  iconColor="text-rose-400 dark:text-rose-500"
-                  title={foreshadowings.length === 0 
-                    ? 'まだ伏線が登録されていません'
-                    : '条件に一致する伏線がありません'}
-                  description={foreshadowings.length === 0
-                    ? '物語に伏線を設定して、読者を引き込む仕掛けを作りましょう。キャラクター、プロット、世界観など、様々な要素に伏線を仕込むことで、物語に深みと興味を生み出せます。伏線の設置、ヒント、回収を管理して、物語の完成度を高めましょう。'
-                    : '検索条件やフィルターを変更して、再度お試しください。'}
-                  actionLabel={foreshadowings.length === 0 ? '最初の伏線を追加' : undefined}
-                  onAction={foreshadowings.length === 0 ? () => setShowAddForm(true) : undefined}
-                />
-              </div>
-            ) : (
-              filteredForeshadowings.map((foreshadowing) => {
-                const isExpanded = expandedIds.has(foreshadowing.id);
-                const statusInfo = statusConfig[foreshadowing.status] || statusConfig.planted;
-                const importanceInfo = importanceConfig[foreshadowing.importance] || importanceConfig.medium;
-                const categoryInfo = categoryConfig[foreshadowing.category] || categoryConfig.other;
-                const StatusIcon = statusInfo.icon;
-                
-                return (
-                  <div
-                    key={foreshadowing.id}
-                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                <div className="flex items-center space-x-2">
+                  {/* AI機能ボタン */}
+                  <button
+                    onClick={() => setShowAIPanel(!showAIPanel)}
+                    disabled={isAILoading}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${showAIPanel
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                      }`}
                   >
-                    {/* ヘッダー */}
-                    <div className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-3 flex-1">
-                          <div className={`${statusInfo.color} p-2 rounded-lg`}>
-                            <StatusIcon className="h-5 w-5 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
-                                {foreshadowing.title}
-                              </h3>
-                              <span className={`text-sm ${importanceInfo.color}`}>
-                                {importanceInfo.stars}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-2 mb-2">
-                              <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryInfo.color}`}>
-                                {categoryInfo.label}
-                              </span>
-                              <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                {statusInfo.label}
-                              </span>
-                            </div>
-                            <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP'] line-clamp-2">
-                              {foreshadowing.description}
-                            </p>
-                            
-                            {/* ポイントサマリー */}
-                            {foreshadowing.points.length > 0 && (
-                              <div className="flex items-center space-x-3 mt-2 text-sm">
-                                {foreshadowing.points.map((point, idx) => {
-                                  const pointTypeInfo = pointTypeConfig[point.type] || pointTypeConfig.plant;
-                                  return (
-                                  <span 
-                                    key={point.id}
-                                    className={`flex items-center space-x-1 ${pointTypeInfo.color}`}
-                                  >
-                                    <span>{pointTypeInfo.icon}</span>
-                                    <span className="font-['Noto_Sans_JP']">
-                                      {chapters.findIndex(c => c.id === point.chapterId) + 1}章
-                                    </span>
-                                    {idx < foreshadowing.points.length - 1 && (
-                                      <span className="text-gray-300 dark:text-gray-600 ml-2">→</span>
-                                    )}
-                                  </span>
-                                  );
-                                })}
-                                {foreshadowing.plannedPayoffChapterId && foreshadowing.status !== 'resolved' && (
-                                  <>
-                                    <span className="text-gray-300 dark:text-gray-600">→</span>
-                                    <span className="text-gray-400 font-['Noto_Sans_JP']">
-                                      🎯 {chapters.findIndex(c => c.id === foreshadowing.plannedPayoffChapterId) + 1}章(予定)
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            )}
+                    {isAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    <span className="text-sm font-['Noto_Sans_JP']">AI</span>
+                  </button>
 
-                            {/* タグ */}
-                            {foreshadowing.tags && foreshadowing.tags.length > 0 && (
-                              <div className="flex items-center flex-wrap gap-1 mt-2">
-                                {foreshadowing.tags.map(tag => (
-                                  <span
-                                    key={tag}
-                                    className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full font-['Noto_Sans_JP']"
-                                  >
-                                    #{tag}
+                  <button
+                    onClick={() => {
+                      resetForm();
+                      setEditingForeshadowing(null);
+                      setShowAddForm(true);
+                    }}
+                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-lg hover:from-rose-600 hover:to-pink-700 transition-colors"
+                  >
+                    <Plus className="h-5 w-5" />
+                    <span className="font-['Noto_Sans_JP']">追加</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* AIパネル */}
+              {showAIPanel && (
+                <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-purple-900 dark:text-purple-100 font-['Noto_Sans_JP'] flex items-center space-x-2">
+                      <Sparkles className="h-5 w-5" />
+                      <span>AI伏線アシスタント</span>
+                    </h4>
+                    <button
+                      onClick={() => setShowAIPanel(false)}
+                      className="text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* AIエラー表示 */}
+                  {aiError && (
+                    <div className="mb-3 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+                      <p className="text-sm text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">{aiError}</p>
+                    </div>
+                  )}
+
+                  {/* AI機能ボタン群 */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+                    <button
+                      onClick={handleAISuggest}
+                      disabled={isAILoading}
+                      className="flex items-center justify-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
+                    >
+                      <Lightbulb className="h-4 w-4 text-amber-500" />
+                      <span className="text-sm font-['Noto_Sans_JP']">伏線提案</span>
+                    </button>
+                    <button
+                      onClick={handleConsistencyCheck}
+                      disabled={isAILoading || foreshadowings.length === 0}
+                      className="flex items-center justify-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
+                    >
+                      <Shield className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-['Noto_Sans_JP']">整合性チェック</span>
+                    </button>
+                  </div>
+
+                  {/* AI提案リスト */}
+                  {aiSuggestions.length > 0 && (
+                    <div className="space-y-3">
+                      <h5 className="text-sm font-semibold text-purple-800 dark:text-purple-200 font-['Noto_Sans_JP']">
+                        💡 AI提案（{aiSuggestions.length}件）
+                      </h5>
+                      <div className="max-h-60 overflow-y-auto space-y-2">
+                        {aiSuggestions.map((suggestion, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                    {suggestion.title}
                                   </span>
-                                ))}
+                                  <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryConfig[suggestion.category]?.color || 'bg-gray-500'}`}>
+                                    {categoryConfig[suggestion.category]?.label || suggestion.category}
+                                  </span>
+                                  <span className={`text-xs ${importanceConfig[suggestion.importance]?.color || 'text-gray-500'}`}>
+                                    {importanceConfig[suggestion.importance]?.stars || ''}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-2">
+                                  {suggestion.description}
+                                </p>
+                                <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP'] space-y-1">
+                                  <p>📍 設置: {suggestion.plantChapter} - {suggestion.plantDescription}</p>
+                                  <p>🎯 回収: {suggestion.payoffChapter} - {suggestion.payoffDescription}</p>
+                                  <p>✨ 効果: {suggestion.effect}</p>
+                                </div>
                               </div>
-                            )}
+                              <button
+                                onClick={() => handleAddFromSuggestion(suggestion)}
+                                className="ml-2 px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP']"
+                              >
+                                採用
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-2 ml-4">
-                          <button
-                            onClick={() => toggleExpand(foreshadowing.id)}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          >
-                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                          </button>
-                          <button
-                            onClick={() => handleEditForeshadowing(foreshadowing)}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteForeshadowing(foreshadowing.id)}
-                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        ))}
                       </div>
                     </div>
+                  )}
 
-                    {/* 展開コンテンツ */}
-                    {isExpanded && (
-                      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
-                        {/* ポイント一覧 */}
-                        <div className="mb-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                              ポイント
-                            </h4>
-                            <button
-                              onClick={() => setShowPointForm(foreshadowing.id)}
-                              className="flex items-center space-x-1 text-sm text-rose-600 dark:text-rose-400 hover:underline font-['Noto_Sans_JP']"
-                            >
-                              <Plus className="h-4 w-4" />
-                              <span>追加</span>
-                            </button>
-                          </div>
-                          
-                          {foreshadowing.points.length === 0 ? (
-                            <div className="py-6 text-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                              <Target className="h-8 w-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
-                              <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-2">
-                                ポイントがまだ登録されていません
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
-                                伏線の設置、ヒント、回収のポイントを追加しましょう
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {foreshadowing.points
-                                .sort((a, b) => {
-                                  const chapterOrderA = chapters.findIndex(c => c.id === a.chapterId);
-                                  const chapterOrderB = chapters.findIndex(c => c.id === b.chapterId);
-                                  return chapterOrderA - chapterOrderB;
-                                })
-                                .map(point => {
-                                  const pointTypeInfo = pointTypeConfig[point.type] || pointTypeConfig.plant;
-                                  return (
-                                  <div
-                                    key={point.id}
-                                    className="flex items-start space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                                  >
-                                    <span className="text-lg">{pointTypeInfo.icon}</span>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center space-x-2 mb-1">
-                                        <span className={`text-sm font-medium ${pointTypeInfo.color}`}>
-                                          {pointTypeInfo.label}
-                                        </span>
-                                        <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                                          第{chapters.findIndex(c => c.id === point.chapterId) + 1}章「{getChapterTitle(point.chapterId)}」
-                                        </span>
-                                      </div>
-                                      <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                                        {point.description}
-                                      </p>
-                                      {point.lineReference && (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic font-['Noto_Sans_JP']">
-                                          「{point.lineReference}」
-                                        </p>
-                                      )}
-                                    </div>
-                                    <button
-                                      onClick={() => handleDeletePoint(foreshadowing.id, point.id)}
-                                      className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                  );
-                                })}
-                            </div>
-                          )}
+                  {/* ローディング表示 */}
+                  {isAILoading && (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                      <span className="ml-2 text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">
+                        AI分析中...
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                          {/* ポイント追加フォーム */}
-                          {showPointForm === foreshadowing.id && (
-                            <div className="mt-3 p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-rose-200 dark:border-rose-800">
-                              <h5 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
-                                ポイントを追加
-                              </h5>
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                                      タイプ
-                                    </label>
-                                    <select
-                                      value={pointFormData.type}
-                                      onChange={(e) => setPointFormData({ ...pointFormData, type: e.target.value as ForeshadowingPoint['type'] })}
-                                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
-                                    >
-                                      <option value="plant">📍 設置</option>
-                                      <option value="hint">💡 ヒント</option>
-                                      <option value="payoff">🎯 回収</option>
-                                    </select>
+              {/* フィルタ */}
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="伏線を検索..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
+                  />
+                </div>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
+                >
+                  <option value="all">全カテゴリ</option>
+                  {Object.entries(categoryConfig).map(([key, config]) => (
+                    <option key={key} value={key}>{config.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 伏線リスト */}
+              <div className="flex-1 overflow-y-auto space-y-4">
+                {filteredForeshadowings.length === 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <EmptyState
+                      icon={Bookmark}
+                      iconColor="text-rose-400 dark:text-rose-500"
+                      title={foreshadowings.length === 0
+                        ? 'まだ伏線が登録されていません'
+                        : '条件に一致する伏線がありません'}
+                      description={foreshadowings.length === 0
+                        ? '物語に伏線を設定して、読者を引き込む仕掛けを作りましょう。キャラクター、プロット、世界観など、様々な要素に伏線を仕込むことで、物語に深みと興味を生み出せます。伏線の設置、ヒント、回収を管理して、物語の完成度を高めましょう。'
+                        : '検索条件やフィルターを変更して、再度お試しください。'}
+                      actionLabel={foreshadowings.length === 0 ? '最初の伏線を追加' : undefined}
+                      onAction={foreshadowings.length === 0 ? () => setShowAddForm(true) : undefined}
+                    />
+                  </div>
+                ) : (
+                  filteredForeshadowings.map((foreshadowing) => {
+                    const isExpanded = expandedIds.has(foreshadowing.id);
+                    const statusInfo = statusConfig[foreshadowing.status] || statusConfig.planted;
+                    const importanceInfo = importanceConfig[foreshadowing.importance] || importanceConfig.medium;
+                    const categoryInfo = categoryConfig[foreshadowing.category] || categoryConfig.other;
+                    const StatusIcon = statusInfo.icon;
+
+                    return (
+                      <div
+                        key={foreshadowing.id}
+                        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        {/* ヘッダー */}
+                        <div className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start space-x-3 flex-1">
+                              <div className={`${statusInfo.color} p-2 rounded-lg`}>
+                                <StatusIcon className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
+                                    {foreshadowing.title}
+                                  </h3>
+                                  <span className={`text-sm ${importanceInfo.color}`}>
+                                    {importanceInfo.stars}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryInfo.color}`}>
+                                    {categoryInfo.label}
+                                  </span>
+                                  <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                    {statusInfo.label}
+                                  </span>
+                                </div>
+                                <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP'] line-clamp-2">
+                                  {foreshadowing.description}
+                                </p>
+
+                                {/* ポイントサマリー */}
+                                {foreshadowing.points.length > 0 && (
+                                  <div className="flex items-center space-x-3 mt-2 text-sm">
+                                    {foreshadowing.points.map((point, idx) => {
+                                      const pointTypeInfo = pointTypeConfig[point.type] || pointTypeConfig.plant;
+                                      return (
+                                        <span
+                                          key={point.id}
+                                          className={`flex items-center space-x-1 ${pointTypeInfo.color}`}
+                                        >
+                                          <span>{pointTypeInfo.icon}</span>
+                                          <span className="font-['Noto_Sans_JP']">
+                                            {chapters.findIndex(c => c.id === point.chapterId) + 1}章
+                                          </span>
+                                          {idx < foreshadowing.points.length - 1 && (
+                                            <span className="text-gray-300 dark:text-gray-600 ml-2">→</span>
+                                          )}
+                                        </span>
+                                      );
+                                    })}
+                                    {foreshadowing.plannedPayoffChapterId && foreshadowing.status !== 'resolved' && (
+                                      <>
+                                        <span className="text-gray-300 dark:text-gray-600">→</span>
+                                        <span className="text-gray-400 font-['Noto_Sans_JP']">
+                                          🎯 {chapters.findIndex(c => c.id === foreshadowing.plannedPayoffChapterId) + 1}章(予定)
+                                        </span>
+                                      </>
+                                    )}
                                   </div>
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                                      章 <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                      value={pointFormData.chapterId}
-                                      onChange={(e) => setPointFormData({ ...pointFormData, chapterId: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
-                                    >
-                                      <option value="">選択してください</option>
-                                      {chapters.map((chapter, idx) => (
-                                        <option key={chapter.id} value={chapter.id}>
-                                          第{idx + 1}章: {chapter.title}
-                                        </option>
-                                      ))}
-                                    </select>
+                                )}
+
+                                {/* タグ */}
+                                {foreshadowing.tags && foreshadowing.tags.length > 0 && (
+                                  <div className="flex items-center flex-wrap gap-1 mt-2">
+                                    {foreshadowing.tags.map(tag => (
+                                      <span
+                                        key={tag}
+                                        className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full font-['Noto_Sans_JP']"
+                                      >
+                                        #{tag}
+                                      </span>
+                                    ))}
                                   </div>
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                                    説明 <span className="text-red-500">*</span>
-                                  </label>
-                                  <textarea
-                                    value={pointFormData.description}
-                                    onChange={(e) => setPointFormData({ ...pointFormData, description: e.target.value })}
-                                    rows={2}
-                                    placeholder="このポイントで何が起こるか..."
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
-                                    引用（任意）
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={pointFormData.lineReference}
-                                    onChange={(e) => setPointFormData({ ...pointFormData, lineReference: e.target.value })}
-                                    placeholder="該当する文章を引用..."
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
-                                  />
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                  <button
-                                    onClick={() => setShowPointForm(null)}
-                                    className="px-3 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors font-['Noto_Sans_JP']"
-                                  >
-                                    キャンセル
-                                  </button>
-                                  <button
-                                    onClick={() => handleAddPoint(foreshadowing.id)}
-                                    className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-['Noto_Sans_JP']"
-                                  >
-                                    追加
-                                  </button>
-                                </div>
+                                )}
                               </div>
                             </div>
-                          )}
-                        </div>
-
-                        {/* 関連キャラクター */}
-                        {foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0 && (
-                          <div className="mb-4">
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP'] flex items-center space-x-2">
-                              <Users className="h-4 w-4" />
-                              <span>関連キャラクター</span>
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                              {foreshadowing.relatedCharacterIds.map(charId => (
-                                <span
-                                  key={charId}
-                                  className="px-2 py-1 text-sm bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full font-['Noto_Sans_JP']"
-                                >
-                                  {getCharacterName(charId)}
-                                </span>
-                              ))}
+                            <div className="flex items-center space-x-2 ml-4">
+                              <button
+                                onClick={() => toggleExpand(foreshadowing.id)}
+                                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              >
+                                {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                              </button>
+                              <button
+                                onClick={() => handleEditForeshadowing(foreshadowing)}
+                                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteForeshadowing(foreshadowing.id)}
+                                className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </div>
                           </div>
-                        )}
+                        </div>
 
-                        {/* 回収予定 */}
-                        {foreshadowing.plannedPayoffChapterId && foreshadowing.status !== 'resolved' && (
-                          <div className="mb-4">
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP'] flex items-center space-x-2">
-                              <Target className="h-4 w-4" />
-                              <span>回収予定</span>
-                            </h4>
-                            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                              <p className="text-sm text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
-                                第{chapters.findIndex(c => c.id === foreshadowing.plannedPayoffChapterId) + 1}章「{getChapterTitle(foreshadowing.plannedPayoffChapterId)}」
-                              </p>
-                              {foreshadowing.plannedPayoffDescription && (
-                                <p className="text-sm text-green-600 dark:text-green-400 mt-1 font-['Noto_Sans_JP']">
-                                  {foreshadowing.plannedPayoffDescription}
-                                </p>
+                        {/* 展開コンテンツ */}
+                        {isExpanded && (
+                          <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
+                            {/* ポイント一覧 */}
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                  ポイント
+                                </h4>
+                                <button
+                                  onClick={() => setShowPointForm(foreshadowing.id)}
+                                  className="flex items-center space-x-1 text-sm text-rose-600 dark:text-rose-400 hover:underline font-['Noto_Sans_JP']"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  <span>追加</span>
+                                </button>
+                              </div>
+
+                              {foreshadowing.points.length === 0 ? (
+                                <div className="py-6 text-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                                  <Target className="h-8 w-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-2">
+                                    ポイントがまだ登録されていません
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
+                                    伏線の設置、ヒント、回収のポイントを追加しましょう
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {foreshadowing.points
+                                    .sort((a, b) => {
+                                      const chapterOrderA = chapters.findIndex(c => c.id === a.chapterId);
+                                      const chapterOrderB = chapters.findIndex(c => c.id === b.chapterId);
+                                      return chapterOrderA - chapterOrderB;
+                                    })
+                                    .map(point => {
+                                      const pointTypeInfo = pointTypeConfig[point.type] || pointTypeConfig.plant;
+                                      return (
+                                        <div
+                                          key={point.id}
+                                          className="flex items-start space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                                        >
+                                          <span className="text-lg">{pointTypeInfo.icon}</span>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center space-x-2 mb-1">
+                                              <span className={`text-sm font-medium ${pointTypeInfo.color}`}>
+                                                {pointTypeInfo.label}
+                                              </span>
+                                              <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                                第{chapters.findIndex(c => c.id === point.chapterId) + 1}章「{getChapterTitle(point.chapterId)}」
+                                              </span>
+                                            </div>
+                                            <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                                              {point.description}
+                                            </p>
+                                            {point.lineReference && (
+                                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic font-['Noto_Sans_JP']">
+                                                「{point.lineReference}」
+                                              </p>
+                                            )}
+                                          </div>
+                                          <button
+                                            onClick={() => handleDeletePoint(foreshadowing.id, point.id)}
+                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              )}
+
+                              {/* ポイント追加フォーム */}
+                              {showPointForm === foreshadowing.id && (
+                                <div className="mt-3 p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-rose-200 dark:border-rose-800">
+                                  <h5 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
+                                    ポイントを追加
+                                  </h5>
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
+                                          タイプ
+                                        </label>
+                                        <select
+                                          value={pointFormData.type}
+                                          onChange={(e) => setPointFormData({ ...pointFormData, type: e.target.value as ForeshadowingPoint['type'] })}
+                                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                        >
+                                          <option value="plant">📍 設置</option>
+                                          <option value="hint">💡 ヒント</option>
+                                          <option value="payoff">🎯 回収</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
+                                          章 <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                          value={pointFormData.chapterId}
+                                          onChange={(e) => setPointFormData({ ...pointFormData, chapterId: e.target.value })}
+                                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                        >
+                                          <option value="">選択してください</option>
+                                          {chapters.map((chapter, idx) => (
+                                            <option key={chapter.id} value={chapter.id}>
+                                              第{idx + 1}章: {chapter.title}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
+                                        説明 <span className="text-red-500">*</span>
+                                      </label>
+                                      <textarea
+                                        value={pointFormData.description}
+                                        onChange={(e) => setPointFormData({ ...pointFormData, description: e.target.value })}
+                                        rows={2}
+                                        placeholder="このポイントで何が起こるか..."
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 font-['Noto_Sans_JP']">
+                                        引用（任意）
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={pointFormData.lineReference}
+                                        onChange={(e) => setPointFormData({ ...pointFormData, lineReference: e.target.value })}
+                                        placeholder="該当する文章を引用..."
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 font-['Noto_Sans_JP']"
+                                      />
+                                    </div>
+                                    <div className="flex justify-end space-x-2">
+                                      <button
+                                        onClick={() => setShowPointForm(null)}
+                                        className="px-3 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors font-['Noto_Sans_JP']"
+                                      >
+                                        キャンセル
+                                      </button>
+                                      <button
+                                        onClick={() => handleAddPoint(foreshadowing.id)}
+                                        className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-['Noto_Sans_JP']"
+                                      >
+                                        追加
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        )}
 
-                        {/* メモ */}
-                        {foreshadowing.notes && (
-                          <div className="mb-4">
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
-                              メモ
-                            </h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] whitespace-pre-wrap">
-                              {foreshadowing.notes}
-                            </p>
-                          </div>
-                        )}
-                        
-                        {/* AIアクション */}
-                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                          <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP'] flex items-center space-x-2">
-                            <Sparkles className="h-4 w-4 text-purple-500" />
-                            <span>AIアシスト</span>
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => handleEnhanceForeshadowing(foreshadowing)}
-                              disabled={isAILoading}
-                              className="flex items-center space-x-1 px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-sm rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
-                            >
-                              <Wand2 className="h-4 w-4" />
-                              <span>強化提案</span>
-                            </button>
-                            {foreshadowing.status !== 'resolved' && (
-                              <button
-                                onClick={() => handleSuggestPayoff(foreshadowing)}
-                                disabled={isAILoading}
-                                className="flex items-center space-x-1 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
-                              >
-                                <Target className="h-4 w-4" />
-                                <span>回収タイミング提案</span>
-                              </button>
+                            {/* 関連キャラクター */}
+                            {foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0 && (
+                              <div className="mb-4">
+                                <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP'] flex items-center space-x-2">
+                                  <Users className="h-4 w-4" />
+                                  <span>関連キャラクター</span>
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {foreshadowing.relatedCharacterIds.map(charId => (
+                                    <span
+                                      key={charId}
+                                      className="px-2 py-1 text-sm bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full font-['Noto_Sans_JP']"
+                                    >
+                                      {getCharacterName(charId)}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
                             )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
 
-          {/* 未回収伏線の警告 */}
-          {foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length > 0 && (
-            <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                <p className="text-sm text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
-                  {foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length}件の伏線が未回収です
-                </p>
+                            {/* 回収予定 */}
+                            {foreshadowing.plannedPayoffChapterId && foreshadowing.status !== 'resolved' && (
+                              <div className="mb-4">
+                                <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP'] flex items-center space-x-2">
+                                  <Target className="h-4 w-4" />
+                                  <span>回収予定</span>
+                                </h4>
+                                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                  <p className="text-sm text-green-700 dark:text-green-300 font-['Noto_Sans_JP']">
+                                    第{chapters.findIndex(c => c.id === foreshadowing.plannedPayoffChapterId) + 1}章「{getChapterTitle(foreshadowing.plannedPayoffChapterId)}」
+                                  </p>
+                                  {foreshadowing.plannedPayoffDescription && (
+                                    <p className="text-sm text-green-600 dark:text-green-400 mt-1 font-['Noto_Sans_JP']">
+                                      {foreshadowing.plannedPayoffDescription}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* メモ */}
+                            {foreshadowing.notes && (
+                              <div className="mb-4">
+                                <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
+                                  メモ
+                                </h4>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] whitespace-pre-wrap">
+                                  {foreshadowing.notes}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* AIアクション */}
+                            <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                              <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP'] flex items-center space-x-2">
+                                <Sparkles className="h-4 w-4 text-purple-500" />
+                                <span>AIアシスト</span>
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => handleEnhanceForeshadowing(foreshadowing)}
+                                  disabled={isAILoading}
+                                  className="flex items-center space-x-1 px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-sm rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
+                                >
+                                  <Wand2 className="h-4 w-4" />
+                                  <span>強化提案</span>
+                                </button>
+                                {foreshadowing.status !== 'resolved' && (
+                                  <button
+                                    onClick={() => handleSuggestPayoff(foreshadowing)}
+                                    disabled={isAILoading}
+                                    className="flex items-center space-x-1 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
+                                  >
+                                    <Target className="h-4 w-4" />
+                                    <span>回収タイミング提案</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
-            </div>
-          )}
-          </>
+
+              {/* 未回収伏線の警告 */}
+              {foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length > 0 && (
+                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <p className="text-sm text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
+                      {foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length}件の伏線が未回収です
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* タイムラインビュー */}
@@ -1637,14 +1631,12 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                       return (
                         <div key={chapterData.chapterId} className="relative">
                           {/* 章ヘッダー */}
-                          <div className={`flex items-center space-x-4 p-3 rounded-lg ${
-                            hasContent 
-                              ? 'bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 border border-rose-200 dark:border-rose-800' 
+                          <div className={`flex items-center space-x-4 p-3 rounded-lg ${hasContent
+                              ? 'bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 border border-rose-200 dark:border-rose-800'
                               : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-                          }`}>
-                            <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                              hasContent ? 'bg-rose-500 text-white' : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
                             }`}>
+                            <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${hasContent ? 'bg-rose-500 text-white' : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
+                              }`}>
                               <span className="font-bold text-sm">{idx + 1}</span>
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1679,11 +1671,10 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                chapterData.points.length > 5 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                                chapterData.points.length > 2 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                                'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                              }`}>
+                              <span className={`px-2 py-1 text-xs rounded-full ${chapterData.points.length > 5 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                                  chapterData.points.length > 2 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                                    'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                }`}>
                                 密度: {chapterData.points.length}
                               </span>
                             </div>
@@ -1697,28 +1688,28 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                 const importanceInfo = importanceConfig[foreshadowing.importance] || importanceConfig.medium;
                                 const categoryInfo = categoryConfig[foreshadowing.category] || categoryConfig.other;
                                 return (
-                                <div
-                                  key={point.id}
-                                  className="flex items-start space-x-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500"
-                                >
-                                  <span className="text-lg">📍</span>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center space-x-2">
-                                      <span className="font-medium text-blue-700 dark:text-blue-300 text-sm font-['Noto_Sans_JP']">
-                                        {foreshadowing.title}
-                                      </span>
-                                      <span className={`text-xs ${importanceInfo.color}`}>
-                                        {importanceInfo.stars}
-                                      </span>
+                                  <div
+                                    key={point.id}
+                                    className="flex items-start space-x-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500"
+                                  >
+                                    <span className="text-lg">📍</span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center space-x-2">
+                                        <span className="font-medium text-blue-700 dark:text-blue-300 text-sm font-['Noto_Sans_JP']">
+                                          {foreshadowing.title}
+                                        </span>
+                                        <span className={`text-xs ${importanceInfo.color}`}>
+                                          {importanceInfo.stars}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP'] mt-0.5">
+                                        {point.description}
+                                      </p>
                                     </div>
-                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP'] mt-0.5">
-                                      {point.description}
-                                    </p>
+                                    <span className={`px-2 py-0.5 text-xs rounded-full ${categoryInfo.color} text-white`}>
+                                      {categoryInfo.label}
+                                    </span>
                                   </div>
-                                  <span className={`px-2 py-0.5 text-xs rounded-full ${categoryInfo.color} text-white`}>
-                                    {categoryInfo.label}
-                                  </span>
-                                </div>
                                 );
                               })}
 
@@ -1811,54 +1802,53 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                           .map(flow => {
                             const categoryInfo = categoryConfig[flow.foreshadowing.category] || categoryConfig.other;
                             return (
-                            <div
-                              key={flow.foreshadowing.id}
-                              className="flex items-center space-x-2 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                            >
-                              <span className={`px-2 py-1 text-xs rounded-full ${categoryInfo.color} text-white`}>
-                                {categoryInfo.label}
-                              </span>
-                              <span className="font-medium text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP'] min-w-0 truncate flex-shrink-0" style={{ maxWidth: '150px' }}>
-                                {flow.foreshadowing.title}
-                              </span>
-                              <div className="flex-1 flex items-center space-x-1 overflow-x-auto">
-                                {flow.points.map((point, idx) => {
-                                  const pointTypeInfo = pointTypeConfig[point.type] || pointTypeConfig.plant;
-                                  return (
-                                  <React.Fragment key={point.id}>
-                                    <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded ${
-                                      point.type === 'plant' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                                      point.type === 'hint' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                                      'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                    }`}>
-                                      {pointTypeInfo.icon} {chapters.findIndex(c => c.id === point.chapterId) + 1}章
-                                    </span>
-                                    {idx < flow.points.length - 1 && (
-                                      <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                                    )}
-                                  </React.Fragment>
-                                  );
-                                })}
-                                {!flow.hasPayoff && flow.plannedPayoffIdx >= 0 && (
-                                  <>
-                                    <ArrowRight className="h-3 w-3 text-gray-300 flex-shrink-0" />
-                                    <span className="flex-shrink-0 px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600">
-                                      🎯 {flow.plannedPayoffIdx + 1}章(予定)
-                                    </span>
-                                  </>
+                              <div
+                                key={flow.foreshadowing.id}
+                                className="flex items-center space-x-2 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                              >
+                                <span className={`px-2 py-1 text-xs rounded-full ${categoryInfo.color} text-white`}>
+                                  {categoryInfo.label}
+                                </span>
+                                <span className="font-medium text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP'] min-w-0 truncate flex-shrink-0" style={{ maxWidth: '150px' }}>
+                                  {flow.foreshadowing.title}
+                                </span>
+                                <div className="flex-1 flex items-center space-x-1 overflow-x-auto">
+                                  {flow.points.map((point, idx) => {
+                                    const pointTypeInfo = pointTypeConfig[point.type] || pointTypeConfig.plant;
+                                    return (
+                                      <React.Fragment key={point.id}>
+                                        <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded ${point.type === 'plant' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                                            point.type === 'hint' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                          }`}>
+                                          {pointTypeInfo.icon} {chapters.findIndex(c => c.id === point.chapterId) + 1}章
+                                        </span>
+                                        {idx < flow.points.length - 1 && (
+                                          <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                  {!flow.hasPayoff && flow.plannedPayoffIdx >= 0 && (
+                                    <>
+                                      <ArrowRight className="h-3 w-3 text-gray-300 flex-shrink-0" />
+                                      <span className="flex-shrink-0 px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600">
+                                        🎯 {flow.plannedPayoffIdx + 1}章(予定)
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                                {!flow.hasPayoff && (
+                                  <span title="未回収">
+                                    <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                                  </span>
+                                )}
+                                {flow.hasPayoff && (
+                                  <span title="回収済み">
+                                    <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                  </span>
                                 )}
                               </div>
-                              {!flow.hasPayoff && (
-                                <span title="未回収">
-                                  <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                                </span>
-                              )}
-                              {flow.hasPayoff && (
-                                <span title="回収済み">
-                                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                </span>
-                              )}
-                            </div>
                             );
                           })}
                       </div>
@@ -1930,17 +1920,17 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                   {statsData.byCategory.map(item => {
                     const categoryInfo = categoryConfig[item.category] || categoryConfig.other;
                     return (
-                    <div
-                      key={item.category}
-                      className="flex items-center space-x-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${categoryInfo.color} text-white font-bold text-sm`}>
-                        {item.count}
+                      <div
+                        key={item.category}
+                        className="flex items-center space-x-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${categoryInfo.color} text-white font-bold text-sm`}>
+                          {item.count}
+                        </div>
+                        <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                          {categoryInfo.label}
+                        </span>
                       </div>
-                      <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                        {categoryInfo.label}
-                      </span>
-                    </div>
                     );
                   })}
                 </div>
@@ -1987,10 +1977,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                           </span>
                           <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                             <div
-                              className={`h-full transition-all duration-500 ${
-                                chapter.density > 5 ? 'bg-red-500' :
-                                chapter.density > 2 ? 'bg-amber-500' : 'bg-rose-500'
-                              }`}
+                              className={`h-full transition-all duration-500 ${chapter.density > 5 ? 'bg-red-500' :
+                                  chapter.density > 2 ? 'bg-amber-500' : 'bg-rose-500'
+                                }`}
                               style={{ width: `${(chapter.density / maxDensity) * 100}%` }}
                             />
                           </div>
@@ -2276,22 +2265,21 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             {/* スコア表示 */}
             <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl">
-              <div className={`text-5xl font-bold ${
-                consistencyResult.overallScore >= 80 ? 'text-green-600' :
-                consistencyResult.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'
-              }`}>
+              <div className={`text-5xl font-bold ${consistencyResult.overallScore >= 80 ? 'text-green-600' :
+                  consistencyResult.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'
+                }`}>
                 {consistencyResult.overallScore}
               </div>
               <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">整合性スコア</p>
             </div>
-            
+
             {/* サマリー */}
             <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
                 {consistencyResult.summary}
               </p>
             </div>
-            
+
             {/* 良い点 */}
             {consistencyResult.strengths.length > 0 && (
               <div>
@@ -2309,7 +2297,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </ul>
               </div>
             )}
-            
+
             {/* 未解決の問題 */}
             {consistencyResult.unresolvedIssues.length > 0 && (
               <div>
@@ -2324,10 +2312,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                         <span className="font-medium text-amber-800 dark:text-amber-200 font-['Noto_Sans_JP']">
                           {issue.foreshadowingTitle}
                         </span>
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          issue.severity === 'high' ? 'bg-red-100 text-red-700' :
-                          issue.severity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'
-                        }`}>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${issue.severity === 'high' ? 'bg-red-100 text-red-700' :
+                            issue.severity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'
+                          }`}>
                           {issue.severity === 'high' ? '高' : issue.severity === 'medium' ? '中' : '低'}
                         </span>
                       </div>
@@ -2340,7 +2327,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
             )}
-            
+
             {/* 矛盾 */}
             {consistencyResult.contradictions.length > 0 && (
               <div>
@@ -2363,7 +2350,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
             )}
-            
+
             {/* バランスの問題 */}
             {consistencyResult.balanceIssues.length > 0 && (
               <div>
@@ -2416,7 +2403,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </p>
               </div>
             </div>
-            
+
             {/* 追加できる層 */}
             {enhanceResult.additionalLayers.length > 0 && (
               <div>
@@ -2436,7 +2423,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
             )}
-            
+
             {/* 接続機会 */}
             {enhanceResult.connectionOpportunities.length > 0 && (
               <div>
@@ -2456,7 +2443,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
             )}
-            
+
             {/* 強化方法 */}
             {enhanceResult.strengthenMethods.length > 0 && (
               <div>
@@ -2482,7 +2469,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
             )}
-            
+
             {/* 注意点 */}
             {enhanceResult.warnings.length > 0 && (
               <div>
@@ -2533,7 +2520,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 {payoffResult.timing}
               </p>
             </div>
-            
+
             {/* 回収方法 */}
             {payoffResult.payoffMethods.length > 0 && (
               <div>
@@ -2567,7 +2554,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
             )}
-            
+
             {/* 回収前のヒント */}
             {payoffResult.hintsBeforePayoff.length > 0 && (
               <div>
@@ -2588,7 +2575,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
             )}
-            
+
             {/* 避けるべきタイミング */}
             {payoffResult.avoidTiming.length > 0 && (
               <div>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Sparkles, ChevronDown, ChevronUp, Loader, FileText, BookOpen } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
@@ -22,7 +22,7 @@ export const DraftAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
     const { showError, showSuccess, showWarning } = useToast();
-    
+
     // 章選択状態（パネル内で管理）
     // sessionStorageから初期値を読み込む
     const [selectedChapterId, setSelectedChapterId] = useState<string | null>(() => {
@@ -33,37 +33,37 @@ export const DraftAssistantPanel: React.FC = () => {
         }
         return null;
     });
-    
+
     // 折りたたみ状態
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['generate', 'improve']));
-    
+
     // カスタムプロンプト状態
     const [customPrompt, setCustomPrompt] = useState('');
     const [useCustomPrompt, setUseCustomPrompt] = useState(false);
     const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
-    
+
     // 改善ログモーダル状態
     const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
     const [selectedImprovementLogId, setSelectedImprovementLogId] = useState<string | null>(null);
     const [improvementLogs, setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
-    
+
     // 履歴管理状態
     const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
     const [selectedHistoryEntryId, setSelectedHistoryEntryId] = useState<string | null>(null);
     const lastSnapshotContentRef = useRef<string>('');
     const historyLoadedChaptersRef = useRef<Set<string>>(new Set());
-    
+
     // テキスト選択機能は削除
-    
+
     // 章草案の状態管理（簡易版）- draftのuseMemoより前に宣言する必要がある
     const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>({});
-    
+
     // 現在の章と草案を取得
     const currentChapter = useMemo(() => {
         if (!selectedChapterId || !currentProject) return null;
         return currentProject.chapters.find(c => c.id === selectedChapterId) || null;
     }, [selectedChapterId, currentProject]);
-    
+
     const draft = useMemo(() => {
         if (!selectedChapterId || !currentProject) return '';
         // まずローカルステート（chapterDrafts）を確認（最新の編集内容を優先）
@@ -74,7 +74,7 @@ export const DraftAssistantPanel: React.FC = () => {
         const chapter = currentProject.chapters.find(c => c.id === selectedChapterId);
         return chapter?.draft || '';
     }, [selectedChapterId, currentProject, chapterDrafts]);
-    
+
     // 章詳細情報を取得
     const getChapterDetails = useCallback((chapter: { characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
         if (!chapter || !currentProject) {
@@ -85,38 +85,38 @@ export const DraftAssistantPanel: React.FC = () => {
                 keyEvents: '未設定'
             };
         }
-        
+
         const characters = chapter.characters && chapter.characters.length > 0
             ? chapter.characters.map(charIdOrName => {
                 const character = currentProject.characters.find(c => c.id === charIdOrName);
                 return character ? character.name : charIdOrName;
             }).join(', ')
             : '未設定';
-        
+
         const setting = chapter.setting || '未設定';
         const mood = chapter.mood || '未設定';
         const keyEvents = chapter.keyEvents && chapter.keyEvents.length > 0
             ? chapter.keyEvents.join(', ')
             : '未設定';
-        
+
         return { characters, setting, mood, keyEvents };
     }, [currentProject]);
-    
+
     // プロジェクトコンテキスト情報を取得
     const getProjectContextInfo = useCallback(() => {
         if (!currentProject) return { worldSettings: '', glossary: '', relationships: '', plotInfo: '' };
-        
+
         const worldSettingsList = currentProject.worldSettings || [];
         const glossaryList = currentProject.glossary || [];
-        
-        const worldSettingsText = worldSettingsList.length > 0 
+
+        const worldSettingsText = worldSettingsList.length > 0
             ? worldSettingsList.map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n')
             : '特になし';
-            
+
         const glossaryText = glossaryList.length > 0
             ? glossaryList.map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n')
             : '特になし';
-        
+
         const relationshipsList = currentProject.relationships || [];
         const relationshipsText = relationshipsList.length > 0
             ? relationshipsList.map(r => {
@@ -125,10 +125,10 @@ export const DraftAssistantPanel: React.FC = () => {
                 return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
             }).join('\n')
             : '特になし';
-        
+
         const plot = currentProject.plot;
         let plotInfo = '構成情報なし';
-        
+
         if (plot.structure === 'kishotenketsu') {
             plotInfo = `全体構造: 起承転結
 起: ${plot.ki?.substring(0, 50) || '未設定'}...
@@ -147,7 +147,7 @@ export const DraftAssistantPanel: React.FC = () => {
 第3幕: ${plot.fourAct3?.substring(0, 50) || '未設定'}...
 第4幕: ${plot.fourAct4?.substring(0, 50) || '未設定'}...`;
         }
-        
+
         return {
             worldSettings: worldSettingsText,
             glossary: glossaryText,
@@ -155,7 +155,7 @@ export const DraftAssistantPanel: React.FC = () => {
             plotInfo
         };
     }, [currentProject]);
-    
+
     // カスタムプロンプトの構築
     const buildCustomPrompt = useCallback((args: {
         currentChapter: { title: string; summary: string };
@@ -166,7 +166,7 @@ export const DraftAssistantPanel: React.FC = () => {
         contextInfo?: { worldSettings: string; glossary: string; relationships: string; plotInfo: string };
     }) => {
         const { currentChapter, chapterDetails, projectCharacters, previousStory, previousChapterEnd = '', contextInfo = { worldSettings: '', glossary: '', relationships: '', plotInfo: '' } } = args;
-        
+
         const writingStyle = currentProject?.writingStyle || {};
         const style = writingStyle.style || '現代小説風';
         const perspective = writingStyle.perspective || '';
@@ -176,7 +176,7 @@ export const DraftAssistantPanel: React.FC = () => {
         const dialogue = writingStyle.dialogue || '';
         const emotion = writingStyle.emotion || '';
         const tone = writingStyle.tone || '';
-        
+
         const styleDetailsArray: string[] = [];
         if (perspective || formality || rhythm || metaphor || dialogue || emotion || tone) {
             styleDetailsArray.push('【文体の詳細指示】');
@@ -189,7 +189,7 @@ export const DraftAssistantPanel: React.FC = () => {
             if (tone) styleDetailsArray.push(`\n【参考となるトーン】\n${tone}`);
         }
         const styleDetails = styleDetailsArray.length > 0 ? styleDetailsArray.join('\n') + '\n' : '';
-        
+
         let plotStructure = '';
         if (currentProject?.plot?.structure === 'kishotenketsu') {
             plotStructure = `起承転結構成\n起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`;
@@ -200,7 +200,7 @@ export const DraftAssistantPanel: React.FC = () => {
         } else {
             plotStructure = contextInfo.plotInfo || '未設定';
         }
-        
+
         const basePrompt = aiService.buildPrompt('draft', 'generateSingle', {
             chapterTitle: currentChapter.title,
             chapterSummary: currentChapter.summary,
@@ -222,36 +222,36 @@ export const DraftAssistantPanel: React.FC = () => {
             styleDetails: styleDetails,
             customPrompt: useCustomPrompt && customPrompt.trim() ? `\n\n【カスタム執筆指示】\n${customPrompt}` : '',
         });
-        
+
         if (useCustomPrompt && customPrompt.trim()) {
             return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${customPrompt}`;
         }
-        
+
         return basePrompt;
     }, [currentProject, useCustomPrompt, customPrompt]);
-    
+
     // 章草案の保存
     const handleSaveChapterDraft = useCallback(async (chapterId: string, content: string) => {
         if (!currentProject) return;
-        
+
         const updatedChapters = currentProject.chapters.map(chapter => {
             if (chapter.id === chapterId) {
                 return { ...chapter, draft: content };
             }
             return chapter;
         });
-        
+
         updateProject({ chapters: updatedChapters });
         setChapterDrafts(prev => ({ ...prev, [chapterId]: content }));
     }, [currentProject, updateProject]);
-    
+
     // 草案の更新
     const handleDraftUpdate = useCallback((content: string) => {
         if (!selectedChapterId) return;
         setChapterDrafts(prev => ({ ...prev, [selectedChapterId]: content }));
         handleSaveChapterDraft(selectedChapterId, content);
     }, [selectedChapterId, handleSaveChapterDraft]);
-    
+
     // 章変更ハンドラー（現在の章の草案を保存してから新しい章に切り替え）
     const handleChapterChange = useCallback(async (newChapterId: string | null) => {
         // 現在の章の草案を保存
@@ -260,7 +260,7 @@ export const DraftAssistantPanel: React.FC = () => {
         }
         // 新しい章を設定
         setSelectedChapterId(newChapterId);
-        
+
         // sessionStorageに保存してDraftStepと同期
         if (currentProject) {
             if (newChapterId) {
@@ -272,14 +272,14 @@ export const DraftAssistantPanel: React.FC = () => {
             }
         }
     }, [selectedChapterId, draft, handleSaveChapterDraft, currentProject]);
-    
+
     // AIログ管理
     const { aiLogs, addLog } = useAILog({
         projectId: currentProject?.id,
         chapterId: selectedChapterId || undefined,
         autoLoad: true,
     });
-    
+
     // AI生成フック
     const {
         isGenerating,
@@ -312,15 +312,15 @@ export const DraftAssistantPanel: React.FC = () => {
         buildCustomPrompt,
         setImprovementLogs,
     });
-    
+
     // テキスト選択機能は削除
-    
+
     // カスタムプロンプトの保存・読み込み
     useEffect(() => {
         if (currentProject) {
             const savedCustomPrompt = localStorage.getItem(`customPrompt_${currentProject.id}`);
             const savedUseCustomPrompt = localStorage.getItem(`useCustomPrompt_${currentProject.id}`);
-            
+
             if (savedCustomPrompt) {
                 setCustomPrompt(savedCustomPrompt);
             }
@@ -329,14 +329,14 @@ export const DraftAssistantPanel: React.FC = () => {
             }
         }
     }, [currentProject]);
-    
+
     useEffect(() => {
         if (currentProject) {
             localStorage.setItem(`customPrompt_${currentProject.id}`, customPrompt);
             localStorage.setItem(`useCustomPrompt_${currentProject.id}`, useCustomPrompt.toString());
         }
     }, [customPrompt, useCustomPrompt, currentProject]);
-    
+
     // 章が変更されたときに草案を読み込む
     useEffect(() => {
         if (selectedChapterId && currentProject) {
@@ -346,43 +346,43 @@ export const DraftAssistantPanel: React.FC = () => {
             }
         }
     }, [selectedChapterId, currentProject]);
-    
+
     // DraftStepからの章選択変更を監視して同期
     useEffect(() => {
         if (!currentProject) return;
-        
+
         const handleChapterSelected = (e: Event) => {
             const customEvent = e as CustomEvent<{ chapterId: string; projectId: string; source?: string }>;
             // 自分が発火したイベントは無視
             if (customEvent.detail.source === 'draftAssistantPanel') return;
-            
+
             if (customEvent.detail.projectId === currentProject.id && customEvent.detail.chapterId !== selectedChapterId) {
                 setSelectedChapterId(customEvent.detail.chapterId);
             }
         };
-        
+
         window.addEventListener('draftChapterSelected', handleChapterSelected);
-        
+
         return () => {
             window.removeEventListener('draftChapterSelected', handleChapterSelected);
         };
     }, [currentProject, selectedChapterId]);
-    
+
     // 履歴スナップショット作成
     const createHistorySnapshot = useCallback(
         async (type: HistoryEntryType, options?: { content?: string; label?: string; force?: boolean }) => {
             if (!currentProject || !selectedChapterId) return false;
             const content = options?.content ?? draft;
             const normalizedContent = content ?? '';
-            
+
             let entryWasAdded = false;
             const label = options?.label || HISTORY_TYPE_LABELS[type] || '履歴';
-            
+
             const previousEntries = chapterHistories[selectedChapterId] || [];
             if (!options?.force && previousEntries[0]?.content === normalizedContent) {
                 return false;
             }
-            
+
             try {
                 const entryId = await databaseService.saveHistoryEntry(
                     currentProject.id,
@@ -393,10 +393,10 @@ export const DraftAssistantPanel: React.FC = () => {
                         label,
                     }
                 );
-                
+
                 entryWasAdded = true;
                 lastSnapshotContentRef.current = normalizedContent;
-                
+
                 const newEntry: ChapterHistoryEntry = {
                     id: entryId,
                     timestamp: Date.now(),
@@ -404,7 +404,7 @@ export const DraftAssistantPanel: React.FC = () => {
                     type,
                     label,
                 };
-                
+
                 setChapterHistories(prev => {
                     const updatedEntries = [newEntry, ...previousEntries].slice(0, HISTORY_MAX_ENTRIES);
                     return {
@@ -412,7 +412,7 @@ export const DraftAssistantPanel: React.FC = () => {
                         [selectedChapterId]: updatedEntries,
                     };
                 });
-                
+
                 if (entryWasAdded) {
                     setSelectedHistoryEntryId(entryId);
                 }
@@ -420,31 +420,31 @@ export const DraftAssistantPanel: React.FC = () => {
                 console.error('章履歴の保存に失敗しました:', error);
                 return false;
             }
-            
+
             return entryWasAdded;
         },
         [currentProject, selectedChapterId, draft, chapterHistories]
     );
-    
+
     // 履歴の自動保存
     const historyAutoSaveTimeoutRef = useRef<number | null>(null);
     useEffect(() => {
         if (!currentProject || !selectedChapterId) return;
-        
+
         if (historyAutoSaveTimeoutRef.current) {
             clearTimeout(historyAutoSaveTimeoutRef.current);
             historyAutoSaveTimeoutRef.current = null;
         }
-        
+
         if (draft === lastSnapshotContentRef.current) return;
-        
+
         historyAutoSaveTimeoutRef.current = window.setTimeout(() => {
             createHistorySnapshot('auto').catch(error => {
                 console.error('自動履歴保存エラー:', error);
             });
             historyAutoSaveTimeoutRef.current = null;
         }, HISTORY_AUTO_SAVE_DELAY);
-        
+
         return () => {
             if (historyAutoSaveTimeoutRef.current) {
                 clearTimeout(historyAutoSaveTimeoutRef.current);
@@ -452,24 +452,24 @@ export const DraftAssistantPanel: React.FC = () => {
             }
         };
     }, [draft, currentProject, selectedChapterId, createHistorySnapshot]);
-    
+
     // 履歴の読み込み
     useEffect(() => {
         if (!currentProject || !selectedChapterId) return;
         if (historyLoadedChaptersRef.current.has(selectedChapterId)) return;
-        
+
         const loadHistory = async () => {
             try {
                 const entries = await databaseService.getHistoryEntries(
                     currentProject.id,
                     selectedChapterId
                 );
-                
+
                 setChapterHistories(prev => ({
                     ...prev,
                     [selectedChapterId]: entries,
                 }));
-                
+
                 if (entries[0]) {
                     lastSnapshotContentRef.current = entries[0].content;
                     setSelectedHistoryEntryId(entries[0].id);
@@ -478,7 +478,7 @@ export const DraftAssistantPanel: React.FC = () => {
                         currentProject.chapters.find(chapter => chapter.id === selectedChapterId)?.draft || '';
                     lastSnapshotContentRef.current = fallbackContent;
                 }
-                
+
                 historyLoadedChaptersRef.current.add(selectedChapterId);
             } catch (error) {
                 console.error('章履歴の読み込みに失敗しました:', error);
@@ -489,10 +489,10 @@ export const DraftAssistantPanel: React.FC = () => {
                 historyLoadedChaptersRef.current.add(selectedChapterId);
             }
         };
-        
+
         loadHistory();
     }, [currentProject, selectedChapterId]);
-    
+
     // 履歴エントリの選択状態を管理
     useEffect(() => {
         if (!selectedChapterId) {
@@ -501,7 +501,7 @@ export const DraftAssistantPanel: React.FC = () => {
             }
             return;
         }
-        
+
         const entries = chapterHistories[selectedChapterId] || [];
         if (!entries.length) {
             if (selectedHistoryEntryId !== null) {
@@ -509,92 +509,92 @@ export const DraftAssistantPanel: React.FC = () => {
             }
             return;
         }
-        
+
         const exists = entries.some(entry => entry.id === selectedHistoryEntryId);
         if (!exists) {
             setSelectedHistoryEntryId(entries[0].id);
         }
     }, [chapterHistories, selectedChapterId, selectedHistoryEntryId]);
-    
+
     // 履歴の復元
     const handleRestoreHistoryEntry = useCallback(async () => {
         if (!selectedChapterId || !selectedHistoryEntryId) return;
-        
+
         const entries = chapterHistories[selectedChapterId] || [];
         const selectedEntry = entries.find(e => e.id === selectedHistoryEntryId);
         if (!selectedEntry) return;
-        
+
         if (selectedEntry.content === draft) return;
-        
+
         await createHistorySnapshot('restore', {
             content: draft,
             label: '復元前スナップショット',
             force: true,
         });
-        
+
         const nextContent = selectedEntry.content;
         handleDraftUpdate(nextContent);
         await handleSaveChapterDraft(selectedChapterId, nextContent);
-        
+
         showSuccess('履歴を復元しました');
     }, [selectedChapterId, selectedHistoryEntryId, chapterHistories, draft, createHistorySnapshot, handleDraftUpdate, handleSaveChapterDraft, showSuccess]);
-    
+
     // 履歴の削除
     const handleDeleteHistoryEntry = useCallback(async (entryId: string) => {
         if (!currentProject || !selectedChapterId) return;
-        
+
         try {
             await databaseService.deleteHistoryEntry(entryId);
-            
+
             setChapterHistories(prev => {
                 const entries = prev[selectedChapterId] || [];
                 const updatedEntries = entries.filter(e => e.id !== entryId);
-                
+
                 if (selectedHistoryEntryId === entryId) {
                     setSelectedHistoryEntryId(null);
                 }
-                
+
                 return {
                     ...prev,
                     [selectedChapterId]: updatedEntries,
                 };
             });
-            
+
             showSuccess('履歴を削除しました');
         } catch (error) {
             console.error('履歴の削除エラー:', error);
             showError('履歴の削除に失敗しました');
         }
     }, [currentProject, selectedChapterId, selectedHistoryEntryId, showSuccess, showError]);
-    
+
     // 履歴差分の計算
     const historyEntries = useMemo(
         () => (selectedChapterId ? chapterHistories[selectedChapterId] || [] : []),
         [chapterHistories, selectedChapterId]
     );
-    
+
     const selectedHistoryEntry = useMemo(() => {
         if (!selectedChapterId || !selectedHistoryEntryId) return null;
         const entries = chapterHistories[selectedChapterId] || [];
         return entries.find(entry => entry.id === selectedHistoryEntryId) || null;
     }, [chapterHistories, selectedChapterId, selectedHistoryEntryId]);
-    
+
     const historyDiffSegments = useMemo<Change[]>(() => {
         if (!selectedHistoryEntry) return [];
         return diffLines(selectedHistoryEntry.content ?? '', draft ?? '');
     }, [selectedHistoryEntry, draft]);
-    
+
     const hasHistoryDiff = useMemo(
         () => historyDiffSegments.some(segment => segment.added || segment.removed),
         [historyDiffSegments]
     );
-    
+
     // 手動スナップショット
     const handleManualHistorySnapshot = useCallback(async () => {
         await createHistorySnapshot('manual', { force: true, label: '手動保存' });
         showSuccess('履歴を保存しました');
     }, [createHistorySnapshot, showSuccess]);
-    
+
     // 折りたたみセクションのトグル
     const toggleSection = useCallback((sectionId: string) => {
         setExpandedSections(prev => {
@@ -607,9 +607,9 @@ export const DraftAssistantPanel: React.FC = () => {
             return next;
         });
     }, []);
-    
+
     if (!currentProject) return null;
-    
+
     const hasDraft = Boolean(draft.trim());
     const isFullDraftGenerating = isGenerating && currentGenerationAction === 'fullDraft';
     const isContinueGenerating = isGenerating && currentGenerationAction === 'continue';
@@ -619,7 +619,7 @@ export const DraftAssistantPanel: React.FC = () => {
     const isImproving = isGenerating && currentGenerationAction === 'improve';
     const isSelfRefining = isGenerating && currentGenerationAction === 'selfRefine';
     const chapterLogs = selectedChapterId ? improvementLogs[selectedChapterId] || [] : [];
-    
+
     // 生成中のメッセージを取得
     const getGeneratingMessage = () => {
         if (isFullDraftGenerating) return '章全体を生成中';
@@ -676,10 +676,10 @@ export const DraftAssistantPanel: React.FC = () => {
                     </select>
                 </div>
             )}
-            
+
             {selectedChapterId && currentChapter ? (
                 <>
-                    
+
                     {/* 章全体の生成セクション */}
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
                         <button
@@ -696,7 +696,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                 <ChevronDown className="h-4 w-4 text-gray-500" />
                             )}
                         </button>
-                        
+
                         {expandedSections.has('generate') && (
                             <div className="space-y-3">
                                 <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -715,11 +715,10 @@ export const DraftAssistantPanel: React.FC = () => {
                                     type="button"
                                     onClick={handleAIGenerate}
                                     disabled={isGenerating || !selectedChapterId}
-                                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold font-['Noto_Sans_JP'] transition-all ${
-                                        isFullDraftGenerating
-                                            ? 'bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200'
-                                            : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700'
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold font-['Noto_Sans_JP'] transition-all ${isFullDraftGenerating
+                                        ? 'bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200'
+                                        : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700'
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     <Sparkles
                                         className={`h-4 w-4 ${isFullDraftGenerating ? 'animate-spin' : ''}`}
@@ -729,7 +728,7 @@ export const DraftAssistantPanel: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    
+
                     {/* 章全体の改善セクション */}
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
                         <button
@@ -746,7 +745,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                 <ChevronDown className="h-4 w-4 text-gray-500" />
                             )}
                         </button>
-                        
+
                         {expandedSections.has('improve') && (
                             <div className="space-y-2">
                                 <button
@@ -767,7 +766,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                         <Sparkles className={`h-3 w-3 ${isImproving ? 'text-indigo-500 animate-spin' : 'text-indigo-500/70'}`} />
                                     </div>
                                 </button>
-                                
+
                                 <button
                                     type="button"
                                     onClick={handleSelfRefineImprovement}
@@ -786,7 +785,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                         <Sparkles className={`h-3 w-3 ${isSelfRefining ? 'text-amber-500 animate-spin' : 'text-amber-500/70'}`} />
                                     </div>
                                 </button>
-                                
+
                                 {chapterLogs.length > 0 && (
                                     <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                                         <div className="flex items-center justify-between mb-2">
@@ -809,7 +808,7 @@ export const DraftAssistantPanel: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    
+
                     {/* 個別機能セクション */}
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
                         <button
@@ -826,7 +825,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                 <ChevronDown className="h-4 w-4 text-gray-500" />
                             )}
                         </button>
-                        
+
                         {expandedSections.has('individual') && (
                             <div className="grid grid-cols-1 gap-2">
                                 <ActionButton
@@ -860,7 +859,7 @@ export const DraftAssistantPanel: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    
+
                     {/* 履歴管理セクション */}
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
                         <button
@@ -877,7 +876,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                 <ChevronDown className="h-4 w-4 text-gray-500" />
                             )}
                         </button>
-                        
+
                         {expandedSections.has('history') && (
                             <div className="space-y-4">
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -897,7 +896,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                         現在の状態を保存
                                     </button>
                                 </div>
-                                
+
                                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                                     {historyEntries.length > 0 ? (
                                         historyEntries.map((entry) => {
@@ -906,15 +905,14 @@ export const DraftAssistantPanel: React.FC = () => {
                                                     ? `${entry.content.replace(/\s+/g, ' ').slice(0, 50)}${entry.content.length > 50 ? '…' : ''}`
                                                     : '（空の草案）';
                                             const isActive = selectedHistoryEntryId === entry.id;
-                                            
+
                                             return (
                                                 <div
                                                     key={entry.id}
-                                                    className={`group relative w-full px-3 py-2 rounded-lg border transition-all duration-150 font-['Noto_Sans_JP'] ${
-                                                        isActive
-                                                            ? 'border-emerald-400 bg-emerald-50/80 dark:border-emerald-500 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-100'
-                                                            : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                                    }`}
+                                                    className={`group relative w-full px-3 py-2 rounded-lg border transition-all duration-150 font-['Noto_Sans_JP'] ${isActive
+                                                        ? 'border-emerald-400 bg-emerald-50/80 dark:border-emerald-500 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-100'
+                                                        : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                        }`}
                                                 >
                                                     <button
                                                         type="button"
@@ -949,7 +947,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                         <div className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] text-center py-4">履歴はまだありません</div>
                                     )}
                                 </div>
-                                
+
                                 {selectedHistoryEntryId && (
                                     <div className="space-y-3">
                                         <button
@@ -961,7 +959,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                             <RotateCcw className="h-4 w-4" />
                                             このバージョンに復元
                                         </button>
-                                        
+
                                         {hasHistoryDiff && (
                                             <div className="border border-gray-200 dark:border-gray-700 rounded-lg max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-900/40">
                                                 {historyDiffSegments.map((segment, index) => {
@@ -984,7 +982,7 @@ export const DraftAssistantPanel: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    
+
                     {/* AIログセクション */}
                     {aiLogs.length > 0 && (
                         <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 overflow-hidden">
@@ -1070,7 +1068,7 @@ ${'='.repeat(80)}`;
                     )}
                 </div>
             )}
-            
+
             {/* カスタムプロンプトモーダル */}
             <CustomPromptModal
                 isOpen={showCustomPromptModal}
@@ -1084,7 +1082,7 @@ ${'='.repeat(80)}`;
                     setUseCustomPrompt(false);
                 }}
             />
-            
+
             {/* 改善ログモーダル */}
             <ImprovementLogModal
                 isOpen={isImprovementLogModalOpen}
@@ -1118,9 +1116,8 @@ const ActionButton: React.FC<ActionButtonProps> = ({ title, description, isBusy,
                 <div className="font-semibold text-gray-900 dark:text-white text-xs font-['Noto_Sans_JP']">
                     {title}
                 </div>
-                <div className={`text-[11px] font-['Noto_Sans_JP'] mt-0.5 ${
-                    isBusy ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-600 dark:text-gray-400'
-                }`}>
+                <div className={`text-[11px] font-['Noto_Sans_JP'] mt-0.5 ${isBusy ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-600 dark:text-gray-400'
+                    }`}>
                     {description}
                 </div>
             </div>

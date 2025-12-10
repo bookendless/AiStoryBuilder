@@ -15,6 +15,17 @@ export interface Character {
   speechStyle?: string; // キャラクターの口調・話し方
 }
 
+export interface Chapter {
+  id: string;
+  title: string;
+  summary: string;
+  characters?: string[]; // 登場キャラクターのIDリスト
+  setting?: string; // 設定・場所
+  mood?: string; // 雰囲気・ムード
+  keyEvents?: string[]; // 重要な出来事
+  draft?: string; // 章単位の草案
+}
+
 export interface GlossaryTerm {
   id: string;
   term: string;
@@ -116,6 +127,7 @@ export interface Project {
   imageBoard: Array<{
     id: string;
     url: string;
+    imageId?: string;
     title: string;
     description?: string;
     category: 'character' | 'setting' | 'mood' | 'reference' | 'other';
@@ -184,16 +196,7 @@ export interface Project {
   };
   evaluations?: SavedEvaluation[];
   synopsis: string;
-  chapters: Array<{
-    id: string;
-    title: string;
-    summary: string;
-    characters?: string[]; // 登場キャラクターのIDリスト
-    setting?: string; // 設定・場所
-    mood?: string; // 雰囲気・ムード
-    keyEvents?: string[]; // 重要な出来事
-    draft?: string; // 章単位の草案
-  }>;
+  chapters: Chapter[];
   draft: string;
   createdAt: Date;
   updatedAt: Date;
@@ -610,7 +613,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         return project.characters.length > 0;
       case 'plot1':
         return !!(project.plot.theme && project.plot.setting && project.plot.hook && project.plot.protagonistGoal && project.plot.mainObstacle);
-      case 'plot2':
+      case 'plot2': {
         if (!project.plot.structure) return false;
         const structure = project.plot.structure;
         if (structure === 'kishotenketsu') {
@@ -636,6 +639,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             project.plot.ms5.trim() && project.plot.ms6.trim() && project.plot.ms7.trim());
         }
         return false;
+      }
       case 'synopsis':
         return !!project.synopsis && project.synopsis.trim().length > 0;
       case 'chapter':

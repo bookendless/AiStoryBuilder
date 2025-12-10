@@ -719,6 +719,25 @@ ${'='.repeat(80)}`;
 
     return (
         <div className="space-y-4">
+            {/* 生成中のローディングインジケーター */}
+            {isAnyLoading && (
+                <AILoadingIndicator
+                    message={
+                        isGeneratingStructure
+                            ? '章立て構成を生成中'
+                            : '章立てを生成中'
+                    }
+                    estimatedTime={60}
+                    variant="inline"
+                    cancellable={true}
+                    onCancel={
+                        isGeneratingStructure
+                            ? handleCancelStructure
+                            : handleCancelBasic
+                    }
+                />
+            )}
+
             {/* AI章立て提案（メイン） */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2 flex items-center">
@@ -872,27 +891,6 @@ ${'='.repeat(80)}`;
                     />
                 </div>
             </div>
-
-            {/* 生成中のローディングインジケーター */}
-            {isAnyLoading && (
-                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <AILoadingIndicator
-                        message={
-                            isGeneratingStructure
-                                ? '章立て構成を生成中'
-                                : '章立てを生成中'
-                        }
-                        estimatedTime={60}
-                        variant="inline"
-                        cancellable={true}
-                        onCancel={
-                            isGeneratingStructure
-                                ? handleCancelStructure
-                                : handleCancelBasic
-                        }
-                    />
-                </div>
-            )}
         </div>
     );
 };

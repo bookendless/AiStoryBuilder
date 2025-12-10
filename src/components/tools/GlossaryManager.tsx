@@ -23,7 +23,7 @@ const categoryLabels: Record<GlossaryTerm['category'], string> = {
 
 export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
-  const { showError, showWarning, showSuccess, showInfo } = useToast();
+  const { showError, showWarning, showSuccess } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -950,8 +950,8 @@ JSON配列形式で出力してください：
                   setSelectedResults(new Set());
                 }}
                 className={`flex-1 px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'extract'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
               >
                 <Zap className="h-5 w-5 mx-auto mb-1" />
@@ -965,8 +965,8 @@ JSON配列形式で出力してください：
                   setSelectedResults(new Set());
                 }}
                 className={`flex-1 px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'bulk'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
               >
                 <Wand2 className="h-5 w-5 mx-auto mb-1" />
@@ -1028,8 +1028,8 @@ JSON配列形式で出力してください：
                       .filter(t => t.length > 0);
                     if (terms.length === 0) {
                       showWarning('用語を入力してください。', 5000, {
-        title: '入力エラー',
-      });
+                        title: '入力エラー',
+                      });
                       return;
                     }
                     handleBulkGenerate(terms);
@@ -1082,8 +1082,8 @@ JSON配列形式で出力してください：
                     <div
                       key={idx}
                       className={`border rounded-lg p-4 cursor-pointer transition-colors ${selectedResults.has(idx)
-                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                       onClick={() => toggleResultSelection(idx)}
                     >

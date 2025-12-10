@@ -248,11 +248,18 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
             <p className="text-sm">プロジェクトを選択して<br />作業を開始しましょう</p>
           </div>
         );
+      case 'review':
+        return (
+          <div className="p-4 text-center text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+            <HelpCircle className="h-8 w-8 mx-auto mb-2 text-indigo-400" />
+            <p className="text-sm">メイン画面のAIアシストを<br />ご利用ください</p>
+          </div>
+        );
       default:
         return (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
             <HelpCircle className="h-8 w-8 mx-auto mb-2 text-indigo-400" />
-            <p className="text-sm">このステップのAI支援機能は<br />準備中です</p>
+            <p className="text-sm">このステップのAI支援機能は<br />ありません</p>
           </div>
         );
     }
