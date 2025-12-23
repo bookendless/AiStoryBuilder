@@ -11,10 +11,11 @@ import { ChapterStep } from './components/steps/ChapterStep';
 import { DraftStep } from './components/steps/DraftStep';
 import { ReviewStep } from './components/steps/ReviewStep';
 import { ExportStep } from './components/steps/ExportStep';
-import { ProjectProvider, useProject } from './contexts/ProjectContext';
+import { ProjectProvider, useProject, Step } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
 import { ToastProvider } from './components/Toast';
 import { OfflineNotifier } from './components/OfflineNotifier';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
 import { PerformanceMonitor, registerServiceWorker } from './utils/performanceUtils';
 import { useGlobalShortcuts } from './hooks/useKeyboardNavigation';
@@ -22,7 +23,8 @@ import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { Onboarding } from './components/Onboarding';
 import { databaseService } from './services/databaseService';
 
-export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'review' | 'export';
+// Step型はProjectContextから再エクスポート（後方互換性のため）
+export type { Step };
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -130,7 +132,7 @@ function App() {
 
 // ステップ変更時の自動保存を処理するコンポーネント
 const StepChangeAutoSave: React.FC<{ currentStep: Step }> = ({ currentStep }) => {
-  const { currentProject, saveProject } = useProject();
+  const { currentProject, updateProject } = useProject();
   const isInitialMount = useRef(true);
   const previousStepRef = useRef<Step>('home');
 
@@ -144,20 +146,31 @@ const StepChangeAutoSave: React.FC<{ currentStep: Step }> = ({ currentStep }) =>
 
     // ステップが実際に変更された場合のみ保存
     if (previousStepRef.current !== currentStep && currentProject) {
-      // ホームに戻る場合も、他のステップから移動する場合も保存
-      const saveBeforeNavigation = async () => {
+      const saveStepBeforeNavigation = async () => {
         try {
-          await saveProject();
-          console.log('ステップ移動時にプロジェクトを保存しました');
+          // ホームに戻る場合：前のステップ（'home'以外）をcurrentStepとして保存
+          if (currentStep === 'home' && previousStepRef.current !== 'home') {
+            await updateProject({
+              currentStep: previousStepRef.current as Exclude<Step, 'home'>,
+            }, true); // 即座に保存
+            console.log(`ステップ「${previousStepRef.current}」を記録しました（ホームに戻る前）`);
+          }
+          // 他のステップに移動する場合：現在のステップをcurrentStepとして保存
+          else if (currentStep !== 'home') {
+            await updateProject({
+              currentStep: currentStep as Exclude<Step, 'home'>,
+            }, true); // 即座に保存
+            console.log(`ステップ「${currentStep}」を記録しました`);
+          }
         } catch (error) {
-          console.error('ステップ移動時の保存エラー:', error);
+          console.error('ステップ記録エラー:', error);
           // エラーが発生してもステップ移動は続行
         }
       };
-      saveBeforeNavigation();
+      saveStepBeforeNavigation();
       previousStepRef.current = currentStep;
     }
-  }, [currentStep, currentProject, saveProject]);
+  }, [currentStep, currentProject, updateProject]);
 
   return null;
 };
@@ -261,6 +274,7 @@ const AppContent: React.FC = () => {
         handler: () => {
           if (currentStep !== 'home') {
             setIsSidebarCollapsed(!isSidebarCollapsed);
+            setIsToolsSidebarCollapsed(!isToolsSidebarCollapsed);
             setIsMobileMenuOpen(false); // モバイルメニューを閉じる
           }
         },
@@ -314,8 +328,9 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <AIProvider>
-      <ProjectProvider>
+    <ErrorBoundary>
+      <AIProvider>
+        <ProjectProvider>
         <StepChangeAutoSave currentStep={currentStep} />
         <OfflineNotifier />
         {/* スキップリンク */}
@@ -412,8 +427,9 @@ const AppContent: React.FC = () => {
           }}
           mode={onboardingMode}
         />
-      </ProjectProvider>
-    </AIProvider>
+        </ProjectProvider>
+      </AIProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, History, RotateCcw } from 'lucide-react';
 import { useProject } from '../../../contexts/ProjectContext';
 import { ChapterHistory } from './types';
+import { ConfirmDialog } from '../../common/ConfirmDialog';
 
 interface ChapterHistoryModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const ChapterHistoryModal: React.FC<ChapterHistoryModalProps> = ({
   onRestore,
 }) => {
   const { currentProject } = useProject();
+  const [restoreHistory, setRestoreHistory] = useState<ChapterHistory | null>(null);
 
   if (!isOpen || !selectedChapterId) return null;
 
@@ -126,9 +128,7 @@ export const ChapterHistoryModal: React.FC<ChapterHistoryModalProps> = ({
                       </div>
                       <button
                         onClick={() => {
-                          if (confirm('この履歴の状態に復元しますか？現在の状態は履歴として保存されます。')) {
-                            onRestore(history);
-                          }
+                          setRestoreHistory(history);
                         }}
                         className="flex items-center space-x-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-['Noto_Sans_JP']"
                       >
@@ -198,9 +198,54 @@ export const ChapterHistoryModal: React.FC<ChapterHistoryModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={restoreHistory !== null}
+        onClose={() => setRestoreHistory(null)}
+        onConfirm={() => {
+          if (restoreHistory) {
+            onRestore(restoreHistory);
+            setRestoreHistory(null);
+          }
+        }}
+        title="この履歴の状態に復元しますか？"
+        message="現在の状態は履歴として保存されます。"
+        type="warning"
+        confirmLabel="復元"
+      />
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

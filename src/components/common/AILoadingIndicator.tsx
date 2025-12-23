@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Loader2, X } from 'lucide-react';
-import { LoadingSpinner } from './LoadingSpinner';
 
 interface ChapterProgress {
   chapterId: string;

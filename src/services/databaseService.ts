@@ -3,43 +3,7 @@ import { Project } from '../contexts/ProjectContext';
 import { DataCache } from '../utils/performanceUtils';
 import { ChapterHistoryEntry } from '../components/steps/draft/types';
 import { AILogEntry } from '../components/common/types';
-
-// カスタムエラー型定義
-export class DatabaseError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly originalError?: unknown
-  ) {
-    super(message);
-    this.name = 'DatabaseError';
-    Object.setPrototypeOf(this, DatabaseError.prototype);
-  }
-}
-
-export class DatabaseValidationError extends DatabaseError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, 'VALIDATION_ERROR', originalError);
-    this.name = 'DatabaseValidationError';
-    Object.setPrototypeOf(this, DatabaseValidationError.prototype);
-  }
-}
-
-export class DatabaseNotFoundError extends DatabaseError {
-  constructor(message: string, public readonly resourceId?: string) {
-    super(message, 'NOT_FOUND');
-    this.name = 'DatabaseNotFoundError';
-    Object.setPrototypeOf(this, DatabaseNotFoundError.prototype);
-  }
-}
-
-export class DatabaseStorageError extends DatabaseError {
-  constructor(message: string, originalError?: unknown) {
-    super(message, 'STORAGE_ERROR', originalError);
-    this.name = 'DatabaseStorageError';
-    Object.setPrototypeOf(this, DatabaseStorageError.prototype);
-  }
-}
+import { DatabaseError, DatabaseValidationError, DatabaseNotFoundError, DatabaseStorageError } from '../types/errors';
 
 export interface StoredProject extends Project {
   version: number;
@@ -108,6 +72,14 @@ export interface StoredImage {
   referenceCount: number; // 参照数（プロジェクトで使用されている数）
 }
 
+// セキュアAPIキーストレージ用インターフェース
+export interface SecureApiKeys {
+  id: string; // 固定ID（'api-keys'）
+  keys: Record<string, string>; // プロバイダー別の暗号化されたAPIキー
+  updatedAt: Date;
+  migrationCompleted?: boolean; // localStorageからの移行完了フラグ
+}
+
 class StoryBuilderDatabase extends Dexie {
   projects!: Table<StoredProject>;
   backups!: Table<ProjectBackup>;
@@ -115,6 +87,7 @@ class StoryBuilderDatabase extends Dexie {
   chapterHistories!: Table<StoredChapterHistoryEntry>;
   aiLogs!: Table<StoredAILogEntry>;
   images!: Table<StoredImage>;
+  secureApiKeys!: Table<SecureApiKeys>;
 
   constructor() {
     super('StoryBuilderDB');
@@ -159,6 +132,19 @@ class StoryBuilderDatabase extends Dexie {
         images: 'id, createdAt, lastAccessed, referenceCount'
       }).upgrade(async () => {
         console.log('データベースをバージョン5にアップグレードしました（画像Blobストレージ追加）');
+      });
+
+      // バージョン6: セキュアAPIキーストレージテーブルを追加
+      this.version(6).stores({
+        projects: 'id, title, createdAt, updatedAt, lastSaved, version',
+        backups: 'id, projectId, createdAt, description, type',
+        settings: 'id',
+        chapterHistories: 'id, projectId, chapterId, [projectId+chapterId], timestamp, type',
+        aiLogs: 'id, projectId, chapterId, [projectId+chapterId], timestamp, type',
+        images: 'id, createdAt, lastAccessed, referenceCount',
+        secureApiKeys: 'id, updatedAt'
+      }).upgrade(async () => {
+        console.log('データベースをバージョン6にアップグレードしました（セキュアAPIキーストレージ追加）');
       });
     } catch (error) {
       console.error('データベース初期化エラー:', error);
@@ -264,7 +250,19 @@ class DatabaseService {
         throw error;
       }
 
-      console.error('プロジェクト保存エラー:', error);
+      // エラーログを記録
+      const { logDatabaseError, logError } = await import('../utils/errorLogger');
+      if (error instanceof DatabaseError) {
+        logDatabaseError(error, {
+          operation: 'saveProject',
+          table: 'projects',
+        });
+      } else {
+        logError(error, {
+          category: 'database',
+          context: { operation: 'saveProject', table: 'projects' },
+        });
+      }
 
       // ConstraintErrorの場合は再試行
       if (error instanceof Error && error.name === 'ConstraintError') {
@@ -334,7 +332,19 @@ class DatabaseService {
         throw error;
       }
 
-      console.error('プロジェクト読み込みエラー:', error);
+      // エラーログを記録
+      const { logDatabaseError, logError } = await import('../utils/errorLogger');
+      if (error instanceof DatabaseError) {
+        logDatabaseError(error, {
+          operation: 'loadProject',
+          table: 'projects',
+        });
+      } else {
+        logError(error, {
+          category: 'database',
+          context: { operation: 'loadProject', table: 'projects' },
+        });
+      }
       throw new DatabaseStorageError(
         `プロジェクトの読み込みに失敗しました: ${(error as Error).message}`,
         error
@@ -441,7 +451,19 @@ class DatabaseService {
         throw error;
       }
 
-      console.error('プロジェクト削除エラー:', error);
+      // エラーログを記録
+      const { logDatabaseError, logError } = await import('../utils/errorLogger');
+      if (error instanceof DatabaseError) {
+        logDatabaseError(error, {
+          operation: 'deleteProject',
+          table: 'projects',
+        });
+      } else {
+        logError(error, {
+          category: 'database',
+          context: { operation: 'deleteProject', table: 'projects' },
+        });
+      }
       throw new DatabaseStorageError(
         `プロジェクトの削除に失敗しました: ${(error as Error).message}`,
         error
@@ -1162,12 +1184,12 @@ class DatabaseService {
 
     const newEntry: StoredAILogEntry = {
       ...logEntry,
-      id: logEntry.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      timestamp: logEntry.timestamp || new Date(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: new Date(),
       projectId,
-      type: logEntry.type,
-      prompt: logEntry.prompt,
-      response: logEntry.response,
+      type: String(logEntry.type),
+      prompt: String(logEntry.prompt),
+      response: String(logEntry.response),
     };
 
     await db.aiLogs.add(newEntry);
@@ -1837,7 +1859,6 @@ class DatabaseService {
 
         // すべてのデータをエクスポート
         const exportData = await this.exportData();
-        const _data = JSON.parse(exportData);
 
         // すべてのテーブルをクリア
         await db.projects.clear();
@@ -1890,3 +1911,6 @@ class DatabaseService {
 }
 
 export const databaseService = new DatabaseService();
+
+// データベースインスタンスのエクスポート（storageService等で直接アクセスが必要な場合用）
+export { db };

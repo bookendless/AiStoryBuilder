@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Image, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save, X } from 'lucide-react';
+import { Plus, Image, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save, X, Search, ArrowUpDown, CheckSquare, Square, Grid3x3, Grid2x2, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { ImageItem } from '../types/ai';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
@@ -16,12 +16,37 @@ interface ImageCardProps {
   onView: (image: ImageItem) => void;
   onEdit: (image: ImageItem) => void;
   onDelete: (id: string) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
 }
 
-const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onEdit, onDelete }) => {
+const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onEdit, onDelete, isSelectionMode = false, isSelected = false, onToggleSelection }) => {
   return (
-    <div className="bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 group">
+    <div className={`bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 group ${isSelected ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''}`}>
       <div className="aspect-square relative overflow-hidden">
+        {/* チェックボックス（選択モード時） */}
+        {isSelectionMode && (
+          <div className="absolute top-2 left-2 z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelection?.(image.id);
+              }}
+              className={`p-1.5 rounded-full transition-colors ${
+                isSelected
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-white/90 text-gray-600 hover:bg-white'
+              }`}
+            >
+              {isSelected ? (
+                <CheckSquare className="h-5 w-5" />
+              ) : (
+                <Square className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+        )}
         <OptimizedImage
           src={image.url}
           alt={image.title}
@@ -33,7 +58,8 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
             console.error('画像読み込みエラー:', error);
           }}
         />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+        {!isSelectionMode && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
           <div className="flex space-x-2">
             <button
               onClick={() => onView(image)}
@@ -57,7 +83,8 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
               <Trash2 className="h-4 w-4 text-white" />
             </button>
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="p-4">
@@ -89,7 +116,9 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
     prevProps.image.description === nextProps.image.description &&
     prevProps.image.category === nextProps.image.category &&
     prevProps.image.url === nextProps.image.url &&
-    prevProps.categoryInfo.id === nextProps.categoryInfo.id
+    prevProps.categoryInfo.id === nextProps.categoryInfo.id &&
+    prevProps.isSelectionMode === nextProps.isSelectionMode &&
+    prevProps.isSelected === nextProps.isSelected
   );
 });
 
@@ -104,6 +133,7 @@ interface VirtualGridProps<T> {
   containerHeight: number; // コンテナの高さ
   renderItem: (item: T, index: number) => React.ReactNode;
   className?: string;
+  gridColsClass?: string; // グリッド列数のクラス
 }
 
 function VirtualGrid<T>({
@@ -113,7 +143,8 @@ function VirtualGrid<T>({
   gap,
   containerHeight,
   renderItem,
-  className = ''
+  className = '',
+  gridColsClass = 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
 }: VirtualGridProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -171,7 +202,7 @@ function VirtualGrid<T>({
           }}
         >
           <div
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+            className={`grid ${gridColsClass}`}
             style={{ gap: `${gap}px` }}
           >
             {visibleRange.visibleItems.map((item, index) => (
@@ -208,6 +239,21 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   });
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  // 検索機能の状態
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // ソート機能の状態
+  type SortOption = 'date-desc' | 'date-asc' | 'title-asc' | 'title-desc' | 'category-asc';
+  const [sortOption, setSortOption] = useState<SortOption>('date-desc');
+  // 一括選択機能の状態
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
+  // サムネイルサイズ調整機能の状態
+  type ThumbnailSize = 'small' | 'medium' | 'large';
+  const [thumbnailSize, setThumbnailSize] = useState<ThumbnailSize>(() => {
+    const saved = localStorage.getItem('imageBoard-thumbnailSize');
+    return (saved as ThumbnailSize) || 'medium';
+  });
   const [formData, setFormData] = useState<{
     url: string;
     imageId?: string;
@@ -233,65 +279,27 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [showImageInfo, setShowImageInfo] = useState(false);
+  const [viewerImageUrl, setViewerImageUrl] = useState<string>('');
+  // パン機能の状態
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   // 編集関連の状態
   const [editingImage, setEditingImage] = useState<ImageItem | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [editImageUrl, setEditImageUrl] = useState<string>('');
   const [editFormData, setEditFormData] = useState({
     title: '',
     description: '',
     category: 'reference' as ImageItem['category'],
   });
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [gridContainerHeight, setGridContainerHeight] = useState(600); // デフォルト高さ
-
-  // 自動保存機能（Blobストレージ対応）
-  const autoSaveImage = useCallback(async (imageData: { url: string; imageId?: string; title: string; description: string; category: ImageItem['category'] }) => {
-    if (!imageData.url.trim() || !imageData.title.trim()) return;
-
-    setIsAutoSaving(true);
-
-    const newImage: ImageItem = {
-      id: Date.now().toString(),
-      url: imageData.url.trim(),
-      imageId: imageData.imageId,
-      title: imageData.title.trim(),
-      description: imageData.description || '',
-      category: imageData.category,
-      addedAt: new Date(),
-    };
-
-    try {
-      // 参照カウントを増やす
-      if (newImage.imageId) {
-        await databaseService.incrementImageReference(newImage.imageId);
-      }
-
-      await updateProject({
-        imageBoard: [...(currentProject?.imageBoard || []), newImage]
-      });
-
-      // 成功メッセージを短時間表示
-      setTimeout(() => {
-        setIsAutoSaving(false);
-      }, 1000);
-    } catch (error) {
-      console.error('自動保存エラー:', error);
-      setIsAutoSaving(false);
-    }
-  }, [currentProject, updateProject]);
-
-  // 自動保存のトリガー（フォームデータが変更された時）
-  useEffect(() => {
-    if (isOpen && currentProject && formData.url.trim() && formData.title.trim() && selectedFile) {
-      const timeoutId = setTimeout(() => {
-        autoSaveImage(formData);
-      }, 2000); // 2秒後に自動保存
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [formData, selectedFile, isOpen, currentProject, autoSaveImage]);
 
 
   // ファイル処理関数（単一ファイル用）- Blobストレージ対応
@@ -312,26 +320,41 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     try {
       // 画像のサイズを取得
       const img = document.createElement('img');
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-      });
+      let tempUrl: string | null = null;
+      
+      try {
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+          tempUrl = URL.createObjectURL(file);
+          img.src = tempUrl;
+        });
 
-      // WebP形式に変換してBlobストレージに保存
-      const webpBlob = await optimizeImageToWebP(file, 1920, 1080, 0.8);
-      const imageId = await databaseService.saveImage(
-        webpBlob,
-        file.type,
-        file.size,
-        img.width,
-        img.height
-      );
+        // WebP形式に変換してBlobストレージに保存
+        const webpBlob = await optimizeImageToWebP(file, 1920, 1080, 0.8);
+        const imageId = await databaseService.saveImage(
+          webpBlob,
+          file.type,
+          file.size,
+          img.width,
+          img.height
+        );
 
-      // Blob URLを生成（表示用）
-      const blobUrl = URL.createObjectURL(webpBlob);
+        // Blob URLを生成（表示用）
+        const blobUrl = URL.createObjectURL(webpBlob);
 
-      return { imageId, url: blobUrl };
+        // 一時URLを解放
+        if (tempUrl) {
+          URL.revokeObjectURL(tempUrl);
+        }
+
+        return { imageId, url: blobUrl };
+      } finally {
+        // エラー時も一時URLを解放
+        if (tempUrl) {
+          URL.revokeObjectURL(tempUrl);
+        }
+      }
     } catch (error) {
       console.error('ファイル処理エラー:', error);
       showError('ファイルの処理に失敗しました。');
@@ -512,6 +535,17 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const handleAddImage = async () => {
     if (!currentProject || !formData.url.trim() || !formData.title.trim()) return;
 
+    // 重複チェック: 同じimageIdまたはurlが既に存在する場合は追加しない
+    const existingImage = currentProject.imageBoard.find(img => 
+      (formData.imageId && img.imageId === formData.imageId) || 
+      img.url === formData.url.trim()
+    );
+
+    if (existingImage) {
+      showError('この画像は既に登録されています。');
+      return;
+    }
+
     const newImage: ImageItem = {
       id: Date.now().toString(),
       url: formData.url.trim(),
@@ -559,10 +593,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
         // 参照カウントが0になった場合は自動削除される（オプション）
       }
       
-      // プロジェクトから削除
+      // プロジェクトから削除（即座に保存して自動保存の巻き戻しを防ぐ）
       await updateProject({
         imageBoard: currentProject.imageBoard.filter(img => img.id !== id),
-      });
+      }, true); // immediate: true で即座に保存
     } catch (error) {
       console.error('画像削除エラー:', error);
       showError('画像の削除に失敗しました。');
@@ -574,28 +608,79 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   // 画像ビューアー関連の関数
-  const handleViewImage = (image: ImageItem) => {
+  const handleViewImage = useCallback(async (image: ImageItem) => {
+    // 前の画像URLを解放
+    if (viewerImageUrl && viewerImageUrl.startsWith('blob:')) {
+      databaseService.revokeImageUrl(viewerImageUrl);
+    }
+
     setSelectedImage(image);
     setShowImageViewer(true);
     setZoomLevel(1);
     setRotation(0);
     setShowImageInfo(false);
-  };
+    setPanX(0);
+    setPanY(0);
+    
+    // imageIdから画像を読み込む
+    if (image.imageId) {
+      try {
+        const url = await databaseService.getImageUrl(image.imageId);
+        if (url) {
+          setViewerImageUrl(url);
+        } else {
+          // imageIdから読み込めない場合はurlをフォールバックとして使用
+          setViewerImageUrl(image.url);
+        }
+      } catch (error) {
+        console.error('画像読み込みエラー:', error);
+        setViewerImageUrl(image.url);
+      }
+    } else {
+      setViewerImageUrl(image.url);
+    }
+  }, [viewerImageUrl]);
 
   const handleCloseImageViewer = () => {
+    // Blob URLを解放
+    if (viewerImageUrl && viewerImageUrl.startsWith('blob:')) {
+      databaseService.revokeImageUrl(viewerImageUrl);
+    }
     setShowImageViewer(false);
     setSelectedImage(null);
+    setViewerImageUrl('');
     setZoomLevel(1);
     setRotation(0);
     setShowImageInfo(false);
+    setPanX(0);
+    setPanY(0);
+    setIsDragging(false);
+    setImageNaturalSize({ width: 0, height: 0 });
   };
 
   const handleZoomIn = () => {
-    setZoomLevel(prev => Math.min(prev + 0.25, 3));
+    setZoomLevel(prev => {
+      const newZoom = Math.min(prev + 0.25, 3);
+      // ズーム時にパン位置を調整（画像が中央に来るように）
+      if (newZoom > 1 && newZoom !== prev) {
+        // パン位置をリセット（中央に戻す）
+        setPanX(0);
+        setPanY(0);
+      }
+      return newZoom;
+    });
   };
 
   const handleZoomOut = () => {
-    setZoomLevel(prev => Math.max(prev - 0.25, 0.25));
+    setZoomLevel(prev => {
+      const newZoom = Math.max(prev - 0.25, 0.25);
+      // ズームアウト時にパン位置をリセット
+      if (newZoom <= 1) {
+        setPanX(0);
+        setPanY(0);
+      }
+      return newZoom;
+    });
   };
 
   const handleRotate = () => {
@@ -603,10 +688,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   };
 
   const handleDownloadImage = () => {
-    if (!selectedImage) return;
+    if (!selectedImage || !viewerImageUrl) return;
 
     const link = document.createElement('a');
-    link.href = selectedImage.url;
+    link.href = viewerImageUrl;
     link.download = `${selectedImage.title || 'image'}.png`;
     document.body.appendChild(link);
     link.click();
@@ -616,10 +701,147 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   const handleResetView = () => {
     setZoomLevel(1);
     setRotation(0);
+    setPanX(0);
+    setPanY(0);
   };
 
+  // マウスホイールズーム処理
+  const handleWheelZoom = useCallback((e: WheelEvent) => {
+    // Ctrl/Cmd + ホイールでズーム
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      const newZoom = Math.max(0.25, Math.min(3, zoomLevel + delta));
+      
+      if (newZoom !== zoomLevel) {
+        // マウス位置を中心にズーム
+        if (imageContainerRef.current && imageRef.current && imageNaturalSize.width > 0) {
+          const containerRect = imageContainerRef.current.getBoundingClientRect();
+          const containerWidth = containerRect.width - 32;
+          const containerHeight = containerRect.height - 32;
+          
+          // マウス位置をコンテナ中心からの相対位置に変換
+          const mouseX = e.clientX - containerRect.left - containerWidth / 2;
+          const mouseY = e.clientY - containerRect.top - containerHeight / 2;
+          
+          // ズーム中心点を計算
+          const zoomFactor = newZoom / zoomLevel;
+          const newPanX = mouseX - (mouseX - panX) * zoomFactor;
+          const newPanY = mouseY - (mouseY - panY) * zoomFactor;
+          
+          // パンの範囲を制限
+          const imageAspect = imageNaturalSize.width / imageNaturalSize.height;
+          const containerAspect = containerWidth / containerHeight;
+          
+          let displayWidth: number;
+          let displayHeight: number;
+          
+          if (imageAspect > containerAspect) {
+            displayWidth = containerWidth;
+            displayHeight = containerWidth / imageAspect;
+          } else {
+            displayHeight = containerHeight;
+            displayWidth = containerHeight * imageAspect;
+          }
+          
+          const zoomedWidth = displayWidth * newZoom;
+          const zoomedHeight = displayHeight * newZoom;
+          
+          const maxPanX = Math.max(0, (zoomedWidth - containerWidth) / 2);
+          const maxPanY = Math.max(0, (zoomedHeight - containerHeight) / 2);
+          
+          setPanX(Math.max(-maxPanX, Math.min(maxPanX, newPanX)));
+          setPanY(Math.max(-maxPanY, Math.min(maxPanY, newPanY)));
+        }
+        
+        setZoomLevel(newZoom);
+      }
+    }
+  }, [zoomLevel, panX, panY, imageNaturalSize]);
+
+  // ドラッグ開始処理
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoomLevel > 1) {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - panX,
+        y: e.clientY - panY,
+      });
+    }
+  }, [zoomLevel, panX, panY]);
+
+  // ドラッグ中処理
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDragging && zoomLevel > 1) {
+      const newPanX = e.clientX - dragStart.x;
+      const newPanY = e.clientY - dragStart.y;
+      
+      // パンの範囲を制限（画像がコンテナからはみ出さないように）
+      if (imageContainerRef.current && imageRef.current && imageNaturalSize.width > 0) {
+        const containerRect = imageContainerRef.current.getBoundingClientRect();
+        const containerWidth = containerRect.width - 32; // padding分を引く
+        const containerHeight = containerRect.height - 32;
+        
+        // 画像の表示サイズを計算（object-containを考慮）
+        const imageAspect = imageNaturalSize.width / imageNaturalSize.height;
+        const containerAspect = containerWidth / containerHeight;
+        
+        let displayWidth: number;
+        let displayHeight: number;
+        
+        if (imageAspect > containerAspect) {
+          // 画像の方が横長
+          displayWidth = containerWidth;
+          displayHeight = containerWidth / imageAspect;
+        } else {
+          // 画像の方が縦長
+          displayHeight = containerHeight;
+          displayWidth = containerHeight * imageAspect;
+        }
+        
+        // ズーム後のサイズ
+        const zoomedWidth = displayWidth * zoomLevel;
+        const zoomedHeight = displayHeight * zoomLevel;
+        
+        // パンの最大範囲を計算
+        const maxPanX = Math.max(0, (zoomedWidth - containerWidth) / 2);
+        const maxPanY = Math.max(0, (zoomedHeight - containerHeight) / 2);
+        
+        setPanX(Math.max(-maxPanX, Math.min(maxPanX, newPanX)));
+        setPanY(Math.max(-maxPanY, Math.min(maxPanY, newPanY)));
+      } else {
+        setPanX(newPanX);
+        setPanY(newPanY);
+      }
+    }
+  }, [isDragging, zoomLevel, dragStart, imageNaturalSize]);
+
+  // ドラッグ終了処理
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // マウスリーブ処理（ドラッグが外に出た場合）
+  const handleMouseLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // 画像ビューアーが開いている時にマウスイベントを設定
+  useEffect(() => {
+    if (showImageViewer && imageContainerRef.current) {
+      const container = imageContainerRef.current;
+      container.addEventListener('wheel', handleWheelZoom, { passive: false });
+      
+      return () => {
+        container.removeEventListener('wheel', handleWheelZoom);
+      };
+    }
+  }, [showImageViewer, handleWheelZoom]);
+
   // 画像編集関連の関数
-  const handleEditImage = (image: ImageItem) => {
+  const handleEditImage = async (image: ImageItem) => {
     setEditingImage(image);
     setEditFormData({
       title: image.title,
@@ -627,6 +849,24 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       category: image.category,
     });
     setShowEditForm(true);
+    
+    // imageIdから画像を読み込む
+    if (image.imageId) {
+      try {
+        const url = await databaseService.getImageUrl(image.imageId);
+        if (url) {
+          setEditImageUrl(url);
+        } else {
+          // imageIdから読み込めない場合はurlをフォールバックとして使用
+          setEditImageUrl(image.url);
+        }
+      } catch (error) {
+        console.error('画像読み込みエラー:', error);
+        setEditImageUrl(image.url);
+      }
+    } else {
+      setEditImageUrl(image.url);
+    }
   };
 
   const handleUpdateImage = () => {
@@ -648,16 +888,26 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       imageBoard: updatedImages,
     });
 
+    // Blob URLを解放
+    if (editImageUrl && editImageUrl.startsWith('blob:')) {
+      databaseService.revokeImageUrl(editImageUrl);
+    }
     setShowEditForm(false);
     setEditingImage(null);
+    setEditImageUrl('');
     setEditFormData({ title: '', description: '', category: 'reference' });
   };
 
   const handleCancelEdit = useCallback(() => {
+    // Blob URLを解放
+    if (editImageUrl && editImageUrl.startsWith('blob:')) {
+      databaseService.revokeImageUrl(editImageUrl);
+    }
     setShowEditForm(false);
     setEditingImage(null);
+    setEditImageUrl('');
     setEditFormData({ title: '', description: '', category: 'reference' });
-  }, []);
+  }, [editImageUrl]);
 
   // 画像編集モーダル用のESCキー処理
   const editModalRef = useRef<HTMLDivElement>(null);
@@ -706,17 +956,257 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     };
   }, [isOpen, showAddForm]);
 
+  // サムネイルサイズの永続化
+  useEffect(() => {
+    localStorage.setItem('imageBoard-thumbnailSize', thumbnailSize);
+  }, [thumbnailSize]);
+
+  // フィルタリングとソート処理（Hooksは早期リターンの前に配置する必要がある）
+  const filteredAndSortedImages = useMemo(() => {
+    if (!currentProject) return [];
+    
+    let filtered = currentProject.imageBoard;
+
+    // カテゴリフィルタリング
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(img => img.category === selectedCategory);
+    }
+
+    // 検索フィルタリング
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(img => {
+        const title = img.title.toLowerCase();
+        const description = (img.description || '').toLowerCase();
+        const categoryLabel = getCategoryInfo(img.category).label.toLowerCase();
+        return title.includes(query) || description.includes(query) || categoryLabel.includes(query);
+      });
+    }
+
+    // ソート処理
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'date-desc':
+          return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+        case 'date-asc':
+          return new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime();
+        case 'title-asc':
+          return a.title.localeCompare(b.title, 'ja');
+        case 'title-desc':
+          return b.title.localeCompare(a.title, 'ja');
+        case 'category-asc':
+          return getCategoryInfo(a.category).label.localeCompare(getCategoryInfo(b.category).label, 'ja');
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [currentProject?.imageBoard, selectedCategory, searchQuery, sortOption]);
+
+  const filteredImages = filteredAndSortedImages;
+
+  // 画像ビューアーでの前後の画像に移動
+  const handleNavigateToPrevious = useCallback(() => {
+    if (!selectedImage || !currentProject || !filteredImages.length) return;
+    const currentIndex = filteredImages.findIndex(img => img.id === selectedImage.id);
+    if (currentIndex === -1) return;
+    
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredImages.length - 1;
+    if (filteredImages[prevIndex]) {
+      handleViewImage(filteredImages[prevIndex]);
+    }
+  }, [selectedImage, currentProject, filteredImages, handleViewImage]);
+
+  const handleNavigateToNext = useCallback(() => {
+    if (!selectedImage || !currentProject || !filteredImages.length) return;
+    const currentIndex = filteredImages.findIndex(img => img.id === selectedImage.id);
+    if (currentIndex === -1) return;
+    
+    const nextIndex = currentIndex < filteredImages.length - 1 ? currentIndex + 1 : 0;
+    if (filteredImages[nextIndex]) {
+      handleViewImage(filteredImages[nextIndex]);
+    }
+  }, [selectedImage, currentProject, filteredImages, handleViewImage]);
+
+  // キーボードショートカット
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 入力フィールド内では通常の文字編集操作を優先
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName;
+        const isInputElement =
+          tagName === 'INPUT' ||
+          tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.getAttribute('role') === 'textbox';
+
+        // 画像ビューアーが開いている場合は、矢印キーで前後移動を許可
+        if (isInputElement && showImageViewer && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          // 画像ビューアーでのナビゲーションは後で処理
+        } else if (isInputElement && e.key !== 'Escape') {
+          // Escapeキー以外は、入力フィールド内ではショートカットを無効化
+          // ただし、Ctrl/Cmdキーとの組み合わせは許可
+          if (!(e.ctrlKey || e.metaKey)) {
+            return;
+          }
+        }
+      }
+
+      // Ctrl/Cmd + F: 検索バーにフォーカス（画像ビューアーが開いていない場合のみ）
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !showImageViewer) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // Ctrl/Cmd + A: 全選択（選択モード時のみ）
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a' && isSelectionMode && !showImageViewer && !showAddForm && !showEditForm) {
+        e.preventDefault();
+        // 全選択/解除
+        if (selectedImageIds.size === filteredImages.length) {
+          setSelectedImageIds(new Set());
+        } else {
+          setSelectedImageIds(new Set(filteredImages.map(img => img.id)));
+        }
+        return;
+      }
+
+      // Delete/Backspace: 選択画像の削除（選択モード時かつ選択がある場合のみ）
+      if ((e.key === 'Delete' || e.key === 'Backspace') && isSelectionMode && selectedImageIds.size > 0 && !showImageViewer && !showAddForm && !showEditForm) {
+        e.preventDefault();
+        // 一括削除処理を実行（非同期処理のため、直接呼び出し）
+        const idsToDelete = Array.from(selectedImageIds);
+        const imagesToDelete = currentProject?.imageBoard.filter(img => idsToDelete.includes(img.id)) || [];
+        
+        (async () => {
+          if (!currentProject || imagesToDelete.length === 0) return;
+          try {
+            // Blobストレージから削除（参照カウントを減らす）
+            for (const image of imagesToDelete) {
+              if (image.imageId) {
+                await databaseService.decrementImageReference(image.imageId);
+              }
+            }
+            
+            // プロジェクトから削除（即座に保存して自動保存の巻き戻しを防ぐ）
+            await updateProject({
+              imageBoard: currentProject.imageBoard.filter(img => !idsToDelete.includes(img.id)),
+            }, true); // immediate: true で即座に保存
+            
+            showSuccess(`${idsToDelete.length}個の画像を削除しました`);
+            setSelectedImageIds(new Set());
+            setIsSelectionMode(false);
+          } catch (error) {
+            console.error('一括削除エラー:', error);
+            showError('画像の削除に失敗しました。');
+          }
+        })();
+        return;
+      }
+
+      // 画像ビューアーでのナビゲーション（←/→）
+      if (showImageViewer && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        if (e.key === 'ArrowLeft') {
+          handleNavigateToPrevious();
+        } else if (e.key === 'ArrowRight') {
+          handleNavigateToNext();
+        }
+        return;
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isSelectionMode, selectedImageIds.size, showImageViewer, showAddForm, showEditForm, filteredImages, selectedImage, currentProject, updateProject, showSuccess, showError, handleNavigateToPrevious, handleNavigateToNext]);
+
   // すべてのHooksの呼び出し後に早期リターンを配置
   if (!isOpen || !currentProject) return null;
-
-  const filteredImages = selectedCategory === 'all'
-    ? currentProject.imageBoard
-    : currentProject.imageBoard.filter(img => img.category === selectedCategory);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // オーバーレイ自体がクリックされた場合のみ閉じる
     if (e.target === e.currentTarget) {
       onClose();
+    }
+  };
+
+  // 一括選択機能のハンドラー
+  const handleToggleSelection = (imageId: string) => {
+    setSelectedImageIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(imageId)) {
+        newSet.delete(imageId);
+      } else {
+        newSet.add(imageId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedImageIds.size === filteredImages.length) {
+      setSelectedImageIds(new Set());
+    } else {
+      setSelectedImageIds(new Set(filteredImages.map(img => img.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!currentProject || selectedImageIds.size === 0) return;
+    
+    const idsToDelete = Array.from(selectedImageIds);
+    const imagesToDelete = currentProject.imageBoard.filter(img => idsToDelete.includes(img.id));
+    
+    try {
+      // Blobストレージから削除（参照カウントを減らす）
+      for (const image of imagesToDelete) {
+        if (image.imageId) {
+          await databaseService.decrementImageReference(image.imageId);
+        }
+      }
+      
+      // プロジェクトから削除（即座に保存して自動保存の巻き戻しを防ぐ）
+      await updateProject({
+        imageBoard: currentProject.imageBoard.filter(img => !idsToDelete.includes(img.id)),
+      }, true); // immediate: true で即座に保存
+      
+      showSuccess(`${idsToDelete.length}個の画像を削除しました`);
+      setSelectedImageIds(new Set());
+      setIsSelectionMode(false);
+    } catch (error) {
+      console.error('一括削除エラー:', error);
+      showError('画像の削除に失敗しました。');
+    }
+  };
+
+  // サムネイルサイズに応じたグリッド列数の計算
+  const getGridColumns = (size: ThumbnailSize): number => {
+    switch (size) {
+      case 'small':
+        return 6; // lg:grid-cols-6
+      case 'medium':
+        return 4; // lg:grid-cols-4
+      case 'large':
+        return 2; // lg:grid-cols-2
+      default:
+        return 4;
+    }
+  };
+
+  const getGridColsClass = (size: ThumbnailSize): string => {
+    switch (size) {
+      case 'small':
+        return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6';
+      case 'medium':
+        return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
+      case 'large':
+        return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2';
+      default:
+        return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
     }
   };
 
@@ -761,6 +1251,127 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
               >
                 <X className="h-6 w-6" />
               </button>
+            </div>
+          </div>
+
+          {/* 検索バーとツールバー */}
+          <div className="mt-4 space-y-3">
+            {/* 検索バー */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="タイトル、説明、カテゴリで検索... (Ctrl/Cmd + F)"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-['Noto_Sans_JP']"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* ツールバー（ソート、一括選択、サムネイルサイズ） */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center space-x-2">
+                {/* ソート機能 */}
+                <div className="flex items-center space-x-2">
+                  <ArrowUpDown className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value as SortOption)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                  >
+                    <option value="date-desc">追加日（新しい順）</option>
+                    <option value="date-asc">追加日（古い順）</option>
+                    <option value="title-asc">タイトル（あいうえお順）</option>
+                    <option value="title-desc">タイトル（逆順）</option>
+                    <option value="category-asc">カテゴリ順</option>
+                  </select>
+                </div>
+
+                {/* 一括選択モード切り替え */}
+                <button
+                  onClick={() => {
+                    setIsSelectionMode(!isSelectionMode);
+                    if (isSelectionMode) {
+                      setSelectedImageIds(new Set());
+                    }
+                  }}
+                  className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${
+                    isSelectionMode
+                      ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  <span>一括選択</span>
+                </button>
+
+                {/* 一括削除ボタン（選択モード時かつ選択がある場合） */}
+                {isSelectionMode && selectedImageIds.size > 0 && (
+                  <button
+                    onClick={handleBulkDelete}
+                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 transition-colors font-['Noto_Sans_JP']"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>削除 ({selectedImageIds.size})</span>
+                  </button>
+                )}
+
+                {/* 全選択ボタン（選択モード時） */}
+                {isSelectionMode && (
+                  <button
+                    onClick={handleSelectAll}
+                    className="px-3 py-1.5 rounded-lg text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-['Noto_Sans_JP']"
+                  >
+                    {selectedImageIds.size === filteredImages.length ? 'すべて解除' : 'すべて選択'}
+                  </button>
+                )}
+              </div>
+
+              {/* サムネイルサイズ調整 */}
+              <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={() => setThumbnailSize('small')}
+                  className={`p-1.5 rounded transition-colors ${
+                    thumbnailSize === 'small'
+                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                  title="小"
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setThumbnailSize('medium')}
+                  className={`p-1.5 rounded transition-colors ${
+                    thumbnailSize === 'medium'
+                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                  title="中"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setThumbnailSize('large')}
+                  className={`p-1.5 rounded transition-colors ${
+                    thumbnailSize === 'large'
+                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                  title="大"
+                >
+                  <Grid2x2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -971,12 +1582,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                       disabled={!selectedFile || !formData.title.trim() || isUploading}
                       className="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center space-x-2"
                     >
-                      {isAutoSaving ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          <span>自動保存中...</span>
-                        </>
-                      ) : isUploading ? (
+                      {isUploading ? (
                         '読み込み中...'
                       ) : (
                         <>
@@ -1045,10 +1651,11 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                   {filteredImages.length >= 50 ? (
                     <VirtualGrid
                       items={filteredImages}
-                      columns={4} // lg:grid-cols-4
-                      itemHeight={320} // 画像カードの概算高さ（aspect-square + padding）
-                      gap={16} // gap-4 = 16px
-                      containerHeight={gridContainerHeight - 48} // padding分を引く
+                      columns={getGridColumns(thumbnailSize)}
+                      itemHeight={thumbnailSize === 'small' ? 200 : thumbnailSize === 'medium' ? 320 : 480}
+                      gap={16}
+                      containerHeight={gridContainerHeight - 48}
+                      gridColsClass={getGridColsClass(thumbnailSize)}
                       renderItem={(image) => {
                         const categoryInfo = getCategoryInfo(image.category);
                         return (
@@ -1059,14 +1666,16 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                             onView={handleViewImage}
                             onEdit={handleEditImage}
                             onDelete={handleDeleteImage}
+                            isSelectionMode={isSelectionMode}
+                            isSelected={selectedImageIds.has(image.id)}
+                            onToggleSelection={handleToggleSelection}
                           />
                         );
                       }}
                       className={isDraggingOver ? 'opacity-75' : ''}
                     />
                   ) : (
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 relative ${isDraggingOver ? 'opacity-75' : ''
-                      }`}>
+                    <div className={`grid ${getGridColsClass(thumbnailSize)} gap-4 relative ${isDraggingOver ? 'opacity-75' : ''}`}>
                       {filteredImages.map((image) => {
                         const categoryInfo = getCategoryInfo(image.category);
                         return (
@@ -1077,6 +1686,9 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                             onView={handleViewImage}
                             onEdit={handleEditImage}
                             onDelete={handleDeleteImage}
+                            isSelectionMode={isSelectionMode}
+                            isSelected={selectedImageIds.has(image.id)}
+                            onToggleSelection={handleToggleSelection}
                           />
                         );
                       })}
@@ -1134,14 +1746,20 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                   画像プレビュー
                 </label>
                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
-                  <img
-                    src={editingImage.url}
-                    alt={editingImage.title}
-                    className="max-w-full h-48 object-cover rounded-lg mx-auto"
-                    onError={(e) => {
-                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgNzBMMTMwIDEwMEg3MEwxMDAgNzBaIiBmaWxsPSIjOUI5QkEwIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNDAiIHN0cm9rZT0iIzlCOUJBMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTQwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOUI5QkEwIiBmb250LXNpemU9IjEyIj7nlLvlg4/jgpLoqq3jgb/ovrzjgoHjgb7jgZvjgpPjgafjgZfjgZ88L3RleHQ+Cjwvc3ZnPgo=';
-                    }}
-                  />
+                  {editImageUrl ? (
+                    <img
+                      src={editImageUrl}
+                      alt={editingImage.title}
+                      className="max-w-full h-48 object-cover rounded-lg mx-auto"
+                      onError={(e) => {
+                        e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgNzBMMTMwIDEwMEg3MEwxMDAgNzBaIiBmaWxsPSIjOUI5QkEwIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNDAiIHN0cm9rZT0iIzlCOUJBMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTQwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOUI5QkEwIiBmb250LXNpemU9IjEyIj7nlLvlg4/jgpLoqq3jgb/ovrzjgoHjgb7jgZvjgpPjgafjgZfjgZ88L3RleHQ+Cjwvc3ZnPgo=';
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-48">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1236,6 +1854,11 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                   <Tag className="h-3 w-3 inline mr-1" />
                   {getCategoryInfo(selectedImage.category).label}
                 </span>
+                {filteredImages.length > 1 && (
+                  <span className="text-sm text-gray-300 font-['Noto_Sans_JP']">
+                    {filteredImages.findIndex(img => img.id === selectedImage.id) + 1} / {filteredImages.length}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">
@@ -1308,20 +1931,68 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
             </div>
 
             {/* 画像表示エリア */}
-            <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
+            <div 
+              ref={imageContainerRef}
+              className="flex-1 flex items-center justify-center p-4 relative overflow-hidden"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              style={{
+                cursor: zoomLevel > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+              }}
+            >
+              {/* 前の画像に移動ボタン */}
+              {filteredImages.length > 1 && (
+                <button
+                  onClick={handleNavigateToPrevious}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/60 hover:bg-black/80 backdrop-blur-sm rounded-full text-white transition-all duration-200 hover:scale-110"
+                  title="前の画像 (←)"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+              )}
+
               <div className="relative w-full h-full flex items-center justify-center">
-                <img
-                  src={selectedImage.url}
-                  alt={selectedImage.title}
-                  className="max-w-full max-h-full object-contain transition-transform duration-200"
-                  style={{
-                    transform: `scale(${zoomLevel}) rotate(${rotation}deg)`,
-                  }}
-                  onError={(e) => {
-                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDQwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTQwTDI2MCAyMDBIMTQwTDIwMCAxNDBaIiBmaWxsPSIjOUI5QkEwIi8+CjxjaXJjbGUgY3g9IjIwMCIgY3k9IjIwMCIgcj0iODAiIHN0cm9rZT0iIzlCOUJBMCIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+Cjx0ZXh0IHg9IjIwMCIgeT0iMjgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOUI5QkEwIiBmb250LXNpemU9IjI0Ij7nlLvlg4/jgpLoqq3jgb/ovrzjgoHjgb7jgZvjgpPjgafjgZfjgZ88L3RleHQ+Cjwvc3ZnPgo=';
-                  }}
-                />
+                {viewerImageUrl ? (
+                  <img
+                    ref={imageRef}
+                    src={viewerImageUrl}
+                    alt={selectedImage.title}
+                    className="max-w-full max-h-full object-contain select-none"
+                    style={{
+                      transform: `translate(${panX}px, ${panY}px) scale(${zoomLevel}) rotate(${rotation}deg)`,
+                      transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                    }}
+                    draggable={false}
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      setImageNaturalSize({
+                        width: img.naturalWidth,
+                        height: img.naturalHeight,
+                      });
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDQwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTQwTDI2MCAyMDBIMTQwTDIwMCAxNDBaIiBmaWxsPSIjOUI5QkEwIi8+CjxjaXJjbGUgY3g9IjIwMCIgY3k9IjIwMCIgcj0iODAiIHN0cm9rZT0iIzlCOUJBMCIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+Cjx0ZXh0IHg9IjIwMCIgeT0iMjgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOUI5QkEwIiBmb250LXNpemU9IjI0Ij7nlLvlg4/jgpLoqq3jgb/ovrzjgoHjgb7jgZvjgpPjgafjgZfjgZ88L3RleHQ+Cjwvc3ZnPgo=';
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+                  </div>
+                )}
               </div>
+
+              {/* 次の画像に移動ボタン */}
+              {filteredImages.length > 1 && (
+                <button
+                  onClick={handleNavigateToNext}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/60 hover:bg-black/80 backdrop-blur-sm rounded-full text-white transition-all duration-200 hover:scale-110"
+                  title="次の画像 (→)"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              )}
             </div>
 
             {/* 画像情報パネル */}

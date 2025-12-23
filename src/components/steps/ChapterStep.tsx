@@ -8,6 +8,7 @@ import { ChapterList } from './chapter/ChapterList';
 import { ChapterHistory, ChapterFormData } from './chapter/types';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface ChapterStepProps {
   onNavigateToStep?: (step: Step) => void;
@@ -51,6 +52,17 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
   const [chapterHistories, setChapterHistories] = useState<{ [chapterId: string]: ChapterHistory[] }>({});
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+
+  // 確認ダイアログの状態
+  const [confirmDialogState, setConfirmDialogState] = useState<{
+    isOpen: boolean;
+    chapterId: string | null;
+    chapterTitle: string;
+  }>({
+    isOpen: false,
+    chapterId: null,
+    chapterTitle: '',
+  });
 
   // ユーティリティ関数
   const handleCharacterToggle = (characterId: string, isEdit: boolean = false) => {
@@ -178,7 +190,25 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
 
   const handleDeleteChapter = (id: string) => {
     if (!currentProject) return;
-    deleteChapter(id);
+    const chapter = currentProject.chapters.find(c => c.id === id);
+    if (!chapter) return;
+
+    setConfirmDialogState({
+      isOpen: true,
+      chapterId: id,
+      chapterTitle: chapter.title,
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!currentProject || !confirmDialogState.chapterId) return;
+    deleteChapter(confirmDialogState.chapterId);
+    showSuccess('章を削除しました');
+    setConfirmDialogState({
+      isOpen: false,
+      chapterId: null,
+      chapterTitle: '',
+    });
   };
 
   const handleEditChapter = (chapter: { id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
@@ -432,7 +462,7 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {/* ステップナビゲーション */}
       <StepNavigation
         currentStep="chapter"
@@ -579,6 +609,22 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
               setSelectedChapterId(null);
         }}
         onRestore={restoreChapterFromHistory}
+      />
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={confirmDialogState.isOpen}
+        onClose={() => setConfirmDialogState({
+          isOpen: false,
+          chapterId: null,
+          chapterTitle: '',
+        })}
+        onConfirm={handleConfirmDelete}
+        title="章を削除しますか？"
+        message={`「${confirmDialogState.chapterTitle}」を削除します。\nこの操作は取り消せません。`}
+        type="danger"
+        confirmLabel="削除"
+        cancelLabel="キャンセル"
       />
     </div>
   );

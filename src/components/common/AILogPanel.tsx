@@ -101,17 +101,17 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
                 )}
                 {log.fieldLabel && (
                   <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    {log.fieldLabel}
+                    {String(log.fieldLabel)}
                   </span>
                 )}
                 {log.structureType && (
                   <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    {log.structureType}
+                    {String(log.structureType)}
                   </span>
                 )}
                 {log.chapterId && (
                   <span className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    {log.chapterId}
+                    {String(log.chapterId)}
                   </span>
                 )}
                 {log.suggestionType && (

@@ -1,8 +1,10 @@
 export type EvaluationMode = 'structure' | 'character' | 'style' | 'persona';
+export type EvaluationStrictness = 'gentle' | 'normal' | 'strict' | 'harsh';
 
 export interface EvaluationRequest {
     mode: EvaluationMode;
     content: string; // The story content to evaluate (e.g., synopsis, chapter text)
+    strictness?: EvaluationStrictness; // 評価の厳しさレベル（デフォルト: 'normal'）
     context?: {
         title?: string;
         theme?: string;
@@ -26,6 +28,6 @@ export interface SavedEvaluation extends EvaluationResult {
     id: string;
     date: Date;
     mode: EvaluationMode;
-    targetType: 'synopsis' | 'chapter' | 'custom';
+    targetType: 'synopsis' | 'chapter' | 'custom' | 'file' | 'whole-story';
     targetTitle?: string;
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, CheckCircle, Circle, Sparkles } from 'lucide-react';
+import { CheckCircle, Circle, Sparkles } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { Modal } from './common/Modal';
@@ -85,7 +85,7 @@ export const StoryProposalModal: React.FC<StoryProposalModalProps> = ({
   // 基本情報ステップの完了度を計算
   const getBasicStepProgress = (): number => {
     let completed = 0;
-    let total = 2; // 必須項目数
+    const total = 2; // 必須項目数
 
     if (title.trim()) completed++;
     if (mainGenre) {

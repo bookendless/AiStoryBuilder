@@ -1,338 +1,10 @@
-import { AIRequest, AIResponse, AIProvider, AISettings } from '../types/ai';
-import { EvaluationRequest, EvaluationResult } from '../types/evaluation';
+import { AIRequest, AIResponse, AISettings, OpenAIRequestBody, OpenAIResponse, OpenAIErrorResponse, ClaudeRequestBody, ClaudeResponse, ClaudeErrorResponse, GeminiRequestBody, GeminiResponse, GeminiErrorResponse, GeminiPromptFeedback, GeminiSafetyRating, LocalLLMRequestBody, LocalLLMResponse, LocalLLMErrorResponse } from '../types/ai';
+import { EvaluationRequest, EvaluationResult, EvaluationStrictness } from '../types/evaluation';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
-import { decryptApiKey, sanitizeInput } from '../utils/securityUtils';
+import { decryptApiKeyAsync, sanitizeInputForPrompt } from '../utils/securityUtils';
 import { httpService } from './httpService';
-
-// AI プロバイダーの定義
-export const AI_PROVIDERS: AIProvider[] = [
-  {
-    id: 'openai',
-    name: 'OpenAI GPT',
-    requiresApiKey: true,
-    description: 'OpenAI Responses / Chat Completions API。gpt-5.1系やo系の最新モデルを利用できます。',
-    apiDocsUrl: 'https://platform.openai.com/docs/api-reference/chat',
-    recommendedUses: [
-      '高品質な文章生成と草案執筆',
-      '画像を含むキャラクター分析などのマルチモーダル処理',
-      '複雑なプロット検証や推論タスク',
-    ],
-    regions: ['Global', 'US', 'EU'],
-    models: [
-      // --- 追加: GPT-5.1 系（フル版・Mini版）
-      {
-        id: 'gpt-5.1',
-        name: 'GPT-5.1',
-        description: '最新世代の汎用マルチモーダルモデル（最高品質・高度推論対応）。創作・分析・ツール連携に最適。',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン', '音声入力', 'ツール呼び出し', '高度推論', 'チェーン・オブ・ソート'],
-        recommendedUse: '長編創作、深い論理検証、外部ツール（プラグイン）との連携が必要なケース。',
-        latencyClass: 'reasoning',
-      },
-      {
-        id: 'gpt-5.1-mini',
-        name: 'GPT-5.1 Mini',
-        description: 'GPT-5.1 の高速・コスト効率版。多くの生成タスクで高品質を維持しつつ低レイテンシを実現。',
-        maxTokens: 128000,
-        capabilities: ['テキスト', 'ビジョン', '音声入力'],
-        recommendedUse: 'プロトタイピング、大量生成、対話型の高速応答が必要な場面。',
-        latencyClass: 'fast',
-      },
-
-      // --- 既存モデル群（順序は維持） ---
-
-      {
-        id: 'gpt-4.1-mini',
-        name: 'GPT-4.1 Mini',
-        description: '最新世代の高速マルチモーダルモデル（推奨）',
-        maxTokens: 128000,
-        capabilities: ['テキスト', 'ビジョン', '音声入力', 'ツール呼び出し'],
-        recommendedUse: 'コストと品質のバランスを取りたい日常的な生成',
-        latencyClass: 'fast',
-      },
-      {
-        id: 'gpt-4.1',
-        name: 'GPT-4.1',
-        description: 'プレミアム品質のマルチモーダルモデル',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン', '高度推論'],
-        recommendedUse: '長編の草案執筆や複雑な指示への対応',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'gpt-4o',
-        name: 'GPT-4o',
-        description: 'リアルタイム用途にも対応する万能モデル',
-        maxTokens: 128000,
-        capabilities: ['テキスト', 'ビジョン', 'リアルタイム'],
-        recommendedUse: 'キャラクター補完や会話型アシスタント',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'gpt-4o-mini',
-        name: 'GPT-4o Mini',
-        description: '軽量でコスト効率に優れたモデル',
-        maxTokens: 128000,
-        capabilities: ['テキスト', 'ビジョン'],
-        recommendedUse: '大量トライアルや高速応答が必要な操作',
-        latencyClass: 'fast',
-      },
-      {
-        id: 'o4-mini',
-        name: 'OpenAI o4-mini',
-        description: '2025年6月リリースの最新コスト効率Reasoningモデル',
-        maxTokens: 128000,
-        capabilities: ['テキスト', '推論', 'Chain-of-thought'],
-        recommendedUse: '日常的な推論タスク、軽量な論理検証',
-        latencyClass: 'fast',
-      },
-      {
-        id: 'o3-pro',
-        name: 'OpenAI o3-pro',
-        description: '2025年6月リリース。プロユーザー向けの高度推論モデル',
-        maxTokens: 200000,
-        capabilities: ['テキスト', '高度推論', '分析'],
-        recommendedUse: '複雑なプロット構築、深い洞察が必要な分析',
-        latencyClass: 'reasoning',
-      },
-      {
-        id: 'o3-mini',
-        name: 'OpenAI o3-mini',
-        description: '2025年1月リリース。コーディング・数学・科学に特化した軽量モデル',
-        maxTokens: 128000,
-        capabilities: ['テキスト', '推論', 'コード'],
-        recommendedUse: 'ロジックチェック、整合性検証',
-        latencyClass: 'reasoning',
-      },
-      {
-        id: 'o1-mini',
-        name: 'OpenAI o1-mini',
-        description: '推論タスク特化のReasoningモデル（軽量）',
-        maxTokens: 32000,
-        capabilities: ['テキスト', '推論', 'Chain-of-thought'],
-        recommendedUse: 'プロット整合性チェックや課題分解',
-        latencyClass: 'reasoning',
-      },
-      {
-        id: 'o1',
-        name: 'OpenAI o1',
-        description: '段階的推論に特化したReasoningモデル',
-        maxTokens: 64000,
-        capabilities: ['テキスト', '高度推論'],
-        recommendedUse: '長大な構成検証・複数案比較',
-        latencyClass: 'reasoning',
-      },
-      {
-        id: 'gpt-4-turbo',
-        name: 'GPT-4 Turbo',
-        description: '従来の高性能モデル（後方互換用）',
-        maxTokens: 128000,
-        capabilities: ['テキスト'],
-        recommendedUse: '既存プロンプト資産の継続利用',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'gpt-3.5-turbo',
-        name: 'GPT-3.5 Turbo',
-        description: 'コスト最優先のクラシックモデル',
-        maxTokens: 4096,
-        capabilities: ['テキスト'],
-        recommendedUse: '短文生成や試験的な実装',
-        latencyClass: 'fast',
-      },
-    ],
-  },
-  {
-    id: 'claude',
-    name: 'Anthropic Claude',
-    requiresApiKey: true,
-    description: 'Claude 4 / 4.5 ファミリー。長文要約や整合性チェックに強みがあります。',
-    apiDocsUrl: 'https://docs.anthropic.com/en/api/messages',
-    recommendedUses: [
-      '長文の推敲や構造化された要約',
-      '厳密なトーンコントロールが必要なキャラクター表現',
-      '設定資料の整合性チェック',
-    ],
-    regions: ['US', 'EU', 'JP (Preview)'],
-    models: [
-      {
-        id: 'claude-opus-4-20250514',
-        name: 'Claude Opus 4',
-        description: '2025年11月登場。Anthropic史上最も賢いモデル',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン', '高度推論', 'エージェント'],
-        recommendedUse: '最高難易度の執筆、複雑な構成の完全な制御',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'claude-sonnet-4-5-20250929',
-        name: 'Claude Sonnet 4.5',
-        description: '2025年9月登場。Sonnetの最新世代',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン', '長文推論'],
-        recommendedUse: '日常的な執筆の主力モデル',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'claude-haiku-4-5-20251001',
-        name: 'Claude Haiku 4.5',
-        description: '2025年10月登場。驚異的な速度と知能を両立',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン'],
-        recommendedUse: '高速チャット、大量のアイデア出し',
-        latencyClass: 'fast',
-      },
-
-      {
-        id: 'claude-3-5-haiku-20241022',
-        name: 'Claude 3.5 Haiku',
-        description: '高速でコスト効率に優れた最新軽量モデル',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン'],
-        recommendedUse: 'キャラクター補完や要約の大量実行',
-        latencyClass: 'fast',
-      },
-      {
-        id: 'claude-3-opus-20240229',
-        name: 'Claude 3 Opus',
-        description: '最高性能の長文・推論モデル',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン', '高度推論'],
-        recommendedUse: '設定資料の精密検証や難易度の高い生成',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'claude-3-sonnet-20240229',
-        name: 'Claude 3 Sonnet',
-        description: 'コストと品質のバランスが取れた従来モデル',
-        maxTokens: 200000,
-        capabilities: ['テキスト', 'ビジョン'],
-        recommendedUse: '既存Claude 3系からの移行用途',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'claude-3-haiku-20240307',
-        name: 'Claude 3 Haiku',
-        description: '軽量で高速な従来モデル',
-        maxTokens: 200000,
-        capabilities: ['テキスト'],
-        recommendedUse: '要約やブレインストーミングの素早い反復',
-        latencyClass: 'fast',
-      },
-    ],
-  },
-  {
-    id: 'gemini',
-    name: 'Google Gemini',
-    requiresApiKey: true,
-    description: 'Google AI Studio / Generative Language API。長大なコンテキストとマルチモーダルに対応。',
-    apiDocsUrl: 'https://ai.google.dev/api',
-    recommendedUses: [
-      '大規模な設定資料や資料集の処理',
-      '画像・音声を併用したリサーチ',
-      '長大な草案や要約の一括生成',
-    ],
-    regions: ['Global', 'Japan'],
-    models: [
-      {
-        id: 'gemini-3-pro-preview',
-        name: 'Gemini 3.0 Pro (Preview)',
-        description: '2025年11月リリース。最高性能のマルチモーダルモデル',
-        maxTokens: 2000000,
-        capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
-        recommendedUse: 'あらゆる高度なタスク、長大なコンテキスト処理',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'gemini-2.5-pro',
-        name: 'Gemini 2.5 Pro',
-        description: '最新フラッグシップ。最大200万トークン対応',
-        maxTokens: 2000000,
-        capabilities: ['テキスト', 'ビジョン', 'オーディオ'],
-        recommendedUse: '長期プロジェクトの統合管理や分析',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash',
-        description: '高速でコスト効率に優れた2.5世代',
-        maxTokens: 1000000,
-        capabilities: ['テキスト', 'ビジョン'],
-        recommendedUse: '画像分析付きキャラクター補完や大量生成',
-        latencyClass: 'fast',
-      },
-      {
-        id: 'gemini-2.5-flash-lite',
-        name: 'Gemini 2.5 Flash Lite',
-        description: '軽量Flash派生。API料金を抑えたい場合に最適',
-        maxTokens: 1000000,
-        capabilities: ['テキスト'],
-        recommendedUse: '反復的な短文生成・要約',
-        latencyClass: 'fast',
-      },
-      {
-        id: 'gemini-2.0-flash-001',
-        name: 'Gemini 2.0 Flash',
-        description: '2.0世代の高速モデル',
-        maxTokens: 1000000,
-        capabilities: ['テキスト', 'ビジョン'],
-        recommendedUse: 'ミドルレンジの物語生成',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'gemini-2.0-flash-lite-001',
-        name: 'Gemini 2.0 Flash Lite',
-        description: '2.0世代の軽量モデル',
-        maxTokens: 1000000,
-        capabilities: ['テキスト'],
-        recommendedUse: 'テンプレート出力やユーティリティ的な用途',
-        latencyClass: 'fast',
-      },
-      {
-        id: 'gemini-1.5-pro',
-        name: 'Gemini 1.5 Pro',
-        description: '従来の高性能モデル',
-        maxTokens: 2000000,
-        capabilities: ['テキスト', 'ビジョン'],
-        recommendedUse: '既存プロンプト資産の継続利用',
-        latencyClass: 'standard',
-      },
-      {
-        id: 'gemini-1.5-flash',
-        name: 'Gemini 1.5 Flash',
-        description: '従来の高速モデル',
-        maxTokens: 1000000,
-        capabilities: ['テキスト'],
-        recommendedUse: 'シンプルな要約やメモの自動化',
-        latencyClass: 'fast',
-      },
-    ],
-  },
-  {
-    id: 'local',
-    name: 'ローカルLLM',
-    requiresApiKey: false,
-    isLocal: true,
-    description: 'LM Studio / Ollama などのOpenAI互換サーバー。完全オフラインで利用できます。',
-    recommendedUses: [
-      'ネットワーク制限下での執筆',
-      '機密度の高い設定資料の検証',
-      'クラウドAIコストを抑えたい場合の下書き生成',
-    ],
-    models: [
-      {
-        id: 'local-model',
-        name: 'ローカルモデル',
-        description: '接続先ローカルLLMのデフォルト識別子',
-        maxTokens: 32768,
-        capabilities: ['テキスト'],
-        recommendedUse: 'アイデア出しや短い文章生成',
-        latencyClass: 'standard',
-      },
-    ],
-  },
-];
+import { APIError, ErrorCategory } from '../types/errors';
 
 // システムプロンプト（全プロバイダー共通）
 export const SYSTEM_PROMPT = `あなたは日本語の小説創作を専門とするプロフェッショナルな
@@ -345,19 +17,27 @@ export const SYSTEM_PROMPT = `あなたは日本語の小説創作を専門と�
 - 具体的で実用的な提案を行う
 
 【出力品質基準】
-1. **自然な日本語**: 会話は自然で、地の文は情景が浮かぶ描写
-2. **感情の深み**: キャラクターの内面や心情を丁寧に描写
+1. **自然な日本語**: 会話は自然で、地の文は情景が浮かぶ描写、情景法もバランスよく使用する
+2. **感情の深み**: キャラクターの内面や心情を丁寧に描写、自由間接話法もバランスよく使用する
 3. **五感の活用**: 視覚だけでなく、聴覚・触覚・嗅覚・味覚も活用
 4. **リズムとテンポ**: 文章の長短を調整し、読みやすいリズム
 5. **一貫性**: 既存設定・世界観・キャラクター性格・容姿・行動と矛盾しない
 
 【禁止事項】
-- 陳腐な表現や使い古された比喩の多用
-- 説明的すぎる文章（Show, don't tell の原則）
+- 陳腐な表現や使い古された比喩、クリシェの多用
+- 説明的すぎる文章（Show, don't tell 原則を逸脱する文章）
 - キャラクターの性格と矛盾する言動
 - 不自然な日本語や直訳調の表現
 
 常に読者の没入感を高めることを最優先に考えてください。`;
+
+// 評価の厳しさレベル別の指示文
+const STRICTNESS_INSTRUCTIONS: Record<EvaluationStrictness, string> = {
+  gentle: "【評価方針】\n良い点を重視し、建設的なフィードバックを提供してください。改善点は控えめに、励ましの言葉と共に指摘してください。",
+  normal: "【評価方針】\nバランスの取れた評価を行ってください。良い点と改善点を公平に指摘してください。",
+  strict: "【評価方針】\nより厳格な基準で評価してください。改善点を明確に指摘し、具体的な改善案を提示してください。",
+  harsh: "【評価方針】\nプロの編集者として厳しく評価してください。問題点を率直に指摘し、改善が必須の点を明確化してください。批判的であっても建設的な提案を含めてください。"
+};
 
 // プロンプトテンプレート
 interface PromptTemplates {
@@ -404,7 +84,7 @@ const PROMPTS: PromptTemplates = {
 
     create: `以下の条件に基づいて、魅力的で多様なキャラクターを3〜5人作成してください。
 
-まず、以下のFew-Shot例を参考に、望ましい出力形式と詳細レベルを理解してください。
+以下のFew-Shot例を参考に、望ましい出力形式と詳細レベルを理解してください。
 
 ---
 
@@ -477,7 +157,7 @@ const PROMPTS: PromptTemplates = {
 フック要素: {plotHook}
 主人公の目標: {protagonistGoal}
 主要な障害: {mainObstacle}
-{synopsis}
+あらすじ: {synopsis}
 
 【重要】作品のタイトル、テーマ、内容、およびプロット詳細情報に合ったキャラクター設定を心がけてください：
 - 作品タイトルから物語の方向性や雰囲気を読み取り、それに適したキャラクターを設定
@@ -499,32 +179,53 @@ const PROMPTS: PromptTemplates = {
 - 外見特徴を明確に区別する（髪色、身長、体型など）
 - 役割や立場を多様にする（主人公、ライバル、サポーターなど）
 
-上記のFew-Shot例を参考に、以下の形式で3〜5人のキャラクターを回答してください：
+コメントなどは不要です。：
+生成したキャラクターは、以下のチェックリストに基づいて自己評価し、改善案を提案してください。
+1. キャラクターの深み： 登場人物は多面的で、行動に説得力があるか？
+2. 一貫性： 動機と行動に矛盾はないか？
+3. 読者共感度： 読者が感情移入できる弱さや人間味が描かれているか？ スコアが低い項目について、具体的な改善案を3つ提案し、それに基づいてプロフィールを修正してください。
+特に、作品タイトル、テーマ、内容を基に、メインジャンルとサブジャンルの特徴を活かし、ターゲット読者層に親近感を持ってもらえる、かつ互いに区別しやすいキャラクター設定を心がけてください。
 
+【出力形式について】
+以下のいずれかの形式で出力してください。どちらの形式でも解析可能です。
+
+【形式1：テキスト形式（推奨：ローカルLLM）】
 【キャラクター1】
-名前: （キャラクターの名前）
-基本設定: （年齢、性別、職業など）
-外見: （具体的な外見特徴）
-性格: （主要な性格特徴）
-背景: （出身や過去の経験）
+名前: [キャラクター名]
+基本設定: [年齢、性別、役割など]
+外見: [外見の詳細]
+性格: [性格の詳細]
+背景: [背景の詳細]
 
 【キャラクター2】
-名前: （キャラクターの名前）
-基本設定: （年齢、性別、職業など）
-外見: （具体的な外見特徴）
-性格: （主要な性格特徴）
-背景: （出身や過去の経験）
+名前: [キャラクター名]
+基本設定: [年齢、性別、役割など]
+外見: [外見の詳細]
+性格: [性格の詳細]
+背景: [背景の詳細]
 
-【キャラクター3】
-名前: （キャラクターの名前）
-基本設定: （年齢、性別、職業など）
-外見: （具体的な外見特徴）
-性格: （主要な性格特徴）
-背景: （出身や過去の経験）
+（以下同様に続く）
 
+【形式2：JSON形式（推奨：クラウドAPI）】
+以下のJSON形式でも出力可能です：
+[
+  {
+    "name": "キャラクター名",
+    "role": "基本設定",
+    "appearance": "外見の詳細",
+    "personality": "性格の詳細",
+    "background": "背景の詳細"
+  },
+  {
+    "name": "キャラクター名",
+    "role": "基本設定",
+    "appearance": "外見の詳細",
+    "personality": "性格の詳細",
+    "background": "背景の詳細"
+  }
+]
 
-
-特に、作品タイトル、テーマ、内容を基に、メインジャンルとサブジャンルの特徴を活かし、ターゲット読者層に親近感を持ってもらえる、かつ互いに区別しやすいキャラクター設定を心がけてください。Few-Shot例と同レベルの詳細さと具体性で記述してください。`,
+どちらの形式でも構いませんが、上記のFew-Shot例と同じレベルの詳細さと具体性で記述してください。`,
 
     possession: `あなたは「{characterName}」というキャラクターになりきって会話してください。
 
@@ -543,6 +244,8 @@ const PROMPTS: PromptTemplates = {
 {plotTheme}
 {plotSetting}
 
+{chapterInfo}
+
 【他のキャラクターとの関係性】
 {characterRelationships}
 
@@ -558,6 +261,7 @@ const PROMPTS: PromptTemplates = {
 6. 一人称は適切に使用してください（「私」「僕」「俺」など）
 7. キャラクターの性格に基づいた反応をしてください（例：内向的な性格なら控えめに、明るい性格なら積極的に）
 8. 物語の設定や世界観に矛盾しないようにしてください
+9. 章の状況が指定されている場合は、その状況を反映した回答をしてください
 
 ユーザー: {userMessage}
 {characterName}:`,
@@ -645,7 +349,7 @@ const PROMPTS: PromptTemplates = {
   "suggestions": ["改善提案1", "改善提案2", ...]
 }}`,
 
-    generateStructure: `以下のプロジェクト情報に基づいて、{structureType}の物語構成を提案してください。
+    generateStructure: `以下のプロジェクト情報に基づいて、{structureType}の物語構成を提案してください。ただし、単に作成するのではなく、Tree of Thoughts (ToT) の手法を用いて、3つの異なる展開案を出し、それぞれの「面白さ」「矛盾」「テーマとの整合性」を評価した上で、最良のプロットを統合・決定してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
@@ -662,7 +366,7 @@ const PROMPTS: PromptTemplates = {
 フック要素: {plotHook}
 主人公の目標: {protagonistGoal}
 主要な障害: {mainObstacle}
-{ending}
+物語の結末: {ending}
 
 {reversePrompting}
 
@@ -671,64 +375,47 @@ const PROMPTS: PromptTemplates = {
 以下のJSON形式で出力してください：
 {outputFormat}`,
 
-    setting: `以下のテーマに基づいて、魅力的な舞台・世界観を提案してください。
+    // setting: 現在未使用（将来の機能拡張用に保持）
+    // setting: `以下のテーマに基づいて、魅力的な舞台・世界観を提案してください。
+    //
+    // テーマ: {theme}
+    // メインジャンル: {mainGenre}
+    // サブジャンル: {subGenre}
+    //
+    // 以下の観点から詳細な舞台設定を提案してください：
+    //
+    // 【時代・時期】
+    // （現代、近未来、過去、異世界など）
+    //
+    // 【場所・地理】
+    // （都市、田舎、学校、職場、異世界など）
+    //
+    // 【社会背景】
+    // （政治体制、文化、技術レベル、社会問題など）
+    //
+    // 【独特な要素】
+    // （魔法、SF技術、特殊なルール、文化的特徴など）
+    //
+    // 【雰囲気・トーン】
+    // （明るい、暗い、ミステリアス、ロマンチックなど）
+    //
+    // 特に、メインジャンルを基調とし、サブジャンルの要素を組み合わせた独特な世界観を構築してください。`,
 
-テーマ: {theme}
-メインジャンル: {mainGenre}
-サブジャンル: {subGenre}
-
-以下の観点から詳細な舞台設定を提案してください：
-
-【時代・時期】
-（現代、近未来、過去、異世界など）
-
-【場所・地理】
-（都市、田舎、学校、職場、異世界など）
-
-【社会背景】
-（政治体制、文化、技術レベル、社会問題など）
-
-【独特な要素】
-（魔法、SF技術、特殊なルール、文化的特徴など）
-
-【雰囲気・トーン】
-（明るい、暗い、ミステリアス、ロマンチックなど）
-
-特に、メインジャンルを基調とし、サブジャンルの要素を組み合わせた独特な世界観を構築してください。`,
-
-    structure: `以下の設定に基づいて、起承転結の物語構造を提案してください。
-
-テーマ: {theme}
-舞台: {setting}
-主要キャラクター: {characters}
-
-以下の形式で回答してください：
-【起】導入部
-（状況設定、キャラクター紹介、日常の描写）
-
-【承】発展部
-（問題の発生、複雑化、キャラクターの成長）
-
-【転】転換部
-（クライマックス、大きな変化、対立の頂点）
-
-【結】結末部
-（解決、結論、キャラクターの変化）`,
-
-    hook: `読者を引き込む魅力的な「フック」要素を提案してください。
-
-テーマ: {theme}
-メインジャンル: {mainGenre}
-サブジャンル: {subGenre}
-ターゲット読者: {target}
-
-以下の観点から提案してください：
-・冒頭の引きつけ方
-・謎や疑問の設定
-・キャラクターの魅力
-・独特な設定や世界観
-
-特に、メインジャンルの特徴を活かしつつ、サブジャンルの要素で読者の興味を引く工夫をしてください。`,
+    // hook: 現在未使用（将来の機能拡張用に保持）
+    // hook: `読者を引き込む魅力的な「フック」要素を提案してください。
+    //
+    // テーマ: {theme}
+    // メインジャンル: {mainGenre}
+    // サブジャンル: {subGenre}
+    // ターゲット読者: {target}
+    //
+    // 以下の観点から提案してください：
+    // ・冒頭の引きつけ方
+    // ・謎や疑問の設定
+    // ・キャラクターの魅力
+    // ・独特な設定や世界観
+    //
+    // 特に、メインジャンルの特徴を活かしつつ、サブジャンルの要素で読者の興味を引く工夫をしてください。`,
   },
 
   synopsis: {
@@ -806,16 +493,17 @@ const PROMPTS: PromptTemplates = {
 【出力形式】
 魅力的に演出されたあらすじのみを出力してください。`,
 
-    improve: `以下のあらすじをより魅力的に改善してください。
-
-現在のあらすじ:
-{synopsis}
-
-改善のポイント:
-・読者の興味を引く表現
-・物語の核心を伝える
-・キャラクターの魅力を表現
-・適切な文字数（500文字程度）`,
+    // improve: 現在未使用（将来の機能拡張用に保持）
+    // improve: `以下のあらすじをより魅力的に改善してください。
+    //
+    // 現在のあらすじ:
+    // {synopsis}
+    //
+    // 改善のポイント:
+    // ・読者の興味を引く表現
+    // ・物語の核心を伝える
+    // ・キャラクターの魅力を表現
+    // ・適切な文字数（500文字程度）`,
 
     generateFullSynopsis: `以下の章立て情報を参照して、ネタバレを含む全体の内容を丁寧に要約した全体あらすじを作成してください。
 
@@ -1112,13 +800,14 @@ const PROMPTS: PromptTemplates = {
    - 既存キャラクターの性格・背景を活かした章の内容
    - 物語の展開に必要なサブキャラクターの適切な配置`,
 
-    structure: `以下の情報に基づいて章立て構成を提案してください。
-
-物語のテーマ: {theme}
-プロット: {plot}
-想定文字数: {wordCount}
-
-各章のタイトルと概要を提案してください。バランスの取れた構成を心がけてください。`,
+    // structure: 現在未使用（将来の機能拡張用に保持）
+    // structure: `以下の情報に基づいて章立て構成を提案してください。
+    //
+    // 物語のテーマ: {theme}
+    // プロット: {plot}
+    // 想定文字数: {wordCount}
+    //
+    // 各章のタイトルと概要を提案してください。バランスの取れた構成を心がけてください。`,
   },
 
   draft: {
@@ -1380,7 +1069,12 @@ const PROMPTS: PromptTemplates = {
 4. **感情表現の深化**: キャラクターの内面や心情をより深く描写し、読者の共感を得られるようにしてください。
 5. **文体の改善**: 文章のリズムを整え、冗長な表現を削除し、自然で読みやすい日本語にしてください。
 6. **文字数の調整**: 現在の文字数（{currentLength}文字）を維持または3,000-4,000文字程度に調整してください。
-7. **改行と段落**: 適度な改行と段落分けを行ってください（改行は通常の改行文字\\nで表現）。
+7. **改行と段落**: 以下の点に注意して、適切な改行と段落分けを行ってください：
+   - 会話の前後、場面転換、時間の経過などで適切に改行してください
+   - 段落は2-4文程度で区切ることを推奨します
+   - 連続する改行は2つまでとし、3つ以上の連続改行は避けてください
+   - JSON内のrevisedTextでは、改行を\\nで表現してください（例: "改行\\n改行"）
+   - 改行を適切に使用することで、文章の読みやすさを向上させてください
 
 【出力形式】
 以下のJSON形式で「必ず」出力してください。説明文やコメントは一切不要です。JSONのみを出力してください:
@@ -1399,19 +1093,22 @@ const PROMPTS: PromptTemplates = {
 - JSON形式以外のテキストは一切出力しないでください
 - コードブロック（三重のバッククォート）は使用しないでください
 - revisedTextには、改善された文章の全文を含めてください
-- 元の文章の内容を保持しつつ、指摘された弱点を克服した文章にしてください`,
+- revisedText内の改行は必ず\\nで表現してください（例: "段落1\\n\\n段落2"）
+- 元の文章の内容を保持しつつ、指摘された弱点を克服した文章にしてください
+- 改行と段落分けを適切に行い、読みやすい文章にしてください`,
 
-    generate: `以下の設定に基づいて物語の草案を執筆してください。
-
-章タイトル: {chapterTitle}
-章の概要: {chapterSummary}
-登場キャラクター: {characters}
-
-文体: {style}
-
-{styleDetails}
-
-上記の文体設定を厳密に守り、一貫性のある文章を執筆してください。自然な日本語で、読みやすい文章を心がけてください。`,
+    // generate: 現在未使用（将来の機能拡張用に保持）
+    // generate: `以下の設定に基づいて物語の草案を執筆してください。
+    //
+    // 章タイトル: {chapterTitle}
+    // 章の概要: {chapterSummary}
+    // 登場キャラクター: {characters}
+    //
+    // 文体: {style}
+    //
+    // {styleDetails}
+    //
+    // 上記の文体設定を厳密に守り、一貫性のある文章を執筆してください。自然な日本語で、読みやすい文章を心がけてください。`,
 
 
     continue: `以下の文章の続きを執筆してください。
@@ -1922,7 +1619,11 @@ const PROMPTS: PromptTemplates = {
 class AIService {
   // モデル名に基づいてmax_tokensとmax_completion_tokensを切り替えるヘルパー関数
   private isNewModel(model: string): boolean {
-    return model.startsWith('gpt-5') || model.startsWith('o');
+    // GPT-5系モデル
+    if (model.startsWith('gpt-5')) return true;
+    // OpenAIのo1/o3系モデル（例: o1-preview, o3-mini）
+    if (model.startsWith('o1-') || model.startsWith('o3-')) return true;
+    return false;
   }
 
   // ログ出力用のプロンプトマスキング（機密情報保護）
@@ -1981,15 +1682,16 @@ class AIService {
    * @returns 変換されたテキスト
    */
   async transcribeAudio(audioFile: File, apiKey: string): Promise<string> {
-    try {
-      // Tauri環境検出（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' &&
-        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+    // Tauri環境検出（Tauri 2対応）
+    const isTauriEnv = typeof window !== 'undefined' &&
+      ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
 
-      // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
-      const apiUrl = isTauriEnv || !import.meta.env.DEV
-        ? 'https://api.openai.com/v1/audio/transcriptions'
-        : '/api/openai/v1/audio/transcriptions';
+    // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+    const apiUrl = isTauriEnv || !import.meta.env.DEV
+      ? 'https://api.openai.com/v1/audio/transcriptions'
+      : '/api/openai/v1/audio/transcriptions';
+
+    try {
 
       // FormDataを作成
       const formData = new FormData();
@@ -1998,8 +1700,8 @@ class AIService {
       formData.append('language', 'ja'); // 日本語を指定
       formData.append('response_format', 'text'); // テキスト形式で返す
 
-      // APIキーの復号化
-      const decryptedApiKey = decryptApiKey(apiKey);
+      // APIキーの復号化（AES-GCM暗号化対応）
+      const decryptedApiKey = await decryptApiKeyAsync(apiKey);
 
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
@@ -2025,14 +1727,15 @@ class AIService {
 
       if (response.status >= 400) {
         let errorMessage = `HTTP ${response.status}`;
+        let errorData: unknown = null;
 
         // エラーレスポンスの解析を試みる
         try {
-          const errorData = typeof response.data === 'string'
+          errorData = typeof response.data === 'string'
             ? JSON.parse(response.data) as { error?: { message?: string; type?: string } }
             : response.data as { error?: { message?: string; type?: string } };
 
-          if (errorData.error?.message) {
+          if (errorData && typeof errorData === 'object' && 'error' in errorData && errorData.error && typeof errorData.error === 'object' && 'message' in errorData.error && typeof errorData.error.message === 'string') {
             errorMessage = errorData.error.message;
           }
 
@@ -2044,16 +1747,35 @@ class AIService {
           } else if (response.status === 413) {
             errorMessage = '音声ファイルが大きすぎます。10MB以下のファイルを選択してください。';
           } else if (response.status === 400) {
-            errorMessage = errorData.error?.message || '音声ファイルの形式が正しくありません。';
+            if (errorData && typeof errorData === 'object' && 'error' in errorData && errorData.error && typeof errorData.error === 'object' && 'message' in errorData.error && typeof errorData.error.message === 'string') {
+              errorMessage = errorData.error.message;
+            } else {
+              errorMessage = '音声ファイルの形式が正しくありません。';
+            }
           }
         } catch (_parseError) {
           // JSON解析に失敗した場合は、レスポンスデータをそのまま使用
           if (typeof response.data === 'string') {
             errorMessage = response.data;
           }
+          errorData = response.data;
         }
 
-        throw new Error(`Whisper API エラー: ${errorMessage}`);
+        // エラーの種類を判定してAPIErrorに変換
+        let category: ErrorCategory = 'unknown';
+        if (response.status === 401 || response.status === 403) {
+          category = 'api_key_invalid';
+        } else if (response.status === 429) {
+          category = 'rate_limit';
+        } else if (response.status === 413) {
+          category = 'invalid_request'; // ファイルサイズが大きすぎる
+        } else if (response.status >= 500) {
+          category = 'server_error';
+        } else if (response.status === 400) {
+          category = 'invalid_request';
+        }
+
+        throw new APIError(`Whisper API エラー: ${errorMessage}`, category, `WHISPER_${response.status}`, errorData);
       }
 
       // レスポンスはテキスト形式で返される
@@ -2062,69 +1784,77 @@ class AIService {
         : String(response.data);
 
       if (!transcription || transcription.trim().length === 0) {
-        throw new Error('音声の文字起こし結果が空です。音声ファイルに音声が含まれているか確認してください。');
+        throw new APIError('音声の文字起こし結果が空です。音声ファイルに音声が含まれているか確認してください。', 'invalid_request', 'EMPTY_TRANSCRIPTION');
       }
 
       return transcription.trim();
     } catch (error) {
-      console.error('Whisper API Error:', error);
+      // エラーログを記録
+      const { logAPIError, logError } = await import('../utils/errorLogger');
+      if (error instanceof APIError) {
+        logAPIError(error, {
+          endpoint: apiUrl,
+          method: 'POST',
+        });
+        throw error;
+      }
+      logError(error, {
+        category: 'whisper',
+        context: { endpoint: apiUrl, method: 'POST' },
+      });
 
       // より詳細なエラーメッセージを提供
       if (error instanceof Error) {
-        // 既に詳細なメッセージが含まれている場合はそのまま返す
-        if (error.message.includes('Whisper API エラー')) {
-          throw error;
-        }
-
         // ネットワークエラーの場合
-        if (error.message.includes('ネットワークエラー') || error.message.includes('fetch')) {
-          throw new Error('Whisper APIへの接続に失敗しました。ネットワーク接続を確認してください。');
+        if (error.message.includes('ネットワークエラー') || error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+          throw new APIError('Whisper APIへの接続に失敗しました。ネットワーク接続を確認してください。', 'network', 'NETWORK_ERROR', error);
         }
 
         // タイムアウトエラーの場合
-        if (error.message.includes('タイムアウト')) {
-          throw new Error('音声の文字起こしがタイムアウトしました。ファイルサイズが大きすぎる可能性があります。');
+        if (error.message.includes('タイムアウト') || error.message.includes('timeout')) {
+          throw new APIError('音声の文字起こしがタイムアウトしました。ファイルサイズが大きすぎる可能性があります。', 'timeout', 'TIMEOUT', error);
         }
 
         // その他のエラー
-        throw new Error(`音声の文字起こしに失敗しました: ${error.message}`);
+        throw new APIError(`音声の文字起こしに失敗しました: ${error.message}`, 'unknown', 'WHISPER_ERROR', error);
       }
 
-      throw new Error('音声の文字起こしに失敗しました。不明なエラーが発生しました。');
+      throw new APIError('音声の文字起こしに失敗しました。不明なエラーが発生しました。', 'unknown', 'UNKNOWN_ERROR', error);
     }
   }
 
   private async callOpenAI(request: AIRequest): Promise<AIResponse> {
+    // apiKeysから取得、なければapiKeyから取得
+    const apiKeyForProvider = request.settings.apiKeys?.['openai'] || request.settings.apiKey;
+    if (!apiKeyForProvider) {
+      throw new APIError('OpenAI APIキーが設定されていません', 'api_key_missing');
+    }
+
+    // APIキーの復号化（AES-GCM暗号化対応）
+    const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
+
+    // Tauri環境検出（Tauri 2対応）
+    const isTauriEnv = typeof window !== 'undefined' &&
+      ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+
+    // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+    const apiUrl = isTauriEnv || !import.meta.env.DEV
+      ? 'https://api.openai.com/v1/chat/completions'
+      : '/api/openai/v1/chat/completions';
+
     try {
-      // apiKeysから取得、なければapiKeyから取得
-      const apiKeyForProvider = request.settings.apiKeys?.['openai'] || request.settings.apiKey;
-      if (!apiKeyForProvider) {
-        throw new Error('OpenAI APIキーが設定されていません');
-      }
-
-      // APIキーの復号化
-      const apiKey = decryptApiKey(apiKeyForProvider);
-
-      // Tauri環境検出（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' &&
-        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-
-      // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
-      const apiUrl = isTauriEnv || !import.meta.env.DEV
-        ? 'https://api.openai.com/v1/chat/completions'
-        : '/api/openai/v1/chat/completions';
 
       // 画像がある場合のメッセージ構築
-      let userContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+      let userContent: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>;
       if (request.image) {
         // Base64データURLをそのまま使用（OpenAI Vision APIはdata:形式をサポート）
         userContent = [
           {
-            type: 'text',
+            type: 'text' as const,
             text: request.prompt,
           },
           {
-            type: 'image_url',
+            type: 'image_url' as const,
             image_url: {
               url: request.image,
             },
@@ -2136,8 +1866,7 @@ class AIService {
 
       // モデル名に基づいて適切なパラメータを選択
       const isNewModelType = this.isNewModel(request.settings.model);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const requestBody: any = {
+      const requestBody: OpenAIRequestBody = {
         model: request.settings.model,
         messages: [
           {
@@ -2204,11 +1933,29 @@ class AIService {
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
-          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
           console.error('OpenAI streaming error:', streamError);
+
+          // APIErrorの場合はそのまま、そうでない場合は変換
+          let errorMessage = 'Unknown error';
+          if (streamError instanceof APIError) {
+            errorMessage = streamError.message;
+          } else if (streamError instanceof Error) {
+            // エラーの種類を判定
+            const lowerMessage = streamError.message.toLowerCase();
+            if (lowerMessage.includes('timeout') || lowerMessage.includes('タイムアウト')) {
+              errorMessage = `タイムアウトエラー: ${streamError.message}`;
+            } else if (lowerMessage.includes('network') || lowerMessage.includes('ネットワーク')) {
+              errorMessage = `ネットワークエラー: ${streamError.message}`;
+            } else {
+              errorMessage = `ストリーミングエラー: ${streamError.message}`;
+            }
+          } else {
+            errorMessage = `ストリーミングエラー: ${String(streamError)}`;
+          }
+
           return {
             content: fullContent, // 既に受信したコンテンツは返す
-            error: `ストリーミングエラー: ${errorMessage}`,
+            error: errorMessage,
           };
         }
       }
@@ -2222,15 +1969,30 @@ class AIService {
       });
 
       if (response.status >= 400) {
-        const errorData = response.data as { error?: { message?: string } };
+        const errorData = response.data as OpenAIErrorResponse;
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
-        throw new Error(`OpenAI API エラー: ${errorMessage}`);
+
+        // エラーの種類を判定してAPIErrorに変換
+        let category: ErrorCategory = 'unknown';
+        if (response.status === 401 || response.status === 403) {
+          category = 'api_key_invalid';
+        } else if (response.status === 429) {
+          category = 'rate_limit';
+        } else if (response.status === 404) {
+          category = 'model_not_found';
+        } else if (response.status >= 500) {
+          category = 'server_error';
+        } else if (response.status === 400) {
+          category = 'invalid_request';
+        }
+
+        throw new APIError(`OpenAI API エラー: ${errorMessage}`, category, `OPENAI_${response.status}`, errorData);
       }
 
-      const data = response.data as { choices: Array<{ message: { content: string } }>; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } };
+      const data = response.data as OpenAIResponse;
 
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('OpenAI API からの応答が無効です');
+        throw new APIError('OpenAI API からの応答が無効です', 'invalid_request', 'INVALID_RESPONSE');
       }
 
       return {
@@ -2242,33 +2004,54 @@ class AIService {
         } : undefined,
       };
     } catch (error) {
-      console.error('OpenAI API Error:', error);
+      // エラーログを記録
+      const { logAPIError, logError } = await import('../utils/errorLogger');
+      if (error instanceof APIError) {
+        logAPIError(error, {
+          endpoint: apiUrl,
+          method: 'POST',
+        });
+        return {
+          content: '',
+          error: error.message,
+        };
+      }
+      logError(error, {
+        category: 'openai',
+        context: { endpoint: apiUrl, method: 'POST' },
+      });
+
+      // getUserFriendlyErrorを使用してエラーメッセージを生成
+      const { getUserFriendlyError } = await import('../utils/errorHandler');
+      const errorInfo = getUserFriendlyError(error);
+
       return {
         content: '',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorInfo.message,
       };
     }
   }
 
   private async callClaude(request: AIRequest): Promise<AIResponse> {
+    // apiKeysから取得、なければapiKeyから取得
+    const apiKeyForProvider = request.settings.apiKeys?.['claude'] || request.settings.apiKey;
+    if (!apiKeyForProvider) {
+      throw new APIError('Claude APIキーが設定されていません', 'api_key_missing');
+    }
+
+    // APIキーの復号化（AES-GCM暗号化対応）
+    const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
+
+    // Tauri環境検出（Tauri 2対応）
+    const isTauriEnv = typeof window !== 'undefined' &&
+      ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+
+    // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+    const apiUrl = isTauriEnv || !import.meta.env.DEV
+      ? 'https://api.anthropic.com/v1/messages'
+      : '/api/anthropic/v1/messages';
+
     try {
-      // apiKeysから取得、なければapiKeyから取得
-      const apiKeyForProvider = request.settings.apiKeys?.['claude'] || request.settings.apiKey;
-      if (!apiKeyForProvider) {
-        throw new Error('Claude APIキーが設定されていません');
-      }
-
-      // APIキーの復号化
-      const apiKey = decryptApiKey(apiKeyForProvider);
-
-      // Tauri環境検出（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' &&
-        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-
-      // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
-      const apiUrl = isTauriEnv || !import.meta.env.DEV
-        ? 'https://api.anthropic.com/v1/messages'
-        : '/api/anthropic/v1/messages';
 
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
@@ -2284,7 +2067,7 @@ class AIService {
       }
 
       // 画像がある場合のコンテンツ構築
-      let userContent: string | Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }>;
+      let userContent: string | Array<{ type: 'text' | 'image'; text?: string; source?: { type: 'base64'; media_type: string; data: string } }>;
       if (request.image) {
         // Base64データURLからBase64部分とMIMEタイプを抽出
         const match = request.image.match(/^data:([^;]+);base64,(.+)$/);
@@ -2293,13 +2076,13 @@ class AIService {
           const base64Data = match[2];
           userContent = [
             {
-              type: 'text',
+              type: 'text' as const,
               text: request.prompt,
             },
             {
-              type: 'image',
+              type: 'image' as const,
               source: {
-                type: 'base64',
+                type: 'base64' as const,
                 media_type: mimeType,
                 data: base64Data,
               },
@@ -2313,7 +2096,7 @@ class AIService {
         userContent = request.prompt;
       }
 
-      const requestBody = {
+      const requestBody: ClaudeRequestBody = {
         model: request.settings.model,
         max_tokens: request.settings.maxTokens,
         temperature: request.settings.temperature,
@@ -2382,11 +2165,29 @@ class AIService {
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
-          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
           console.error('Claude streaming error:', streamError);
+
+          // APIErrorの場合はそのまま、そうでない場合は変換
+          let errorMessage = 'Unknown error';
+          if (streamError instanceof APIError) {
+            errorMessage = streamError.message;
+          } else if (streamError instanceof Error) {
+            // エラーの種類を判定
+            const lowerMessage = streamError.message.toLowerCase();
+            if (lowerMessage.includes('timeout') || lowerMessage.includes('タイムアウト')) {
+              errorMessage = `タイムアウトエラー: ${streamError.message}`;
+            } else if (lowerMessage.includes('network') || lowerMessage.includes('ネットワーク')) {
+              errorMessage = `ネットワークエラー: ${streamError.message}`;
+            } else {
+              errorMessage = `ストリーミングエラー: ${streamError.message}`;
+            }
+          } else {
+            errorMessage = `ストリーミングエラー: ${String(streamError)}`;
+          }
+
           return {
             content: fullContent, // 既に受信したコンテンツは返す
-            error: `ストリーミングエラー: ${errorMessage}`,
+            error: errorMessage,
           };
         }
       }
@@ -2397,18 +2198,33 @@ class AIService {
       });
 
       if (response.status >= 400) {
-        const errorData = response.data as { error?: { message?: string } };
+        const errorData = response.data as ClaudeErrorResponse;
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
-        throw new Error(`Claude API エラー: ${errorMessage}`);
+
+        // エラーの種類を判定してAPIErrorに変換
+        let category: ErrorCategory = 'unknown';
+        if (response.status === 401 || response.status === 403) {
+          category = 'api_key_invalid';
+        } else if (response.status === 429) {
+          category = 'rate_limit';
+        } else if (response.status === 404) {
+          category = 'model_not_found';
+        } else if (response.status >= 500) {
+          category = 'server_error';
+        } else if (response.status === 400) {
+          category = 'invalid_request';
+        }
+
+        throw new APIError(`Claude API エラー: ${errorMessage}`, category, `CLAUDE_${response.status}`, errorData);
       }
 
-      const data = response.data as { content: Array<{ text: string }>; usage?: { input_tokens: number; output_tokens: number } };
+      const data = response.data as ClaudeResponse;
 
       console.log('Claude API Response:', data);
 
       if (!data.content || !data.content[0] || !data.content[0].text) {
         console.error('Invalid Claude response structure:', data);
-        throw new Error('Claude API からの応答が無効です');
+        throw new APIError('Claude API からの応答が無効です', 'invalid_request', 'INVALID_RESPONSE');
       }
 
       return {
@@ -2420,10 +2236,30 @@ class AIService {
         } : undefined,
       };
     } catch (error) {
-      console.error('Claude API Error:', error);
+      // エラーログを記録
+      const { logAPIError, logError } = await import('../utils/errorLogger');
+      if (error instanceof APIError) {
+        logAPIError(error, {
+          endpoint: apiUrl,
+          method: 'POST',
+        });
+        return {
+          content: '',
+          error: error.message,
+        };
+      }
+      logError(error, {
+        category: 'claude',
+        context: { endpoint: apiUrl, method: 'POST' },
+      });
+
+      // getUserFriendlyErrorを使用してエラーメッセージを生成
+      const { getUserFriendlyError } = await import('../utils/errorHandler');
+      const errorInfo = getUserFriendlyError(error);
+
       return {
         content: '',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorInfo.message,
       };
     }
   }
@@ -2433,11 +2269,11 @@ class AIService {
       // apiKeysから取得、なければapiKeyから取得
       const apiKeyForProvider = request.settings.apiKeys?.['gemini'] || request.settings.apiKey;
       if (!apiKeyForProvider) {
-        throw new Error('Gemini APIキーが設定されていません');
+        throw new APIError('Gemini APIキーが設定されていません', 'api_key_missing');
       }
 
-      // APIキーの復号化
-      const apiKey = decryptApiKey(apiKeyForProvider);
+      // APIキーの復号化（AES-GCM暗号化対応）
+      const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
 
       // Tauri環境検出（Tauri 2対応）
       const isTauriEnv = typeof window !== 'undefined' &&
@@ -2502,7 +2338,7 @@ class AIService {
         }
       }
 
-      const requestBody = {
+      const requestBody: GeminiRequestBody = {
         contents: [{
           parts: parts,
         }],
@@ -2523,6 +2359,7 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
+        let buffer = ''; // 不完全なチャンクを保持するバッファ
 
         try {
           // GeminiのストリーミングはJSONの配列が送られてくる特殊な形式
@@ -2533,25 +2370,47 @@ class AIService {
             apiUrl,
             requestBody,
             (chunk) => {
-              // チャンク処理が複雑なため、Geminiの場合は
-              // 行ごとに分割して処理を試みる
+              // バッファに追加
+              buffer += chunk;
 
-              // Note: GeminiのREST APIストリーミングは単純なSSEではなく、
-              // JSON配列が徐々に送られてくる形式。
-              // 完全な実装にはストリーミングJSONパーサーが必要だが、
-              // ここでは簡易的にtextフィールドを抽出する
+              // 行ごとに処理（改行で分割）
+              const lines = buffer.split('\n');
+              // 最後の行は不完全な可能性があるため、バッファに残す
+              buffer = lines.pop() || '';
 
-              // 簡易実装: "text": "..." を正規表現で探す
-              const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
-              let match;
-              while ((match = regex.exec(chunk)) !== null) {
-                try {
-                  // JSON文字列のエスケープを解除
-                  const text = JSON.parse(`"${match[1]}"`);
-                  fullContent += text;
-                  request.onStream!(text);
-                } catch (e) {
-                  console.warn('Gemini stream parse error:', e);
+              for (const line of lines) {
+                if (line.trim() === '' || line.trim() === '[DONE]') continue;
+
+                // JSONオブジェクトの開始を検出
+                if (line.includes('"text"')) {
+                  try {
+                    // 行からJSONオブジェクトを抽出（簡易実装）
+                    const jsonMatch = line.match(/\{[^}]*"text"[^}]*\}/);
+                    if (jsonMatch) {
+                      const data = JSON.parse(jsonMatch[0]);
+                      const text = data.text || '';
+                      if (text) {
+                        fullContent += text;
+                        request.onStream!(text);
+                      }
+                    } else {
+                      // 正規表現でマッチしない場合、元の方法を試す
+                      const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
+                      let match;
+                      while ((match = regex.exec(line)) !== null) {
+                        try {
+                          // JSON文字列のエスケープを解除
+                          const text = JSON.parse(`"${match[1]}"`);
+                          fullContent += text;
+                          request.onStream!(text);
+                        } catch (e) {
+                          console.warn('Gemini stream parse error:', e);
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('Gemini stream parse error:', e);
+                  }
                 }
               }
             },
@@ -2561,16 +2420,65 @@ class AIService {
             }
           );
 
+          // 残ったバッファを処理
+          if (buffer.trim()) {
+            try {
+              const jsonMatch = buffer.match(/\{[^}]*"text"[^}]*\}/);
+              if (jsonMatch) {
+                const data = JSON.parse(jsonMatch[0]);
+                const text = data.text || '';
+                if (text) {
+                  fullContent += text;
+                  request.onStream!(text);
+                }
+              } else {
+                // 正規表現でマッチしない場合、元の方法を試す
+                const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
+                let match;
+                while ((match = regex.exec(buffer)) !== null) {
+                  try {
+                    // JSON文字列のエスケープを解除
+                    const text = JSON.parse(`"${match[1]}"`);
+                    fullContent += text;
+                    request.onStream!(text);
+                  } catch (e) {
+                    console.warn('Gemini final buffer parse error:', e);
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('Gemini final buffer parse error:', e);
+            }
+          }
+
           return {
             content: fullContent,
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
-          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
           console.error('Gemini streaming error:', streamError);
+
+          // APIErrorの場合はそのまま、そうでない場合は変換
+          let errorMessage = 'Unknown error';
+          if (streamError instanceof APIError) {
+            errorMessage = streamError.message;
+          } else if (streamError instanceof Error) {
+            // エラーの種類を判定
+            const lowerMessage = streamError.message.toLowerCase();
+            if (lowerMessage.includes('timeout') || lowerMessage.includes('タイムアウト')) {
+              errorMessage = `タイムアウトエラー: ${streamError.message}`;
+            } else if (lowerMessage.includes('network') || lowerMessage.includes('ネットワーク')) {
+              errorMessage = `ネットワークエラー: ${streamError.message}`;
+            } else {
+              errorMessage = `ストリーミングエラー: ${streamError.message}`;
+            }
+          } else {
+            errorMessage = `ストリーミングエラー: ${String(streamError)}`;
+          }
+
           return {
             content: fullContent, // 既に受信したコンテンツは返す
-            error: `ストリーミングエラー: ${errorMessage}`,
+            error: errorMessage,
           };
         }
       }
@@ -2581,15 +2489,20 @@ class AIService {
       });
 
       if (response.status >= 400) {
-        const errorData = response.data as { error?: { message?: string; code?: number } };
+        const errorData = response.data as GeminiErrorResponse;
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
 
-        // 429エラーの場合、より詳細なメッセージを提供
-        if (response.status === 429) {
-          let detailedMessage = `Gemini API エラー (429): ${errorMessage}`;
+        // エラーの種類を判定してAPIErrorに変換
+        let category: ErrorCategory = 'unknown';
+        let detailedMessage = errorMessage;
 
+        if (response.status === 401 || response.status === 403) {
+          category = 'api_key_invalid';
+        } else if (response.status === 429) {
+          category = 'rate_limit';
+          // 429エラーの場合、より詳細なメッセージを提供
           if (errorMessage.includes('Resource has been exhausted') || errorMessage.includes('quota')) {
-            detailedMessage += '\n\n【考えられる原因】\n';
+            detailedMessage = `Gemini API エラー (429): ${errorMessage}\n\n【考えられる原因】\n`;
             detailedMessage += '1. リージョンのリソース制限: 特定のリージョンでリソースが一時的に枯渇している可能性があります\n';
             detailedMessage += '2. プロビジョニングされたスループット未購入: 従量課金制の場合、リソースの優先度が低い可能性があります\n';
             detailedMessage += '3. 一時的なリソース不足: Googleのインフラストラクチャが一時的に高負荷状態にある可能性があります\n';
@@ -2599,20 +2512,25 @@ class AIService {
             detailedMessage += '- Gemini 2.5 Flashなどの軽量モデルを試してください\n';
             detailedMessage += '- Google Cloud Consoleでクォータとレート制限を確認してください\n';
             detailedMessage += '- プロビジョニングされたスループットの購入を検討してください';
+          } else {
+            detailedMessage = `Gemini API エラー (429): ${errorMessage}`;
           }
-
-          throw new Error(detailedMessage);
+        } else if (response.status === 404) {
+          category = 'model_not_found';
+        } else if (response.status >= 500) {
+          category = 'server_error';
+        } else if (response.status === 400) {
+          category = 'invalid_request';
         }
 
-        throw new Error(`Gemini API エラー (${response.status}): ${errorMessage}`);
+        throw new APIError(detailedMessage, category, `GEMINI_${response.status}`, errorData);
       }
 
       // 200番台の応答でも、candidatesが空の場合は安全フィルターなどでブロックされた可能性がある
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = response.data as any;
+      const data = response.data as GeminiResponse;
       if (data && data.candidates && Array.isArray(data.candidates) && data.candidates.length === 0) {
         console.warn('Gemini API response has empty candidates array - possibly blocked by safety filters');
-        throw new Error('Gemini API の応答が安全フィルターによってブロックされた可能性があります。プロンプトの内容を確認してください。');
+        throw new APIError('Gemini API の応答が安全フィルターによってブロックされた可能性があります。プロンプトの内容を確認してください。', 'invalid_request', 'SAFETY_FILTER_BLOCKED');
       }
 
       console.log('Gemini API Response:', JSON.stringify(data, null, 2));
@@ -2620,7 +2538,7 @@ class AIService {
       // 応答構造の検証とエラーハンドリング
       if (!data) {
         console.error('Gemini API response is null or undefined');
-        throw new Error('Gemini API からの応答が空です');
+        throw new APIError('Gemini API からの応答が空です', 'invalid_request', 'EMPTY_RESPONSE');
       }
 
       // candidatesが存在しない場合、promptFeedbackを確認（安全フィルターによるブロック）
@@ -2629,8 +2547,7 @@ class AIService {
 
         // promptFeedbackが存在する場合、詳細なエラーメッセージを構築
         if (data.promptFeedback) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const feedback = data.promptFeedback as any;
+          const feedback: GeminiPromptFeedback = data.promptFeedback;
           let errorMessage = 'Gemini API の応答が安全フィルターによってブロックされました。\n\n';
 
           if (feedback.blockReason) {
@@ -2638,15 +2555,13 @@ class AIService {
           }
 
           if (feedback.safetyRatings && Array.isArray(feedback.safetyRatings)) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const blockedCategories = feedback.safetyRatings.filter((rating: any) =>
+            const blockedCategories = feedback.safetyRatings.filter((rating: GeminiSafetyRating) =>
               rating.blocked === true || rating.probability === 'HIGH'
             );
 
             if (blockedCategories.length > 0) {
               errorMessage += '【ブロックされたカテゴリ】\n';
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              blockedCategories.forEach((rating: any) => {
+              blockedCategories.forEach((rating: GeminiSafetyRating) => {
                 const category = rating.category || '不明';
                 const probability = rating.probability || '不明';
                 errorMessage += `- ${category}: ${probability}\n`;
@@ -2660,37 +2575,37 @@ class AIService {
           errorMessage += '- プロンプトをより中立的で適切な表現に変更してください\n';
           errorMessage += '- 長文の場合は、より短いセクションに分割して試してください';
 
-          throw new Error(errorMessage);
+          throw new APIError(errorMessage, 'invalid_request', 'SAFETY_FILTER_BLOCKED');
         }
 
-        throw new Error('Gemini API からの応答にcandidatesが含まれていません。安全フィルターによってブロックされた可能性があります。');
+        throw new APIError('Gemini API からの応答にcandidatesが含まれていません。安全フィルターによってブロックされた可能性があります。', 'invalid_request', 'NO_CANDIDATES');
       }
 
       const candidate = data.candidates[0];
       if (!candidate) {
         console.error('Invalid Gemini response structure - empty candidates array:', data);
-        throw new Error('Gemini API からの応答のcandidatesが空です');
+        throw new APIError('Gemini API からの応答のcandidatesが空です', 'invalid_request', 'EMPTY_CANDIDATES');
       }
 
       if (!candidate.content) {
         console.error('Invalid Gemini response structure - no content:', candidate);
-        throw new Error('Gemini API からの応答にcontentが含まれていません');
+        throw new APIError('Gemini API からの応答にcontentが含まれていません', 'invalid_request', 'NO_CONTENT');
       }
 
       if (!candidate.content.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
         console.error('Invalid Gemini response structure - no parts:', candidate.content);
-        throw new Error('Gemini API からの応答にpartsが含まれていません');
+        throw new APIError('Gemini API からの応答にpartsが含まれていません', 'invalid_request', 'NO_PARTS');
       }
 
       const firstPart = candidate.content.parts[0];
       if (!firstPart) {
         console.error('Invalid Gemini response structure - empty parts array:', candidate.content.parts);
-        throw new Error('Gemini API からの応答のpartsが空です');
+        throw new APIError('Gemini API からの応答のpartsが空です', 'invalid_request', 'EMPTY_PARTS');
       }
 
       if (typeof firstPart.text !== 'string') {
         console.error('Invalid Gemini response structure - no text in part:', firstPart);
-        throw new Error('Gemini API からの応答にtextが含まれていません');
+        throw new APIError('Gemini API からの応答にtextが含まれていません', 'invalid_request', 'NO_TEXT');
       }
 
       return {
@@ -2698,6 +2613,14 @@ class AIService {
       };
     } catch (error) {
       console.error('Gemini API Error:', error);
+
+      // APIErrorの場合はそのまま、そうでない場合はユーザーフレンドリーなメッセージに変換
+      if (error instanceof APIError) {
+        return {
+          content: '',
+          error: error.message,
+        };
+      }
 
       // より詳細なエラーメッセージを提供
       let errorMessage = 'Unknown error';
@@ -2736,7 +2659,7 @@ class AIService {
       let endpoint = request.settings.localEndpoint || 'http://localhost:1234/v1/chat/completions';
 
       if (!endpoint) {
-        throw new Error('ローカルエンドポイントが設定されていません');
+        throw new APIError('ローカルエンドポイントが設定されていません', 'invalid_request', 'LOCAL_ENDPOINT_MISSING');
       }
 
       // エンドポイントの検証（セキュリティ強化）
@@ -2751,12 +2674,12 @@ class AIService {
           validatedEndpoint = `http://${endpoint}`;
         } else {
           // 既にプロトコルがあるが検証に失敗した場合
-          throw new Error('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。');
+          throw new APIError('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。', 'invalid_request', 'INVALID_LOCAL_ENDPOINT');
         }
 
         // 再度検証
         if (!this.validateLocalEndpoint(validatedEndpoint)) {
-          throw new Error('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。');
+          throw new APIError('無効なローカルエンドポイントです。localhost、127.0.0.1、または::1のみ許可されています。', 'invalid_request', 'INVALID_LOCAL_ENDPOINT');
         }
         endpoint = validatedEndpoint;
       }
@@ -2798,6 +2721,26 @@ class AIService {
       // max_tokensを制限（Local LLMでは適度に設定）
       const maxTokens = Math.min(request.settings.maxTokens, 8192);
 
+      // 画像がある場合のメッセージ構築（OpenAI互換形式）
+      let userContent: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>;
+      if (request.image) {
+        // Base64データURLをそのまま使用（OpenAI互換形式）
+        userContent = [
+          {
+            type: 'text' as const,
+            text: truncatedPrompt,
+          },
+          {
+            type: 'image_url' as const,
+            image_url: {
+              url: request.image, // data:image/...;base64,...形式
+            },
+          },
+        ];
+      } else {
+        userContent = truncatedPrompt;
+      }
+
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
         console.log('Local LLM Request:', {
@@ -2806,13 +2749,14 @@ class AIService {
           model: request.settings.model,
           promptLength: truncatedPrompt.length,
           originalPromptLength: request.prompt.length,
+          hasImage: !!request.image,
           temperature: request.settings.temperature,
           maxTokens: maxTokens,
           stream: !!request.onStream
         });
       }
 
-      const requestBody = {
+      const requestBody: LocalLLMRequestBody = {
         model: request.settings.model || 'local-model',
         messages: [
           {
@@ -2821,7 +2765,7 @@ class AIService {
           },
           {
             role: 'user',
-            content: truncatedPrompt,
+            content: userContent,
           },
         ],
         temperature: request.settings.temperature,
@@ -2870,11 +2814,29 @@ class AIService {
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
-          const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
           console.error('Local LLM streaming error:', streamError);
+
+          // APIErrorの場合はそのまま、そうでない場合は変換
+          let errorMessage = 'Unknown error';
+          if (streamError instanceof APIError) {
+            errorMessage = streamError.message;
+          } else if (streamError instanceof Error) {
+            // エラーの種類を判定
+            const lowerMessage = streamError.message.toLowerCase();
+            if (lowerMessage.includes('timeout') || lowerMessage.includes('タイムアウト')) {
+              errorMessage = `タイムアウトエラー: ${streamError.message}`;
+            } else if (lowerMessage.includes('network') || lowerMessage.includes('ネットワーク') || lowerMessage.includes('failed to fetch')) {
+              errorMessage = `ネットワークエラー: ローカルLLMサーバーに接続できません。サーバーが起動しているか確認してください。`;
+            } else {
+              errorMessage = `ストリーミングエラー: ${streamError.message}`;
+            }
+          } else {
+            errorMessage = `ストリーミングエラー: ${String(streamError)}`;
+          }
+
           return {
             content: fullContent, // 既に受信したコンテンツは返す
-            error: `ストリーミングエラー: ${errorMessage}`,
+            error: errorMessage,
           };
         }
       }
@@ -2884,24 +2846,52 @@ class AIService {
       });
 
       if (response.status >= 400) {
-        const errorData = response.data as { error?: { message?: string } };
+        const errorData = response.data as LocalLLMErrorResponse;
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
         console.error('Local LLM HTTP Error:', {
           status: response.status,
           statusText: response.statusText,
           errorData,
-          endpoint: apiEndpoint
+          endpoint: apiEndpoint,
+          hasImage: !!request.image
         });
-        throw new Error(`ローカルLLM エラー: ${errorMessage}`);
+
+        // エラーの種類を判定してAPIErrorに変換
+        let category: ErrorCategory = 'unknown';
+        let detailedMessage = errorMessage;
+
+        if (response.status === 404 || errorMessage.toLowerCase().includes('not found')) {
+          category = 'model_not_found';
+        } else if (response.status >= 500) {
+          category = 'server_error';
+        } else if (response.status === 400) {
+          category = 'invalid_request';
+          // 画像解析リクエストの場合、画像解析がサポートされていない可能性を示す
+          if (request.image) {
+            const lowerMessage = errorMessage.toLowerCase();
+            if (lowerMessage.includes('image') || lowerMessage.includes('vision') || lowerMessage.includes('multimodal') ||
+              lowerMessage.includes('unsupported') || lowerMessage.includes('not supported')) {
+              detailedMessage = `ローカルLLM エラー: ${errorMessage}\n\n【考えられる原因】\n` +
+                `- 使用中のローカルLLMモデルが画像解析（ビジョン）機能をサポートしていない可能性があります\n` +
+                `- 画像解析対応モデル（LLaVA、Gemma 3、llava:latestなど）を使用しているか確認してください\n` +
+                `- Ollamaの場合: \`ollama pull llava:latest\` でLLaVAモデルをインストールできます\n` +
+                `- LM Studioの場合: 画像解析対応モデルを選択してください`;
+            }
+          }
+        } else if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('connection')) {
+          category = 'network';
+        }
+
+        throw new APIError(`ローカルLLM エラー: ${detailedMessage}`, category, `LOCAL_LLM_${response.status}`, errorData);
       }
 
-      const data = response.data as { choices?: Array<{ message: { content: string } }>; content?: string; response?: string; error?: string };
+      const data = response.data as LocalLLMResponse;
 
       console.log('Local LLM Response:', data);
 
       // エラーレスポンスの処理
       if (data.error) {
-        throw new Error(`ローカルLLM エラー: ${data.error}`);
+        throw new APIError(`ローカルLLM エラー: ${data.error}`, 'server_error', 'LOCAL_LLM_ERROR', data);
       }
 
       // 複数の応答形式に対応
@@ -2921,29 +2911,261 @@ class AIService {
         };
       } else {
         console.error('Unexpected response format:', data);
-        throw new Error(`ローカルLLM からの応答が無効です。応答形式: ${JSON.stringify(data)}`);
+        throw new APIError(`ローカルLLM からの応答が無効です。応答形式: ${JSON.stringify(data)}`, 'invalid_request', 'INVALID_RESPONSE_FORMAT', data);
       }
     } catch (error) {
-      console.error('Local LLM Error:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        endpoint: request.settings.localEndpoint
+      // エラーログを記録
+      const { logAPIError, logError } = await import('../utils/errorLogger');
+      if (error instanceof APIError) {
+        logAPIError(error, {
+          endpoint: request.settings.localEndpoint,
+          method: 'POST',
+        });
+        return {
+          content: '',
+          error: error.message,
+        };
+      }
+      logError(error, {
+        category: 'local_llm',
+        context: {
+          endpoint: request.settings.localEndpoint,
+          method: 'POST',
+        },
       });
 
-      let errorMessage = 'Unknown error';
+      // getUserFriendlyErrorを使用してエラーメッセージを生成
+      const { getUserFriendlyError } = await import('../utils/errorHandler');
+      const errorInfo = getUserFriendlyError(error);
+
+      // ローカルLLM特有のエラーメッセージを追加
+      let errorMessage = errorInfo.message;
       if (error instanceof Error) {
-        if (error.message.includes('ネットワークエラー')) {
+        if (error.message.includes('ネットワークエラー') || error.message.includes('Failed to fetch')) {
           errorMessage = `ローカルLLMサーバーに接続できません。サーバーが起動しているか確認してください。\nエンドポイント: ${request.settings.localEndpoint || 'http://localhost:1234'}`;
         } else if (error.message.includes('タイムアウト')) {
           errorMessage = `ローカルLLMサーバーからの応答がタイムアウトしました。サーバーが正常に動作しているか確認してください。`;
-        } else {
-          errorMessage = `ローカルLLM エラー: ${error.message}`;
+        } else if (error.message.includes('画像解析') || error.message.includes('ビジョン') || error.message.includes('multimodal')) {
+          // 画像解析関連のエラーの場合は、そのままエラーメッセージを使用（既に詳細なメッセージが含まれている）
+          errorMessage = error.message;
         }
       }
 
       return {
         content: '',
         error: errorMessage,
+      };
+    }
+  }
+
+  private async callGrok(request: AIRequest): Promise<AIResponse> {
+    // apiKeysから取得、なければapiKeyから取得
+    const apiKeyForProvider = request.settings.apiKeys?.['grok'] || request.settings.apiKey;
+    if (!apiKeyForProvider) {
+      throw new APIError('xAI Grok APIキーが設定されていません', 'api_key_missing');
+    }
+
+    // APIキーの復号化（AES-GCM暗号化対応）
+    const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
+
+    // Tauri環境検出（Tauri 2対応）
+    const isTauriEnv = typeof window !== 'undefined' &&
+      ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+
+    // xAI APIエンドポイント
+    // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+    const apiUrl = isTauriEnv || !import.meta.env.DEV
+      ? 'https://api.x.ai/v1/chat/completions'
+      : '/api/xai/v1/chat/completions';
+
+    try {
+      // 開発環境のみログ出力（機密情報をマスク）
+      if (import.meta.env.DEV) {
+        console.log('xAI Grok API Request:', {
+          model: request.settings.model,
+          prompt: this.maskSensitiveInfo(request.prompt, 100),
+          hasImage: !!request.image,
+          temperature: request.settings.temperature,
+          maxTokens: request.settings.maxTokens,
+          apiUrl: apiUrl.replace(/key=[^&]+/, 'key=***'),
+          stream: !!request.onStream
+        });
+      }
+
+      // 画像がある場合のメッセージ構築（OpenAI互換形式）
+      let userContent: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>;
+      if (request.image) {
+        // Base64データURLをそのまま使用（OpenAI Vision APIはdata:形式をサポート）
+        userContent = [
+          {
+            type: 'text' as const,
+            text: request.prompt,
+          },
+          {
+            type: 'image_url' as const,
+            image_url: {
+              url: request.image,
+            },
+          },
+        ];
+      } else {
+        userContent = request.prompt;
+      }
+
+      const requestBody: OpenAIRequestBody = {
+        model: request.settings.model,
+        messages: [
+          {
+            role: 'system',
+            content: SYSTEM_PROMPT,
+          },
+          {
+            role: 'user',
+            content: userContent,
+          },
+        ],
+        temperature: request.settings.temperature,
+        stream: !!request.onStream,
+        max_tokens: request.settings.maxTokens,
+      };
+
+      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒
+      const timeout = request.timeout ?? 180000;
+
+      // ストリーミング処理
+      if (request.onStream) {
+        let fullContent = '';
+
+        try {
+          await httpService.postStream(
+            apiUrl,
+            requestBody,
+            (chunk) => {
+              // SSEの解析
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6));
+                    const content = data.choices?.[0]?.delta?.content || '';
+                    if (content) {
+                      fullContent += content;
+                      request.onStream!(content);
+                    }
+                  } catch (e) {
+                    console.warn('SSE parse error:', e);
+                  }
+                }
+              }
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+              },
+              timeout,
+              signal: request.signal
+            }
+          );
+
+          return {
+            content: fullContent,
+          };
+        } catch (streamError) {
+          // ストリーミング中のエラーを適切に処理
+          console.error('xAI Grok streaming error:', streamError);
+
+          let errorMessage = 'Unknown error';
+          if (streamError instanceof APIError) {
+            errorMessage = streamError.message;
+          } else if (streamError instanceof Error) {
+            const lowerMessage = streamError.message.toLowerCase();
+            if (lowerMessage.includes('timeout') || lowerMessage.includes('タイムアウト')) {
+              errorMessage = `タイムアウトエラー: ${streamError.message}`;
+            } else if (lowerMessage.includes('network') || lowerMessage.includes('ネットワーク')) {
+              errorMessage = `ネットワークエラー: ${streamError.message}`;
+            } else {
+              errorMessage = `ストリーミングエラー: ${streamError.message}`;
+            }
+          } else {
+            errorMessage = `ストリーミングエラー: ${String(streamError)}`;
+          }
+
+          return {
+            content: fullContent, // 既に受信したコンテンツは返す
+            error: errorMessage,
+          };
+        }
+      }
+
+      // 通常のリクエスト（非ストリーミング）
+      const response = await httpService.post(apiUrl, requestBody, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        timeout,
+      });
+
+      if (response.status >= 400) {
+        const errorData = response.data as OpenAIErrorResponse;
+        const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
+
+        // エラーの種類を判定してAPIErrorに変換
+        let category: ErrorCategory = 'unknown';
+        if (response.status === 401 || response.status === 403) {
+          category = 'api_key_invalid';
+        } else if (response.status === 429) {
+          category = 'rate_limit';
+        } else if (response.status === 404) {
+          category = 'model_not_found';
+        } else if (response.status >= 500) {
+          category = 'server_error';
+        } else if (response.status === 400) {
+          category = 'invalid_request';
+        }
+
+        throw new APIError(`xAI Grok API エラー: ${errorMessage}`, category, `GROK_${response.status}`, errorData);
+      }
+
+      const data = response.data as OpenAIResponse;
+
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new APIError('xAI Grok API からの応答が無効です', 'invalid_request', 'INVALID_RESPONSE');
+      }
+
+      return {
+        content: data.choices[0].message.content,
+        usage: data.usage ? {
+          promptTokens: data.usage.prompt_tokens,
+          completionTokens: data.usage.completion_tokens,
+          totalTokens: data.usage.total_tokens,
+        } : undefined,
+      };
+    } catch (error) {
+      // エラーログを記録
+      const { logAPIError, logError } = await import('../utils/errorLogger');
+      if (error instanceof APIError) {
+        logAPIError(error, {
+          endpoint: apiUrl,
+          method: 'POST',
+        });
+        return {
+          content: '',
+          error: error.message,
+        };
+      }
+      logError(error, {
+        category: 'grok',
+        context: { endpoint: apiUrl, method: 'POST' },
+      });
+
+      // getUserFriendlyErrorを使用してエラーメッセージを生成
+      const { getUserFriendlyError } = await import('../utils/errorHandler');
+      const errorInfo = getUserFriendlyError(error);
+
+      return {
+        content: '',
+        error: errorInfo.message,
       };
     }
   }
@@ -2971,8 +3193,8 @@ class AIService {
     try {
       const { prompt, settings } = request;
 
-      // 入力値のサニタイゼーション
-      const sanitizedPrompt = sanitizeInput(prompt);
+      // 入力値のサニタイゼーション（プロンプトインジェクション対策を含む）
+      const sanitizedPrompt = sanitizeInputForPrompt(prompt);
 
       // プロバイダーに応じたAPIキーを取得
       const apiKey = this.getApiKeyForProvider(settings);
@@ -3014,6 +3236,8 @@ class AIService {
               return this.callClaude({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
             case 'gemini':
               return this.callGemini({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
+            case 'grok':
+              return this.callGrok({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
             case 'local':
               return this.callLocal({ ...request, prompt: sanitizedPrompt, settings: settingsWithApiKey });
             default:
@@ -3118,6 +3342,7 @@ class AIService {
 
   async evaluateStory(request: EvaluationRequest, settings: AISettings): Promise<EvaluationResult> {
     try {
+      const strictness = request.strictness || 'normal';
       const promptVariables = {
         title: request.context?.title || '不明',
         theme: request.context?.theme || '不明',
@@ -3127,7 +3352,17 @@ class AIService {
         content: request.content
       };
 
-      const prompt = this.buildPrompt('evaluation', request.mode, promptVariables);
+      let prompt = this.buildPrompt('evaluation', request.mode, promptVariables);
+
+      // 厳しさレベルに応じた評価方針をプロンプトの冒頭に挿入
+      const strictnessInstruction = STRICTNESS_INSTRUCTIONS[strictness];
+      // プロンプトの最初の行の後に評価方針を挿入
+      const firstLineEnd = prompt.indexOf('\n');
+      if (firstLineEnd !== -1) {
+        prompt = prompt.slice(0, firstLineEnd + 1) + '\n' + strictnessInstruction + '\n\n' + prompt.slice(firstLineEnd + 1);
+      } else {
+        prompt = strictnessInstruction + '\n\n' + prompt;
+      }
 
       const aiRequest: AIRequest = {
         prompt,
@@ -3197,7 +3432,17 @@ class AIService {
       variables.styleDetails = styleDetails;
     }
 
+    // 変数を埋め込む前に、すべてのユーザー入力をサニタイズ
+    const sanitizedVariables: Record<string, string> = {};
     Object.entries(variables).forEach(([key, value]) => {
+      // プロンプトに埋め込まれるすべての値をサニタイズ
+      // ただし、システムが生成した値（styleDetailsなど）も念のためサニタイズ
+      sanitizedVariables[key] = typeof value === 'string' 
+        ? sanitizeInputForPrompt(value, 50000) // 長いテキストにも対応（例：previousStory）
+        : '';
+    });
+
+    Object.entries(sanitizedVariables).forEach(([key, value]) => {
       prompt = prompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
     });
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
-import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings } from 'lucide-react';
+import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save } from 'lucide-react';
 import { diffLines, type Change } from 'diff';
 import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
+import { sanitizeInputForPrompt } from '../../utils/securityUtils';
 import {
   HISTORY_AUTO_SAVE_DELAY,
   HISTORY_MAX_ENTRIES,
@@ -22,7 +23,6 @@ import { ImprovementLogModal } from './draft/ImprovementLogModal';
 import { CustomPromptModal } from './draft/CustomPromptModal';
 import { BackupDescriptionModal } from './draft/BackupDescriptionModal';
 import { AIStatusBar } from './draft/AIStatusBar';
-import { DraftHeader } from './draft/DraftHeader';
 import { ChapterTabs } from './draft/ChapterTabs';
 import { MainEditor, type MainEditorHandle } from './draft/MainEditor';
 import { ForeshadowingPanel } from './draft/ForeshadowingPanel';
@@ -30,10 +30,12 @@ import { useAILog } from '../common/hooks/useAILog';
 import { AILogPanel } from '../common/AILogPanel';
 import { useChapterDraft } from './draft/hooks/useChapterDraft';
 import { useExport } from './draft/hooks/useExport';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 // AI生成機能はToolsSidebarのDraftAssistantPanelに移行
 // テキスト選択機能は削除され、AI機能はToolsSidebarに移行
 import { useAllChaptersGeneration } from './draft/hooks/useAllChaptersGeneration';
 import { useToast } from '../Toast';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
@@ -54,6 +56,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject, createManualBackup } = useProject();
   const { isConfigured, settings } = useAI();
   const { showError, showSuccess, showWarning } = useToast();
+  const { handleError, handleAPIError, handleDatabaseError, getErrorMessage } = useErrorHandler();
   
   // State variables
   const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
@@ -87,6 +90,15 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   
   // トースト通知用の状態
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 確認ダイアログの状態
+  const [confirmDialogState, setConfirmDialogState] = useState<{
+    isOpen: boolean;
+    type: 'generate-all-chapters' | null;
+  }>({
+    isOpen: false,
+    type: null,
+  });
   
   // 章の草案管理フック
   const {
@@ -263,21 +275,22 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   }) => {
     const { currentChapter, chapterDetails, projectCharacters, previousStory, previousChapterEnd = '', contextInfo = { worldSettings: '', glossary: '', relationships: '', plotInfo: '' } } = args;
     // 文体設定の取得（プロジェクト設定から、またはデフォルト値）
+    // カスタム値が存在する場合はカスタム値を使用、それ以外は通常の値を使用
     const writingStyle = currentProject?.writingStyle || {};
-    const style = writingStyle.style || '現代小説風';
-    const perspective = writingStyle.perspective || '';
-    const formality = writingStyle.formality || '';
-    const rhythm = writingStyle.rhythm || '';
-    const metaphor = writingStyle.metaphor || '';
-    const dialogue = writingStyle.dialogue || '';
-    const emotion = writingStyle.emotion || '';
-    const tone = writingStyle.tone || '';
+    const style = writingStyle.customStyle || writingStyle.style || '現代小説風';
+    const perspective = writingStyle.customPerspective || writingStyle.perspective || '';
+    const formality = writingStyle.customFormality || writingStyle.formality || '';
+    const rhythm = writingStyle.customRhythm || writingStyle.rhythm || '';
+    const metaphor = writingStyle.customMetaphor || writingStyle.metaphor || '';
+    const dialogue = writingStyle.customDialogue || writingStyle.dialogue || '';
+    const emotion = writingStyle.customEmotion || writingStyle.emotion || '';
+    const tone = writingStyle.customTone || writingStyle.tone || '';
 
     // 文体の詳細指示を構築
     const styleDetailsArray: string[] = [];
     if (perspective || formality || rhythm || metaphor || dialogue || emotion || tone) {
       styleDetailsArray.push('【文体の詳細指示】');
-      if (perspective) styleDetailsArray.push(`- **人称**: ${perspective} （一人称 / 三人称 / 神の視点）`);
+      if (perspective) styleDetailsArray.push(`- **人称**: ${perspective} （一人称（私/僕/俺） / 三人称（彼/彼女） / 神の視点）`);
       if (formality) styleDetailsArray.push(`- **硬軟**: ${formality} （硬め / 柔らかめ / 口語的 / 文語的）`);
       if (rhythm) styleDetailsArray.push(`- **リズム**: ${rhythm} （短文中心 / 長短混合 / 流れるような長文）`);
       if (metaphor) styleDetailsArray.push(`- **比喩表現**: ${metaphor} （多用 / 控えめ / 詩的 / 写実的）`);
@@ -332,7 +345,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     });
 
     if (useCustomPrompt && customPrompt.trim()) {
-      return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${customPrompt}`;
+      // カスタムプロンプトをサニタイズして追加
+      const sanitizedCustomPrompt = sanitizeInputForPrompt(customPrompt);
+      return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${sanitizedCustomPrompt}`;
     }
     
     return basePrompt;
@@ -615,8 +630,7 @@ ${'='.repeat(80)}`;
         setToastMessage(null);
       }, 3000);
     } catch (error) {
-      console.error('バックアップ作成エラー:', error);
-      showError('バックアップの作成に失敗しました', 7000, {
+      handleDatabaseError(error, 'バックアップ作成', {
         title: 'バックアップエラー',
       });
     }
@@ -988,7 +1002,7 @@ useEffect(() => {
 
       setToastMessage('履歴を削除しました');
     } catch (error) {
-      console.error('履歴の削除エラー:', error);
+      handleDatabaseError(error, '履歴削除');
       setToastMessage('履歴の削除に失敗しました');
     }
   }, [currentProject, selectedChapter, selectedHistoryEntryId, setToastMessage]);
@@ -1013,10 +1027,8 @@ useEffect(() => {
   // 文字数カウント（メモ化）
   const wordCount = useMemo(() => draft.length, [draft]);
 
-  // 全章生成機能はuseAllChaptersGenerationフックに移動済み
-  // 以下は削除対象（コメントアウト）
-  /*
-  const handleGenerateAllChapters = async () => {
+  // 全章生成の確認ダイアログを表示するラッパー
+  const handleGenerateAllChaptersWithConfirm = () => {
     if (!isConfigured) {
       showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
         title: 'AI設定が必要',
@@ -1031,16 +1043,19 @@ useEffect(() => {
       return;
     }
 
-    // 非ローカルLLM推奨の警告
-    if (settings.provider === 'local') {
-      const useNonLocal = confirm('全章生成には非ローカルLLM（OpenAI、Anthropic等）の使用を強く推奨します。\n\n理由：\n• 一貫性のある長文生成\n• キャラクター設定の維持\n• 物語の流れの統一\n• 高品質な文章生成\n\n続行しますか？');
-      if (!useNonLocal) return;
-    }
+    // 確認ダイアログを表示
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'generate-all-chapters',
+    });
+  };
 
-    // 確認ダイアログ
-    const confirmMessage = `全${currentProject.chapters.length}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`;
-    if (!confirm(confirmMessage)) return;
+  const handleConfirmGenerateAllChapters = () => {
+    handleGenerateAllChapters();
+  };
 
+  /*
+  const handleGenerateAllChapters = async () => {
     setIsGeneratingAllChapters(true);
     setGenerationProgress({ current: 0, total: currentProject.chapters.length });
     setGenerationStatus('準備中...');
@@ -1207,10 +1222,8 @@ useEffect(() => {
       }
 
     } catch (error) {
-      console.error('全章生成エラー:', error);
-      
       // キャンセルされた場合
-      if ((error as Error).name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         setGenerationStatus('キャンセルされました');
         setChapterProgressList(prev => 
           prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'pending' } : ch)
@@ -1218,40 +1231,19 @@ useEffect(() => {
         return;
       }
       
-      if ((error as Error).name !== 'AbortError') {
-        // エラーが発生した章をマーク
-        setChapterProgressList(prev => 
-          prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'error' } : ch)
-        );
-        let errorMessage = '不明なエラーが発生しました';
-        let errorDetails = '';
-        
-        if (error instanceof Error) {
-          errorMessage = error.message;
-          
-          // エラーの種類に応じた詳細メッセージ
-          if (error.message.includes('network') || error.message.includes('fetch')) {
-            errorDetails = '\n\nネットワークエラーが発生しました。インターネット接続を確認してください。';
-          } else if (error.message.includes('timeout')) {
-            errorDetails = '\n\nタイムアウトエラーが発生しました。時間をおいて再度お試しください。';
-          } else if (error.message.includes('quota') || error.message.includes('limit')) {
-            errorDetails = '\n\nAPIの利用制限に達しました。しばらく時間をおいてから再度お試しください。';
-          } else if (error.message.includes('unauthorized') || error.message.includes('401')) {
-            errorDetails = '\n\nAPIキーが無効です。AI設定でAPIキーを確認してください。';
-          } else if (error.message.includes('rate limit')) {
-            errorDetails = '\n\nリクエスト制限に達しました。しばらく時間をおいてから再度お試しください。';
-          }
-        }
-        
-        const fullErrorMessage = `全章生成中にエラーが発生しました: ${errorMessage}${errorDetails}`;
-        const errorDetailsText = '対処方法：\n• ネットワーク接続を確認してください\n• AI設定でAPIキーが正しく設定されているか確認してください\n• しばらく時間をおいてから再度お試しください\n• 問題が続く場合は、個別に章を生成してください';
-        
-        showError(fullErrorMessage, 10000, {
-          title: '全章生成エラー',
-          details: errorDetailsText,
-        });
-        setGenerationStatus('エラーが発生しました');
-      }
+      // エラーが発生した章をマーク
+      setChapterProgressList(prev => 
+        prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'error' } : ch)
+      );
+      
+      // 統一されたエラーハンドリングを使用
+      handleAPIError(error, '全章生成', {
+        title: '全章生成エラー',
+        onRetry: () => {
+          // 再試行機能は後で実装可能
+        },
+      });
+      setGenerationStatus('エラーが発生しました');
     } finally {
       setIsGeneratingAllChapters(false);
       setGenerationProgress({ current: 0, total: 0 });
@@ -1396,7 +1388,7 @@ useEffect(() => {
     };
 
     return (
-      <div className="max-w-6xl mx-auto">
+      <div>
         {/* ステップナビゲーション */}
         <StepNavigation
           currentStep="draft"
@@ -1404,7 +1396,7 @@ useEffect(() => {
           onNext={handleNextStep}
         />
 
-        <div className="p-8 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-8 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
             草案作成
           </h2>
@@ -1430,10 +1422,56 @@ useEffect(() => {
     );
   }
 
+  // ステップナビゲーション用のハンドラー
+  const handlePreviousStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('chapter');
+    }
+  };
+
+  const handleNextStep = () => {
+    if (onNavigateToStep) {
+      onNavigateToStep('review');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* ヘッダー */}
-      <DraftHeader onBackup={handleCreateManualBackup} />
+    <div>
+      {/* ステップナビゲーション */}
+      <StepNavigation
+        currentStep="draft"
+        onPrevious={handlePreviousStep}
+        onNext={handleNextStep}
+      />
+
+      {/* タイトルセクション */}
+      <div className="mb-8 max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-emerald-500">
+                <PenTool className="h-5 w-5 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                草案作成
+              </h1>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-2">
+              章ごとに詳細な草案を作成し、物語を完成させましょう
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={handleCreateManualBackup}
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm font-['Noto_Sans_JP']"
+            >
+              <Save className="h-4 w-4" />
+              <span>バックアップ</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* 統合AI生成状態バー */}
       <AIStatusBar
@@ -1446,12 +1484,12 @@ useEffect(() => {
       />
 
       {/* メインコンテンツ */}
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-          {/* メインエディタエリア - サイドバー削除により最大化 */}
-          <div className="flex-1 min-w-0 space-y-6 max-w-6xl mx-auto">
+        {/* メインエディタエリア - サイドバー削除により最大化 */}
+        <div className="flex-1 min-w-0 space-y-6">
             {/* 章選択 */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden p-6">
               <ChapterTabs
                 chapters={currentProject.chapters}
                 selectedChapterId={selectedChapter}
@@ -1465,7 +1503,7 @@ useEffect(() => {
 
             {/* 章情報と表示設定を統合したアコーディオンパネル */}
             {currentChapter && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setIsChapterInfoCollapsed(prev => !prev)}
@@ -1889,6 +1927,34 @@ useEffect(() => {
           onClose={() => setShowCompletionToast(null)}
         />
       )}
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={confirmDialogState.isOpen}
+        onClose={() => setConfirmDialogState({ isOpen: false, type: null })}
+        onConfirm={() => {
+          if (confirmDialogState.type === 'generate-all-chapters') {
+            handleConfirmGenerateAllChapters();
+          }
+          setConfirmDialogState({ isOpen: false, type: null });
+        }}
+        title={
+          confirmDialogState.type === 'generate-all-chapters'
+            ? settings.provider === 'local'
+              ? '非ローカルLLMの使用を推奨します'
+              : '全章生成を実行しますか？'
+            : ''
+        }
+        message={
+          confirmDialogState.type === 'generate-all-chapters'
+            ? settings.provider === 'local'
+              ? '全章生成には非ローカルLLM（OpenAI、Anthropic等）の使用を強く推奨します。\n\n理由：\n• 一貫性のある長文生成\n• キャラクター設定の維持\n• 物語の流れの統一\n• 高品質な文章生成\n\n続行しますか？'
+              : `全${currentProject?.chapters.length || 0}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`
+            : ''
+        }
+        type={confirmDialogState.type === 'generate-all-chapters' && settings.provider === 'local' ? 'warning' : 'info'}
+        confirmLabel="実行"
+      />
     </div>
   );
 };

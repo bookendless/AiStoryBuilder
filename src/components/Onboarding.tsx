@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight, HelpCircle, Wrench } from 'lucide-react';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
 
@@ -27,9 +27,18 @@ const quickOnboardingSteps: OnboardingStep[] = [
     description: 'このアプリは、AIの力を借りて小説を創作するための支援ツールです。80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう。',
     icon: <Sparkles className="h-12 w-12 text-indigo-600 dark:text-indigo-400" />,
     features: [
-      'AIによるキャラクター設計の支援',
-      'プロット構造の自動生成',
-      '草案執筆のAI支援',
+      'AIによるキャラクター設計の支援 - キャラクターの名前、性格、背景、外見などをAIが提案し、あなたの創作をサポートします',
+      'プロット構造の自動生成 - 起承転結や3幕構成など、様々な物語構造のテンプレートに基づいてプロットを自動生成します',
+      '草案執筆のAI支援 - 章ごとの執筆をAIがサポートし、続きを書く、描写を強化する、リライトするなどの機能で執筆を効率化します',
+      '',
+      '用語集 - 作品内の重要な用語や設定を整理・管理し、一貫性のある世界観を構築します',
+      '相関図 - キャラクター間の関係性を視覚的に表示し、複雑な人間関係を把握しやすくします',
+      'タイムライン - 物語の時系列やイベントを管理し、時系列の整合性を保ちます',
+      '世界観 - 地理、文化、技術、魔法などの世界設定を体系的に管理し、詳細な世界観を構築します',
+      '伏線トラッカー - 伏線の設置、ヒント、回収を管理し、物語の整合性を保ちます',
+      '感情マップ - キャラクターの感情変化を可視化し、感情の流れを追跡して物語の深みを増します',
+      '',
+      '完全オフライン対応（ローカルLLM使用時） - OllamaなどのローカルLLMを使用すれば、インターネット接続なしでも様々な機能を利用できます',
     ],
   },
   {
@@ -38,12 +47,30 @@ const quickOnboardingSteps: OnboardingStep[] = [
     description: '小説制作は6つのステップで進めます。各ステップを順番に完了することで、完成度の高い作品を作成できます。',
     icon: <BookOpen className="h-12 w-12 text-purple-600 dark:text-purple-400" />,
     features: [
-      '1. キャラクター設計',
-      '2. プロット基本設定',
-      '3. プロット構成詳細',
-      '4. あらすじ作成',
-      '5. 章立て',
-      '6. 草案執筆',
+      '1. 物語の種 - プロットの基本設定',
+      '2. キャラクター - 登場人物の設定',
+      '3. 構成 - 起承転結や3幕構成',
+      '4. あらすじ - 物語の概要',
+      '5. 章立て - 各章の構成',
+      '6. 執筆 - AI支援による執筆',
+    ],
+  },
+  {
+    id: 'tools',
+    title: '分析・エクスポートとプロジェクトツール',
+    description: '作品の完成後は分析機能で品質を確認し、エクスポートで出力できます。また、右側のツールサイドバーには創作を支援する様々なツールが用意されています。',
+    icon: <Wrench className="h-12 w-12 text-teal-600 dark:text-teal-400" />,
+    features: [
+      '分析 - 作品の構造や整合性をチェック',
+      'エクスポート - 完成した作品を出力',
+      'イメージボード - 参考画像を管理',
+      '用語集 - 作品内の用語を整理',
+      '相関図 - キャラクターの関係を可視化',
+      'タイムライン - 物語の時系列を管理',
+      '世界観 - 設定を体系的に管理',
+      '伏線トラッカー - 伏線の設置と回収を管理',
+      '感情マップ - キャラクターの感情変化を可視化',
+      'AIチャット相談 - 創作に関する質問に回答',
     ],
   },
 ];
@@ -56,10 +83,10 @@ const fullOnboardingSteps: OnboardingStep[] = [
     description: 'このアプリは、AIの力を借りて小説を創作するための支援ツールです。80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう。',
     icon: <Sparkles className="h-12 w-12 text-indigo-600 dark:text-indigo-400" />,
     features: [
-      'AIによるキャラクター設計の支援',
-      'プロット構造の自動生成',
-      '草案執筆のAI支援',
-      '完全オフライン対応（ローカルLLM使用時）',
+      'AIによるキャラクター設計の支援 - キャラクターの名前、性格、背景、外見などをAIが提案し、あなたの創作をサポートします',
+      'プロット構造の自動生成 - 起承転結や3幕構成など、様々な物語構造のテンプレートに基づいてプロットを自動生成します',
+      '草案執筆のAI支援 - 章ごとの執筆をAIがサポートし、続きを書く、描写を強化する、リライトするなどの機能で執筆を効率化します',
+      '完全オフライン対応（ローカルLLM使用時） - OllamaなどのローカルLLMを使用すれば、インターネット接続なしでも様々な機能を利用できます',
     ],
   },
   {
@@ -68,12 +95,30 @@ const fullOnboardingSteps: OnboardingStep[] = [
     description: '小説制作は6つのステップで進めます。各ステップを順番に完了することで、完成度の高い作品を作成できます。',
     icon: <BookOpen className="h-12 w-12 text-purple-600 dark:text-purple-400" />,
     features: [
-      '1. キャラクター設計 - 登場人物の設定',
-      '2. プロット基本設定 - 物語の基本構造',
-      '3. プロット構成詳細 - 起承転結や3幕構成',
-      '4. あらすじ作成 - 物語の概要',
+      '1. 物語の種 - プロットの基本設定',
+      '2. キャラクター - 登場人物の設定',
+      '3. 構成 - 起承転結や3幕構成',
+      '4. あらすじ - 物語の概要',
       '5. 章立て - 各章の構成',
-      '6. 草案執筆 - AI支援による執筆',
+      '6. 執筆 - AI支援による執筆',
+    ],
+  },
+  {
+    id: 'tools',
+    title: '分析・エクスポートとプロジェクトツール',
+    description: '作品の完成後は分析機能で品質を確認し、エクスポートで出力できます。また、右側のツールサイドバーには創作を支援する様々なツールが用意されています。',
+    icon: <Wrench className="h-12 w-12 text-teal-600 dark:text-teal-400" />,
+    features: [
+      '分析 - 作品の構造や整合性をチェックし、改善点を提案',
+      'エクスポート - 完成した作品をMarkdownやテキスト形式で出力',
+      'イメージボード - 参考画像やキャラクター画像を管理',
+      '用語集 - 作品内の重要な用語や設定を整理・管理',
+      '相関図 - キャラクター間の関係性を視覚的に表示',
+      'タイムライン - 物語の時系列やイベントを管理',
+      '世界観 - 地理、文化、技術などの世界設定を体系的に管理',
+      '伏線トラッカー - 伏線の設置、ヒント、回収を管理',
+      '感情マップ - キャラクターの感情変化を可視化',
+      'AIチャット相談 - 創作に関する質問や相談にAIが回答',
     ],
   },
   {
@@ -212,17 +257,23 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onCompl
 
           {step.features && (
             <div className="space-y-3">
-              {step.features.map((feature, index) => (
-                <div
-                  key={index}
-                  className="flex items-start space-x-3 p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                    {feature}
-                  </span>
-                </div>
-              ))}
+              {step.features.map((feature, index) => {
+                // 空文字列の場合はスペーサーとして表示
+                if (feature === '') {
+                  return <div key={index} className="h-2" />;
+                }
+                return (
+                  <div
+                    key={index}
+                    className="flex items-start space-x-3 p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                      {feature}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

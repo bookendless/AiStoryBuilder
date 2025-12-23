@@ -12,6 +12,9 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: {
+        project: ['./tsconfig.app.json', './tsconfig.node.json'],
+      },
     },
     plugins: {
       'react-hooks': reactHooks,
@@ -31,6 +34,11 @@ export default tseslint.config(
           'caughtErrorsIgnorePattern': '^_'
         }
       ],
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'warn',
+      '@typescript-eslint/no-unsafe-return': 'warn',
       'no-control-regex': 'off', // 制御文字の正規表現を許可
     },
   }

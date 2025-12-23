@@ -218,7 +218,7 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
   if (!currentProject) return null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
       {/* ヘッダー */}
       <button
         onClick={onToggleCollapse}

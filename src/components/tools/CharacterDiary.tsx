@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { BookOpen, Edit3, Trash2, Loader, Sparkles, Calendar, StopCircle } from 'lucide-react';
+import { BookOpen, Edit3, Trash2, Loader, Sparkles, Calendar, StopCircle, Download } from 'lucide-react';
 import { useAI } from '../../contexts/AIContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
 import { CharacterDiaryEntry } from '../../types/characterPossession';
-import { generateUUID } from '../../utils/securityUtils';
+import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
 import { Modal } from '../common/Modal';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { useToast } from '../Toast';
@@ -49,11 +49,10 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
       const key = `character_diary_${currentProject.id}_${characterId}`;
       const saved = localStorage.getItem(key);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const diariesWithDates = parsed.map((d: any) => ({
+        const parsed = JSON.parse(saved) as Array<Omit<CharacterDiaryEntry, 'createdAt'> & { createdAt: string | Date }>;
+        const diariesWithDates = parsed.map((d) => ({
           ...d,
-          createdAt: new Date(d.createdAt),
+          createdAt: d.createdAt instanceof Date ? d.createdAt : new Date(d.createdAt),
         }));
         // 日付順（新しい順）にソート
         diariesWithDates.sort((a: CharacterDiaryEntry, b: CharacterDiaryEntry) =>
@@ -270,6 +269,73 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
     setIsEditing(true);
   };
 
+  // 日記をダウンロード
+  const handleDownloadDiary = () => {
+    if (!currentProject || !character || diaries.length === 0) {
+      showError('ダウンロードする日記がありません');
+      return;
+    }
+
+    try {
+      // テキスト形式でフォーマット
+      const exportDate = new Date().toLocaleString('ja-JP');
+      let content = `【本音日記】\n`;
+      content += `プロジェクト: ${currentProject.title || '未設定'}\n`;
+      content += `キャラクター: ${character.name}\n`;
+      content += `エクスポート日時: ${exportDate}\n\n`;
+      content += `========================================\n\n`;
+
+      // 日付順（新しい順）でソートされた日記をフォーマット
+      diaries.forEach((diary, index) => {
+        const dateStr = diary.createdAt.toLocaleDateString('ja-JP', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        const timeStr = diary.createdAt.toLocaleTimeString('ja-JP', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        content += `【${diary.title}】\n`;
+        if (diary.chapterTitle) {
+          content += `章: ${diary.chapterTitle}\n`;
+        }
+        content += `日付: ${dateStr} ${timeStr}\n`;
+        if (diary.isAiGenerated) {
+          content += `[AI生成]\n`;
+        }
+        content += `\n${diary.content}\n\n`;
+        
+        if (index < diaries.length - 1) {
+          content += `---\n\n`;
+        }
+      });
+
+      // ファイル名を生成
+      const projectName = currentProject.title || 'プロジェクト';
+      const characterName = character.name;
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const fileName = sanitizeFileName(`${projectName}_${characterName}_本音日記_${dateStr}.txt`);
+
+      // Blobを作成してダウンロード
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showSuccess('日記をダウンロードしました');
+    } catch (error) {
+      console.error('ダウンロードエラー:', error);
+      showError('ダウンロードに失敗しました');
+    }
+  };
+
   if (!isOpen || !character) return null;
 
   return (
@@ -295,13 +361,24 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
                 📔 {character.name}の本音日記
               </span>
             </div>
-            {character.image && (
-              <img
-                src={character.image}
-                alt={character.name}
-                className="w-8 h-8 rounded-full object-cover border-2 border-purple-500"
-              />
-            )}
+            <div className="flex items-center space-x-2">
+              {character.image && (
+                <img
+                  src={character.image}
+                  alt={character.name}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-purple-500"
+                />
+              )}
+              {diaries.length > 0 && (
+                <button
+                  onClick={handleDownloadDiary}
+                  className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="日記をダウンロード"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
         }
         size="lg"

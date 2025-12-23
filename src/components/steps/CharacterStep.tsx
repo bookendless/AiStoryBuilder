@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Plus, User, Network } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -61,28 +61,28 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
   };
 
   // モーダルを開く（編集）
-  const handleOpenEditModal = (character: Character) => {
+  const handleOpenEditModal = useCallback((character: Character) => {
     setEditingCharacter(character);
     setIsModalOpen(true);
-  };
+  }, []);
 
   // モーダルを閉じる
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingCharacter(null);
-  };
+  }, []);
 
   // キャラクター追加
-  const handleAddCharacter = (character: Character) => {
+  const handleAddCharacter = useCallback((character: Character) => {
     if (!currentProject) return;
 
     updateProject({
       characters: [...currentProject.characters, character],
     });
-  };
+  }, [currentProject, updateProject]);
 
   // キャラクター更新
-  const handleUpdateCharacter = (character: Character) => {
+  const handleUpdateCharacter = useCallback((character: Character) => {
     if (!currentProject) return;
 
     const updatedCharacters = currentProject.characters.map(c =>
@@ -90,30 +90,33 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
     );
 
     updateProject({ characters: updatedCharacters });
-  };
+  }, [currentProject, updateProject]);
 
   // ドラッグ開始
-  const handleDragStart = (e: React.DragEvent, index: number) => {
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
-  };
+  }, []);
 
   // ドラッグ中
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
+    setDragOverIndex((prevDragOverIndex) => {
+      if (draggedIndex !== null && draggedIndex !== index && prevDragOverIndex !== index) {
+        return index;
+      }
+      return prevDragOverIndex;
+    });
+  }, [draggedIndex]);
 
   // ドラッグ離脱
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setDragOverIndex(null);
-  };
+  }, []);
 
   // ドロップ
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+  const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
 
     if (draggedIndex === null || draggedIndex === dropIndex || !currentProject) {
@@ -134,16 +137,16 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
     setDraggedIndex(null);
     setDragOverIndex(null);
     showSuccess('キャラクターの並び順を変更しました');
-  };
+  }, [draggedIndex, currentProject, updateProject, showSuccess]);
 
   // ドラッグ終了
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setDraggedIndex(null);
     setDragOverIndex(null);
-  };
+  }, []);
 
   // カードの展開/折りたたみ
-  const toggleCardExpansion = (characterId: string) => {
+  const toggleCardExpansion = useCallback((characterId: string) => {
     setExpandedCards(prev => {
       const newSet = new Set(prev);
       if (newSet.has(characterId)) {
@@ -153,10 +156,10 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
       }
       return newSet;
     });
-  };
+  }, []);
 
   // キャラクター画像を拡大表示
-  const handleOpenCharacterImageViewer = (character: Character) => {
+  const handleOpenCharacterImageViewer = useCallback((character: Character) => {
     if (character.image) {
       setImageViewerState({
         isOpen: true,
@@ -164,9 +167,9 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
         characterName: character.name
       });
     }
-  };
+  }, []);
 
-  const handleDeleteCharacter = (id: string) => {
+  const handleDeleteCharacter = useCallback((id: string) => {
     if (!currentProject) return;
     const character = currentProject.characters.find(c => c.id === id);
     if (!character) return;
@@ -177,9 +180,9 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
       characterId: id,
       characterName: character.name,
     });
-  };
+  }, [currentProject]);
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = useCallback(() => {
     if (!currentProject || !confirmDialogState.characterId) return;
     updateProject({
       characters: currentProject.characters.filter(c => c.id !== confirmDialogState.characterId),
@@ -191,16 +194,16 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
       characterId: null,
       characterName: '',
     });
-  };
+  }, [currentProject, confirmDialogState.characterId, updateProject, showSuccess]);
 
-  const handleRequestAIEnhance = (character: Character) => {
+  const handleRequestAIEnhance = useCallback((character: Character) => {
     setConfirmDialogState({
       isOpen: true,
       type: 'ai-enhance',
       characterId: character.id,
       characterName: character.name,
     });
-  };
+  }, []);
 
   const handleAIEnhance = async () => {
     if (!isConfigured) {
@@ -371,7 +374,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {/* ステップナビゲーション */}
       <StepNavigation
         currentStep="character"

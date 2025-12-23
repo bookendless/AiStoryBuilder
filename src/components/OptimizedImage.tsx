@@ -101,38 +101,63 @@ export function OptimizedImage({
   useEffect(() => {
     if (!isVisible) return;
 
+    let blobUrl: string | null = null;
+    let isMounted = true;
+
     const loadImage = async () => {
       try {
         setIsLoading(true);
         setIsError(false);
 
-        // imageIdが指定されている場合はBlobストレージから読み込む
+        // imageIdが指定されている場合はBlobストレージから読み込む（優先）
         if (imageId) {
-          const blobUrl = await databaseService.getImageUrl(imageId);
-          if (blobUrl) {
-            setImageSrc(blobUrl);
-            setIsLoading(false);
-            return;
-          } else {
-            throw new Error('画像を取得できませんでした');
+          try {
+            const url = await databaseService.getImageUrl(imageId);
+            if (url && isMounted) {
+              blobUrl = url;
+              setImageSrc(url);
+              setIsLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.warn('Blobストレージからの画像読み込みに失敗、srcをフォールバック:', error);
+            // エラーが発生した場合はsrcをフォールバックとして使用
           }
         }
 
-        // 通常のsrcを使用
-        if (src) {
-          await optimizeImage(src);
+        // imageIdがない場合、またはimageIdからの読み込みが失敗した場合はsrcを使用
+        if (src && isMounted) {
+          // srcがBlob URLの場合は検証してから使用
+          if (src.startsWith('blob:')) {
+            // Blob URLの有効性を確認するため、画像を直接読み込む
+            await optimizeImage(src);
+          } else {
+            await optimizeImage(src);
+          }
+        } else if (isMounted) {
+          throw new Error('画像ソースが指定されていません');
         }
       } catch (error) {
-        console.error('画像読み込みエラー:', error);
-        setIsError(true);
-        setIsLoading(false);
-        if (onError) {
-          onError(error instanceof Error ? error : new Error('画像の読み込みに失敗しました'));
+        if (isMounted) {
+          console.error('画像読み込みエラー:', error);
+          setIsError(true);
+          setIsLoading(false);
+          if (onError) {
+            onError(error instanceof Error ? error : new Error('画像の読み込みに失敗しました'));
+          }
         }
       }
     };
 
     loadImage();
+
+    // クリーンアップ: Blob URLを解放
+    return () => {
+      isMounted = false;
+      if (blobUrl && blobUrl.startsWith('blob:')) {
+        databaseService.revokeImageUrl(blobUrl);
+      }
+    };
   }, [isVisible, src, imageId, optimizeImage, onError]);
 
   // 画像の読み込み完了

@@ -7,6 +7,7 @@ import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface TimelineViewerProps {
   isOpen: boolean;
@@ -48,6 +49,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
   });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiMode, setAiMode] = useState<'extract' | 'generate' | 'check' | 'suggest'>('extract');
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const [aiResults, setAiResults] = useState<Partial<TimelineEvent>[]>([]);
   const [selectedResults, setSelectedResults] = useState<Set<number>>(new Set());
@@ -107,11 +109,15 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
   };
 
   const handleDeleteEvent = (eventId: string) => {
-    if (!confirm('このイベントを削除しますか？')) return;
+    setDeletingEventId(eventId);
+  };
 
+  const handleConfirmDeleteEvent = () => {
+    if (!deletingEventId) return;
     updateProject({
-      timeline: timeline.filter(e => e.id !== eventId),
+      timeline: timeline.filter(e => e.id !== deletingEventId),
     });
+    setDeletingEventId(null);
   };
 
   const handleReorder = (eventId: string, direction: 'up' | 'down') => {
@@ -1381,6 +1387,17 @@ JSON配列形式で出力してください：
           )}
         </div>
       </Modal>
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={deletingEventId !== null}
+        onClose={() => setDeletingEventId(null)}
+        onConfirm={handleConfirmDeleteEvent}
+        title="このイベントを削除しますか？"
+        message=""
+        type="warning"
+        confirmLabel="削除"
+      />
     </>
   );
 };

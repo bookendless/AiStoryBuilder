@@ -1,9 +1,7 @@
 import React, { useRef, useCallback, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { PenTool, BookOpen, Save, Download, MoreVertical, Minimize } from 'lucide-react';
 import { formatTimestamp } from './utils';
-// @ts-ignore - markdown-itの型定義が不完全な場合がある
 import MarkdownIt from 'markdown-it';
-// @ts-ignore - react-markdown-editor-liteの型定義が不完全な場合がある
 import MdEditor from 'react-markdown-editor-lite';
 import 'react-markdown-editor-lite/lib/index.css';
 
@@ -63,7 +61,8 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   const mainTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-  const mdEditorRef = useRef<any>(null);
+  // react-markdown-editor-liteの型定義が不完全なため、HTMLDivElement型を使用
+  const mdEditorRef = useRef<HTMLDivElement | null>(null);
 
   // Markdownパーサーの初期化
   const mdParser = useMemo(() => new MarkdownIt({
@@ -184,7 +183,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   return (
     <div className={`flex-1 min-w-0 space-y-6 ${isZenMode ? 'z-50' : ''}`}>
       <div
-        className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden ${isZenMode ? 'fixed inset-0 z-50 flex flex-col' : ''}`}
+        className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden ${isZenMode ? 'fixed inset-0 z-50 flex flex-col' : ''}`}
         style={isZenMode ? { borderRadius: 0, border: 'none' } : undefined}
       >
         <div className={`p-6 space-y-6 ${isZenMode ? 'flex-1 flex flex-col overflow-hidden' : ''}`}>

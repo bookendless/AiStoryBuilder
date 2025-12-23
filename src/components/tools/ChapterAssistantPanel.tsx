@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Sparkles, Loader, CheckCircle, FileText, BookOpen } from 'lucide-react';
+import { Sparkles, Loader, CheckCircle, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
@@ -666,7 +666,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 ${log.parsedChapters.length}章
 
 【解析された章の詳細】
-${log.parsedChapters.map((ch: any, i: number) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}`;
+${log.parsedChapters.map((ch, i: number) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}`;
 
         navigator.clipboard.writeText(logText);
         showSuccess('ログをクリップボードにコピーしました');
@@ -696,7 +696,7 @@ ${log.parsedChapters && log.parsedChapters.length > 0 ? `【解析された章�
 ${log.parsedChapters.length}章
 
 【解析された章の詳細】
-${log.parsedChapters.map((ch: any, i: number) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}
+${log.parsedChapters.map((ch, i: number) => `${i + 1}. ${ch.title}: ${ch.summary}`).join('\n')}` : ''}
 
 ${'='.repeat(80)}`;
         }).join('\n\n');
@@ -881,7 +881,7 @@ ${'='.repeat(80)}`;
                                     <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                                         <strong>解析された章 ({log.parsedChapters.length}章):</strong>
                                         <div className="mt-1">
-                                            {log.parsedChapters.map((c: any) => c.title).join(', ')}
+                                            {log.parsedChapters.map((c) => c.title).join(', ')}
                                         </div>
                                     </div>
                                 )}

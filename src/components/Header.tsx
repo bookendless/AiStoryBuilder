@@ -262,17 +262,33 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
 
+              {/* データ管理（ホーム画面の時だけ常時表示） */}
+              {currentStep === 'home' && (
+                <button
+                  onClick={() => setShowDataManager(true)}
+                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-mizu-100 dark:bg-mizu-900/30 hover:bg-mizu-200 dark:hover:bg-mizu-900/50 text-mizu-700 dark:text-mizu-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-mizu-500 focus:ring-offset-2"
+                  aria-label="データ管理を開く"
+                  title="データ管理"
+                >
+                  <div className="relative">
+                    <Database className="h-4 w-4 sm:h-5 sm:w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
+                  </div>
+                  <span className="hidden md:inline text-sm font-['Noto_Sans_JP']">
+                    データ管理
+                  </span>
+                </button>
+              )}
+
+              {/* ヘルプ（常時表示） */}
               <button
-                onClick={() => setShowDataManager(true)}
-                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-mizu-100 dark:bg-mizu-900/30 hover:bg-mizu-200 dark:hover:bg-mizu-900/50 text-mizu-700 dark:text-mizu-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-mizu-500 focus:ring-offset-2"
-                aria-label="データ管理を開く"
-                title="データ管理"
+                onClick={() => setShowContextHelp(true)}
+                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                aria-label="ヘルプを表示"
+                title="ヘルプ"
               >
-                <div className="relative">
-                  <Database className="h-4 w-4 sm:h-5 sm:w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
-                </div>
+                <HelpCircle className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
                 <span className="hidden md:inline text-sm font-['Noto_Sans_JP']">
-                  データ管理
+                  ヘルプ
                 </span>
               </button>
 
@@ -339,19 +355,19 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                     )}
 
-                    {/* ヘルプ */}
+                    {/* データ管理（ホーム画面以外の時だけ表示） */}
                     {currentStep !== 'home' && (
                       <button
                         onClick={() => {
-                          setShowContextHelp(true);
+                          setShowDataManager(true);
                           setShowMoreMenu(false);
                         }}
-                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
-                        aria-label="ヘルプを表示"
+                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-mizu-500 focus:ring-inset"
+                        aria-label="データ管理を開く"
                       >
-                        <HelpCircle className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                        <Database className="h-5 w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
                         <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
-                          ヘルプ
+                          データ管理
                         </span>
                       </button>
                     )}

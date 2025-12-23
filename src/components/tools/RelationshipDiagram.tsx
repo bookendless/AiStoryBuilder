@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Network, Plus, Edit2, Trash2, Save, Users, Heart, UsersRound, Sword, GraduationCap, Zap, LayoutList, GitBranch, Sparkles, Loader2, Wand2, CheckCircle, AlertCircle, Lightbulb } from 'lucide-react';
-import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
+import { useProject, CharacterRelationship, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface RelationshipDiagramProps {
   isOpen: boolean;
@@ -69,6 +70,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   const [aiResults, setAiResults] = useState<Partial<CharacterRelationship>[]>([]);
   const [selectedResults, setSelectedResults] = useState<Set<number>>(new Set());
   const [consistencyCheckResult, setConsistencyCheckResult] = useState<string>('');
+  const [deletingRelationshipId, setDeletingRelationshipId] = useState<string | null>(null);
   const { settings, isConfigured } = useAI();
 
   const relationships = useMemo(() => currentProject?.relationships || [], [currentProject?.relationships]);
@@ -241,11 +243,15 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   };
 
   const handleDeleteRelationship = (relationshipId: string) => {
-    if (!confirm('この関係を削除しますか？')) return;
+    setDeletingRelationshipId(relationshipId);
+  };
 
+  const handleConfirmDeleteRelationship = () => {
+    if (!deletingRelationshipId) return;
     updateProject({
-      relationships: relationships.filter(r => r.id !== relationshipId),
+      relationships: relationships.filter(r => r.id !== deletingRelationshipId),
     });
+    setDeletingRelationshipId(null);
   };
 
   const handleCloseForm = () => {
@@ -269,7 +275,11 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
 
     let context = `プロジェクトタイトル: ${currentProject.title}\n`;
     context += `テーマ: ${currentProject.theme || currentProject.projectTheme || '未設定'}\n`;
-    context += `メインジャンル: ${currentProject.mainGenre || currentProject.genre || '未設定'}\n\n`;
+    context += `メインジャンル: ${currentProject.mainGenre || currentProject.genre || '未設定'}\n`;
+    if (currentProject.subGenre) {
+      context += `サブジャンル: ${currentProject.subGenre}\n`;
+    }
+    context += '\n';
 
     if (currentProject.synopsis) {
       context += `あらすじ:\n${currentProject.synopsis}\n\n`;
@@ -280,16 +290,78 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       context += `- テーマ: ${currentProject.plot.theme || '未設定'}\n`;
       context += `- 舞台: ${currentProject.plot.setting || '未設定'}\n`;
       context += `- 主人公の目標: ${currentProject.plot.protagonistGoal || '未設定'}\n`;
-      context += `- 主要な障害: ${currentProject.plot.mainObstacle || '未設定'}\n\n`;
+      context += `- 主要な障害: ${currentProject.plot.mainObstacle || '未設定'}\n`;
+      if (currentProject.plot.hook) {
+        context += `- フック要素: ${currentProject.plot.hook}\n`;
+      }
+      context += '\n';
     }
 
     if (currentProject.characters && currentProject.characters.length > 0) {
       context += `キャラクター:\n`;
       currentProject.characters.forEach(char => {
-        context += `- ${char.name} (${char.role}): ${char.personality || ''}\n`;
-        context += `  外見: ${char.appearance || ''}\n`;
-        context += `  背景: ${char.background || ''}\n`;
+        context += `- ${char.name} (${char.role || '未設定'}): ${char.personality || ''}\n`;
+        if (char.appearance) {
+          context += `  外見: ${char.appearance}\n`;
+        }
+        if (char.background) {
+          context += `  背景: ${char.background}\n`;
+        }
+        if (char.speechStyle) {
+          context += `  口調: ${char.speechStyle}\n`;
+        }
       });
+      context += '\n';
+    }
+
+    // 章情報を追加（関係性分析に重要）
+    if (currentProject.chapters && currentProject.chapters.length > 0) {
+      context += `章情報（登場キャラクターと出来事）:\n`;
+      currentProject.chapters.forEach((chapter, idx) => {
+        context += `第${idx + 1}章: ${chapter.title || '無題'}\n`;
+        if (chapter.summary) {
+          context += `  概要: ${chapter.summary}\n`;
+        }
+        if (chapter.characters && chapter.characters.length > 0) {
+          const chapterCharNames = chapter.characters
+            .map(charId => characters.find(c => c.id === charId)?.name)
+            .filter(name => name)
+            .join('、');
+          if (chapterCharNames) {
+            context += `  登場キャラクター: ${chapterCharNames}\n`;
+          }
+        }
+        if (chapter.keyEvents && chapter.keyEvents.length > 0) {
+          context += `  重要な出来事: ${chapter.keyEvents.join('、')}\n`;
+        }
+        if (chapter.setting) {
+          context += `  舞台: ${chapter.setting}\n`;
+        }
+        if (chapter.mood) {
+          context += `  ムード: ${chapter.mood}\n`;
+        }
+        context += '\n';
+      });
+    }
+
+    // タイムライン情報を追加（もしあれば）
+    if (currentProject.timeline && currentProject.timeline.length > 0) {
+      context += `タイムライン（重要な出来事）:\n`;
+      currentProject.timeline
+        .sort((a, b) => a.order - b.order)
+        .slice(0, 20) // 最新20件まで
+        .forEach(event => {
+          context += `- ${event.title}: ${event.description}\n`;
+          if (event.characterIds && event.characterIds.length > 0) {
+            const eventCharNames = event.characterIds
+              .map(charId => characters.find(c => c.id === charId)?.name)
+              .filter(name => name)
+              .join('、');
+            if (eventCharNames) {
+              context += `  関連キャラクター: ${eventCharNames}\n`;
+            }
+          }
+        });
       context += '\n';
     }
 
@@ -299,7 +371,11 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       relationships.forEach(rel => {
         const fromChar = characters.find(c => c.id === rel.from);
         const toChar = characters.find(c => c.id === rel.to);
-        context += `- ${fromChar?.name || '不明'} → ${toChar?.name || '不明'}: ${relationshipTypes[rel.type].label} (強度: ${rel.strength}/5)\n`;
+        context += `- ${fromChar?.name || '不明'} → ${toChar?.name || '不明'}: ${relationshipTypes[rel.type].label} (強度: ${rel.strength}/5)`;
+        if (rel.description) {
+          context += `\n  説明: ${rel.description}`;
+        }
+        context += '\n';
       });
       context += '\n';
     }
@@ -343,27 +419,48 @@ ${projectContext}
 上記のリストに含まれているキャラクター名のみを使用して関係性を推論してください。
 リストに含まれていないキャラクター名を使用した関係性は無効となります。
 
-【指示】
-1. キャラクターの設定（役割、性格、背景など）から、自然な関係性を推論してください
-2. 既存の関係性は除外してください
-3. 必ず登録済みキャラクター名リストに含まれているキャラクター名のみを使用してください
-4. 各関係性について、以下の情報を提供してください：
-   - 起点キャラクター名（登録済みキャラクター名リストから選択）
-   - 相手キャラクター名（登録済みキャラクター名リストから選択）
-   - 関係の種類（friend: 友人, enemy: 敵対, family: 家族, romantic: 恋愛, mentor: 師弟, rival: ライバル, other: その他）
-   - 関係の強度（1-5の数値）
-   - 説明（100文字以上200文字程度）
-   - 備考（任意）
+【分析のポイント】
+1. **キャラクター設定の分析**
+   - 役割（主人公、敵役、相棒など）から関係性の方向性を推測
+   - 性格の相性（補完関係、対立関係など）を考慮
+   - 背景ストーリーから過去の関係性を推測
+
+2. **章情報の活用**
+   - 同じ章に登場するキャラクター間の関係性を重視
+   - 重要な出来事で共に関わるキャラクター間の関係性を分析
+   - 章の流れから関係性の発展を推測
+
+3. **タイムラインの活用**
+   - 同じ出来事に関わるキャラクター間の関係性を分析
+   - 時系列での関係性の変化を考慮
+
+4. **プロット設定の反映**
+   - 主人公の目標と主要な障害から、敵対関係や協力関係を推測
+   - 物語のテーマに沿った関係性を優先
+
+【推論の基準】
+- 既存の関係性は除外してください
+- 必ず登録済みキャラクター名リストに含まれているキャラクター名のみを使用してください
+- 関係性の種類は以下のいずれかから選択：
+  - friend: 友人関係（信頼できる仲間、協力関係）
+  - enemy: 敵対関係（対立、憎悪、競争）
+  - family: 家族関係（血縁、養子縁組など）
+  - romantic: 恋愛関係（恋愛感情、片思い含む）
+  - mentor: 師弟関係（師匠と弟子、指導者と被指導者）
+  - rival: ライバル関係（競争相手、好敵手）
+  - other: その他（上記に当てはまらない特殊な関係）
+- 関係の強度は1-5で評価（1: 非常に弱い、3: 普通、5: 非常に強い）
+- 説明は100文字以上200文字程度で、具体的な根拠を含めてください
 
 【出力形式】
-JSON配列形式で出力してください：
+JSON配列形式で出力してください。関係性が見つからない場合は空配列[]を返してください：
 [
   {
-    "fromName": "起点キャラクター名",
-    "toName": "相手キャラクター名",
+    "fromName": "起点キャラクター名（登録済みリストから正確に）",
+    "toName": "相手キャラクター名（登録済みリストから正確に）",
     "type": "friend|enemy|family|romantic|mentor|rival|other",
     "strength": 1-5,
-    "description": "関係性の説明",
+    "description": "関係性の説明（100-200文字、根拠を含む）",
     "notes": "備考（任意）"
   },
   ...
@@ -387,9 +484,37 @@ JSON配列形式で出力してください：
       if (response.content) {
         try {
           let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
+          
+          // JSON配列を抽出（複数の方法を試行）
+          let jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+          if (!jsonMatch) {
+            // ```json で囲まれている場合
+            jsonMatch = jsonText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+            if (jsonMatch) {
+              jsonText = jsonMatch[1];
+            } else {
+              // ``` で囲まれている場合
+              jsonMatch = jsonText.match(/```\s*(\[[\s\S]*?\])\s*```/);
+              if (jsonMatch) {
+                jsonText = jsonMatch[1];
+              }
+            }
+          } else {
             jsonText = jsonMatch[0];
+          }
+
+          // JSON解析前に前処理（安全な方法）
+          try {
+            // まずそのまま解析を試行
+            JSON.parse(jsonText);
+          } catch {
+            // 解析に失敗した場合のみ前処理を実行
+            jsonText = jsonText
+              .replace(/,\s*]/g, ']') // 末尾のカンマを削除
+              .replace(/,\s*}/g, '}') // オブジェクト末尾のカンマを削除
+              .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3') // キーのシングルクォートをダブルクォートに変換
+              .replace(/:\s*'([^']+)'/g, ': "$1"') // 値のシングルクォートをダブルクォートに変換
+              .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
           }
 
           const inferredRelationships = JSON.parse(jsonText) as Array<{
@@ -401,6 +526,37 @@ JSON配列形式で出力してください：
             notes?: string;
           }>;
 
+          // 配列でない場合は配列に変換
+          if (!Array.isArray(inferredRelationships)) {
+            throw new Error('AIの応答が配列形式ではありません');
+          }
+
+          // キャラクター名のマッチング関数（部分一致対応）
+          const findCharacterByName = (name: string): Character | undefined => {
+            if (!name) return undefined;
+            const normalizedName = name.trim();
+            
+            // 完全一致
+            let char = characters.find(c => c.name === normalizedName);
+            if (char) return char;
+            
+            // 部分一致（前方一致、後方一致、包含）
+            char = characters.find(c => 
+              c.name.includes(normalizedName) || 
+              normalizedName.includes(c.name)
+            );
+            if (char) return char;
+            
+            // 空白を無視した比較
+            const nameWithoutSpaces = normalizedName.replace(/\s+/g, '');
+            char = characters.find(c => 
+              c.name.replace(/\s+/g, '') === nameWithoutSpaces
+            );
+            if (char) return char;
+            
+            return undefined;
+          };
+
           // キャラクターIDを解決し、既存の関係と重複しないようにフィルタ
           const existingPairs = new Set(
             relationships.map(r => {
@@ -411,10 +567,11 @@ JSON配列形式で出力してください：
 
           const filteredRelationships = inferredRelationships
             .map(rel => {
-              const fromChar = characters.find(c => c.name === rel.fromName);
-              const toChar = characters.find(c => c.name === rel.toName);
+              const fromChar = findCharacterByName(rel.fromName);
+              const toChar = findCharacterByName(rel.toName);
 
               if (!fromChar || !toChar || fromChar.id === toChar.id) {
+                console.warn(`キャラクター名マッチング失敗: "${rel.fromName}" または "${rel.toName}" が見つかりません`);
                 return null;
               }
 
@@ -436,11 +593,22 @@ JSON配列形式で出力してください：
             })
             .filter((rel): rel is Partial<CharacterRelationship> => rel !== null);
 
-          setAiResults(filteredRelationships);
-          setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
+          if (filteredRelationships.length === 0) {
+            showWarning('推論された関係性が見つかりませんでした。キャラクター名が正確に一致しているか確認してください。', 7000, {
+              title: '結果なし',
+            });
+          } else {
+            setAiResults(filteredRelationships);
+            setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
+            showSuccess(`${filteredRelationships.length}件の関係性を推論しました。`, 5000);
+          }
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
-          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+          console.error('AI応答内容:', response.content);
+          
+          // エラーメッセージを詳細化
+          const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+          showError(`AIの応答を解析できませんでした: ${errorMessage}\n\n応答の最初の500文字:\n${response.content.substring(0, 500)}`, 10000, {
             title: '解析エラー',
           });
         }
@@ -491,29 +659,52 @@ ${projectContext}
 上記のリストに含まれているキャラクター名のみを使用して関係性を提案してください。
 リストに含まれていないキャラクター名を使用した関係性は無効となります。
 
-【指示】
-1. プロットの流れやキャラクターの設定を考慮して、物語に必要な関係性を提案してください
-2. キャラクターの成長や関係性の発展に関わる関係性も含めてください
-3. 既存の関係性は除外してください
-4. 必ず登録済みキャラクター名リストに含まれているキャラクター名のみを使用してください
-5. 各関係性について、以下の情報を提供してください：
-   - 起点キャラクター名（登録済みキャラクター名リストから選択）
-   - 相手キャラクター名（登録済みキャラクター名リストから選択）
-   - 関係の種類（friend, enemy, family, romantic, mentor, rival, other）
-   - 関係の強度（1-5の数値）
-   - 説明（100文字以上200文字程度）
-   - 備考（任意）
+【提案の観点】
+1. **物語の展開に必要な関係性**
+   - プロットの流れを促進する関係性
+   - 対立や協力を生み出す関係性
+   - 物語のテーマを深める関係性
+
+2. **キャラクターの成長を促す関係性**
+   - 主人公の成長に影響を与える関係性
+   - キャラクターの変化を引き出す関係性
+   - 新たな側面を引き出す関係性
+
+3. **章の展開を豊かにする関係性**
+   - 同じ章に登場するキャラクター間の新たな関係性
+   - 重要な出来事を通じて生まれる関係性
+   - 物語の緊張感を高める関係性
+
+4. **既存関係性とのバランス**
+   - 既存の関係性を補完する関係性
+   - 物語の複雑さを適切に保つ関係性
+   - 孤立したキャラクターを減らす関係性
+
+【提案の基準】
+- 既存の関係性は除外してください
+- 必ず登録済みキャラクター名リストに含まれているキャラクター名のみを使用してください
+- 関係性の種類は以下のいずれかから選択：
+  - friend: 友人関係（信頼できる仲間、協力関係）
+  - enemy: 敵対関係（対立、憎悪、競争）
+  - family: 家族関係（血縁、養子縁組など）
+  - romantic: 恋愛関係（恋愛感情、片思い含む）
+  - mentor: 師弟関係（師匠と弟子、指導者と被指導者）
+  - rival: ライバル関係（競争相手、好敵手）
+  - other: その他（上記に当てはまらない特殊な関係）
+- 関係の強度は1-5で評価（1: 非常に弱い、3: 普通、5: 非常に強い）
+- 説明は100文字以上200文字程度で、なぜこの関係性が物語に必要かを具体的に説明してください
+- 備考には、この関係性がどの章や場面で重要になるかを記述してください（任意）
 
 【出力形式】
-JSON配列形式で出力してください：
+JSON配列形式で出力してください。提案がない場合は空配列[]を返してください：
 [
   {
-    "fromName": "起点キャラクター名",
-    "toName": "相手キャラクター名",
+    "fromName": "起点キャラクター名（登録済みリストから正確に）",
+    "toName": "相手キャラクター名（登録済みリストから正確に）",
     "type": "friend|enemy|family|romantic|mentor|rival|other",
     "strength": 1-5,
-    "description": "関係性の説明",
-    "notes": "備考（任意）"
+    "description": "関係性の説明（100-200文字、物語への重要性を含む）",
+    "notes": "備考（どの章や場面で重要か、任意）"
   },
   ...
 ]`;
@@ -536,9 +727,37 @@ JSON配列形式で出力してください：
       if (response.content) {
         try {
           let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
+          
+          // JSON配列を抽出（複数の方法を試行）
+          let jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+          if (!jsonMatch) {
+            // ```json で囲まれている場合
+            jsonMatch = jsonText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+            if (jsonMatch) {
+              jsonText = jsonMatch[1];
+            } else {
+              // ``` で囲まれている場合
+              jsonMatch = jsonText.match(/```\s*(\[[\s\S]*?\])\s*```/);
+              if (jsonMatch) {
+                jsonText = jsonMatch[1];
+              }
+            }
+          } else {
             jsonText = jsonMatch[0];
+          }
+
+          // JSON解析前に前処理（安全な方法）
+          try {
+            // まずそのまま解析を試行
+            JSON.parse(jsonText);
+          } catch {
+            // 解析に失敗した場合のみ前処理を実行
+            jsonText = jsonText
+              .replace(/,\s*]/g, ']') // 末尾のカンマを削除
+              .replace(/,\s*}/g, '}') // オブジェクト末尾のカンマを削除
+              .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3') // キーのシングルクォートをダブルクォートに変換
+              .replace(/:\s*'([^']+)'/g, ': "$1"') // 値のシングルクォートをダブルクォートに変換
+              .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
           }
 
           const suggestedRelationships = JSON.parse(jsonText) as Array<{
@@ -550,6 +769,37 @@ JSON配列形式で出力してください：
             notes?: string;
           }>;
 
+          // 配列でない場合は配列に変換
+          if (!Array.isArray(suggestedRelationships)) {
+            throw new Error('AIの応答が配列形式ではありません');
+          }
+
+          // キャラクター名のマッチング関数（部分一致対応）
+          const findCharacterByName = (name: string): Character | undefined => {
+            if (!name) return undefined;
+            const normalizedName = name.trim();
+            
+            // 完全一致
+            let char = characters.find(c => c.name === normalizedName);
+            if (char) return char;
+            
+            // 部分一致（前方一致、後方一致、包含）
+            char = characters.find(c => 
+              c.name.includes(normalizedName) || 
+              normalizedName.includes(c.name)
+            );
+            if (char) return char;
+            
+            // 空白を無視した比較
+            const nameWithoutSpaces = normalizedName.replace(/\s+/g, '');
+            char = characters.find(c => 
+              c.name.replace(/\s+/g, '') === nameWithoutSpaces
+            );
+            if (char) return char;
+            
+            return undefined;
+          };
+
           // キャラクターIDを解決
           const existingPairs = new Set(
             relationships.map(r => {
@@ -560,10 +810,11 @@ JSON配列形式で出力してください：
 
           const filteredRelationships = suggestedRelationships
             .map(rel => {
-              const fromChar = characters.find(c => c.name === rel.fromName);
-              const toChar = characters.find(c => c.name === rel.toName);
+              const fromChar = findCharacterByName(rel.fromName);
+              const toChar = findCharacterByName(rel.toName);
 
               if (!fromChar || !toChar || fromChar.id === toChar.id) {
+                console.warn(`キャラクター名マッチング失敗: "${rel.fromName}" または "${rel.toName}" が見つかりません`);
                 return null;
               }
 
@@ -585,11 +836,22 @@ JSON配列形式で出力してください：
             })
             .filter((rel): rel is Partial<CharacterRelationship> => rel !== null);
 
-          setAiResults(filteredRelationships);
-          setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
+          if (filteredRelationships.length === 0) {
+            showWarning('提案された関係性が見つかりませんでした。キャラクター名が正確に一致しているか確認してください。', 7000, {
+              title: '結果なし',
+            });
+          } else {
+            setAiResults(filteredRelationships);
+            setSelectedResults(new Set(filteredRelationships.map((_, idx) => idx)));
+            showSuccess(`${filteredRelationships.length}件の関係性を提案しました。`, 5000);
+          }
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
-          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+          console.error('AI応答内容:', response.content);
+          
+          // エラーメッセージを詳細化
+          const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+          showError(`AIの応答を解析できませんでした: ${errorMessage}\n\n応答の最初の500文字:\n${response.content.substring(0, 500)}`, 10000, {
             title: '解析エラー',
           });
         }
@@ -1742,6 +2004,17 @@ JSON形式で出力してください：
           </>
         )}
       </Modal>
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={deletingRelationshipId !== null}
+        onClose={() => setDeletingRelationshipId(null)}
+        onConfirm={handleConfirmDeleteRelationship}
+        title="この関係を削除しますか？"
+        message=""
+        type="warning"
+        confirmLabel="削除"
+      />
     </>
   );
 };

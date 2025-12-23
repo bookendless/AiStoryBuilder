@@ -54,10 +54,10 @@ export const useAILog = (options: UseAILogOptions = {}) => {
     const newLog: AILogEntry = {
       id: Date.now().toString(),
       timestamp: new Date(),
-      type: logEntry.type,
-      prompt: logEntry.prompt,
-      response: logEntry.response,
-      error: logEntry.error,
+      type: logEntry.type as string,
+      prompt: logEntry.prompt as string,
+      response: logEntry.response as string,
+      error: logEntry.error as string | undefined,
       ...logEntry,
     };
 
@@ -70,11 +70,11 @@ export const useAILog = (options: UseAILogOptions = {}) => {
         const storedEntry: Omit<StoredAILogEntry, 'id' | 'timestamp'> = {
           projectId,
           chapterId,
-          type: logEntry.type,
-          prompt: logEntry.prompt,
-          response: logEntry.response,
-          error: logEntry.error,
-          suggestionType: (logEntry as any).suggestionType,
+          type: logEntry.type as string,
+          prompt: logEntry.prompt as string,
+          response: logEntry.response as string,
+          error: logEntry.error as string | undefined,
+          suggestionType: logEntry.suggestionType as string | undefined,
         };
         await databaseService.saveAILogEntry(projectId, storedEntry);
       } catch (error) {
@@ -97,6 +97,7 @@ export const useAILog = (options: UseAILogOptions = {}) => {
       'generateSingle': '単一生成',
       'continue': '続き生成',
       'suggestions': '提案',
+      'generateFull': '全章一括生成',
     };
 
     const typeLabel = typeLabels[log.type] || log.type;
@@ -128,6 +129,7 @@ ${log.error}` : ''}`;
       'generateSingle': '単一生成',
       'continue': '続き生成',
       'suggestions': '提案',
+      'generateFull': '全章一括生成',
     };
 
     const logsText = aiLogs.map(log => {

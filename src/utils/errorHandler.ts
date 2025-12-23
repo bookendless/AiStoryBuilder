@@ -2,26 +2,7 @@
  * エラーハンドリングと分類のユーティリティ
  */
 
-export type ErrorCategory = 
-  | 'api_key_missing'
-  | 'api_key_invalid'
-  | 'rate_limit'
-  | 'timeout'
-  | 'network'
-  | 'quota_exceeded'
-  | 'model_not_found'
-  | 'invalid_request'
-  | 'server_error'
-  | 'unknown';
-
-export interface ErrorInfo {
-  category: ErrorCategory;
-  title: string;
-  message: string;
-  details?: string;
-  solution: string;
-  retryable: boolean;
-}
+import { ErrorInfo, AppError } from '../types/errors';
 
 /**
  * エラーメッセージからエラーの種類を分類
@@ -157,8 +138,19 @@ export const categorizeError = (error: Error | string): ErrorInfo => {
 /**
  * エラーをユーザーフレンドリーなメッセージに変換
  */
-export const getUserFriendlyError = (error: Error | string): ErrorInfo => {
-  return categorizeError(error);
+export const getUserFriendlyError = (error: Error | string | unknown): ErrorInfo => {
+  // AppErrorの場合は直接変換
+  if (error instanceof AppError) {
+    return error.toErrorInfo();
+  }
+  
+  // Errorオブジェクトまたは文字列の場合
+  if (error instanceof Error || typeof error === 'string') {
+    return categorizeError(error);
+  }
+  
+  // その他の場合はunknownエラーとして扱う
+  return categorizeError(new Error('不明なエラーが発生しました'));
 };
 
 /**

@@ -38,7 +38,6 @@ export const withRipple = <P extends object>(
   Component: React.ComponentType<P>
 ): React.FC<P & { ripple?: boolean }> => {
   return ({ ripple = true, ...props }) => {
-    const [rippleActive, setRippleActive] = useState(false);
     const componentRef = useRef<HTMLElement>(null);
 
     const handleClick = (e: React.MouseEvent) => {
@@ -79,8 +78,8 @@ export const withRipple = <P extends object>(
           ref={componentRef}
           onClick={(e: React.MouseEvent) => {
             handleClick(e);
-            if ((props as any).onClick) {
-              (props as any).onClick(e);
+            if ('onClick' in props && typeof props.onClick === 'function') {
+              (props.onClick as (e: React.MouseEvent) => void)(e);
             }
           }}
         />
@@ -282,6 +281,11 @@ export const RippleButton: React.FC<RippleButtonProps> = ({
     </>
   );
 };
+
+
+
+
+
 
 
 

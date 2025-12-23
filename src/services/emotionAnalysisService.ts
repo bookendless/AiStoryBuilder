@@ -121,7 +121,7 @@ export const analyzeChapterEmotion = async (
     }
 
     // データの検証と正規化
-    const data = parsed.data as any;
+    const data = parsed.data as Record<string, unknown>;
     
     // デバッグ用ログ
     console.log('パースされたデータ:', JSON.stringify(data, null, 2));
@@ -160,8 +160,10 @@ export const analyzeChapterEmotion = async (
     ];
     
     const normalizedEmotions: Record<EmotionType, number> = {} as Record<EmotionType, number>;
+    const emotionsData = data.emotions as Record<string, unknown> | undefined;
     allEmotionTypes.forEach(type => {
-      normalizedEmotions[type] = data.emotions[type] || 0;
+      const value = emotionsData?.[type];
+      normalizedEmotions[type] = typeof value === 'number' ? value : 0;
     });
 
     // 感情の複雑度を計算（複数の感情が混在している度合い）
@@ -198,16 +200,29 @@ export const analyzeChapterEmotion = async (
       }
     }
 
+    // 型安全な変換関数
+    const isValidEmotionType = (value: unknown): value is EmotionType => {
+      return typeof value === 'string' && allEmotionTypes.includes(value as EmotionType);
+    };
+    
+    const isValidEmotionalArc = (value: unknown): value is 'rising' | 'falling' | 'stable' | 'fluctuating' => {
+      return typeof value === 'string' && ['rising', 'falling', 'stable', 'fluctuating'].includes(value);
+    };
+    
+    const isValidAnalysisSource = (value: unknown): value is 'draft' | 'summary' => {
+      return typeof value === 'string' && (value === 'draft' || value === 'summary');
+    };
+
     return {
       emotions: normalizedEmotions,
       overallScore: Math.max(-100, Math.min(100, Number(data.overallScore) || 0)),
       pace: Math.max(0, Math.min(100, Number(data.pace) || 50)),
       immersionScore: Math.max(0, Math.min(100, Number(data.immersionScore) || 50)),
-      dominantEmotion: data.dominantEmotion || 'tension',
-      emotionalArc: data.emotionalArc || 'stable',
-      issues: Array.isArray(data.issues) ? data.issues : [],
-      suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
-      analysisSource: data.analysisSource || (request.chapter.draft ? 'draft' : 'summary'),
+      dominantEmotion: isValidEmotionType(data.dominantEmotion) ? data.dominantEmotion : 'tension',
+      emotionalArc: isValidEmotionalArc(data.emotionalArc) ? data.emotionalArc : 'stable',
+      issues: Array.isArray(data.issues) ? data.issues.filter((item): item is string => typeof item === 'string') : [],
+      suggestions: Array.isArray(data.suggestions) ? data.suggestions.filter((item): item is string => typeof item === 'string') : [],
+      analysisSource: isValidAnalysisSource(data.analysisSource) ? data.analysisSource : (request.chapter.draft ? 'draft' : 'summary'),
       aiLogs: {
         rawResponse: response.content, // 生のレスポンス全文
         prompt: prompt, // 使用したプロンプト

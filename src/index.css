@@ -663,6 +663,20 @@ textarea:focus-visible,
 }
 
 /* 微細なアニメーション効果 */
+/* プログレスバー用のシマーアニメーション */
+@keyframes progressShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.progress-shimmer {
+  animation: progressShimmer 1.5s ease-in-out infinite;
+}
+
 @keyframes glassShimmer {
   0% {
     background-position: -1000px 0;

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, Key, Server, Zap } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
-import { AI_PROVIDERS } from '../services/aiService';
+import { AI_PROVIDERS } from '../services/providers';
 import { useToast } from './Toast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
-import { decryptApiKey } from '../utils/securityUtils';
+import { decryptApiKeyAsync } from '../utils/securityUtils';
+import { OpenAIRequestBody } from '../types/ai';
 
 interface AISettingsProps {
   isOpen: boolean;
@@ -24,26 +25,34 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
   const buildInitialFormData = useCallback(() => {
     const initialData = { ...settings };
-    
-    // プロバイダーに応じてapiKeysからAPIキーを取得、なければapiKeyから取得
-    let decryptedApiKey = '';
-    if (initialData.provider && initialData.provider !== 'local') {
-      if (initialData.apiKeys?.[initialData.provider]) {
-        decryptedApiKey = decryptApiKey(initialData.apiKeys[initialData.provider]);
-      } else if (initialData.apiKey) {
-        decryptedApiKey = decryptApiKey(initialData.apiKey);
-      }
-    }
-    initialData.apiKey = decryptedApiKey;
-    
+
     // ローカルLLMの場合はlocalEndpointを確実に設定
     if (initialData.provider === 'local' && !initialData.localEndpoint) {
       initialData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
     }
+    // APIキーは非同期で復号化するため、ここでは空文字列を設定
+    initialData.apiKey = '';
     return initialData;
   }, [settings]);
 
   const [formData, setFormData] = useState(buildInitialFormData);
+
+  // 非同期でAPIキーを復号化して設定
+  const decryptAndSetApiKey = useCallback(async () => {
+    if (settings.provider && settings.provider !== 'local') {
+      let decryptedKey = '';
+      try {
+        if (settings.apiKeys?.[settings.provider]) {
+          decryptedKey = await decryptApiKeyAsync(settings.apiKeys[settings.provider]);
+        } else if (settings.apiKey) {
+          decryptedKey = await decryptApiKeyAsync(settings.apiKey);
+        }
+      } catch (error) {
+        console.error('Failed to decrypt API key:', error);
+      }
+      setFormData(prev => ({ ...prev, apiKey: decryptedKey }));
+    }
+  }, [settings]);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string>('');
@@ -57,14 +66,16 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     import.meta.env.VITE_OPENAI_API_KEY ||
     import.meta.env.VITE_CLAUDE_API_KEY ||
     import.meta.env.VITE_GEMINI_API_KEY ||
+    import.meta.env.VITE_GROK_API_KEY ||
     import.meta.env.VITE_LOCAL_LLM_ENDPOINT
   );
 
   useEffect(() => {
     if (isOpen) {
       setFormData(buildInitialFormData());
+      decryptAndSetApiKey();
     }
-  }, [isOpen, buildInitialFormData]);
+  }, [isOpen, buildInitialFormData, decryptAndSetApiKey]);
 
   if (!isOpen) return null;
 
@@ -91,6 +102,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       case 'gemini':
         if (apiKey.length < 20) {
           return 'Gemini APIキーが短すぎます';
+        }
+        break;
+      case 'grok':
+        if (!apiKey.startsWith('xai-')) {
+          return 'xAI Grok APIキーは「xai-」で始まる必要があります';
+        }
+        if (apiKey.length < 20) {
+          return 'xAI Grok APIキーが短すぎます';
         }
         break;
     }
@@ -140,7 +159,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       if (formData.provider === 'openai') {
         // モデル名に基づいて適切なパラメータを選択
         const isNewModel = formData.model.startsWith('gpt-5') || formData.model.startsWith('o');
-        const requestBody: any = {
+        const requestBody: OpenAIRequestBody = {
           model: formData.model,
           messages: [
             {
@@ -148,6 +167,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               content: testPrompt,
             },
           ],
+          temperature: formData.temperature,
         };
 
         // GPT-5.1系やo系モデルはmax_completion_tokens、それ以外はmax_tokensを使用
@@ -176,12 +196,12 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         if (!formData.apiKey) {
           throw new Error('Claude APIキーが設定されていません');
         }
-        
+
         // APIキーの検証（基本的な形式チェック）
         if (!formData.apiKey.startsWith('sk-ant-')) {
           throw new Error('Claude APIキーの形式が正しくありません（sk-ant-で始まる必要があります）');
         }
-        
+
         // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
         const apiUrl = (!isTauriEnv && import.meta.env.DEV)
           ? '/api/anthropic/v1/messages'
@@ -193,7 +213,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           'x-api-key': formData.apiKey,
           'anthropic-version': '2023-06-01',
         };
-        
+
         // ブラウザ環境でプロキシ経由の場合のみ、このヘッダーを追加
         if (!isTauriEnv && import.meta.env.DEV) {
           headers['anthropic-dangerous-direct-browser-access'] = 'true';
@@ -216,18 +236,18 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           const errorData = response.data as { error?: { message?: string; type?: string } };
           const errorMessage = errorData.error?.message || response.statusText;
           const errorType = errorData.error?.type || 'unknown';
-          
-          
+
+
           // 401エラーの場合、より詳細なメッセージを提供
           if (response.status === 401) {
             throw new Error(`認証エラー (401): APIキーが無効です。\nエラー詳細: ${errorMessage}\n\nAPIキーが正しく設定されているか確認してください。`);
           }
-          
+
           // 404エラーの場合、モデルが見つからないが接続自体は成功している
           if (response.status === 404 && errorType === 'not_found_error') {
             throw new Error(`モデルが見つかりません (404): 指定されたモデル「${formData.model}」は存在しないか、利用できません。\nエラー詳細: ${errorMessage}\n\n利用可能なモデルを選択してください。`);
           }
-          
+
           throw new Error(`API エラー (${response.status}): ${errorMessage}`);
         }
       } else if (formData.provider === 'gemini') {
@@ -235,7 +255,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         const baseUrl = (!isTauriEnv && import.meta.env.DEV)
           ? '/api/gemini'
           : 'https://generativelanguage.googleapis.com';
-        
+
         const apiUrl = `${baseUrl}/v1beta/models/${formData.model}:generateContent${!isTauriEnv && import.meta.env.DEV ? '' : `?key=${formData.apiKey}`}`;
 
         const response = await httpService.post(apiUrl, {
@@ -322,6 +342,47 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           const errorData = response.data as { error?: { message?: string } };
           throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
         }
+      } else if (formData.provider === 'grok') {
+        // xAI Grokの接続テスト
+        if (!formData.apiKey) {
+          throw new Error('xAI Grok APIキーが設定されていません');
+        }
+
+        // APIキーの検証（基本的な形式チェック）
+        if (!formData.apiKey.startsWith('xai-')) {
+          throw new Error('xAI Grok APIキーの形式が正しくありません（xai-で始まる必要があります）');
+        }
+
+        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
+        const apiUrl = (!isTauriEnv && import.meta.env.DEV)
+          ? '/api/xai/v1/chat/completions'
+          : 'https://api.x.ai/v1/chat/completions';
+
+        const response = await httpService.post(apiUrl, {
+          model: formData.model,
+          max_tokens: 50,
+          messages: [
+            {
+              role: 'user',
+              content: testPrompt,
+            },
+          ],
+        }, {
+          headers: {
+            'Authorization': `Bearer ${formData.apiKey}`,
+          },
+        });
+
+        if (response.status >= 400) {
+          const errorData = response.data as { error?: { message?: string } };
+          const errorMessage = errorData.error?.message || response.statusText;
+
+          if (response.status === 401) {
+            throw new Error(`認証エラー (401): APIキーが無効です。\nエラー詳細: ${errorMessage}\n\nAPIキーが正しく設定されているか確認してください。`);
+          }
+
+          throw new Error(`API エラー (${response.status}): ${errorMessage}`);
+        }
       } else {
         throw new Error('サポートされていないプロバイダーです');
       }
@@ -371,19 +432,23 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             {AI_PROVIDERS.map((provider) => (
               <button
                 key={provider.id}
-                onClick={() => {
+                onClick={async () => {
                   const newModel = provider.models[0].id;
                   const newModelData = provider.models[0];
-                  
-                  // プロバイダーに応じてapiKeysからAPIキーを取得
+
+                  // プロバイダーに応じてapiKeysからAPIキーを取得（非同期復号化）
                   let apiKeyForProvider = '';
-                  if (provider.id !== 'local' && settings.apiKeys?.[provider.id]) {
-                    apiKeyForProvider = decryptApiKey(settings.apiKeys[provider.id]);
-                  } else if (provider.id !== 'local' && settings.apiKey) {
-                    // 後方互換性のため、apiKeyからも取得を試みる
-                    apiKeyForProvider = decryptApiKey(settings.apiKey);
+                  try {
+                    if (provider.id !== 'local' && settings.apiKeys?.[provider.id]) {
+                      apiKeyForProvider = await decryptApiKeyAsync(settings.apiKeys[provider.id]);
+                    } else if (provider.id !== 'local' && settings.apiKey) {
+                      // 後方互換性のため、apiKeyからも取得を試みる
+                      apiKeyForProvider = await decryptApiKeyAsync(settings.apiKey);
+                    }
+                  } catch (error) {
+                    console.error('Failed to decrypt API key:', error);
                   }
-                  
+
                   const updateData = {
                     ...formData,
                     provider: provider.id,
@@ -400,8 +465,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   setFormData(updateData);
                 }}
                 className={`p-4 rounded-lg border-2 transition-all text-left ${formData.provider === provider.id
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-700'
+                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-700'
                   }`}
               >
                 <div className="flex items-center space-x-3">
@@ -550,8 +615,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               onChange={(e) => handleApiKeyChange(e.target.value)}
               placeholder={hasEnvApiKey ? "環境変数が利用可能（手動入力で上書き可能）" : "APIキーを入力してください"}
               className={`w-full px-4 py-3 rounded-lg border ${apiKeyError
-                  ? 'border-red-500 dark:border-red-400'
-                  : 'border-gray-300 dark:border-gray-600'
+                ? 'border-red-500 dark:border-red-400'
+                : 'border-gray-300 dark:border-gray-600'
                 } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']`}
             />
             {apiKeyError && (
@@ -657,8 +722,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
           {testResult && (
             <div className={`mt-3 p-3 rounded-lg ${testResult.success
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200'
-                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200'
+              ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200'
+              : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200'
               }`}>
               <p className="text-sm font-['Noto_Sans_JP']">{testResult.message}</p>
             </div>

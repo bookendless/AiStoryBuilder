@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
 import { databaseService } from '../services/databaseService';
 import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
 import { SavedEvaluation } from '../types/evaluation';
 import { EmotionMap } from '../types/emotion';
+
+// Step型をインポート（App.tsxから）
+export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'review' | 'export';
 
 export interface Character {
   id: string;
@@ -215,8 +218,17 @@ export interface Project {
     dialogue?: string; // 会話比率（会話多め / 描写重視 / バランス型）
     emotion?: string; // 感情描写（内面重視 / 行動で示す / 抑制的）
     tone?: string; // トーン（緊張感 / 穏やか / 希望 / 切なさ / 謎めいた）
+    customStyle?: string; // カスタム基本文体
+    customPerspective?: string; // カスタム人称
+    customFormality?: string; // カスタム硬軟
+    customRhythm?: string; // カスタムリズム
+    customMetaphor?: string; // カスタム比喩表現
+    customDialogue?: string; // カスタム会話比率
+    customEmotion?: string; // カスタム感情描写
+    customTone?: string; // カスタムトーン
   };
   emotionMap?: EmotionMap; // 感情マップ
+  currentStep?: Exclude<Step, 'home'>; // 最後に編集中だったステップ（'home'は除外）
 }
 
 export interface StepProgress {
@@ -236,7 +248,7 @@ interface ProjectContextType {
   currentProject: Project | null;
   setCurrentProject: (project: Project | null) => void;
   projects: Project[];
-  setProjects: (projects: Project[]) => void;
+  setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
   createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
   saveProject: () => Promise<void>;
@@ -269,8 +281,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const { setTimer } = useTimer();
 
-  // setCurrentProjectをラップしてlastAccessedを更新
-  const setCurrentProject = (project: Project | null) => {
+  // setCurrentProjectをラップしてlastAccessedを更新（メモ化）
+  const setCurrentProject = useCallback((project: Project | null) => {
     if (project) {
       const now = new Date();
       const updatedProject = {
@@ -289,7 +301,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } else {
       setCurrentProjectState(null);
     }
-  };
+  }, []);
 
   // 初期化時にプロジェクト一覧を読み込み
   useSafeEffect(() => {
@@ -350,7 +362,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     };
   }, [currentProject]);
 
-  const updateProject = async (updates: Partial<Project>, immediate: boolean = false) => {
+  const updateProject = useCallback(async (updates: Partial<Project>, immediate: boolean = false) => {
     if (!currentProject) return;
 
     const updatedProject = {
@@ -373,13 +385,26 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
     } else {
       // デバウンス付きで保存（自動保存時）
-      setTimer(() => {
-        saveProject();
+      // updatedProjectをクロージャー内でキャプチャするため、最新の値を取得するために
+      // setCurrentProjectの更新後に保存処理を実行
+      setTimer(async () => {
+        setIsLoading(true);
+        try {
+          // 最新のプロジェクト状態を取得
+          const latestProject = updatedProject;
+          await databaseService.saveProject(latestProject);
+          setLastSaved(new Date());
+          setProjects(prev => prev.map(p => p.id === latestProject.id ? latestProject : p));
+          setIsLoading(false);
+        } catch (error) {
+          console.error('プロジェクト保存エラー:', error);
+          setIsLoading(false);
+        }
       }, 500);
     }
-  };
+  }, [currentProject, setTimer, setCurrentProject, setLastSaved]);
 
-  const createNewProject = (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string): Project => {
+  const createNewProject = useCallback((title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string): Project => {
     // デバッグ: あらすじの値を確認
     console.log('createNewProject で受け取ったあらすじ:', synopsis);
     console.log('あらすじの型:', typeof synopsis);
@@ -450,9 +475,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     console.log('作成されたプロジェクトのあらすじの長さ:', newProject.synopsis?.length || 0);
 
     return newProject;
-  };
+  }, [setCurrentProject]);
 
-  const saveProject = async (): Promise<void> => {
+  const saveProject = useCallback(async (): Promise<void> => {
     if (!currentProject) return;
 
     setIsLoading(true);
@@ -470,9 +495,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoading(false);
       throw error; // エラーを呼び出し側に伝播
     }
-  };
+  }, [currentProject, setLastSaved]);
 
-  const createManualBackup = async (description: string = '手動バックアップ'): Promise<void> => {
+  const createManualBackup = useCallback(async (description: string = '手動バックアップ'): Promise<void> => {
     if (!currentProject) return;
 
     setIsLoading(true);
@@ -485,9 +510,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoading(false);
       throw error; // エラーを呼び出し側に伝播
     }
-  };
+  }, [currentProject]);
 
-  const loadProject = async (id: string): Promise<void> => {
+  const loadProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);
     try {
       const project = await databaseService.loadProject(id);
@@ -526,13 +551,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoading(false);
       throw error; // エラーを呼び出し側に伝播
     }
-  };
+  }, [setCurrentProject]);
 
-  const deleteProject = async (id: string): Promise<void> => {
-    if (!confirm('このプロジェクトを削除しますか？この操作は取り消せません。')) {
-      return;
-    }
-
+  const deleteProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);
     try {
       await databaseService.deleteProject(id);
@@ -547,9 +568,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoading(false);
       throw error; // エラーを呼び出し側に伝播
     }
-  };
+  }, [currentProject, setCurrentProject]);
 
-  const duplicateProject = async (id: string): Promise<void> => {
+  const duplicateProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);
     try {
       const duplicated = await databaseService.duplicateProject(id);
@@ -562,9 +583,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoading(false);
       throw error; // エラーを呼び出し側に伝播
     }
-  };
+  }, [setProjects]);
 
-  const loadAllProjects = async (): Promise<void> => {
+  const loadAllProjects = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     try {
       const allProjects = await databaseService.getAllProjects();
@@ -590,10 +611,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   // 章削除関数（草案データも含めて削除）
-  const deleteChapter = (chapterId: string): void => {
+  const deleteChapter = useCallback((chapterId: string): void => {
     if (!currentProject) return;
 
     // 章を削除
@@ -602,10 +623,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     updateProject({
       chapters: updatedChapters,
     });
-  };
+  }, [currentProject, updateProject]);
 
-  // 特定のステップが完了しているかどうかを判定
-  const getStepCompletion = (project: Project | null, step: string): boolean => {
+  // 特定のステップが完了しているかどうかを判定（メモ化）
+  const getStepCompletion = useCallback((project: Project | null, step: string): boolean => {
     if (!project) return false;
 
     switch (step) {
@@ -649,10 +670,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       default:
         return false;
     }
-  };
+  }, []);
 
-  // プロジェクトの進捗を計算する関数
-  const calculateProjectProgress = (project: Project | null): ProjectProgress => {
+  // プロジェクトの進捗を計算する関数（メモ化）
+  const calculateProjectProgress = useCallback((project: Project | null): ProjectProgress => {
     if (!project) {
       return {
         percentage: 0,
@@ -691,28 +712,49 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       steps,
       nextStep: nextStepName,
     };
-  };
+  }, [getStepCompletion]);
+
+  // コンテキストの値をメモ化（不要な再レンダリングを防止）
+  // setProjectsはReactのstate setterなので既に安定した参照を持っている
+  const contextValue = useMemo(() => ({
+    currentProject,
+    setCurrentProject,
+    projects,
+    setProjects,
+    updateProject,
+    createNewProject,
+    saveProject,
+    createManualBackup,
+    loadProject,
+    deleteProject,
+    duplicateProject,
+    loadAllProjects,
+    deleteChapter,
+    calculateProjectProgress,
+    getStepCompletion,
+    isLoading,
+    lastSaved,
+  }), [
+    currentProject,
+    projects,
+    setCurrentProject,
+    updateProject,
+    createNewProject,
+    saveProject,
+    createManualBackup,
+    loadProject,
+    deleteProject,
+    duplicateProject,
+    loadAllProjects,
+    deleteChapter,
+    calculateProjectProgress,
+    getStepCompletion,
+    isLoading,
+    lastSaved,
+  ]);
 
   return (
-    <ProjectContext.Provider value={{
-      currentProject,
-      setCurrentProject,
-      projects,
-      setProjects,
-      updateProject,
-      createNewProject,
-      saveProject,
-      createManualBackup,
-      loadProject,
-      deleteProject,
-      duplicateProject,
-      loadAllProjects,
-      deleteChapter,
-      calculateProjectProgress,
-      getStepCompletion,
-      isLoading,
-      lastSaved,
-    }}>
+    <ProjectContext.Provider value={contextValue}>
       {children}
     </ProjectContext.Provider>
   );

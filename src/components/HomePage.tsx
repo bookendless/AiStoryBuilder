@@ -298,7 +298,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
   const handleProjectSelect = (project: Project) => {
     setCurrentProject(project);
-    onNavigateToStep('plot1');
+    // 保存されたcurrentStepがあればそのステップに遷移、なければplot1に遷移
+    const stepToNavigate = project.currentStep || 'plot1';
+    onNavigateToStep(stepToNavigate as Step);
   };
 
   const handleDeleteProject = (e: React.MouseEvent, projectId: string) => {
@@ -710,6 +712,62 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
               </div>
               <h3 className="text-base font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">草案執筆支援</h3>
               <p className="text-caption text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">AIによる文章ドラフト</p>
+            </div>
+          </div>
+
+          {/* プロジェクトツール */}
+          <div className="mt-8 pt-8 border-t border-usuzumi-200 dark:border-usuzumi-700">
+            <h3 className="text-lg font-semibold text-sumi-900 dark:text-usuzumi-50 mb-6 font-['Noto_Sans_JP']">
+              プロジェクトツール
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="bg-blue-100 dark:bg-blue-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">📚</span>
+                </div>
+                <h3 className="text-base font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">用語集</h3>
+                <p className="text-caption text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">作品内の重要な用語や設定を整理・管理し、一貫性のある世界観を構築します</p>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-pink-100 dark:bg-pink-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">🕸️</span>
+                </div>
+                <h3 className="text-base font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">相関図</h3>
+                <p className="text-caption text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">キャラクター間の関係性を視覚的に表示し、複雑な人間関係を把握しやすくします</p>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-green-100 dark:bg-green-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">📅</span>
+                </div>
+                <h3 className="text-base font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">タイムライン</h3>
+                <p className="text-caption text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">物語の時系列やイベントを管理し、時系列の整合性を保ちます</p>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-amber-100 dark:bg-amber-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">🌍</span>
+                </div>
+                <h3 className="text-base font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">世界観</h3>
+                <p className="text-caption text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">地理、文化、技術、魔法などの世界設定を体系的に管理し、詳細な世界観を構築します</p>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-rose-100 dark:bg-rose-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">🔗</span>
+                </div>
+                <h3 className="text-base font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">伏線トラッカー</h3>
+                <p className="text-caption text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">伏線の設置、ヒント、回収を管理し、物語の整合性を保ちます</p>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-violet-100 dark:bg-violet-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">💭</span>
+                </div>
+                <h3 className="text-base font-semibold text-sumi-900 dark:text-usuzumi-50 mb-2 font-['Noto_Sans_JP']">感情マップ</h3>
+                <p className="text-caption text-sumi-600 dark:text-usuzumi-400 font-['Noto_Sans_JP']">キャラクターの感情変化を可視化し、感情の流れを追跡して物語の深みを増します</p>
+              </div>
             </div>
           </div>
         </Card>

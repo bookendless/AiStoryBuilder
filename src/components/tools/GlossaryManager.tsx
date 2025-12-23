@@ -7,6 +7,7 @@ import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface GlossaryManagerProps {
   isOpen: boolean;
@@ -45,6 +46,7 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const [aiResults, setAiResults] = useState<Partial<GlossaryTerm>[]>([]);
   const [selectedResults, setSelectedResults] = useState<Set<number>>(new Set());
+  const [deletingTermId, setDeletingTermId] = useState<string | null>(null);
   const { settings, isConfigured } = useAI();
 
   const glossary = currentProject?.glossary || [];
@@ -149,11 +151,15 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
   };
 
   const handleDeleteTerm = (termId: string) => {
-    if (!confirm('この用語を削除しますか？')) return;
+    setDeletingTermId(termId);
+  };
 
+  const handleConfirmDeleteTerm = () => {
+    if (!deletingTermId) return;
     updateProject({
-      glossary: glossary.filter(term => term.id !== termId),
+      glossary: glossary.filter(term => term.id !== deletingTermId),
     });
+    setDeletingTermId(null);
   };
 
   const handleExport = () => {
@@ -1150,6 +1156,17 @@ JSON配列形式で出力してください：
           </>
         )}
       </Modal>
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={deletingTermId !== null}
+        onClose={() => setDeletingTermId(null)}
+        onConfirm={handleConfirmDeleteTerm}
+        title="この用語を削除しますか？"
+        message=""
+        type="warning"
+        confirmLabel="削除"
+      />
     </>
   );
 };

@@ -7,6 +7,9 @@ import { getUserFriendlyError } from '../utils/errorHandler';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
 import { PieChart, type PieChartData } from './common/PieChart';
+import { ConfirmDialog } from './common/ConfirmDialog';
+import { BackupDescriptionModal } from './steps/draft/BackupDescriptionModal';
+import { ClearAllDataConfirmModal } from './common/ClearAllDataConfirmModal';
 
 interface DataManagerProps {
   isOpen: boolean;
@@ -52,6 +55,42 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     isOpen,
     onClose,
   });
+
+  // 確認ダイアログの状態（全ての確認操作を統合）
+  const [confirmDialogState, setConfirmDialogState] = useState<{
+    isOpen: boolean;
+    type: 'delete-backup' | 'restore-backup' | 'import-data' | 
+          'cleanup-localstorage' | 'cleanup-history-date' | 'cleanup-ailog-date' |
+          'delete-project-history' | 'delete-project-ailog' | 
+          'optimize-database' | 'optimize-database-compact' | 'clear-all-data' | null;
+    // バックアップ関連
+    backupId?: string;
+    backupType?: 'manual' | 'auto';
+    backupDescription?: string;
+    // インポート関連
+    importFile?: File;
+    // クリーンアップ関連
+    cleanupDate?: string;
+    cleanupProjectId?: string;
+    cleanupProjectName?: string;
+    // データベース最適化関連
+    optimizeOptions?: {
+      removeOrphanedImages: boolean;
+      removeUnusedImages: boolean;
+      removeOldHistory: boolean;
+      removeOldAILogs: boolean;
+      compactDatabase: boolean;
+    };
+  }>({
+    isOpen: false,
+    type: null,
+  });
+
+  // バックアップ説明入力モーダルの状態
+  const [backupDescriptionModalOpen, setBackupDescriptionModalOpen] = useState(false);
+
+  // 全データ削除確認用の入力モーダル状態（2段階確認の2段階目）
+  const [clearAllDataInputModalOpen, setClearAllDataInputModalOpen] = useState(false);
 
   const loadStats = async () => {
     try {
@@ -227,12 +266,13 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   }, [isOpen, currentProject, loadBackups, loadProjectData]);
 
-  const handleCreateManualBackup = async () => {
+  const handleCreateManualBackup = () => {
     if (!currentProject) return;
+    setBackupDescriptionModalOpen(true);
+  };
 
-    const description = prompt('手動バックアップの説明を入力してください:', '手動バックアップ');
-    if (!description) return;
-
+  const handleConfirmCreateManualBackup = async (description: string) => {
+    if (!currentProject) return;
     setIsLoading(true);
     try {
       await createManualBackup(description);
@@ -250,14 +290,19 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  const handleRestoreBackup = async (backupId: string) => {
-    if (!confirm('このバックアップから復元しますか？現在の変更は失われます。')) {
-      return;
-    }
+  const handleRestoreBackup = (backupId: string) => {
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'restore-backup',
+      backupId,
+    });
+  };
 
+  const handleConfirmRestoreBackup = async () => {
+    if (!confirmDialogState.backupId) return;
     setIsLoading(true);
     try {
-      const restoredProject = await databaseService.restoreFromBackup(backupId);
+      const restoredProject = await databaseService.restoreFromBackup(confirmDialogState.backupId);
       await loadAllProjects();
 
       if (restoredProject) {
@@ -265,7 +310,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         setCurrentProject(restoredProject);
       }
 
-      showSuccess('バックアップから復元しました。ホーム画面に戻ります。', 5000);
+      showSuccess('バックアップから復元しました。', 5000);
       onClose();
     } catch (error) {
       const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
@@ -278,15 +323,21 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  const handleDeleteBackup = async (backupId: string, backupType: 'manual' | 'auto', description: string) => {
-    const backupTypeLabel = backupType === 'manual' ? '手動' : '自動';
-    if (!confirm(`${backupTypeLabel}バックアップ「${description}」を削除しますか？この操作は取り消せません。`)) {
-      return;
-    }
+  const handleDeleteBackup = (backupId: string, backupType: 'manual' | 'auto', description: string) => {
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'delete-backup',
+      backupId,
+      backupType,
+      backupDescription: description,
+    });
+  };
 
+  const handleConfirmDeleteBackup = async () => {
+    if (!confirmDialogState.backupId) return;
     setIsLoading(true);
     try {
-      await databaseService.deleteBackup(backupId);
+      await databaseService.deleteBackup(confirmDialogState.backupId);
       await loadBackups();
       await loadStats();
       await loadProjectData();
@@ -369,17 +420,26 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!confirm('データをインポートしますか？既存のデータと重複する場合は上書きされます。')) {
-      return;
-    }
+    // ファイルを状態に保存して確認ダイアログを表示
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'import-data',
+      importFile: file,
+    });
+    
+    // ファイル入力をリセット（確認後に処理される）
+    event.target.value = '';
+  };
 
+  const handleConfirmImportData = async () => {
+    if (!confirmDialogState.importFile) return;
     setIsLoading(true);
     try {
-      const text = await file.text();
+      const text = await confirmDialogState.importFile.text();
       await databaseService.importData(text);
       await loadAllProjects();
       await loadStats();
@@ -392,19 +452,23 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       });
     } finally {
       setIsLoading(false);
-      event.target.value = '';
     }
   };
 
-  const handleClearAllData = async () => {
-    const confirmation = prompt(
-      'すべてのデータを削除します。この操作は取り消せません。\n確認のため「DELETE」と入力してください:'
-    );
+  const handleClearAllData = () => {
+    // 2段階確認の1段階目
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'clear-all-data',
+    });
+  };
 
-    if (confirmation !== 'DELETE') {
-      return;
-    }
+  const handleConfirmClearAllDataFirst = () => {
+    // 2段階確認の2段階目（入力モーダルを表示）
+    setClearAllDataInputModalOpen(true);
+  };
 
+  const handleConfirmClearAllDataFinal = async () => {
     setIsLoading(true);
     try {
       await databaseService.clearAllData();
@@ -422,6 +486,228 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       setIsLoading(false);
     }
   };
+
+  // 確認ダイアログのonConfirmハンドラー（全ての確認操作を統合）
+  const handleConfirmDialogConfirm = async () => {
+    if (!confirmDialogState.type) return;
+
+    switch (confirmDialogState.type) {
+      case 'delete-backup':
+        await handleConfirmDeleteBackup();
+        break;
+      case 'restore-backup':
+        await handleConfirmRestoreBackup();
+        break;
+      case 'import-data':
+        await handleConfirmImportData();
+        break;
+      case 'cleanup-localstorage':
+        setIsLoading(true);
+        try {
+          const result = await databaseService.cleanupLocalStorage();
+          showSuccess(`${result.cleaned}件のデータを削除しました`, 3000);
+        } catch (_error) {
+          showError('LocalStorageのクリーンアップに失敗しました', 5000);
+        } finally {
+          setIsLoading(false);
+        }
+        break;
+      case 'cleanup-history-date':
+        if (!confirmDialogState.cleanupDate) return;
+        setIsLoading(true);
+        try {
+          const cutoffDate = new Date(confirmDialogState.cleanupDate);
+          const deleted = await databaseService.deleteHistoryEntriesBeforeDate(
+            cutoffDate,
+            confirmDialogState.cleanupProjectId
+          );
+          await loadStats();
+          showSuccess(`${deleted}件の履歴を削除しました`, 3000);
+          setHistoryCleanupDate('');
+          setHistoryCleanupProjectId('');
+        } catch (_error) {
+          showError('履歴の削除に失敗しました', 5000);
+        } finally {
+          setIsLoading(false);
+        }
+        break;
+      case 'cleanup-ailog-date':
+        if (!confirmDialogState.cleanupDate) return;
+        setIsLoading(true);
+        try {
+          const cutoffDate = new Date(confirmDialogState.cleanupDate);
+          const deleted = await databaseService.deleteAILogEntriesBeforeDate(
+            cutoffDate,
+            confirmDialogState.cleanupProjectId
+          );
+          await loadStats();
+          showSuccess(`${deleted}件のAIログを削除しました`, 3000);
+          setAiLogCleanupDate('');
+          setAiLogCleanupProjectId('');
+        } catch (_error) {
+          showError('AIログの削除に失敗しました', 5000);
+        } finally {
+          setIsLoading(false);
+        }
+        break;
+      case 'delete-project-history':
+        if (!currentProject) return;
+        setIsLoading(true);
+        try {
+          await databaseService.deleteProjectHistory(currentProject.id);
+          await loadStats();
+          await loadProjectData();
+          showSuccess('履歴を削除しました', 3000);
+        } catch (_error) {
+          showError('履歴の削除に失敗しました', 5000);
+        } finally {
+          setIsLoading(false);
+        }
+        break;
+      case 'delete-project-ailog':
+        if (!currentProject) return;
+        setIsLoading(true);
+        try {
+          await databaseService.deleteProjectAILogs(currentProject.id);
+          await loadStats();
+          await loadProjectData();
+          showSuccess('AIログを削除しました', 3000);
+        } catch (_error) {
+          showError('AIログの削除に失敗しました', 5000);
+        } finally {
+          setIsLoading(false);
+        }
+        break;
+      case 'optimize-database':
+      case 'optimize-database-compact':
+        if (!confirmDialogState.optimizeOptions) return;
+        setIsLoading(true);
+        try {
+          const result = await databaseService.optimizeDatabase({
+            removeOrphanedImages: confirmDialogState.optimizeOptions.removeOrphanedImages,
+            removeUnusedImages: confirmDialogState.optimizeOptions.removeUnusedImages,
+            removeOldHistory: confirmDialogState.optimizeOptions.removeOldHistory,
+            removeOldAILogs: confirmDialogState.optimizeOptions.removeOldAILogs,
+            compactDatabase: confirmDialogState.optimizeOptions.compactDatabase,
+            daysUnused: 180,
+          });
+
+          await loadStats();
+          await loadProjectData();
+
+          const message = `最適化が完了しました\n\n` +
+            `削除された画像: ${result.removedImages}件\n` +
+            `削除された孤立画像: ${result.removedOrphanedImages}件\n` +
+            `削除された履歴: ${result.removedHistories}件\n` +
+            `削除されたAIログ: ${result.removedAILogs}件\n` +
+            `解放された容量: ${result.freedSpace}\n` +
+            (result.compacted ? `\nデータベースを再構築しました` : '');
+
+          showSuccess(message, 8000);
+        } catch (error) {
+          const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+          showError(errorInfo.message, 7000, {
+            title: '最適化エラー',
+            details: errorInfo.details || errorInfo.solution,
+          });
+        } finally {
+          setIsLoading(false);
+        }
+        break;
+      case 'clear-all-data':
+        handleConfirmClearAllDataFirst();
+        break;
+    }
+  };
+
+  // 確認ダイアログのタイトル、メッセージ、種類を取得
+  const confirmDialogConfig = useMemo(() => {
+    if (!confirmDialogState.type) return null;
+
+    switch (confirmDialogState.type) {
+      case 'delete-backup': {
+        const backupTypeLabel = confirmDialogState.backupType === 'manual' ? '手動' : '自動';
+        return {
+          title: 'バックアップを削除しますか？',
+          message: `${backupTypeLabel}バックアップ「${confirmDialogState.backupDescription}」を削除します。\nこの操作は取り消せません。`,
+          type: 'danger' as const,
+          confirmLabel: '削除',
+        };
+      }
+      case 'restore-backup':
+        return {
+          title: 'バックアップから復元しますか？',
+          message: 'このバックアップから復元します。\n現在の変更は失われます。',
+          type: 'warning' as const,
+          confirmLabel: '復元',
+        };
+      case 'import-data':
+        return {
+          title: 'データをインポートしますか？',
+          message: 'データをインポートします。\n既存のデータと重複する場合は上書きされます。',
+          type: 'warning' as const,
+          confirmLabel: 'インポート',
+        };
+      case 'cleanup-localstorage':
+        return {
+          title: 'LocalStorageをクリーンアップしますか？',
+          message: 'LocalStorageの不要なデータを削除します。',
+          type: 'warning' as const,
+          confirmLabel: '実行',
+        };
+      case 'cleanup-history-date':
+        return {
+          title: '履歴を削除しますか？',
+          message: `選択した日付より古い履歴を削除します。\n対象: ${confirmDialogState.cleanupProjectName || '全プロジェクト'}`,
+          type: 'warning' as const,
+          confirmLabel: '削除',
+        };
+      case 'cleanup-ailog-date':
+        return {
+          title: 'AIログを削除しますか？',
+          message: `選択した日付より古いAIログを削除します。\n対象: ${confirmDialogState.cleanupProjectName || '全プロジェクト'}`,
+          type: 'warning' as const,
+          confirmLabel: '削除',
+        };
+      case 'delete-project-history':
+        return {
+          title: '履歴を削除しますか？',
+          message: 'このプロジェクトのすべての履歴を削除します。\nこの操作は取り消せません。',
+          type: 'danger' as const,
+          confirmLabel: '削除',
+        };
+      case 'delete-project-ailog':
+        return {
+          title: 'AIログを削除しますか？',
+          message: 'このプロジェクトのすべてのAIログを削除します。\nこの操作は取り消せません。',
+          type: 'danger' as const,
+          confirmLabel: '削除',
+        };
+      case 'optimize-database':
+        return {
+          title: 'データベースを最適化しますか？',
+          message: 'データベースの最適化を実行します。',
+          type: 'info' as const,
+          confirmLabel: '実行',
+        };
+      case 'optimize-database-compact':
+        return {
+          title: 'データベースを再構築しますか？',
+          message: 'データベースの再構築は時間がかかり、大量のメモリを使用する可能性があります。続行しますか？',
+          type: 'warning' as const,
+          confirmLabel: '実行',
+        };
+      case 'clear-all-data':
+        return {
+          title: 'すべてのデータを削除しますか？',
+          message: 'すべてのプロジェクトとバックアップを削除します。\nこの操作は取り消せません。',
+          type: 'danger' as const,
+          confirmLabel: '続行',
+        };
+      default:
+        return null;
+    }
+  }, [confirmDialogState]);
 
   if (!isOpen) return null;
 
@@ -765,19 +1051,11 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                   移行済みの履歴データや、存在しないプロジェクトの設定データを削除します。
                 </p>
                 <button
-                  onClick={async () => {
-                    if (!confirm('LocalStorageの不要なデータを削除しますか？')) {
-                      return;
-                    }
-                    setIsLoading(true);
-                    try {
-                      const result = await databaseService.cleanupLocalStorage();
-                      showSuccess(`${result.cleaned}件のデータを削除しました`, 3000);
-                    } catch (error) {
-                      showError('LocalStorageのクリーンアップに失敗しました', 5000);
-                    } finally {
-                      setIsLoading(false);
-                    }
+                  onClick={() => {
+                    setConfirmDialogState({
+                      isOpen: true,
+                      type: 'cleanup-localstorage',
+                    });
                   }}
                   disabled={isLoading}
                   className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
@@ -824,30 +1102,21 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                       </select>
                     </div>
                     <button
-                      onClick={async () => {
+                      onClick={() => {
                         if (!historyCleanupDate) {
                           showError('日付を選択してください', 3000);
                           return;
                         }
-                        if (!confirm(`選択した日付より古い履歴を削除しますか？${historyCleanupProjectId ? `\n対象: ${projects.find(p => p.id === historyCleanupProjectId)?.title || ''}` : '\n対象: 全プロジェクト'}`)) {
-                          return;
-                        }
-                        setIsLoading(true);
-                        try {
-                          const cutoffDate = new Date(historyCleanupDate);
-                          const deleted = await databaseService.deleteHistoryEntriesBeforeDate(
-                            cutoffDate,
-                            historyCleanupProjectId || undefined
-                          );
-                          await loadStats();
-                          showSuccess(`${deleted}件の履歴を削除しました`, 3000);
-                          setHistoryCleanupDate('');
-                          setHistoryCleanupProjectId('');
-                        } catch (error) {
-                          showError('履歴の削除に失敗しました', 5000);
-                        } finally {
-                          setIsLoading(false);
-                        }
+                        const projectName = historyCleanupProjectId 
+                          ? projects.find(p => p.id === historyCleanupProjectId)?.title || ''
+                          : '全プロジェクト';
+                        setConfirmDialogState({
+                          isOpen: true,
+                          type: 'cleanup-history-date',
+                          cleanupDate: historyCleanupDate,
+                          cleanupProjectId: historyCleanupProjectId || undefined,
+                          cleanupProjectName: projectName,
+                        });
                       }}
                       disabled={isLoading || !historyCleanupDate}
                       className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
@@ -893,30 +1162,21 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                       </select>
                     </div>
                     <button
-                      onClick={async () => {
+                      onClick={() => {
                         if (!aiLogCleanupDate) {
                           showError('日付を選択してください', 3000);
                           return;
                         }
-                        if (!confirm(`選択した日付より古いAIログを削除しますか？${aiLogCleanupProjectId ? `\n対象: ${projects.find(p => p.id === aiLogCleanupProjectId)?.title || ''}` : '\n対象: 全プロジェクト'}`)) {
-                          return;
-                        }
-                        setIsLoading(true);
-                        try {
-                          const cutoffDate = new Date(aiLogCleanupDate);
-                          const deleted = await databaseService.deleteAILogEntriesBeforeDate(
-                            cutoffDate,
-                            aiLogCleanupProjectId || undefined
-                          );
-                          await loadStats();
-                          showSuccess(`${deleted}件のAIログを削除しました`, 3000);
-                          setAiLogCleanupDate('');
-                          setAiLogCleanupProjectId('');
-                        } catch (error) {
-                          showError('AIログの削除に失敗しました', 5000);
-                        } finally {
-                          setIsLoading(false);
-                        }
+                        const projectName = aiLogCleanupProjectId 
+                          ? projects.find(p => p.id === aiLogCleanupProjectId)?.title || ''
+                          : '全プロジェクト';
+                        setConfirmDialogState({
+                          isOpen: true,
+                          type: 'cleanup-ailog-date',
+                          cleanupDate: aiLogCleanupDate,
+                          cleanupProjectId: aiLogCleanupProjectId || undefined,
+                          cleanupProjectName: projectName,
+                        });
                       }}
                       disabled={isLoading || !aiLogCleanupDate}
                       className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
@@ -953,19 +1213,11 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                         </p>
                       </div>
                       <button
-                        onClick={async () => {
-                          if (!confirm('このプロジェクトのすべての履歴を削除しますか？')) return;
-                          setIsLoading(true);
-                          try {
-                            await databaseService.deleteProjectHistory(currentProject.id);
-                            await loadStats();
-                            await loadProjectData();
-                            showSuccess('履歴を削除しました', 3000);
-                          } catch (error) {
-                            showError('履歴の削除に失敗しました', 5000);
-                          } finally {
-                            setIsLoading(false);
-                          }
+                        onClick={() => {
+                          setConfirmDialogState({
+                            isOpen: true,
+                            type: 'delete-project-history',
+                          });
                         }}
                         disabled={isLoading}
                         className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
@@ -1000,19 +1252,11 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                         </p>
                       </div>
                       <button
-                        onClick={async () => {
-                          if (!confirm('このプロジェクトのすべてのAIログを削除しますか？')) return;
-                          setIsLoading(true);
-                          try {
-                            await databaseService.deleteProjectAILogs(currentProject.id);
-                            await loadStats();
-                            await loadProjectData();
-                            showSuccess('AIログを削除しました', 3000);
-                          } catch (error) {
-                            showError('AIログの削除に失敗しました', 5000);
-                          } finally {
-                            setIsLoading(false);
-                          }
+                        onClick={() => {
+                          setConfirmDialogState({
+                            isOpen: true,
+                            type: 'delete-project-ailog',
+                          });
                         }}
                         disabled={isLoading}
                         className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
@@ -1082,55 +1326,24 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                     </label>
                   </div>
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       const removeOrphanedImages = (document.getElementById('opt-orphaned-images') as HTMLInputElement)?.checked ?? true;
                       const removeUnusedImages = (document.getElementById('opt-unused-images') as HTMLInputElement)?.checked ?? true;
                       const removeOldHistory = (document.getElementById('opt-old-history') as HTMLInputElement)?.checked ?? true;
                       const removeOldAILogs = (document.getElementById('opt-old-ailogs') as HTMLInputElement)?.checked ?? true;
                       const compactDatabase = (document.getElementById('opt-compact') as HTMLInputElement)?.checked ?? false;
 
-                      if (compactDatabase) {
-                        if (!confirm('データベースの再構築は時間がかかり、大量のメモリを使用する可能性があります。続行しますか？')) {
-                          return;
-                        }
-                      } else {
-                        if (!confirm('データベースの最適化を実行しますか？')) {
-                          return;
-                        }
-                      }
-
-                      setIsLoading(true);
-                      try {
-                        const result = await databaseService.optimizeDatabase({
+                      setConfirmDialogState({
+                        isOpen: true,
+                        type: compactDatabase ? 'optimize-database-compact' : 'optimize-database',
+                        optimizeOptions: {
                           removeOrphanedImages,
                           removeUnusedImages,
                           removeOldHistory,
                           removeOldAILogs,
                           compactDatabase,
-                          daysUnused: 180,
-                        });
-
-                        await loadStats();
-                        await loadProjectData();
-
-                        const message = `最適化が完了しました\n\n` +
-                          `削除された画像: ${result.removedImages}件\n` +
-                          `削除された孤立画像: ${result.removedOrphanedImages}件\n` +
-                          `削除された履歴: ${result.removedHistories}件\n` +
-                          `削除されたAIログ: ${result.removedAILogs}件\n` +
-                          `解放された容量: ${result.freedSpace}\n` +
-                          (result.compacted ? `\nデータベースを再構築しました` : '');
-
-                        showSuccess(message, 8000);
-                      } catch (error) {
-                        const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
-                        showError(errorInfo.message, 7000, {
-                          title: '最適化エラー',
-                          details: errorInfo.details || errorInfo.solution,
-                        });
-                      } finally {
-                        setIsLoading(false);
-                      }
+                        },
+                      });
                     }}
                     disabled={isLoading}
                     className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
@@ -1220,6 +1433,34 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
           </div>
         )}
       </div>
+
+      {/* 確認ダイアログ */}
+      {confirmDialogConfig && (
+        <ConfirmDialog
+          isOpen={confirmDialogState.isOpen}
+          onClose={() => setConfirmDialogState({ isOpen: false, type: null })}
+          onConfirm={handleConfirmDialogConfirm}
+          title={confirmDialogConfig.title}
+          message={confirmDialogConfig.message}
+          type={confirmDialogConfig.type}
+          confirmLabel={confirmDialogConfig.confirmLabel}
+        />
+      )}
+
+      {/* バックアップ説明入力モーダル */}
+      <BackupDescriptionModal
+        isOpen={backupDescriptionModalOpen}
+        onClose={() => setBackupDescriptionModalOpen(false)}
+        onConfirm={handleConfirmCreateManualBackup}
+        defaultDescription="手動バックアップ"
+      />
+
+      {/* 全データ削除確認用の入力モーダル（2段階確認の2段階目） */}
+      <ClearAllDataConfirmModal
+        isOpen={clearAllDataInputModalOpen}
+        onClose={() => setClearAllDataInputModalOpen(false)}
+        onConfirm={handleConfirmClearAllDataFinal}
+      />
     </Modal>
   );
 };

@@ -5,12 +5,11 @@ import type { ProxyOptions } from 'vite';
 // Tauri 2.0ではViteの設定を調整する必要があります
 export default defineConfig({
   plugins: [react()],
-  
+
   // Tauri用の設定
   clearScreen: false,
   optimizeDeps: {
-    exclude: ['lucide-react'],
-    include: ['react', 'react-dom', 'dexie', 'axios']
+    include: ['react', 'react-dom', 'dexie', 'axios', 'lucide-react']
   },
   server: {
     port: 5173,
@@ -55,6 +54,13 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
+      } as ProxyOptions,
+      // クラウドAPI（xAI Grok）
+      '/api/xai': {
+        target: 'https://api.x.ai',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/xai/, ''),
       } as ProxyOptions,
     },
   },

@@ -8,6 +8,7 @@ import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface WorldSettingsManagerProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
   const [tagInput, setTagInput] = useState('');
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiMode, setAiMode] = useState<'generate' | 'enhance' | 'expand'>('generate');
+  const [deletingSettingId, setDeletingSettingId] = useState<string | null>(null);
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const [aiInstruction, setAiInstruction] = useState('');
   const [aiCategory, setAiCategory] = useState<WorldSetting['category']>('other');
@@ -185,13 +187,15 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
   };
 
   const handleDeleteSetting = (id: string) => {
-    if (!confirm('この世界観設定を削除しますか？')) {
-      return;
-    }
+    setDeletingSettingId(id);
+  };
 
+  const handleConfirmDeleteSetting = () => {
+    if (!deletingSettingId) return;
     updateProject({
-      worldSettings: worldSettings.filter(setting => setting.id !== id),
+      worldSettings: worldSettings.filter(setting => setting.id !== deletingSettingId),
     });
+    setDeletingSettingId(null);
   };
 
   const handleAddTag = () => {
@@ -1061,6 +1065,17 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
           </button>
         </div>
       </Modal>
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={deletingSettingId !== null}
+        onClose={() => setDeletingSettingId(null)}
+        onConfirm={handleConfirmDeleteSetting}
+        title="この世界観設定を削除しますか？"
+        message=""
+        type="warning"
+        confirmLabel="削除"
+      />
     </>
   );
 };

@@ -21,7 +21,6 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
   onProposalGenerated,
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +64,6 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
       // 圧縮されたBlobをBase64に変換
       const base64 = await fileToBase64(new File([compressedBlob], file.name, { type: file.type }));
       setPreviewUrl(base64);
-      setSelectedFile(file);
     } catch (error) {
       console.error('画像の圧縮エラー:', error);
       showError('画像の処理に失敗しました。', 5000, {
@@ -82,7 +80,6 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
   // ファイルクリア
   const handleClearFile = () => {
     setPreviewUrl(null);
-    setSelectedFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -168,7 +165,6 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
   React.useEffect(() => {
     if (!isOpen) {
       setPreviewUrl(null);
-      setSelectedFile(null);
       setIsAnalyzing(false);
       setAnalysisProgress('');
       if (fileInputRef.current) {
@@ -198,6 +194,10 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <p className="text-sm text-blue-800 dark:text-blue-200 font-['Noto_Sans_JP']">
             画像をアップロードすると、AIが画像を分析して物語プロジェクトの提案を生成します。
+            <br />
+            <span className="text-xs mt-2 block">
+              ※ 画像解析にはクラウドAI（OpenAI/Claude/Gemini/Grok）または画像解析対応のローカルLLM（Ollama、LM Studioなど）が必要です。
+            </span>
           </p>
         </div>
 

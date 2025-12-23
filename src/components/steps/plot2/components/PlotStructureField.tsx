@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2, MoreVertical, ChevronDown, ChevronUp, Copy, Trash2, AlertCircle } from 'lucide-react';
-import { PlotFormData, PlotStructureType } from '../types';
+import { PlotFormData } from '../types';
 import { CHARACTER_LIMIT } from '../constants';
-import { getCharacterCountColor, getProgressBarColor, isOverLimit } from '../utils';
+import { getCharacterCountColor, getProgressBarColor } from '../utils';
+import { InlineAIFeedback } from '../../../common/InlineAIFeedback';
 
 interface PlotStructureFieldProps {
   fieldKey: keyof PlotFormData;
@@ -129,6 +130,13 @@ export const PlotStructureField: React.FC<PlotStructureFieldProps> = ({
       </div>
       {!isCollapsed && (
         <div>
+          {/* AI生成中のフィードバック */}
+          {isGenerating && (
+            <InlineAIFeedback
+              message={`AIが「${label}」を生成中...`}
+              variant="with-progress"
+            />
+          )}
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}

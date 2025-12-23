@@ -6,6 +6,8 @@ import { useToast } from '../Toast';
 import { aiService } from '../../services/aiService';
 import { getUserFriendlyError } from '../../utils/errorHandler';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
+import { useAILog } from '../common/hooks/useAILog';
+import { AILogPanel } from '../common/AILogPanel';
 
 /**
  * SynopsisAssistantPanel - ツールサイドバー用のあらすじAI支援パネル
@@ -23,6 +25,12 @@ export const SynopsisAssistantPanel: React.FC = () => {
     const abortControllerRef = useRef<AbortController | null>(null);
     const styleAbortControllerRef = useRef<AbortController | null>(null);
     const fullSynopsisAbortControllerRef = useRef<AbortController | null>(null);
+
+    // AIログ管理
+    const { aiLogs, addLog, copyLog, downloadLogs } = useAILog({
+        projectId: currentProject?.id,
+        autoLoad: true,
+    });
 
     // 現在のシノプシスをProjectContextから取得
     const synopsis = currentProject?.synopsis || '';
@@ -229,10 +237,25 @@ export const SynopsisAssistantPanel: React.FC = () => {
             }
 
             if (response.error) {
+                // エラー時のAIログを記録
+                await addLog({
+                    type: 'generate',
+                    prompt,
+                    response: '',
+                    error: response.error,
+                });
+                
                 const errorInfo = getUserFriendlyError(response.error);
                 showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
                 return;
             }
+
+            // 成功時のAIログを記録
+            await addLog({
+                type: 'generate',
+                prompt,
+                response: response.content,
+            });
 
             updateSynopsis(response.content);
             showSuccess('あらすじを生成しました');
@@ -242,6 +265,16 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 return;
             }
             console.error('AI generation error:', error);
+            
+            // エラー時のAIログを記録
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await addLog({
+                type: 'generate',
+                prompt: prompt || '',
+                response: '',
+                error: errorMessage,
+            });
+            
             showError('AI生成中にエラーが発生しました');
         } finally {
             if (!abortController.signal.aborted) {
@@ -299,10 +332,25 @@ export const SynopsisAssistantPanel: React.FC = () => {
             }
 
             if (response.error) {
+                // エラー時のAIログを記録
+                await addLog({
+                    type: styleType === 'readable' ? 'readable' : styleType === 'summary' ? 'summary' : 'engaging',
+                    prompt,
+                    response: '',
+                    error: response.error,
+                });
+                
                 const errorInfo = getUserFriendlyError(response.error);
                 showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
                 return;
             }
+
+            // 成功時のAIログを記録
+            await addLog({
+                type: styleType === 'readable' ? 'readable' : styleType === 'summary' ? 'summary' : 'engaging',
+                prompt,
+                response: response.content,
+            });
 
             updateSynopsis(response.content);
             showSuccess(`文体を調整しました（${styleType}）`);
@@ -312,6 +360,16 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 return;
             }
             console.error('Style adjustment error:', error);
+            
+            // エラー時のAIログを記録
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await addLog({
+                type: styleType === 'readable' ? 'readable' : styleType === 'summary' ? 'summary' : 'engaging',
+                prompt: prompt || '',
+                response: '',
+                error: errorMessage,
+            });
+            
             showError('文体調整中にエラーが発生しました');
         } finally {
             if (!abortController.signal.aborted) {
@@ -366,10 +424,25 @@ export const SynopsisAssistantPanel: React.FC = () => {
             }
 
             if (response.error) {
+                // エラー時のAIログを記録
+                await addLog({
+                    type: 'generate',
+                    prompt,
+                    response: '',
+                    error: response.error,
+                });
+                
                 const errorInfo = getUserFriendlyError(response.error);
                 showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
                 return;
             }
+
+            // 成功時のAIログを記録
+            await addLog({
+                type: 'generate',
+                prompt,
+                response: response.content,
+            });
 
             updateSynopsis(response.content);
             showSuccess('全体あらすじを生成しました');
@@ -379,6 +452,16 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 return;
             }
             console.error('Full synopsis generation error:', error);
+            
+            // エラー時のAIログを記録
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await addLog({
+                type: 'generate',
+                prompt: prompt || '',
+                response: '',
+                error: errorMessage,
+            });
+            
             showError('全体あらすじ生成中にエラーが発生しました');
         } finally {
             if (!abortController.signal.aborted) {
@@ -389,6 +472,19 @@ export const SynopsisAssistantPanel: React.FC = () => {
     };
 
     const isAnyLoading = isGenerating || isGeneratingStyle || isGeneratingFullSynopsis;
+
+    // ログコピー機能
+    const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
+        const logText = copyLog(log);
+        navigator.clipboard.writeText(logText);
+        showSuccess('ログをクリップボードにコピーしました');
+    }, [aiLogs, copyLog, showSuccess]);
+
+    // ログダウンロード機能
+    const handleDownloadLogs = useCallback(() => {
+        downloadLogs(`synopsis_ai_logs_${new Date().toISOString().split('T')[0]}.txt`);
+        showSuccess('ログをダウンロードしました');
+    }, [downloadLogs, showSuccess]);
 
     if (!currentProject) return null;
 
@@ -558,6 +654,28 @@ export const SynopsisAssistantPanel: React.FC = () => {
                                 : 'bg-gradient-to-r from-indigo-500 to-purple-500'
                             }`}
                         style={{ width: `${Math.min((synopsis.length / 500) * 100, 100)}%` }}
+                    />
+                </div>
+            </div>
+
+            {/* AIログ */}
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2 flex items-center">
+                    <FileText className="h-4 w-4 mr-2 text-indigo-500" />
+                    AIログ
+                </h3>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <AILogPanel
+                        logs={aiLogs}
+                        onCopyLog={handleCopyLog}
+                        onDownloadLogs={handleDownloadLogs}
+                        typeLabels={{
+                            'generate': 'あらすじ生成',
+                            'readable': '読みやすく調整',
+                            'summary': '要点抽出',
+                            'engaging': '魅力的に演出',
+                        }}
+                        compact={true}
                     />
                 </div>
             </div>

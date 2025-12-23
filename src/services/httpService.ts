@@ -1,3 +1,36 @@
+import { APIError, ErrorCategory } from '../types/errors';
+
+// HTTPエラーを作成するヘルパー関数
+function createHttpError(status: number, message: string, _url: string): APIError {
+  let category: 'api_key_missing' | 'api_key_invalid' | 'rate_limit' | 'timeout' | 'network' | 'quota_exceeded' | 'model_not_found' | 'invalid_request' | 'server_error' | 'unknown';
+  
+  if (status === 401 || status === 403) {
+    category = message.toLowerCase().includes('api key') || message.toLowerCase().includes('apiキー') || message.toLowerCase().includes('認証')
+      ? 'api_key_invalid'
+      : 'api_key_invalid';
+  } else if (status === 429) {
+    category = 'rate_limit';
+  } else if (status === 404) {
+    category = 'model_not_found';
+  } else if (status === 400) {
+    category = 'invalid_request';
+  } else if (status >= 500) {
+    category = 'server_error';
+  } else if (status === 402 || status === 403) {
+    // 402は通常クォータ超過、403は認証/権限エラー
+    if (message.toLowerCase().includes('quota') || message.toLowerCase().includes('クォータ') || message.toLowerCase().includes('billing')) {
+      category = 'quota_exceeded';
+    } else {
+      category = 'api_key_invalid';
+    }
+  } else {
+    category = 'unknown';
+  }
+  
+  // APIErrorとしてスロー（エラーハンドラーで適切に処理される）
+  return new APIError(message, category, `HTTP_${status}`, new Error(`HTTP ${status}: ${message}`));
+}
+
 // Tauri fetchのキャッシュ
 let tauriFetchCache: typeof fetch | null = null;
 let tauriFetchInitialized = false;
@@ -95,9 +128,27 @@ export class HttpService {
             data = responseText as T;
           }
 
-          // エラーレスポンスのログ出力（簡略版）
+          // エラーレスポンスの処理
           if (response.status >= 400) {
             console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+            
+            // エラーレスポンスの詳細を取得
+            let errorMessage = `HTTP ${response.status}`;
+            try {
+              if (typeof data === 'object' && data !== null) {
+                const errorData = data as { error?: { message?: string; type?: string } };
+                if (errorData.error?.message) {
+                  errorMessage = errorData.error.message;
+                }
+              } else if (typeof data === 'string' && data) {
+                errorMessage = data;
+              }
+            } catch {
+              // エラーレスポンスの解析に失敗した場合はデフォルトメッセージを使用
+            }
+            
+            // ステータスコードに基づいて適切なエラーをスロー
+            throw createHttpError(response.status, errorMessage, url);
           }
 
           return {
@@ -108,6 +159,10 @@ export class HttpService {
           };
         } catch (error) {
           clearTimeout(timeoutId);
+          // 既にAPIErrorの場合はそのまま再スロー
+          if (error instanceof APIError) {
+            throw error;
+          }
           throw error;
         }
       }
@@ -124,6 +179,29 @@ export class HttpService {
         data = responseText as T;
       }
 
+      // エラーレスポンスの処理
+      if (response.status >= 400) {
+        console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+        
+        // エラーレスポンスの詳細を取得
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          if (typeof data === 'object' && data !== null) {
+            const errorData = data as { error?: { message?: string; type?: string } };
+            if (errorData.error?.message) {
+              errorMessage = errorData.error.message;
+            }
+          } else if (typeof data === 'string' && data) {
+            errorMessage = data;
+          }
+        } catch {
+          // エラーレスポンスの解析に失敗した場合はデフォルトメッセージを使用
+        }
+        
+        // ステータスコードに基づいて適切なエラーをスロー
+        throw createHttpError(response.status, errorMessage, url);
+      }
+
       return {
         data,
         status: response.status,
@@ -131,6 +209,11 @@ export class HttpService {
         headers: Object.fromEntries(response.headers.entries()),
       };
     } catch (error) {
+      // 既にAPIErrorの場合はそのまま再スロー
+      if (error instanceof APIError) {
+        throw error;
+      }
+      
       // エラーログは簡略化（APIキーを含む可能性があるため）
       if (error instanceof Error) {
         console.error(`HTTP Request Error: ${method} ${url} - ${error.message}`);
@@ -141,16 +224,42 @@ export class HttpService {
       // より詳細なエラー情報を提供
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error(`タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`);
-        } else if (error.message.includes('fetch')) {
-          throw new Error(`ネットワークエラー: ${error.message}`);
+          throw new APIError(
+            `タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`,
+            'timeout',
+            'TIMEOUT',
+            error
+          );
+        } else if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Failed to fetch')) {
+          throw new APIError(
+            `ネットワークエラー: ${error.message}`,
+            'network',
+            'NETWORK_ERROR',
+            error
+          );
         } else if (error.message.includes('timeout')) {
-          throw new Error(`タイムアウトエラー: ${error.message}`);
+          throw new APIError(
+            `タイムアウトエラー: ${error.message}`,
+            'timeout',
+            'TIMEOUT',
+            error
+          );
         } else {
-          throw new Error(`HTTPリクエストエラー: ${error.message}`);
+          // 既にAPIErrorの場合はそのまま、そうでない場合はunknownエラーとして扱う
+          throw new APIError(
+            `HTTPリクエストエラー: ${error.message}`,
+            'unknown',
+            'HTTP_ERROR',
+            error
+          );
         }
       } else {
-        throw new Error(`不明なエラー: ${String(error)}`);
+        throw new APIError(
+          `不明なエラー: ${String(error)}`,
+          'unknown',
+          'UNKNOWN_ERROR',
+          error
+        );
       }
     }
   }
@@ -253,9 +362,27 @@ export class HttpService {
             data = responseText as T;
           }
 
-          // エラーレスポンスのログ出力（簡略版）
+          // エラーレスポンスの処理
           if (response.status >= 400) {
             console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+            
+            // エラーレスポンスの詳細を取得
+            let errorMessage = `HTTP ${response.status}`;
+            try {
+              if (typeof data === 'object' && data !== null) {
+                const errorData = data as { error?: { message?: string; type?: string } };
+                if (errorData.error?.message) {
+                  errorMessage = errorData.error.message;
+                }
+              } else if (typeof data === 'string' && data) {
+                errorMessage = data;
+              }
+            } catch {
+              // エラーレスポンスの解析に失敗した場合はデフォルトメッセージを使用
+            }
+            
+            // ステータスコードに基づいて適切なエラーをスロー
+            throw createHttpError(response.status, errorMessage, url);
           }
 
           return {
@@ -266,6 +393,10 @@ export class HttpService {
           };
         } catch (error) {
           clearTimeout(timeoutId);
+          // 既にAPIErrorの場合はそのまま再スロー
+          if (error instanceof APIError) {
+            throw error;
+          }
           throw error;
         }
       }
@@ -282,6 +413,29 @@ export class HttpService {
         data = responseText as T;
       }
 
+      // エラーレスポンスの処理
+      if (response.status >= 400) {
+        console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+        
+        // エラーレスポンスの詳細を取得
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          if (typeof data === 'object' && data !== null) {
+            const errorData = data as { error?: { message?: string; type?: string } };
+            if (errorData.error?.message) {
+              errorMessage = errorData.error.message;
+            }
+          } else if (typeof data === 'string' && data) {
+            errorMessage = data;
+          }
+        } catch {
+          // エラーレスポンスの解析に失敗した場合はデフォルトメッセージを使用
+        }
+        
+        // ステータスコードに基づいて適切なエラーをスロー
+        throw createHttpError(response.status, errorMessage, url);
+      }
+
       return {
         data,
         status: response.status,
@@ -289,6 +443,11 @@ export class HttpService {
         headers: Object.fromEntries(response.headers.entries()),
       };
     } catch (error) {
+      // 既にAPIErrorの場合はそのまま再スロー
+      if (error instanceof APIError) {
+        throw error;
+      }
+      
       // エラーログは簡略化（APIキーを含む可能性があるため）
       if (error instanceof Error) {
         console.error(`HTTP FormData Request Error: POST ${url} - ${error.message}`);
@@ -299,16 +458,41 @@ export class HttpService {
       // より詳細なエラー情報を提供
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error(`タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`);
-        } else if (error.message.includes('fetch')) {
-          throw new Error(`ネットワークエラー: ${error.message}`);
+          throw new APIError(
+            `タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`,
+            'timeout',
+            'TIMEOUT',
+            error
+          );
+        } else if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Failed to fetch')) {
+          throw new APIError(
+            `ネットワークエラー: ${error.message}`,
+            'network',
+            'NETWORK_ERROR',
+            error
+          );
         } else if (error.message.includes('timeout')) {
-          throw new Error(`タイムアウトエラー: ${error.message}`);
+          throw new APIError(
+            `タイムアウトエラー: ${error.message}`,
+            'timeout',
+            'TIMEOUT',
+            error
+          );
         } else {
-          throw new Error(`HTTPリクエストエラー: ${error.message}`);
+          throw new APIError(
+            `HTTPリクエストエラー: ${error.message}`,
+            'unknown',
+            'HTTP_ERROR',
+            error
+          );
         }
       } else {
-        throw new Error(`不明なエラー: ${String(error)}`);
+        throw new APIError(
+          `不明なエラー: ${String(error)}`,
+          'unknown',
+          'UNKNOWN_ERROR',
+          error
+        );
       }
     }
   }
@@ -357,11 +541,12 @@ export class HttpService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        // エラーの種類を判定してAPIErrorに変換
+        throw createHttpError(response.status, errorText || `HTTP ${response.status}`, url);
       }
 
       if (!response.body) {
-        throw new Error('Response body is null');
+        throw new APIError('Response body is null', 'invalid_request', 'EMPTY_RESPONSE_BODY');
       }
 
       // ReadableStreamの処理
@@ -380,12 +565,47 @@ export class HttpService {
       }
 
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        // 中断は正常な動作とする場合もあるが、ここではエラーとして再スローするか、呼び出し元でハンドリングさせる
+      // 既にAPIErrorの場合はそのまま再スロー
+      if (error instanceof APIError) {
         throw error;
       }
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        // 中断は正常な動作とする場合もあるが、ここではエラーとして再スローするか、呼び出し元でハンドリングさせる
+        throw new APIError(
+          `ストリーミングが中断されました: ${error.message}`,
+          'timeout',
+          'STREAM_ABORTED',
+          error
+        );
+      }
+      
       console.error('Stream Request Error:', error);
-      throw error;
+      
+      // その他のエラーもAPIErrorに変換
+      if (error instanceof Error) {
+        const lowerMessage = error.message.toLowerCase();
+        let category: ErrorCategory = 'unknown';
+        if (lowerMessage.includes('timeout') || lowerMessage.includes('タイムアウト')) {
+          category = 'timeout';
+        } else if (lowerMessage.includes('network') || lowerMessage.includes('ネットワーク') || lowerMessage.includes('failed to fetch')) {
+          category = 'network';
+        }
+        
+        throw new APIError(
+          `ストリーミングエラー: ${error.message}`,
+          category,
+          'STREAM_ERROR',
+          error
+        );
+      }
+      
+      throw new APIError(
+        `ストリーミングエラー: ${String(error)}`,
+        'unknown',
+        'STREAM_ERROR',
+        error
+      );
     }
   }
 }

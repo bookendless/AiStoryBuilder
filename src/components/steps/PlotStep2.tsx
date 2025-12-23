@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Check, Play, Zap, Target, Heart, RotateCcw, Loader2, Layers, ChevronDown, ChevronUp, Copy, Trash2, AlertCircle, Undo2, Redo2, MoreVertical, Clock, GripVertical } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Check, Target, RotateCcw, Layers, ChevronDown, ChevronUp, AlertCircle, Undo2, Redo2, Clock, GripVertical } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
 import { useAILog } from '../common/hooks/useAILog';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 // 新しい型定義とユーティリティのインポート
 import type { PlotStep2Props, PlotStructureType, PlotFormData, HistoryState } from './plot2/types';
-import { CHARACTER_LIMIT, HISTORY_SAVE_DELAY, AI_LOG_TYPE_LABELS, PLOT_STRUCTURE_CONFIGS } from './plot2/constants';
-import { getProjectContext, getStructureFields, hasAnyOverLimit, getLastSavedText, getProgressBarColor, getCharacterCountColor, isOverLimit } from './plot2/utils';
+import { PLOT_STRUCTURE_CONFIGS, HISTORY_SAVE_DELAY } from './plot2/constants';
+import { getProjectContext, hasAnyOverLimit, getLastSavedText } from './plot2/utils';
 import { usePlotForm } from './plot2/hooks/usePlotForm';
 import { usePlotHistory } from './plot2/hooks/usePlotHistory';
 import { useSidebarState } from './plot2/hooks/useSidebarState';
@@ -19,10 +20,21 @@ import { StepNavigation } from '../common/StepNavigation';
 export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
-  const { showSuccess, showWarning, showError, showInfo } = useToast();
+  const { showSuccess, showWarning, showError } = useToast();
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const openMenuIdRef = useRef<string | null>(null);
+
+  // 確認ダイアログの状態
+  const [confirmDialogState, setConfirmDialogState] = useState<{
+    isOpen: boolean;
+    type: 'clear-section' | 'reset-structure' | 'save-over-limit' | null;
+    fieldKey?: keyof PlotFormData;
+    plotStructure?: PlotStructureType;
+  }>({
+    isOpen: false,
+    type: null,
+  });
 
   // openMenuIdの変更をrefに同期
   useEffect(() => {
@@ -30,7 +42,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
   }, [openMenuId]);
 
   // AIログ管理
-  const { aiLogs, addLog } = useAILog();
+  const { addLog } = useAILog();
 
   // 新しいカスタムフックを使用
   const {
@@ -41,7 +53,6 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
     isSaving,
     saveStatus,
     lastSaved,
-    resetFormData,
   } = usePlotForm({ currentProject, updateProject });
 
   // 履歴管理フック
@@ -236,12 +247,19 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
 
   // クイックアクション：クリア
   const handleClear = useCallback((fieldKey: keyof PlotFormData) => {
-    if (confirm('このセクションの内容をクリアしますか？')) {
-      setFormData(prev => ({ ...prev, [fieldKey]: '' }));
-      showSuccess('セクションをクリアしました');
-      setOpenMenuId(null);
-    }
-  }, [setFormData, showSuccess]);
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'clear-section',
+      fieldKey,
+    });
+    setOpenMenuId(null);
+  }, []);
+
+  const handleConfirmClear = useCallback(() => {
+    if (!confirmDialogState.fieldKey) return;
+    setFormData(prev => ({ ...prev, [confirmDialogState.fieldKey!]: '' }));
+    showSuccess('セクションをクリアしました');
+  }, [confirmDialogState.fieldKey, setFormData, showSuccess]);
 
   // クイックアクション：AI補完
   const handleAISupplement = useCallback(async (fieldKey: keyof PlotFormData, fieldLabel: string) => {
@@ -578,21 +596,33 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
     }
   }, [currentProject, updateProject, formData, plotStructure, showSuccess, showError]);
 
+  const handleConfirmSaveOverLimit = useCallback(() => {
+    handleManualSave();
+  }, [handleManualSave]);
+
   // プロット構成部分のみをリセット
   const handleResetPlotStructure = () => {
-    const structureNames: Record<PlotStructureType, string> = {
-      'kishotenketsu': '起承転結',
-      'three-act': '三幕構成',
-      'four-act': '四幕構成',
-      'heroes-journey': 'ヒーローズ・ジャーニー',
-      'beat-sheet': 'ビートシート',
-      'mystery-suspense': 'ミステリー・サスペンス',
-    };
-    const structureName = structureNames[plotStructure];
-    if (confirm(`${structureName}の内容をすべてリセットしますか？`)) {
-      resetFormData(plotStructure);
-    }
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'reset-structure',
+      plotStructure,
+    });
   };
+
+  const handleConfirmResetStructure = useCallback(() => {
+    if (!confirmDialogState.plotStructure) return;
+    
+    // 現在の構成スタイルのすべてのフィールドをクリア
+    const structureConfig = PLOT_STRUCTURE_CONFIGS[confirmDialogState.plotStructure];
+    const clearedFormData = { ...formData };
+    
+    structureConfig.fields.forEach(field => {
+      clearedFormData[field.key as keyof PlotFormData] = '';
+    });
+    
+    setFormData(clearedFormData);
+    showSuccess('プロット構成をリセットしました');
+  }, [confirmDialogState.plotStructure, formData, setFormData, showSuccess]);
 
   if (!currentProject) {
     return <div>プロジェクトを選択してください</div>;
@@ -612,7 +642,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {/* ステップナビゲーション */}
       <StepNavigation
         currentStep="plot2"
@@ -634,8 +664,8 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-9 space-y-6">
           {/* プロット構成の詳細セクション */}
           <div className="space-y-6">
             {/* ヘッダー部分 */}
@@ -745,9 +775,10 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
               <button
                 onClick={() => {
                   if (hasAnyOverLimit(plotStructure, formData)) {
-                    if (confirm('⚠️ 一部のセクションで文字数が上限を超えています。\nこのまま保存しますか？')) {
-                      handleManualSave();
-                    }
+                    setConfirmDialogState({
+                      isOpen: true,
+                      type: 'save-over-limit',
+                    });
                   } else {
                     handleManualSave();
                   }
@@ -768,7 +799,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
         </div>
 
         {/* AI Assistant Panel */}
-        <div className="space-y-6">
+        <div className="lg:col-span-3 space-y-6">
           {sidebarSections.map((section) => {
             const isCollapsed = section.collapsed;
             const isDragging = draggedSectionId === section.id;
@@ -981,6 +1012,56 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
           })}
         </div>
       </div>
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={confirmDialogState.isOpen}
+        onClose={() => setConfirmDialogState({ isOpen: false, type: null })}
+        onConfirm={() => {
+          if (confirmDialogState.type === 'clear-section') {
+            handleConfirmClear();
+          } else if (confirmDialogState.type === 'reset-structure') {
+            handleConfirmResetStructure();
+          } else if (confirmDialogState.type === 'save-over-limit') {
+            handleConfirmSaveOverLimit();
+          }
+          setConfirmDialogState({ isOpen: false, type: null });
+        }}
+        title={
+          confirmDialogState.type === 'clear-section'
+            ? 'このセクションの内容をクリアしますか？'
+            : confirmDialogState.type === 'reset-structure'
+            ? (() => {
+                const structureNames = {
+                  'kishotenketsu': '起承転結',
+                  'three-act': '三幕構成',
+                  'four-act': '四幕構成',
+                  'heroes-journey': 'ヒーローズ・ジャーニー',
+                  'beat-sheet': 'ビートシート',
+                  'mystery-suspense': 'ミステリー・サスペンス',
+                };
+                return `${structureNames[confirmDialogState.plotStructure!]}の内容をすべてリセットしますか？`;
+              })()
+            : confirmDialogState.type === 'save-over-limit'
+            ? '⚠️ 文字数上限超過'
+            : ''
+        }
+        message={
+          confirmDialogState.type === 'save-over-limit'
+            ? '一部のセクションで文字数が上限を超えています。\nこのまま保存しますか？'
+            : ''
+        }
+        type={confirmDialogState.type === 'reset-structure' ? 'danger' : 'warning'}
+        confirmLabel={
+          confirmDialogState.type === 'clear-section'
+            ? 'クリア'
+            : confirmDialogState.type === 'reset-structure'
+            ? 'リセット'
+            : confirmDialogState.type === 'save-over-limit'
+            ? '保存'
+            : '確認'
+        }
+      />
     </div>
   );
 };

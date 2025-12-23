@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, Loader2, BookOpen, Wand2, GripVertical, ChevronRight, FileText, X, AlertCircle, RefreshCw, Clock } from 'lucide-react';
+import { Check, Loader2, BookOpen, ChevronRight, FileText, AlertCircle, RefreshCw, Clock, MoreVertical, Copy, Trash2 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -7,6 +7,9 @@ import { useToast } from '../Toast';
 import { useAutoSave } from '../common/hooks/useAutoSave';
 import { StepNavigation } from '../common/StepNavigation';
 import { AIGenerateButton } from '../common/AIGenerateButton';
+import { Modal } from '../common/Modal';
+import { InlineAIFeedback } from '../common/InlineAIFeedback';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
 
@@ -39,11 +42,6 @@ type PlotFormData = {
 
 type FieldKey = keyof PlotFormData;
 
-type FieldOrderItem = {
-  key: string;
-  label: string;
-};
-
 export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
@@ -64,22 +62,38 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
   const historyRef = useRef(false);
   const isInitialMountRef = useRef(true);
 
-  // ドラッグ&ドロップ用の状態
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [showDragTooltip, setShowDragTooltip] = useState<number | null>(null);
-  const [fieldOrder, setFieldOrder] = useState<FieldOrderItem[]>([
+  // フィールドの固定順序（論理的な順序）
+  const fieldOrder: Array<{ key: FieldKey; label: string }> = [
     { key: 'theme', label: 'メインテーマ' },
     { key: 'setting', label: '舞台設定' },
     { key: 'hook', label: '物語の引き（冒頭の魅力）' },
     { key: 'protagonistGoal', label: '主人公の目標' },
     { key: 'mainObstacle', label: '主要な障害' },
     { key: 'ending', label: '物語の結末' },
-  ]);
+  ];
 
-  // テンプレート・サンプル表示用の状態
-  const [showTemplates, setShowTemplates] = useState<Record<string, boolean>>({});
-  const [showDependencies, setShowDependencies] = useState<Record<string, boolean>>({});
+  // モーダル表示用の状態
+  const [openModal, setOpenModal] = useState<{ type: 'templates' | 'dependencies'; fieldKey: FieldKey } | null>(null);
+  
+  // ドロップダウンメニュー用の状態
+  const [openDropdown, setOpenDropdown] = useState<FieldKey | null>(null);
+  const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  
+  // 文字数表示のホバー状態
+  const [hoveredField, setHoveredField] = useState<FieldKey | null>(null);
+  
+  // 文字数超過警告用の状態
+  const [overLimitFields, setOverLimitFields] = useState<Set<FieldKey>>(new Set());
+
+  // 確認ダイアログの状態
+  const [confirmDialogState, setConfirmDialogState] = useState<{
+    isOpen: boolean;
+    type: 'reset-all' | 'clear-field' | null;
+    fieldKey?: FieldKey;
+  }>({
+    isOpen: false,
+    type: null,
+  });
 
   // 自動保存
   const { isSaving, saveStatus, lastSaved, handleSave } = useAutoSave(
@@ -163,35 +177,40 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
 
   // フォームデータをリセットする関数
   const handleReset = useCallback(() => {
-    if (window.confirm('すべての入力内容をリセットしますか？この操作は取り消せません。')) {
-      const resetData: PlotFormData = {
-        theme: '',
-        setting: '',
-        hook: '',
-        protagonistGoal: '',
-        mainObstacle: '',
-        ending: '',
-      };
-      setFormData(resetData);
-      saveToHistory(resetData);
-    }
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'reset-all',
+    });
+  }, []);
+
+  const handleConfirmReset = useCallback(() => {
+    const resetData: PlotFormData = {
+      theme: '',
+      setting: '',
+      hook: '',
+      protagonistGoal: '',
+      mainObstacle: '',
+      ending: '',
+    };
+    setFormData(resetData);
+    saveToHistory(resetData);
   }, [saveToHistory]);
 
   // テンプレート・サンプルデータ
   const templates = {
     theme: [
-      '友情と成長をテーマにした青春物語',
-      '愛と犠牲を描く恋愛小説',
-      '正義と復讐の物語',
-      '家族の絆を描く家族小説',
-      '夢と現実の狭間を描くファンタジー',
-      'AIと人間の感情、そして切ない初恋の物語',
+      '孤独だった主人公が、友情を手に入れる物語',
+      '愛を知らなかった主人公が、愛を知る物語',
+      '復讐に囚われていた主人公が、正義を見つける物語',
+      '家族を失った主人公が、新しい家族の絆を見つける物語',
+      '現実に縛られていた主人公が、夢を叶える物語',
+      '感情を理解できなかった主人公が、AIとの交流を通じて感情を理解する物語',
     ],
     setting: [
       '現代の高校を舞台に、主人公の日常と非日常が交錯する世界観。クラスメイトとの人間関係や学校生活が物語の中心となる',
-      '20XX年、高度なAI技術が社会に浸透した近未来の日本。地方都市の高校を舞台に、宇宙開発を夢見る少女と、冷徹な天才開発者の出会いを描く',
+      '20XX年、高度なAI技術が社会に浸透した近未来の日本。地方都市の高校を舞台に、AIの心を開発する少女と、冷徹な天才開発者の出会いを描く',
       '中世ヨーロッパをモチーフにしたファンタジー世界。魔法と剣が存在し、王国間の争いが絶えない',
-      '現代の都市部を舞台に、普通のOLが異世界に転生する異世界転生もの',
+      '現代の日本を舞台に、主人公の日常と非日常が交錯する世界観。',
     ],
     hook: [
       '謎の転校生との出会いが引き起こす予想外の展開。主人公の過去の秘密が明かされることで、クラス全体の関係性が大きく変化する',
@@ -226,8 +245,56 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
       saveToHistory(newData);
       return newData;
     });
-    setShowTemplates(prev => ({ ...prev, [fieldKey]: false }));
+    setOpenModal(null);
   }, [saveToHistory]);
+
+  // フィールドの内容をコピーする関数
+  const handleCopyField = useCallback(async (fieldKey: FieldKey) => {
+    const content = formData[fieldKey];
+    if (!content || content.trim().length === 0) {
+      showWarning('コピーする内容がありません。', 3000);
+      return;
+    }
+    
+    try {
+      await navigator.clipboard.writeText(content);
+      showSuccess('クリップボードにコピーしました', 2000);
+    } catch (error) {
+      console.error('コピーエラー:', error);
+      showError('コピーに失敗しました', 3000);
+    }
+    setOpenDropdown(null);
+  }, [formData, showSuccess, showWarning, showError]);
+
+  // フィールドの内容をクリアする関数
+  const handleClearField = useCallback((fieldKey: FieldKey) => {
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'clear-field',
+      fieldKey,
+    });
+    setOpenDropdown(null);
+  }, []);
+
+  const handleConfirmClearField = useCallback(() => {
+    if (!confirmDialogState.fieldKey) return;
+    const fieldConfig = {
+      theme: { label: 'メインテーマ' },
+      setting: { label: '舞台設定' },
+      hook: { label: '物語の引き（冒頭の魅力）' },
+      protagonistGoal: { label: '主人公の目標' },
+      mainObstacle: { label: '主要な障害' },
+      ending: { label: '物語の結末' },
+    };
+    const config = fieldConfig[confirmDialogState.fieldKey];
+    
+    setFormData(prev => {
+      const newData = { ...prev, [confirmDialogState.fieldKey!]: '' };
+      saveToHistory(newData);
+      return newData;
+    });
+    showSuccess(`${config.label}をクリアしました`, 2000);
+  }, [confirmDialogState.fieldKey, saveToHistory, showSuccess]);
 
   // フィールド間の依存関係定義
   const fieldDependencies = {
@@ -257,90 +324,47 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
     },
   };
 
-  // ドラッグ&ドロップハンドラー
-  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    // ドラッグ中の視覚的フィードバック
-    e.dataTransfer.setData('text/plain', '');
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDraggedIndex(prev => {
-      if (prev !== null && prev !== index) {
-        setDragOverIndex(index);
-      }
-      return prev;
-    });
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setDragOverIndex(null);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    setDragOverIndex(null);
-    
-    setDraggedIndex(prev => {
-      if (prev === null || prev === dropIndex) {
-        return null;
-      }
-
-      const newOrder = [...fieldOrder];
-      const draggedField = newOrder[prev];
-      newOrder.splice(prev, 1);
-      newOrder.splice(dropIndex, 0, draggedField);
-      
-      setFieldOrder(newOrder);
-      
-      // ローカルストレージに保存（検証済みデータのみ）
-      try {
-        localStorage.setItem('plotFieldOrder', JSON.stringify(newOrder));
-        showSuccess('フィールドの順序を変更しました', 2000);
-      } catch (error) {
-        console.error('Failed to save field order:', error);
-        showError('フィールド順序の保存に失敗しました', 3000);
-      }
-      
-      return null;
-    });
-  }, [fieldOrder, showSuccess, showError]);
-
-  const handleDragEnd = useCallback(() => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  }, []);
-
-  // ローカルストレージからフィールド順序を読み込む
+  // 文字数超過をチェックして状態を更新
   useEffect(() => {
-    const savedOrder = localStorage.getItem('plotFieldOrder');
-    if (savedOrder) {
-      try {
-        const parsed = JSON.parse(savedOrder);
-        // 型と構造の検証
-        if (
-          Array.isArray(parsed) &&
-          parsed.length === fieldOrder.length &&
-          parsed.every((item: unknown) => 
-            typeof item === 'object' &&
-            item !== null &&
-            'key' in item &&
-            'label' in item &&
-            typeof item.key === 'string' &&
-            typeof item.label === 'string'
-          )
-        ) {
-          setFieldOrder(parsed as FieldOrderItem[]);
-        }
-      } catch (e) {
-        console.error('Failed to parse saved field order:', e);
-        showError('フィールド順序の読み込みに失敗しました', 3000);
+    const overLimit = new Set<FieldKey>();
+    fieldOrder.forEach(({ key }) => {
+      const maxLength = FIELD_MAX_LENGTHS[key];
+      if (formData[key].length > maxLength) {
+        overLimit.add(key);
+      }
+    });
+    setOverLimitFields(overLimit);
+    
+    // 超過フィールドがある場合、最初のフィールドに自動スクロール
+    if (overLimit.size > 0) {
+      const firstOverLimitField = Array.from(overLimit)[0];
+      const fieldElement = document.getElementById(`field-${firstOverLimitField}`);
+      if (fieldElement) {
+        setTimeout(() => {
+          fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
       }
     }
-  }, [fieldOrder.length, showError]);
+  }, [formData]);
+
+  // ドロップダウンメニューの外側クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdown) {
+        const ref = dropdownRefs.current[openDropdown];
+        if (ref && !ref.contains(event.target as Node)) {
+          setOpenDropdown(null);
+        }
+      }
+    };
+
+    if (openDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openDropdown]);
 
 
   // 文字数制限に基づいて内容を成形する関数
@@ -595,7 +619,7 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {/* ステップナビゲーション */}
       <StepNavigation
         currentStep="plot1"
@@ -627,8 +651,8 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
             </div>
             
             <div className="space-y-6">
-              {fieldOrder.map((field, index) => {
-                const fieldKey = field.key as keyof typeof formData;
+              {fieldOrder.map((field) => {
+                const fieldKey = field.key;
                 const fieldConfig = {
                   theme: { label: 'メインテーマ', maxLength: FIELD_MAX_LENGTHS.theme, rows: 2, placeholder: '例：友情と成長、愛と犠牲、正義と復讐、家族の絆、夢と現実の狭間', instruction: `一文で簡潔に表現してください（${FIELD_MAX_LENGTHS.theme}文字以内）` },
                   setting: { label: '舞台設定', maxLength: FIELD_MAX_LENGTHS.setting, rows: 3, placeholder: '例：現代の高校を舞台に、主人公の日常と非日常が交錯する世界観。クラスメイトとの人間関係や学校生活が物語の中心となる', instruction: `ジャンルに合わせた詳細な世界観を表現してください（${FIELD_MAX_LENGTHS.setting}文字以内）` },
@@ -638,49 +662,46 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                   ending: { label: '物語の結末', maxLength: FIELD_MAX_LENGTHS.ending, rows: 3, placeholder: '例：主人公と転校生が和解し、クラス全体が団結して新しい関係を築く', instruction: `物語の結末、主人公の成長や目標達成の結果を表現してください（${FIELD_MAX_LENGTHS.ending}文字以内）` },
                 };
                 const config = fieldConfig[fieldKey];
-                const dependencies = fieldDependencies[fieldKey];
-                // 必須項目の定義（メインテーマ、舞台設定、主人公の目標のみ必須）
+                // 推奨項目の定義（メインテーマ、舞台設定、主人公の目標を推奨）
                 const isRequired = fieldKey === 'theme' || fieldKey === 'setting' || fieldKey === 'protagonistGoal';
                 const isEmpty = !formData[fieldKey] || formData[fieldKey].trim().length === 0;
+                
+                const isOverLimit = overLimitFields.has(fieldKey);
                 
                 return (
               <div
                 key={fieldKey}
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, index)}
-                onDragEnd={handleDragEnd}
                 className={`p-4 rounded-lg border-2 transition-all relative ${
-                  draggedIndex === index
-                    ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20 opacity-50 shadow-lg scale-95'
-                    : dragOverIndex === index
-                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 border-dashed'
+                  generatingField === fieldKey
+                    ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg'
                     : isRequired && isEmpty
-                    ? 'border-sakura-300 dark:border-sakura-700 bg-sakura-50/30 dark:bg-sakura-900/10'
+                    ? 'border-blue-300 dark:border-blue-700 bg-blue-50/30 dark:bg-blue-900/10'
+                    : isOverLimit
+                    ? 'border-red-300 dark:border-red-700 bg-red-50/30 dark:bg-red-900/10'
                     : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
-                {/* ドロップインジケーター */}
-                {dragOverIndex === index && draggedIndex !== null && draggedIndex !== index && (
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500 rounded-t-lg animate-pulse" />
-                )}
-                <div className="flex items-start gap-2 mb-3">
-                  <div 
-                    className="cursor-move mt-1 text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors relative group"
-                    onMouseEnter={() => setShowDragTooltip(index)}
-                    onMouseLeave={() => setShowDragTooltip(null)}
-                  >
-                    <GripVertical className="h-5 w-5" />
-                    {/* ツールチップ */}
-                    {showDragTooltip === index && (
-                      <div className="absolute left-0 top-full mt-2 px-2 py-1 text-xs bg-gray-900 dark:bg-gray-700 text-white rounded shadow-lg z-50 whitespace-nowrap font-['Noto_Sans_JP']">
-                        ドラッグで順序変更
-                        <div className="absolute -top-1 left-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45" />
-                      </div>
-                    )}
+                {/* 文字数超過警告バナー */}
+                {isOverLimit && (
+                  <div className="mb-3 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg animate-pulse">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                      <span className="text-sm font-semibold text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">
+                        文字数制限を超過しています（{formData[fieldKey].length - config.maxLength}文字超過）
+                      </span>
+                    </div>
                   </div>
+                )}
+                
+                {/* AI生成中のフィードバック */}
+                {generatingField === fieldKey && (
+                  <InlineAIFeedback
+                    message={`AIが「${config.label}」を生成中...`}
+                    variant="with-progress"
+                  />
+                )}
+                
+                <div className="flex items-start gap-2 mb-3">
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-2">
@@ -689,30 +710,14 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                         </label>
                         {isRequired && (
                           <span
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-sakura-100 dark:bg-sakura-900/30 text-sakura-700 dark:text-sakura-400 border border-sakura-300 dark:border-sakura-700"
-                            aria-label="必須項目"
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700"
+                            aria-label="推奨項目"
                           >
-                            必須
+                            推奨
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <button
-                          onClick={() => setShowTemplates(prev => ({ ...prev, [fieldKey]: !prev[fieldKey] }))}
-                          className="flex items-center space-x-1 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors font-['Noto_Sans_JP']"
-                          title="テンプレート・サンプルを表示"
-                        >
-                          <FileText className="h-3 w-3" />
-                          <span>サンプル</span>
-                        </button>
-                        <button
-                          onClick={() => setShowDependencies(prev => ({ ...prev, [fieldKey]: !prev[fieldKey] }))}
-                          className="flex items-center space-x-1 px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors font-['Noto_Sans_JP']"
-                          title="依存関係を表示"
-                        >
-                          <ChevronRight className="h-3 w-3" />
-                          <span>関連</span>
-                        </button>
+                      <div className="flex items-center space-x-1 relative">
                         <AIGenerateButton
                           target={config.label}
                           onGenerate={() => handleFieldAIGenerate(fieldKey)}
@@ -722,65 +727,57 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                           size="sm"
                           className="text-xs"
                         />
+                        <div className="relative" ref={(el) => { dropdownRefs.current[fieldKey] = el; }}>
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === fieldKey ? null : fieldKey)}
+                            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            title="その他のオプション"
+                            aria-label="その他のオプション"
+                          >
+                            <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                          </button>
+                          {openDropdown === fieldKey && (
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1">
+                              <button
+                                onClick={() => handleCopyField(fieldKey)}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP']"
+                              >
+                                <Copy className="h-4 w-4" />
+                                <span>コピー</span>
+                              </button>
+                              <button
+                                onClick={() => handleClearField(fieldKey)}
+                                className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center space-x-2 font-['Noto_Sans_JP']"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                <span>クリア</span>
+                              </button>
+                              <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                              <button
+                                onClick={() => {
+                                  setOpenModal({ type: 'templates', fieldKey });
+                                  setOpenDropdown(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP']"
+                              >
+                                <FileText className="h-4 w-4" />
+                                <span>サンプルを表示</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setOpenModal({ type: 'dependencies', fieldKey });
+                                  setOpenDropdown(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 font-['Noto_Sans_JP']"
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                                <span>関連フィールド</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    
-                    {/* 依存関係表示 */}
-                    {showDependencies[fieldKey] && (
-                      <div className="mb-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                        <p className="text-xs text-green-700 dark:text-green-300 mb-2 font-['Noto_Sans_JP']">
-                          {dependencies.description}
-                        </p>
-                        {dependencies.relatedFields.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            <span className="text-xs text-green-600 dark:text-green-400 font-['Noto_Sans_JP']">関連フィールド:</span>
-                            {dependencies.relatedFields.map(relatedKey => {
-                              const relatedField = fieldOrder.find(f => f.key === relatedKey);
-                              return relatedField ? (
-                                <button
-                                  key={relatedKey}
-                                  onClick={() => {
-                                    const relatedIndex = fieldOrder.findIndex(f => f.key === relatedKey);
-                                    if (relatedIndex !== -1) {
-                                      document.getElementById(`field-${relatedKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    }
-                                  }}
-                                  className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors font-['Noto_Sans_JP']"
-                                >
-                                  {fieldConfig[relatedKey as keyof typeof fieldConfig]?.label}
-                                </button>
-                              ) : null;
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* テンプレート・サンプル表示 */}
-                    {showTemplates[fieldKey] && (
-                      <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 font-['Noto_Sans_JP']">サンプル例:</span>
-                          <button
-                            onClick={() => setShowTemplates(prev => ({ ...prev, [fieldKey]: false }))}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {templates[fieldKey].map((template, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => applyTemplate(fieldKey, template)}
-                              className="w-full text-left p-2 text-xs bg-white dark:bg-gray-700 rounded border border-blue-200 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']"
-                            >
-                              {template}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
                     <textarea
                       id={`field-${fieldKey}`}
@@ -798,44 +795,54 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
                           : 'border-gray-300 dark:border-gray-600'
                       }`}
                     />
-                    <div className="mt-2 space-y-1">
-                      {/* 必須項目のエラー表示 */}
+                    <div 
+                      className="mt-2 space-y-1"
+                      onMouseEnter={() => setHoveredField(fieldKey)}
+                      onMouseLeave={() => setHoveredField(null)}
+                    >
+                      {/* 推奨項目の推奨表示 */}
                       {isRequired && isEmpty && (
-                        <div className="flex items-start space-x-1 text-xs text-semantic-error font-['Noto_Sans_JP'] mb-1">
+                        <div className="flex items-start space-x-1 text-xs text-blue-600 dark:text-blue-400 font-['Noto_Sans_JP'] mb-1">
                           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                          <span>{config.label}は必須項目です。入力してください。</span>
+                          <span>{config.label}のユーザーによる設定を推奨します。物語の独自性を保つためにご検討ください。</span>
                         </div>
                       )}
                       <div className="flex justify-between items-center">
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-                          {config.instruction}
+                          {hoveredField === fieldKey || formData[fieldKey].length > config.maxLength * 0.8
+                            ? config.instruction
+                            : `${formData[fieldKey].length}/${config.maxLength}文字`}
                         </p>
-                        <span className={`text-sm font-semibold font-['Noto_Sans_JP'] ${
-                          formData[fieldKey].length > config.maxLength 
-                            ? 'text-red-500 dark:text-red-400' 
-                            : formData[fieldKey].length > config.maxLength * 0.8
-                            ? 'text-yellow-500 dark:text-yellow-400'
-                            : 'text-gray-500 dark:text-gray-400'
-                        }`}>
-                          {formData[fieldKey].length > config.maxLength 
-                            ? `超過: ${formData[fieldKey].length - config.maxLength}文字`
-                            : `残り: ${config.maxLength - formData[fieldKey].length}文字`}
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                        <div 
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                        {(hoveredField === fieldKey || formData[fieldKey].length > config.maxLength * 0.8) && (
+                          <span className={`text-sm font-semibold font-['Noto_Sans_JP'] ${
                             formData[fieldKey].length > config.maxLength 
-                              ? 'bg-red-500' 
+                              ? 'text-red-500 dark:text-red-400' 
                               : formData[fieldKey].length > config.maxLength * 0.8
-                              ? 'bg-yellow-500'
-                              : formData[fieldKey].length > 0
-                              ? 'bg-blue-500'
-                              : 'bg-gray-300 dark:bg-gray-600'
-                          }`}
-                          style={{ width: `${Math.min((formData[fieldKey].length / config.maxLength) * 100, 100)}%` }}
-                        />
+                              ? 'text-yellow-500 dark:text-yellow-400'
+                              : 'text-gray-500 dark:text-gray-400'
+                          }`}>
+                            {formData[fieldKey].length > config.maxLength 
+                              ? `超過: ${formData[fieldKey].length - config.maxLength}文字`
+                              : `残り: ${config.maxLength - formData[fieldKey].length}文字`}
+                          </span>
+                        )}
                       </div>
+                      {(hoveredField === fieldKey || formData[fieldKey].length > config.maxLength * 0.8) && (
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                          <div 
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              formData[fieldKey].length > config.maxLength 
+                                ? 'bg-red-500' 
+                                : formData[fieldKey].length > config.maxLength * 0.8
+                                ? 'bg-yellow-500'
+                                : formData[fieldKey].length > 0
+                                ? 'bg-blue-500'
+                                : 'bg-gray-300 dark:bg-gray-600'
+                            }`}
+                            style={{ width: `${Math.min((formData[fieldKey].length / config.maxLength) * 100, 100)}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -907,6 +914,114 @@ ${config.label === 'メインテーマ' ? '友情と成長をテーマにした�
             </div>
           </div>
       </div>
+
+      {/* テンプレート・サンプルモーダル */}
+      {openModal?.type === 'templates' && (
+        <Modal
+          isOpen={true}
+          onClose={() => setOpenModal(null)}
+          title={`${fieldOrder.find(f => f.key === openModal.fieldKey)?.label} - サンプル例`}
+          size="md"
+        >
+          <div className="space-y-3">
+            {templates[openModal.fieldKey].map((template, idx) => (
+              <button
+                key={idx}
+                onClick={() => applyTemplate(openModal.fieldKey, template)}
+                className="w-full text-left p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-all text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']"
+              >
+                {template}
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {/* 依存関係モーダル */}
+      {openModal?.type === 'dependencies' && (
+        <Modal
+          isOpen={true}
+          onClose={() => setOpenModal(null)}
+          title={`${fieldOrder.find(f => f.key === openModal.fieldKey)?.label} - 関連フィールド`}
+          size="md"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+              {fieldDependencies[openModal.fieldKey].description}
+            </p>
+            {fieldDependencies[openModal.fieldKey].relatedFields.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
+                  関連フィールド:
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {fieldDependencies[openModal.fieldKey].relatedFields.map(relatedKey => {
+                    const relatedField = fieldOrder.find(f => f.key === relatedKey);
+                    const relatedFieldConfig = {
+                      theme: { label: 'メインテーマ' },
+                      setting: { label: '舞台設定' },
+                      hook: { label: '物語の引き（冒頭の魅力）' },
+                      protagonistGoal: { label: '主人公の目標' },
+                      mainObstacle: { label: '主要な障害' },
+                      ending: { label: '物語の結末' },
+                    };
+                    return relatedField ? (
+                      <button
+                        key={relatedKey}
+                        onClick={() => {
+                          document.getElementById(`field-${relatedKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          setOpenModal(null);
+                        }}
+                        className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors text-sm font-['Noto_Sans_JP']"
+                      >
+                        {relatedFieldConfig[relatedKey as keyof typeof relatedFieldConfig]?.label}
+                      </button>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={confirmDialogState.isOpen}
+        onClose={() => setConfirmDialogState({ isOpen: false, type: null })}
+        onConfirm={() => {
+          if (confirmDialogState.type === 'reset-all') {
+            handleConfirmReset();
+          } else if (confirmDialogState.type === 'clear-field') {
+            handleConfirmClearField();
+          }
+          setConfirmDialogState({ isOpen: false, type: null });
+        }}
+        title={
+          confirmDialogState.type === 'reset-all'
+            ? 'すべての入力内容をリセットしますか？'
+            : confirmDialogState.type === 'clear-field'
+            ? (() => {
+                const fieldConfig = {
+                  theme: { label: 'メインテーマ' },
+                  setting: { label: '舞台設定' },
+                  hook: { label: '物語の引き（冒頭の魅力）' },
+                  protagonistGoal: { label: '主人公の目標' },
+                  mainObstacle: { label: '主要な障害' },
+                  ending: { label: '物語の結末' },
+                };
+                return `${fieldConfig[confirmDialogState.fieldKey!]?.label}の内容をクリアしますか？`;
+              })()
+            : ''
+        }
+        message={
+          confirmDialogState.type === 'reset-all'
+            ? 'すべての入力内容をリセットします。\nこの操作は取り消せません。'
+            : ''
+        }
+        type={confirmDialogState.type === 'reset-all' ? 'danger' : 'warning'}
+        confirmLabel={confirmDialogState.type === 'reset-all' ? 'リセット' : 'クリア'}
+      />
     </div>
   );
 };

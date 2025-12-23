@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Sparkles, Edit3, Trash2, Loader, GripVertical, ZoomIn, ChevronDown, ChevronUp, MessageSquare, BookOpen } from 'lucide-react';
+import { User, Sparkles, Edit3, Trash2, Loader, GripVertical, ZoomIn, ChevronDown, ChevronUp, MessageSquare, BookOpen, X } from 'lucide-react';
 import { Character } from '../../../contexts/ProjectContext';
 import { InlineEditor } from '../../common/InlineEditor';
 
@@ -28,7 +28,7 @@ interface CharacterCardProps {
   onUpdate?: (character: Character) => void;
 }
 
-export const CharacterCard: React.FC<CharacterCardProps> = ({
+export const CharacterCard: React.FC<CharacterCardProps> = React.memo<CharacterCardProps>(({
   character,
   index,
   isExpanded,
@@ -89,6 +89,19 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
                     <ZoomIn className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                   </div>
+                  {onUpdate && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdate({ ...character, image: '' });
+                      }}
+                      className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      title="画像を削除"
+                      aria-label="画像を削除"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="bg-gradient-to-br from-pink-500 to-purple-600 w-full h-full rounded-lg flex items-center justify-center">
@@ -214,7 +227,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                       placeholder="外見・特徴を入力"
                       multiline={true}
                       rows={2}
-                      maxLength={200}
                       className="text-gray-700 dark:text-gray-300"
                     />
                   ) : (
@@ -233,7 +245,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                       placeholder="性格を入力"
                       multiline={true}
                       rows={2}
-                      maxLength={200}
                       className="text-gray-700 dark:text-gray-300"
                     />
                   ) : (
@@ -252,7 +263,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                       placeholder="背景・過去を入力"
                       multiline={true}
                       rows={2}
-                      maxLength={200}
                       className="text-gray-700 dark:text-gray-300"
                     />
                   ) : (
@@ -272,7 +282,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                         placeholder="口調・話し方を入力"
                         multiline={true}
                         rows={2}
-                        maxLength={200}
                         className="text-gray-700 dark:text-gray-300"
                       />
                     ) : (
@@ -298,6 +307,27 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // カスタム比較関数：変更があった場合のみ再レンダリング
+  return (
+    prevProps.character.id === nextProps.character.id &&
+    prevProps.character.name === nextProps.character.name &&
+    prevProps.character.role === nextProps.character.role &&
+    prevProps.character.appearance === nextProps.character.appearance &&
+    prevProps.character.personality === nextProps.character.personality &&
+    prevProps.character.background === nextProps.character.background &&
+    prevProps.character.speechStyle === nextProps.character.speechStyle &&
+    prevProps.character.image === nextProps.character.image &&
+    prevProps.index === nextProps.index &&
+    prevProps.isExpanded === nextProps.isExpanded &&
+    prevProps.hasDetails === nextProps.hasDetails &&
+    prevProps.draggedIndex === nextProps.draggedIndex &&
+    prevProps.dragOverIndex === nextProps.dragOverIndex &&
+    prevProps.enhancingId === nextProps.enhancingId &&
+    prevProps.isConfigured === nextProps.isConfigured
+  );
+});
+
+CharacterCard.displayName = 'CharacterCard';
 
 

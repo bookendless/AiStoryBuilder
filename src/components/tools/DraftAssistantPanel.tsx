@@ -7,6 +7,7 @@ import { useAILog } from '../common/hooks/useAILog';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { useAIGeneration } from '../steps/draft/hooks/useAIGeneration';
+import { useAllChaptersGeneration } from '../steps/draft/hooks/useAllChaptersGeneration';
 // テキスト選択機能は削除
 import { CustomPromptModal } from '../steps/draft/CustomPromptModal';
 import { ImprovementLogModal } from '../steps/draft/ImprovementLogModal';
@@ -14,9 +15,11 @@ import { formatTimestamp } from '../steps/draft/utils';
 import type { ImprovementLog, ChapterHistoryEntry, HistoryEntryType } from '../steps/draft/types';
 import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
+import { sanitizeInputForPrompt } from '../../utils/securityUtils';
 import { HISTORY_AUTO_SAVE_DELAY, HISTORY_MAX_ENTRIES, HISTORY_TYPE_LABELS, HISTORY_BADGE_CLASSES } from '../steps/draft/constants';
 import { diffLines, type Change } from 'diff';
 import { Save, RotateCcw, Trash2 } from 'lucide-react';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 export const DraftAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -57,6 +60,8 @@ export const DraftAssistantPanel: React.FC = () => {
 
     // 章草案の状態管理（簡易版）- draftのuseMemoより前に宣言する必要がある
     const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>({});
+    const [deletingHistoryEntryId, setDeletingHistoryEntryId] = useState<string | null>(null);
+    const [showGenerateAllChaptersConfirm, setShowGenerateAllChaptersConfirm] = useState(false);
 
     // 現在の章と草案を取得
     const currentChapter = useMemo(() => {
@@ -224,7 +229,9 @@ export const DraftAssistantPanel: React.FC = () => {
         });
 
         if (useCustomPrompt && customPrompt.trim()) {
-            return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${customPrompt}`;
+            // カスタムプロンプトをサニタイズして追加
+            const sanitizedCustomPrompt = sanitizeInputForPrompt(customPrompt);
+            return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${sanitizedCustomPrompt}`;
         }
 
         return basePrompt;
@@ -313,7 +320,57 @@ export const DraftAssistantPanel: React.FC = () => {
         setImprovementLogs,
     });
 
+    // 全章一括生成用のAIログ管理（章未選択時用）
+    const { aiLogs: allChaptersLogs, addLog: addAllChaptersLog, loadLogs: loadAllChaptersLogs } = useAILog({
+        projectId: currentProject?.id,
+        chapterId: undefined, // 全章生成ログは章IDなしで管理
+        autoLoad: false,
+    });
+
+    // 全章一括生成フック
+    const {
+        isGeneratingAllChapters,
+        generationProgress,
+        generationStatus,
+        chapterProgressList,
+        handleGenerateAllChapters,
+        handleCancelAllChaptersGeneration,
+    } = useAllChaptersGeneration({
+        currentProject,
+        settings,
+        isConfigured,
+        getChapterDetails,
+        onError: showError,
+        onWarning: showWarning,
+        updateProject,
+        setChapterDrafts,
+        setShowCompletionToast: (message: string | null) => {
+            if (message) {
+                showSuccess(message);
+            }
+        },
+        addLog: addAllChaptersLog,
+    });
+
     // テキスト選択機能は削除
+
+    // 全章生成ログの読み込み（初回と全章生成完了時）
+    useEffect(() => {
+        if (currentProject && !selectedChapterId) {
+            loadAllChaptersLogs();
+        }
+    }, [currentProject, selectedChapterId, loadAllChaptersLogs]);
+
+    // 全章生成完了時にログを再読み込み
+    useEffect(() => {
+        if (!isGeneratingAllChapters && currentProject && !selectedChapterId) {
+            // 少し遅延させてログが保存されるのを待つ
+            const timeout = setTimeout(() => {
+                loadAllChaptersLogs();
+            }, 1000);
+            return () => clearTimeout(timeout);
+        }
+    }, [isGeneratingAllChapters, currentProject, selectedChapterId, loadAllChaptersLogs]);
 
     // カスタムプロンプトの保存・読み込み
     useEffect(() => {
@@ -931,9 +988,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                                         type="button"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            if (confirm('この履歴を削除しますか？')) {
-                                                                handleDeleteHistoryEntry(entry.id);
-                                                            }
+                                                            setDeletingHistoryEntryId(entry.id);
                                                         }}
                                                         className="absolute top-2 right-2 p-1.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 dark:hover:bg-red-900/50"
                                                         title="履歴を削除"
@@ -1060,11 +1115,213 @@ ${'='.repeat(80)}`;
                     )}
                 </>
             ) : (
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] text-center py-4">
+                <div className="space-y-4">
                     {currentProject.chapters.length === 0 ? (
-                        <p>章が設定されていません。章立てステップで章を作成してください。</p>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] text-center py-4">
+                            <p>章が設定されていません。章立てステップで章を作成してください。</p>
+                        </div>
                     ) : (
-                        <p>章を選択するとAIアシスト機能が利用できます。</p>
+                        <>
+                            {/* 全章一括生成セクション */}
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-6">
+                                <div className="text-center mb-4">
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2 flex items-center justify-center">
+                                        <Sparkles className="h-5 w-5 mr-2 text-indigo-500" />
+                                        全章一括作成
+                                    </h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                        全{currentProject.chapters.length}章の草案を一度に生成します
+                                    </p>
+                                </div>
+
+                                {/* 生成中のローディングインジケーター */}
+                                {isGeneratingAllChapters && (
+                                    <div className="mb-4">
+                                        <AILoadingIndicator
+                                            message={generationStatus || '全章を生成中...'}
+                                            estimatedTime={600}
+                                            variant="inline"
+                                            cancellable={true}
+                                            onCancel={handleCancelAllChaptersGeneration}
+                                        />
+                                        
+                                        {/* 進捗表示 */}
+                                        {generationProgress.total > 0 && (
+                                            <div className="mt-3">
+                                                <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-1">
+                                                    <span>進捗</span>
+                                                    <span>{generationProgress.current} / {generationProgress.total} 章</span>
+                                                </div>
+                                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                                    <div
+                                                        className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                                                        style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 章ごとの進捗リスト */}
+                                        {chapterProgressList.length > 0 && (
+                                            <div className="mt-4 max-h-48 overflow-y-auto space-y-1">
+                                                {chapterProgressList.map((chapterProgress) => {
+                                                    const statusColors = {
+                                                        pending: 'text-gray-400 dark:text-gray-500',
+                                                        generating: 'text-indigo-600 dark:text-indigo-400',
+                                                        completed: 'text-emerald-600 dark:text-emerald-400',
+                                                        error: 'text-red-600 dark:text-red-400',
+                                                    };
+                                                    const statusIcons = {
+                                                        pending: '○',
+                                                        generating: '⟳',
+                                                        completed: '✓',
+                                                        error: '✗',
+                                                    };
+                                                    return (
+                                                        <div
+                                                            key={chapterProgress.chapterId}
+                                                            className={`flex items-center text-xs font-['Noto_Sans_JP'] ${statusColors[chapterProgress.status]}`}
+                                                        >
+                                                            <span className="mr-2">{statusIcons[chapterProgress.status]}</span>
+                                                            <span className={chapterProgress.status === 'generating' ? 'font-semibold' : ''}>
+                                                                {chapterProgress.chapterTitle}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 全章一括生成ボタン */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!isConfigured) {
+                                            showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
+                                                title: 'AI設定が必要',
+                                            });
+                                            return;
+                                        }
+                                        if (!currentProject || currentProject.chapters.length === 0) {
+                                            showWarning('章が設定されていません。章立てステップで章を作成してから実行してください。', 7000, {
+                                                title: '章が設定されていません',
+                                            });
+                                            return;
+                                        }
+                                        setShowGenerateAllChaptersConfirm(true);
+                                    }}
+                                    disabled={isGeneratingAllChapters || !isConfigured}
+                                    className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold font-['Noto_Sans_JP'] transition-all ${
+                                        isGeneratingAllChapters
+                                            ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02]'
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                    {isGeneratingAllChapters ? (
+                                        <>
+                                            <Sparkles className="h-5 w-5 animate-spin" />
+                                            <span>生成中...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="h-5 w-5" />
+                                            <span>全章一括生成を実行</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                {!isConfigured && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 font-['Noto_Sans_JP'] text-center mt-2">
+                                        AI設定が必要です
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* 全章一括生成ログセクション */}
+                            {allChaptersLogs.length > 0 && (
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 overflow-hidden">
+                                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] flex items-center">
+                                                <FileText className="h-4 w-4 mr-2 text-indigo-500" />
+                                                全章生成ログ ({allChaptersLogs.length}件)
+                                            </h3>
+                                            <button
+                                                type="button"
+                                                onClick={loadAllChaptersLogs}
+                                                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-['Noto_Sans_JP']"
+                                            >
+                                                更新
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="max-h-64 overflow-y-auto">
+                                        <AILogPanel
+                                            logs={allChaptersLogs}
+                                            onCopyLog={(log) => {
+                                                const typeLabels: Record<string, string> = {
+                                                    generateFull: '全章一括生成',
+                                                };
+                                                const typeLabel = typeLabels[log.type] || log.type;
+                                                const logText = `【AIログ - ${typeLabel}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】\n${log.error}` : ''}`;
+                                                navigator.clipboard.writeText(logText);
+                                                showSuccess('ログをクリップボードにコピーしました');
+                                            }}
+                                            onDownloadLogs={() => {
+                                                const typeLabels: Record<string, string> = {
+                                                    generateFull: '全章一括生成',
+                                                };
+                                                const logsText = allChaptersLogs.map(log => {
+                                                    const typeLabel = typeLabels[log.type] || log.type;
+                                                    return `【AIログ - ${typeLabel}】
+時刻: ${log.timestamp.toLocaleString('ja-JP')}
+
+【プロンプト】
+${log.prompt}
+
+【AI応答】
+${log.response}
+
+${log.error ? `【エラー】\n${log.error}` : ''}
+
+${'='.repeat(80)}`;
+                                                }).join('\n\n');
+
+                                                const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `all_chapters_ai_logs_${currentProject?.id || 'all'}_${new Date().toISOString().split('T')[0]}.txt`;
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                document.body.removeChild(a);
+                                                URL.revokeObjectURL(url);
+                                                showSuccess('ログをダウンロードしました');
+                                            }}
+                                            typeLabels={{
+                                                generateFull: '全章一括生成',
+                                            }}
+                                            compact={true}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] text-center py-2">
+                                <p>章を選択すると個別のAIアシスト機能が利用できます。</p>
+                            </div>
+                        </>
                     )}
                 </div>
             )}
@@ -1092,6 +1349,44 @@ ${'='.repeat(80)}`;
                 onClose={() => setIsImprovementLogModalOpen(false)}
                 onSelectLog={setSelectedImprovementLogId}
             />
+
+        {/* 確認ダイアログ - 履歴削除 */}
+        <ConfirmDialog
+            isOpen={deletingHistoryEntryId !== null}
+            onClose={() => setDeletingHistoryEntryId(null)}
+            onConfirm={() => {
+                if (deletingHistoryEntryId) {
+                    handleDeleteHistoryEntry(deletingHistoryEntryId);
+                    setDeletingHistoryEntryId(null);
+                }
+            }}
+            title="この履歴を削除しますか？"
+            message=""
+            type="warning"
+            confirmLabel="削除"
+        />
+
+        {/* 確認ダイアログ - 全章生成 */}
+        <ConfirmDialog
+            isOpen={showGenerateAllChaptersConfirm}
+            onClose={() => setShowGenerateAllChaptersConfirm(false)}
+            onConfirm={() => {
+                handleGenerateAllChapters();
+                setShowGenerateAllChaptersConfirm(false);
+            }}
+            title={
+                settings.provider === 'local'
+                    ? '非ローカルLLMの使用を推奨します'
+                    : '全章生成を実行しますか？'
+            }
+            message={
+                settings.provider === 'local'
+                    ? '全章生成には非ローカルLLM（OpenAI、Anthropic等）の使用を強く推奨します。\n\n理由：\n• 一貫性のある長文生成\n• キャラクター設定の維持\n• 物語の流れの統一\n• 高品質な文章生成\n\n続行しますか？'
+                    : `全${currentProject?.chapters.length || 0}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`
+            }
+            type={settings.provider === 'local' ? 'warning' : 'info'}
+            confirmLabel="実行"
+        />
         </div>
     );
 };

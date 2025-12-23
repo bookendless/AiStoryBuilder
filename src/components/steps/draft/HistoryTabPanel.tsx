@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Save, RotateCcw, Trash2 } from 'lucide-react';
 import type { Change } from 'diff';
 import type { ChapterHistoryEntry } from './types';
 import { HISTORY_BADGE_CLASSES } from './constants';
 import { formatTimestamp } from './utils';
+import { ConfirmDialog } from '../../common/ConfirmDialog';
 
 interface ChapterInfo {
   id: string;
@@ -35,6 +36,8 @@ export const HistoryTabPanel: React.FC<HistoryTabPanelProps> = ({
   hasHistoryDiff,
   historyDiffSegments,
 }) => {
+  const [deletingHistoryEntryId, setDeletingHistoryEntryId] = useState<string | null>(null);
+
   if (!selectedChapterId || !currentChapter) {
     return (
       <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -98,9 +101,7 @@ export const HistoryTabPanel: React.FC<HistoryTabPanelProps> = ({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirm('この履歴を削除しますか？')) {
-                      onDeleteHistoryEntry(entry.id);
-                    }
+                    setDeletingHistoryEntryId(entry.id);
                   }}
                   className="absolute top-2 right-2 p-1.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 dark:hover:bg-red-900/50"
                   title="履歴を削除"
@@ -146,6 +147,22 @@ export const HistoryTabPanel: React.FC<HistoryTabPanelProps> = ({
           )}
         </div>
       )}
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={deletingHistoryEntryId !== null}
+        onClose={() => setDeletingHistoryEntryId(null)}
+        onConfirm={() => {
+          if (deletingHistoryEntryId) {
+            onDeleteHistoryEntry(deletingHistoryEntryId);
+            setDeletingHistoryEntryId(null);
+          }
+        }}
+        title="この履歴を削除しますか？"
+        message=""
+        type="warning"
+        confirmLabel="削除"
+      />
     </div>
   );
 };

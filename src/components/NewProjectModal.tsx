@@ -1,11 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { BookOpen, Image, Upload, X, CheckCircle, Circle } from 'lucide-react';
+import { BookOpen, Image, Upload, X } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
 import { compressImage } from '../utils/performanceUtils';
 import { useToast } from './Toast';
+import {
+  STYLE_OPTIONS,
+  PERSPECTIVE_OPTIONS,
+  FORMALITY_OPTIONS,
+  RHYTHM_OPTIONS,
+  METAPHOR_OPTIONS,
+  DIALOGUE_OPTIONS,
+  EMOTION_OPTIONS,
+  TONE_OPTIONS,
+} from '../constants/writingStyle';
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -28,39 +38,6 @@ const TARGET_READERS = [
 const THEMES = [
   '成長・自己発見', '友情・絆', '恋愛・愛', '家族・親子', '正義・道徳',
   '復讐・救済', '冒険・探検', '戦争・平和', '死・生', '希望・夢', '孤独・疎外感', 'その他'
-];
-
-// 文体オプション
-const STYLE_OPTIONS = [
-  '現代小説風', '文語調', '口語的', '詩的', '簡潔', '詳細', 'その他'
-];
-
-const PERSPECTIVE_OPTIONS = [
-  '一人称', '三人称', '神の視点'
-];
-
-const FORMALITY_OPTIONS = [
-  '硬め', '柔らかめ', '口語的', '文語的'
-];
-
-const RHYTHM_OPTIONS = [
-  '短文中心', '長短混合', '流れるような長文'
-];
-
-const METAPHOR_OPTIONS = [
-  '多用', '控えめ', '詩的', '写実的'
-];
-
-const DIALOGUE_OPTIONS = [
-  '会話多め', '描写重視', 'バランス型'
-];
-
-const EMOTION_OPTIONS = [
-  '内面重視', '行動で示す', '抑制的'
-];
-
-const TONE_OPTIONS = [
-  '緊張感', '穏やか', '希望', '切なさ', '謎めいた'
 ];
 
 interface ValidationErrors {
@@ -95,6 +72,14 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     dialogue: '',
     emotion: '',
     tone: '',
+    customStyle: '',
+    customPerspective: '',
+    customFormality: '',
+    customRhythm: '',
+    customMetaphor: '',
+    customDialogue: '',
+    customEmotion: '',
+    customTone: '',
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -171,32 +156,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     }));
   };
 
-  // 基本情報ステップの完了度を計算
-  const getBasicStepProgress = (): number => {
-    let completed = 0;
-    let total = 2; // 必須項目数
-
-    if (title.trim()) completed++;
-    if (mainGenre) {
-      if (mainGenre === 'その他') {
-        // その他の場合、カスタムジャンルが入力されているかチェック
-        if (customMainGenre.trim()) {
-          completed++;
-        }
-      } else {
-        // その他以外が選択されている場合は完了
-        completed++;
-      }
-    }
-
-    return total > 0 ? (completed / total) * 100 : 0;
-  };
-
-  // 文体設定ステップの完了度を計算（任意項目なので常に100%）
-  const getStyleStepProgress = (): number => {
-    // 文体設定はすべて任意項目なので、常に100%とする
-    return 100;
-  };
 
   // モーダルが閉じられたときに状態をリセット
   useEffect(() => {
@@ -222,6 +181,14 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
         dialogue: '',
         emotion: '',
         tone: '',
+        customStyle: '',
+        customPerspective: '',
+        customFormality: '',
+        customRhythm: '',
+        customMetaphor: '',
+        customDialogue: '',
+        customEmotion: '',
+        customTone: '',
       });
       setErrors({});
       setTouched({});
@@ -376,15 +343,32 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       const finalTheme = projectTheme === 'その他' ? customTheme : projectTheme;
 
       // 文体設定を構築（空でない値のみ含める）
+      // 「その他」が選択されている場合はカスタム値を使用、それ以外は選択値をそのまま使用
+      const computeStyleValue = (selected: string, custom: string) => {
+        if (!selected) return undefined;
+        if (selected === 'その他') {
+          return custom.trim() || undefined;
+        }
+        return selected;
+      };
+
       const writingStyle = {
-        style: styleData.style || undefined,
-        perspective: styleData.perspective || undefined,
-        formality: styleData.formality || undefined,
-        rhythm: styleData.rhythm || undefined,
-        metaphor: styleData.metaphor || undefined,
-        dialogue: styleData.dialogue || undefined,
-        emotion: styleData.emotion || undefined,
-        tone: styleData.tone || undefined,
+        style: computeStyleValue(styleData.style, styleData.customStyle),
+        perspective: computeStyleValue(styleData.perspective, styleData.customPerspective),
+        formality: computeStyleValue(styleData.formality, styleData.customFormality),
+        rhythm: computeStyleValue(styleData.rhythm, styleData.customRhythm),
+        metaphor: computeStyleValue(styleData.metaphor, styleData.customMetaphor),
+        dialogue: computeStyleValue(styleData.dialogue, styleData.customDialogue),
+        emotion: computeStyleValue(styleData.emotion, styleData.customEmotion),
+        tone: computeStyleValue(styleData.tone, styleData.customTone),
+        customStyle: styleData.style === 'その他' ? styleData.customStyle.trim() : undefined,
+        customPerspective: styleData.perspective === 'その他' ? styleData.customPerspective.trim() : undefined,
+        customFormality: styleData.formality === 'その他' ? styleData.customFormality.trim() : undefined,
+        customRhythm: styleData.rhythm === 'その他' ? styleData.customRhythm.trim() : undefined,
+        customMetaphor: styleData.metaphor === 'その他' ? styleData.customMetaphor.trim() : undefined,
+        customDialogue: styleData.dialogue === 'その他' ? styleData.customDialogue.trim() : undefined,
+        customEmotion: styleData.emotion === 'その他' ? styleData.customEmotion.trim() : undefined,
+        customTone: styleData.tone === 'その他' ? styleData.customTone.trim() : undefined,
       };
 
       // すべての値が undefined の場合は writingStyle 自体を undefined にする
@@ -416,13 +400,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
         dialogue: '',
         emotion: '',
         tone: '',
+        customStyle: '',
+        customPerspective: '',
+        customFormality: '',
+        customRhythm: '',
+        customMetaphor: '',
+        customDialogue: '',
+        customEmotion: '',
+        customTone: '',
       });
       setActiveTab('basic');
     }
   };
-
-  const basicProgress = getBasicStepProgress();
-  const styleProgress = getStyleStepProgress();
 
   return (
     <Modal
@@ -438,49 +427,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       }
       size="md"
     >
-      {/* ステップインジケーター */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2 flex-1">
-            <div className="flex items-center space-x-2">
-              {basicProgress === 100 ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <Circle className="h-5 w-5 text-gray-400" />
-              )}
-              <span className={`text-sm font-medium font-['Noto_Sans_JP'] ${
-                activeTab === 'basic' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'
-              }`}>
-                基本情報
-              </span>
-            </div>
-            <div className="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 mx-2">
-              <div 
-                className="h-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-300"
-                style={{ width: `${basicProgress}%` }}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              {styleProgress === 100 ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <Circle className="h-5 w-5 text-gray-400" />
-              )}
-              <span className={`text-sm font-medium font-['Noto_Sans_JP'] ${
-                activeTab === 'style' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'
-              }`}>
-                文体設定
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 text-center font-['Noto_Sans_JP']">
-          {activeTab === 'basic' 
-            ? `完了度: ${Math.round(basicProgress)}%` 
-            : `完了度: ${Math.round(styleProgress)}%`}
-        </div>
-      </div>
-
       {/* タブナビゲーション */}
       <div 
         className="mb-6 flex space-x-1 border-b border-gray-200 dark:border-gray-700"
@@ -841,7 +787,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.style}
-                onChange={(e) => setStyleData({ ...styleData, style: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, style: e.target.value, customStyle: e.target.value === 'その他' ? styleData.customStyle : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">デフォルト（現代小説風）</option>
@@ -849,6 +795,17 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
+              {styleData.style === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customStyle}
+                    onChange={(e) => setStyleData({ ...styleData, customStyle: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタム基本文体を入力してください"
+                  />
+                </div>
+              )}
             </div>
 
             {/* 人称 */}
@@ -858,14 +815,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.perspective}
-                onChange={(e) => setStyleData({ ...styleData, perspective: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, perspective: e.target.value, customPerspective: e.target.value === 'その他' ? styleData.customPerspective : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">指定なし</option>
                 {PERSPECTIVE_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                <option value="その他">その他</option>
               </select>
+              {styleData.perspective === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customPerspective}
+                    onChange={(e) => setStyleData({ ...styleData, customPerspective: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタム人称を入力してください"
+                  />
+                </div>
+              )}
             </div>
 
             {/* 硬軟 */}
@@ -875,14 +844,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.formality}
-                onChange={(e) => setStyleData({ ...styleData, formality: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, formality: e.target.value, customFormality: e.target.value === 'その他' ? styleData.customFormality : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">指定なし</option>
                 {FORMALITY_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                <option value="その他">その他</option>
               </select>
+              {styleData.formality === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customFormality}
+                    onChange={(e) => setStyleData({ ...styleData, customFormality: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタム硬軟を入力してください"
+                  />
+                </div>
+              )}
             </div>
 
             {/* リズム */}
@@ -892,14 +873,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.rhythm}
-                onChange={(e) => setStyleData({ ...styleData, rhythm: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, rhythm: e.target.value, customRhythm: e.target.value === 'その他' ? styleData.customRhythm : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">指定なし</option>
                 {RHYTHM_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                <option value="その他">その他</option>
               </select>
+              {styleData.rhythm === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customRhythm}
+                    onChange={(e) => setStyleData({ ...styleData, customRhythm: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタムリズムを入力してください"
+                  />
+                </div>
+              )}
             </div>
 
             {/* 比喩表現 */}
@@ -909,14 +902,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.metaphor}
-                onChange={(e) => setStyleData({ ...styleData, metaphor: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, metaphor: e.target.value, customMetaphor: e.target.value === 'その他' ? styleData.customMetaphor : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">指定なし</option>
                 {METAPHOR_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                <option value="その他">その他</option>
               </select>
+              {styleData.metaphor === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customMetaphor}
+                    onChange={(e) => setStyleData({ ...styleData, customMetaphor: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタム比喩表現を入力してください"
+                  />
+                </div>
+              )}
             </div>
 
             {/* 会話比率 */}
@@ -926,14 +931,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.dialogue}
-                onChange={(e) => setStyleData({ ...styleData, dialogue: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, dialogue: e.target.value, customDialogue: e.target.value === 'その他' ? styleData.customDialogue : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">指定なし</option>
                 {DIALOGUE_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                <option value="その他">その他</option>
               </select>
+              {styleData.dialogue === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customDialogue}
+                    onChange={(e) => setStyleData({ ...styleData, customDialogue: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタム会話比率を入力してください"
+                  />
+                </div>
+              )}
             </div>
 
             {/* 感情描写 */}
@@ -943,14 +960,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.emotion}
-                onChange={(e) => setStyleData({ ...styleData, emotion: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, emotion: e.target.value, customEmotion: e.target.value === 'その他' ? styleData.customEmotion : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">指定なし</option>
                 {EMOTION_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                <option value="その他">その他</option>
               </select>
+              {styleData.emotion === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customEmotion}
+                    onChange={(e) => setStyleData({ ...styleData, customEmotion: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタム感情描写を入力してください"
+                  />
+                </div>
+              )}
             </div>
 
             {/* トーン */}
@@ -960,14 +989,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               </label>
               <select
                 value={styleData.tone}
-                onChange={(e) => setStyleData({ ...styleData, tone: e.target.value })}
+                onChange={(e) => setStyleData({ ...styleData, tone: e.target.value, customTone: e.target.value === 'その他' ? styleData.customTone : '' })}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
               >
                 <option value="">指定なし</option>
                 {TONE_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
+                <option value="その他">その他</option>
               </select>
+              {styleData.tone === 'その他' && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={styleData.customTone}
+                    onChange={(e) => setStyleData({ ...styleData, customTone: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    placeholder="カスタムトーンを入力してください"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

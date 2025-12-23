@@ -35,6 +35,7 @@
         { "path": "$DOCUMENT/**" }
       ],
       "deny": []
-    }
+    },
+    "store:default"
   ]
 }

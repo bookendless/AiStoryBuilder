@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, User, StopCircle, Sparkles } from 'lucide-react';
+import { Send, User, StopCircle, Sparkles, Download } from 'lucide-react';
 import { useAI } from '../../contexts/AIContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { PossessionMessage } from '../../types/characterPossession';
-import { generateUUID } from '../../utils/securityUtils';
+import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
+import { useToast } from '../Toast';
 
 interface CharacterPossessionChatProps {
   isOpen: boolean;
@@ -25,19 +26,23 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
   });
   const { settings, isConfigured } = useAI();
   const { currentProject } = useProject();
+  const { showSuccess, showError } = useToast();
   const [messages, setMessages] = useState<PossessionMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef<string>(generateUUID());
+  const messagesRef = useRef<PossessionMessage[]>([]);
 
   // 選択されたキャラクターを取得
   const character = currentProject?.characters.find(c => c.id === characterId);
 
-  // メッセージが更新されたら自動スクロール
+  // メッセージが更新されたら自動スクロールとrefの更新
   useEffect(() => {
+    messagesRef.current = messages;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
@@ -50,7 +55,14 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
       const saved = localStorage.getItem(key);
       if (saved) {
         const parsed = JSON.parse(saved);
-        setMessages(parsed.messages || []);
+        // timestampをDateオブジェクトに変換
+        const messages = (parsed.messages || []).map((msg: PossessionMessage) => ({
+          ...msg,
+          timestamp: msg.timestamp instanceof Date 
+            ? msg.timestamp 
+            : new Date(msg.timestamp)
+        }));
+        setMessages(messages);
         sessionIdRef.current = parsed.sessionId || generateUUID();
       }
     } catch (error) {
@@ -72,6 +84,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     if (characterId) {
       setMessages([]);
       sessionIdRef.current = generateUUID();
+      setSelectedChapterId(null);
       loadConversationHistory();
     }
   }, [characterId, loadConversationHistory]);
@@ -123,6 +136,33 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     }).join('\n');
   };
 
+  // 章情報を取得してフォーマット
+  const getChapterInfo = (): string => {
+    if (!currentProject || !selectedChapterId) return '';
+
+    const chapter = currentProject.chapters.find(c => c.id === selectedChapterId);
+    if (!chapter) return '';
+
+    const chapterIndex = currentProject.chapters.findIndex(c => c.id === selectedChapterId);
+    const chapterTitle = chapter.title || `第${chapterIndex + 1}章`;
+    const chapterSummary = chapter.summary || '章の内容が設定されていません';
+    const chapterCharacters = chapter.characters?.map(charId => {
+      const char = currentProject.characters.find(c => c.id === charId);
+      return char?.name || '不明';
+    }).join(', ') || '未設定';
+    const chapterSetting = chapter.setting || '未設定';
+    const chapterMood = chapter.mood || '未設定';
+    const chapterEvents = chapter.keyEvents?.join(', ') || '未設定';
+
+    return `【現在の章の状況】
+章タイトル: ${chapterTitle}
+概要: ${chapterSummary}
+登場キャラクター: ${chapterCharacters}
+設定・場所: ${chapterSetting}
+雰囲気: ${chapterMood}
+重要な出来事: ${chapterEvents}`;
+  };
+
 
 
   // 会話履歴をフォーマット
@@ -169,6 +209,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
       // プロンプトを構築
       const characterRelationships = getCharacterRelationships();
       const conversationHistory = formatConversationHistory(messages);
+      const chapterInfo = getChapterInfo();
       // const projectContext = buildProjectContext();
 
       // 口調の指示を構築
@@ -191,6 +232,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
         characterRelationships: characterRelationships,
         conversationHistory: conversationHistory,
         speechStyleInstruction: speechStyleInstruction,
+        chapterInfo: chapterInfo,
         userMessage: userMessage.content,
       });
 
@@ -212,44 +254,63 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
       });
 
       if (response.error) {
-        setMessages(prev => prev.map(msg =>
-          msg.id === characterMessageId
-            ? { ...msg, content: `エラーが発生しました: ${response.error}` }
-            : msg
-        ));
+        setMessages(prev => {
+          const updated = prev.map(msg =>
+            msg.id === characterMessageId
+              ? { ...msg, content: `エラーが発生しました: ${response.error}` }
+              : msg
+          );
+          saveConversationHistory(updated);
+          return updated;
+        });
       } else if (!accumulatedContent && response.content) {
         // ストリーミングが機能しなかった場合のフォールバック
         accumulatedContent = response.content;
-        setMessages(prev => prev.map(msg =>
-          msg.id === characterMessageId
-            ? { ...msg, content: response.content }
-            : msg
-        ));
+        setMessages(prev => {
+          const updated = prev.map(msg =>
+            msg.id === characterMessageId
+              ? { ...msg, content: response.content }
+              : msg
+          );
+          saveConversationHistory(updated);
+          return updated;
+        });
       }
 
-      // 最終的な会話履歴を保存
-      const finalMessages = [...updatedMessages];
-      finalMessages[finalMessages.length - 1] = {
-        ...characterMessage,
-        content: accumulatedContent || response.content || '',
-      };
-      saveConversationHistory(finalMessages);
+      // 最終的な会話履歴を保存（最新のメッセージ状態を使用）
+      setMessages(prev => {
+        const finalMessages = prev.map(msg =>
+          msg.id === characterMessageId
+            ? { ...msg, content: accumulatedContent || response.content || '' }
+            : msg
+        );
+        saveConversationHistory(finalMessages);
+        return finalMessages;
+      });
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('生成が中断されました');
-        setMessages(prev => prev.map(msg =>
-          msg.id === characterMessageId
-            ? { ...msg, content: msg.content + '\n(生成を中断しました)' }
-            : msg
-        ));
+        setMessages(prev => {
+          const updated = prev.map(msg =>
+            msg.id === characterMessageId
+              ? { ...msg, content: msg.content + '\n(生成を中断しました)' }
+              : msg
+          );
+          saveConversationHistory(updated);
+          return updated;
+        });
       } else {
         console.error('Chat error:', error);
-        setMessages(prev => prev.map(msg =>
-          msg.id === characterMessageId
-            ? { ...msg, content: `エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}` }
-            : msg
-        ));
+        setMessages(prev => {
+          const updated = prev.map(msg =>
+            msg.id === characterMessageId
+              ? { ...msg, content: `エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}` }
+              : msg
+          );
+          saveConversationHistory(updated);
+          return updated;
+        });
       }
     } finally {
       setIsLoading(false);
@@ -277,6 +338,56 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     }
   };
 
+  // 会話履歴をダウンロード
+  const handleDownloadChat = () => {
+    if (!currentProject || !character || messages.length === 0) {
+      showError('ダウンロードする会話履歴がありません');
+      return;
+    }
+
+    try {
+      // テキスト形式でフォーマット
+      const exportDate = new Date().toLocaleString('ja-JP');
+      let content = `【なりきりチャット】\n`;
+      content += `プロジェクト: ${currentProject.title || '未設定'}\n`;
+      content += `キャラクター: ${character.name}\n`;
+      content += `エクスポート日時: ${exportDate}\n\n`;
+      content += `========================================\n`;
+      content += `【会話履歴】\n\n`;
+
+      messages.forEach((message) => {
+        const timestamp = message.timestamp instanceof Date
+          ? message.timestamp
+          : new Date(message.timestamp);
+        const timeStr = timestamp.toLocaleString('ja-JP');
+        const role = message.role === 'user' ? 'ユーザー' : character.name;
+        content += `[${timeStr}] ${role}:\n${message.content}\n\n`;
+      });
+
+      // ファイル名を生成
+      const projectName = currentProject.title || 'プロジェクト';
+      const characterName = character.name;
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const fileName = sanitizeFileName(`${projectName}_${characterName}_なりきりチャット_${dateStr}.txt`);
+
+      // Blobを作成してダウンロード
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showSuccess('会話履歴をダウンロードしました');
+    } catch (error) {
+      console.error('ダウンロードエラー:', error);
+      showError('ダウンロードに失敗しました');
+    }
+  };
+
   // キーボードショートカット
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -290,7 +401,10 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={() => {
+        setSelectedChapterId(null);
+        onClose();
+      }}
       title={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center space-x-2">
@@ -310,6 +424,15 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
               {character.name}
             </span>
+            {messages.length > 0 && (
+              <button
+                onClick={handleDownloadChat}
+                className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                title="会話履歴をダウンロード"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       }
@@ -318,16 +441,38 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     >
       <div className="flex flex-col h-[70vh]">
         {/* ヘッダーアクション */}
-        {messages.length > 0 && (
-          <div className="flex items-center justify-end space-x-2 mb-2 px-2">
-            <button
-              onClick={handleClear}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
-            >
-              会話履歴をクリア
-            </button>
-          </div>
-        )}
+        <div className="flex items-center justify-between mb-2 px-2">
+          {/* 章選択UI */}
+          {currentProject && currentProject.chapters.length > 0 && (
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              <select
+                value={selectedChapterId || ''}
+                onChange={(e) => {
+                  setSelectedChapterId(e.target.value || null);
+                }}
+                disabled={isLoading || !isConfigured}
+                className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP'] text-sm"
+              >
+                <option value="">章を選択（任意）...</option>
+                {currentProject.chapters.map((chapter, index) => (
+                  <option key={chapter.id} value={chapter.id}>
+                    第{index + 1}章: {chapter.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {messages.length > 0 && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleClear}
+                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
+              >
+                会話履歴をクリア
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* メッセージエリア */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -401,7 +546,10 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
                       : 'text-gray-500 dark:text-gray-400'
                       }`}
                   >
-                    {message.timestamp.toLocaleTimeString('ja-JP', {
+                    {(message.timestamp instanceof Date 
+                      ? message.timestamp 
+                      : new Date(message.timestamp)
+                    ).toLocaleTimeString('ja-JP', {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}

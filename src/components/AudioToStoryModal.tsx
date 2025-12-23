@@ -118,13 +118,8 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
 
         setAnalysisProgress('音声をテキストに変換中...');
         
-        try {
-          // Whisper APIで音声をテキストに変換
-          transcriptionText = await aiService.transcribeAudio(selectedFile, apiKeyForProvider);
-        } catch (whisperError) {
-          // Whisper APIのエラーをそのまま再スロー
-          throw whisperError;
-        }
+        // Whisper APIで音声をテキストに変換
+        transcriptionText = await aiService.transcribeAudio(selectedFile, apiKeyForProvider);
         
         if (!transcriptionText || transcriptionText.trim().length === 0) {
           throw new Error('音声の文字起こしに失敗しました');
@@ -313,7 +308,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
             音声ファイルをアップロードすると、AIが音声を分析して物語プロジェクトの提案を生成します。
             <br />
             <span className="text-xs mt-2 block">
-              ※ 音声解析にはGemini 3.0 ProまたはGPT-5.1系（gpt-5.1、gpt-5.1-mini）が必要です。
+              ※ 音声解析にはGemini 3.0 ProまたはGPT-5.2系（gpt-5.2、gpt-5.1）が必要です。
             </span>
           </p>
         </div>

@@ -30,7 +30,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
  * 再試行機能付きのAPI呼び出し
  * @param apiCall API呼び出し関数
  * @param options オプション設定
- * @returns Promise<any>
+ * @returns Promise<T>
  */
 export const retryApiCall = async <T>(
   apiCall: () => Promise<T>,
@@ -167,29 +167,6 @@ export const getApiErrorType = (error: unknown): 'network' | 'auth' | 'rate_limi
 };
 
 /**
- * エラーメッセージを生成
- */
-export const generateApiErrorMessage = (error: unknown, context: string = ''): string => {
-  const errorType = getApiErrorType(error);
-  const baseMessage = context ? `${context}: ` : '';
-  
-  switch (errorType) {
-    case 'network':
-      return `${baseMessage}ネットワーク接続に問題があります。インターネット接続を確認してください。`;
-    case 'auth':
-      return `${baseMessage}認証に失敗しました。APIキーを確認してください。`;
-    case 'rate_limit':
-      return `${baseMessage}リクエスト制限に達しました。しばらく待ってから再試行してください。`;
-    case 'server':
-      return `${baseMessage}サーバーエラーが発生しました。しばらく待ってから再試行してください。`;
-    case 'client':
-      return `${baseMessage}リクエストに問題があります。入力内容を確認してください。`;
-    default:
-      return `${baseMessage}${(error as Error).message || '不明なエラーが発生しました'}`;
-  }
-};
-
-/**
  * ユーザーフレンドリーなエラーメッセージを生成
  */
 export const getUserFriendlyErrorMessage = (error: unknown, context: string = ''): string => {
@@ -224,64 +201,3 @@ export const isRetryableError = (error: unknown): boolean => {
   return retryableErrors.includes(errorType);
 };
 
-/**
- * デバウンス機能付きの関数実行
- */
-export const debounce = <T extends (...args: unknown[]) => unknown>(
-  func: T,
-  wait: number
-): ((...args: Parameters<T>) => void) => {
-  let timeout: ReturnType<typeof setTimeout>;
-  
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
-
-/**
- * スロットル機能付きの関数実行
- */
-export const throttle = <T extends (...args: unknown[]) => unknown>(
-  func: T,
-  limit: number
-): ((...args: Parameters<T>) => void) => {
-  let inThrottle: boolean;
-  
-  return (...args: Parameters<T>) => {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  };
-};
-
-/**
- * プログレス表示付きのAPI呼び出し
- */
-export const apiCallWithProgress = async <T>(
-  apiCall: () => Promise<T>,
-  onProgress: (progress: number, message: string) => void,
-  options: ApiCallOptions = {}
-): Promise<T> => {
-  onProgress(0, 'API呼び出しを開始しています...');
-  
-  try {
-    const result = await retryApiCall(apiCall, {
-      ...options,
-      onRetry: (attempt) => {
-        onProgress(
-          (attempt / (options.retryConfig?.maxRetries || DEFAULT_RETRY_CONFIG.maxRetries)) * 100,
-          `再試行中... (${attempt}/${options.retryConfig?.maxRetries || DEFAULT_RETRY_CONFIG.maxRetries})`
-        );
-      }
-    });
-    
-    onProgress(100, '完了しました');
-    return result;
-  } catch (error) {
-    onProgress(0, 'エラーが発生しました');
-    throw error;
-  }
-};

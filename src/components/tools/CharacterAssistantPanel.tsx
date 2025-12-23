@@ -7,7 +7,7 @@ import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
-import { extractCharactersFromContent } from '../../utils/characterParser';
+import { extractCharactersFromContent, ParseResult } from '../../utils/characterParser';
 import { CHARACTER_GENERATION } from '../../constants/character';
 
 export const CharacterAssistantPanel: React.FC = () => {
@@ -105,22 +105,45 @@ export const CharacterAssistantPanel: React.FC = () => {
                 return;
             }
 
-            // AIログに記録
-            addLog({
-                type: 'generate',
-                prompt,
-                response: response.content || '',
-                error: response.error,
-            });
-
             if (response.error) {
+                // エラー時もログを記録
+                addLog({
+                    type: 'generate',
+                    prompt,
+                    response: response.content || '',
+                    error: response.error,
+                });
                 showError(`AI生成エラー: ${response.error}\n詳細はAIログを確認してください。`);
                 return;
             }
 
+            // プロバイダーに応じた形式を決定
+            const getPreferredFormat = (provider: string): 'json' | 'text' => {
+                const cloudProviders = ['openai', 'claude', 'gemini'];
+                return cloudProviders.includes(provider) ? 'json' : 'text';
+            };
+
+            const preferredFormat = getPreferredFormat(settings.provider);
+
             // AIの回答を解析して複数のキャラクターを作成
             const content = response.content;
-            const newCharacters = extractCharactersFromContent(content, CHARACTER_GENERATION.RECOMMENDED_MAX);
+            const parseResult: ParseResult = extractCharactersFromContent(
+                content,
+                CHARACTER_GENERATION.RECOMMENDED_MAX,
+                preferredFormat
+            );
+
+            const newCharacters = parseResult.characters;
+
+            // 解析結果のログ記録
+            if (import.meta.env.DEV) {
+                console.log('キャラクター解析結果:', {
+                    method: parseResult.parseMethod,
+                    count: newCharacters.length,
+                    errors: parseResult.errors,
+                    warnings: parseResult.warnings,
+                });
+            }
 
             // 既存のキャラクターに追加
             if (newCharacters.length > 0) {
@@ -128,7 +151,7 @@ export const CharacterAssistantPanel: React.FC = () => {
                     characters: [...currentProject.characters, ...newCharacters],
                 });
 
-                // ログエントリに生成されたキャラクター情報を追加
+                // 成功時は解析結果を含めてログを記録
                 addLog({
                     type: 'generate',
                     prompt,
@@ -138,9 +161,46 @@ export const CharacterAssistantPanel: React.FC = () => {
                 });
 
                 const characterNames = newCharacters.map(c => c.name).join('、');
-                showSuccess(`${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`);
+                
+                // 警告やエラーがある場合のメッセージ
+                let successMessage = `${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`;
+                
+                if (parseResult.warnings.length > 0) {
+                    successMessage += `\n注意: ${parseResult.warnings.length}件の警告があります。`;
+                }
+                
+                if (parseResult.parseMethod === 'fallback') {
+                    successMessage += '\n（JSON形式の解析に失敗したため、テキスト形式で解析しました）';
+                }
+
+                showSuccess(successMessage);
             } else {
-                showError('キャラクターの生成に失敗しました。AIログを確認して詳細を確認してください。');
+                // 解析失敗時もログを記録
+                addLog({
+                    type: 'generate',
+                    prompt,
+                    response: response.content || '',
+                    error: response.error,
+                });
+
+                // 詳細なエラーメッセージを構築
+                let errorMessage = 'キャラクターの生成に失敗しました。\n\n';
+                
+                if (parseResult.errors.length > 0) {
+                    errorMessage += '【エラー詳細】\n';
+                    parseResult.errors.forEach((error, index) => {
+                        errorMessage += `${index + 1}. ${error}\n`;
+                    });
+                    errorMessage += '\n';
+                }
+                
+                errorMessage += '【対処法】\n';
+                errorMessage += '1. AIログを確認して、AIの応答形式を確認してください\n';
+                errorMessage += '2. プロンプトを再実行してみてください\n';
+                errorMessage += '3. ローカルLLMを使用している場合、クラウドAPI（OpenAI、Claude、Gemini）の使用を検討してください\n';
+                errorMessage += '4. それでも解決しない場合、手動でキャラクターを追加してください';
+                
+                showError(errorMessage);
             }
 
         } catch (error) {
@@ -181,8 +241,7 @@ ${log.parsedCharacters && log.parsedCharacters.length > 0 ? `【解析された�
 ${log.parsedCharacters.length}人
 
 【解析されたキャラクターの詳細】
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ${log.parsedCharacters.map((c: any, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}`;
+                ${log.parsedCharacters.map((c, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}`;
         navigator.clipboard.writeText(logText);
         showSuccess('ログをクリップボードにコピーしました');
     }, [showSuccess]);
@@ -212,7 +271,7 @@ ${log.parsedCharacters && log.parsedCharacters.length > 0 ? `【解析された�
 ${log.parsedCharacters.length}人
 
 【解析されたキャラクターの詳細】
-${log.parsedCharacters.map((c: any, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}
+${log.parsedCharacters.map((c, i: number) => `${i + 1}. ${c.name}: ${c.role || ''}`).join('\n')}` : ''}
 
 ${'='.repeat(80)}`;
         }).join('\n\n');

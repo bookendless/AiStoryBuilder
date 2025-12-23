@@ -34,6 +34,7 @@ import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { EmptyState } from '../common/EmptyState';
 import { parseAIResponse } from '../../utils/aiResponseParser';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface ForeshadowingTrackerProps {
   isOpen: boolean;
@@ -124,6 +125,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   const { settings: aiSettings } = useAI();
   const [isAILoading, setIsAILoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [deletingForeshadowingId, setDeletingForeshadowingId] = useState<string | null>(null);
+  const [deletingPointInfo, setDeletingPointInfo] = useState<{ foreshadowingId: string; pointId: string } | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<Array<{
     title: string;
@@ -462,13 +465,15 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
   // 伏線の削除
   const handleDeleteForeshadowing = (id: string) => {
-    if (!confirm('この伏線を削除しますか？')) {
-      return;
-    }
+    setDeletingForeshadowingId(id);
+  };
 
+  const handleConfirmDeleteForeshadowing = () => {
+    if (!deletingForeshadowingId) return;
     updateProject({
-      foreshadowings: foreshadowings.filter(f => f.id !== id),
+      foreshadowings: foreshadowings.filter(f => f.id !== deletingForeshadowingId),
     });
+    setDeletingForeshadowingId(null);
   };
 
   // ポイントの追加
@@ -522,13 +527,15 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
   // ポイントの削除
   const handleDeletePoint = (foreshadowingId: string, pointId: string) => {
-    if (!confirm('このポイントを削除しますか？')) {
-      return;
-    }
+    setDeletingPointInfo({ foreshadowingId, pointId });
+  };
+
+  const handleConfirmDeletePoint = () => {
+    if (!deletingPointInfo) return;
 
     const updatedForeshadowings = foreshadowings.map(f => {
-      if (f.id === foreshadowingId) {
-        const newPoints = f.points.filter(p => p.id !== pointId);
+      if (f.id === deletingPointInfo.foreshadowingId) {
+        const newPoints = f.points.filter(p => p.id !== deletingPointInfo.pointId);
 
         // ステータスを再計算
         let newStatus: Foreshadowing['status'] = 'planted';
@@ -549,6 +556,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     });
 
     updateProject({ foreshadowings: updatedForeshadowings });
+    setDeletingPointInfo(null);
   };
 
   // フォームリセット
@@ -2594,6 +2602,28 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
           </div>
         )}
       </Modal>
+
+      {/* 確認ダイアログ - 伏線削除 */}
+      <ConfirmDialog
+        isOpen={deletingForeshadowingId !== null}
+        onClose={() => setDeletingForeshadowingId(null)}
+        onConfirm={handleConfirmDeleteForeshadowing}
+        title="この伏線を削除しますか？"
+        message=""
+        type="warning"
+        confirmLabel="削除"
+      />
+
+      {/* 確認ダイアログ - ポイント削除 */}
+      <ConfirmDialog
+        isOpen={deletingPointInfo !== null}
+        onClose={() => setDeletingPointInfo(null)}
+        onConfirm={handleConfirmDeletePoint}
+        title="このポイントを削除しますか？"
+        message=""
+        type="warning"
+        confirmLabel="削除"
+      />
     </>
   );
 };

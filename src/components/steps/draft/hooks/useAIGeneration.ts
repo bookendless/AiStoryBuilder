@@ -3,6 +3,7 @@ import { Project, Character } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
 import type { GenerationAction, ImprovementLog } from '../types';
+import { formatText } from '../../../../utils/textFormatter';
 
 interface Chapter {
   id: string;
@@ -120,11 +121,7 @@ export const useAIGeneration = ({
 
     if (!currentProject) return;
 
-    // 非ローカルLLM推奨の警告
-    if (settings.provider === 'local') {
-      const useNonLocal = confirm('非ローカルLLM（OpenAI、Anthropic等）の使用を推奨します。\n\n非ローカルLLMは以下の利点があります：\n• より自然で流暢な文章生成\n• 会話の臨場感と感情表現\n• 3000-4000文字の長文生成に最適\n\n続行しますか？');
-      if (!useNonLocal) return;
-    }
+    // 確認は親コンポーネントで行う（ConfirmDialogを使用）
 
     setCurrentGenerationAction('fullDraft');
     setIsGenerating(true);
@@ -725,16 +722,22 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           
           // weaknessesを取得
           if (critiqueData.weaknesses && Array.isArray(critiqueData.weaknesses)) {
-            weaknesses = critiqueData.weaknesses.filter((w: any) => w && w.aspect && w.problem);
+            interface WeaknessItem {
+              aspect?: string;
+              problem?: string;
+              score?: number;
+              solutions?: string[];
+            }
+            weaknesses = critiqueData.weaknesses.filter((w: WeaknessItem) => w && w.aspect && w.problem);
             
             // 7点以下の弱点を優先的に抽出
             const lowScoreWeaknesses = weaknesses
-              .filter((w: any) => w.score !== undefined && w.score <= 7)
+              .filter((w: WeaknessItem) => w.score !== undefined && w.score <= 7)
               .slice(0, 5); // 最大5つまで
             
             // 弱点の要約を作成
             if (lowScoreWeaknesses.length > 0) {
-              const weaknessTexts = lowScoreWeaknesses.map((w: any) => {
+              const weaknessTexts = lowScoreWeaknesses.map((w: WeaknessItem) => {
                 const solutions = w.solutions && Array.isArray(w.solutions) 
                   ? w.solutions.slice(0, 2).join('、') 
                   : '';
@@ -743,7 +746,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
               critiqueSummary = weaknessTexts.join('\n\n') + (critiqueData.summary ? `\n\n総評: ${critiqueData.summary}` : '');
             } else if (weaknesses.length > 0) {
               // スコアが不明な場合は最初の3つを使用
-              const weaknessTexts = weaknesses.slice(0, 3).map((w: any) => {
+              const weaknessTexts = weaknesses.slice(0, 3).map((w: WeaknessItem) => {
                 const solutions = w.solutions && Array.isArray(w.solutions) 
                   ? w.solutions.slice(0, 2).join('、') 
                   : '';
@@ -861,7 +864,9 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         if (jsonString && jsonString.startsWith('{')) {
           try {
             const parsed = JSON.parse(jsonString);
-            revisedText = parsed.revisedText || parsed.revised_text || '';
+            // revisedTextを取得し、改行処理を適用
+            const rawRevisedText = parsed.revisedText || parsed.revised_text || '';
+            revisedText = formatText(rawRevisedText);
             improvementSummary = parsed.improvementSummary || parsed.improvement_summary || '';
             phase2Changes = parsed.changes || [];
           } catch (parseError) {
@@ -885,7 +890,8 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           for (const pattern of textPatterns) {
             const match = revisionResponse.content.match(pattern);
             if (match && match[1] && match[1].trim().length > 100) {
-              revisedText = match[1].trim().replace(/\\n/g, '\n').replace(/\\"/g, '"');
+              // 改行処理を適用
+              revisedText = formatText(match[1].trim());
               break;
             }
           }
@@ -905,7 +911,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
                 continue;
               }
               // 文章らしい行を抽出
-              if (trimmed.length > 20 && !trimmed.startsWith('//') && !trimmed.match(/^[\s\w":,\[\]{}]+$/)) {
+              if (trimmed.length > 20 && !trimmed.startsWith('//') && !trimmed.match(/^[\s\w":,\[\]]+$/)) {
                 textLines.push(line);
                 inTextBlock = true;
               } else if (inTextBlock && trimmed.length > 0) {
@@ -914,7 +920,8 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             }
             
             if (textLines.length > 0) {
-              revisedText = textLines.join('\n').trim();
+              // 改行処理を適用
+              revisedText = formatText(textLines.join('\n').trim());
             }
           }
         }
@@ -931,9 +938,11 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             .trim();
           
           if (cleanedContent.length > 100) {
-            revisedText = cleanedContent;
+            // 改行処理を適用
+            revisedText = formatText(cleanedContent);
           } else {
-            revisedText = revisionResponse.content;
+            // 改行処理を適用
+            revisedText = formatText(revisionResponse.content);
           }
         }
       } catch (parseError) {
@@ -950,7 +959,8 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         for (const pattern of textPatterns) {
           const match = revisionResponse.content.match(pattern);
           if (match && match[1] && match[1].trim().length > 100) {
-            revisedText = match[1].trim();
+            // 改行処理を適用
+            revisedText = formatText(match[1].trim());
             extracted = true;
             break;
           }
@@ -966,7 +976,10 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             .replace(/```[\s\S]*?```/g, '')
             .trim();
           
-          revisedText = cleanedContent.length > 100 ? cleanedContent : revisionResponse.content;
+          // 改行処理を適用
+          revisedText = cleanedContent.length > 100 
+            ? formatText(cleanedContent) 
+            : formatText(revisionResponse.content);
         }
       }
 

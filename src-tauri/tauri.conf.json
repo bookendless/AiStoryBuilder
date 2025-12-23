@@ -22,7 +22,12 @@
     ],
     "security": {
       "csp": {
-        "connect-src": "'self' http://localhost:* http://127.0.0.1:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com"
+        "default-src": "'self'",
+        "connect-src": "'self' ipc://localhost http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com",
+        "script-src": "'self' 'unsafe-inline'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self' data:"
       }
     }
   },
@@ -40,6 +45,5 @@
     "longDescription": "AIを活用した小説創作支援アプリケーション",
     "shortDescription": "AI小説創作支援",
     "targets": "all"
-  },
-  "plugins": {}
+  }
 }

@@ -295,8 +295,10 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
         systemPrompt += `\n\n【会話履歴】\n${conversationHistory}`;
       }
 
-      // ユーザーの質問を追加
-      const fullPrompt = `${systemPrompt}\n\nユーザー: ${userMessage.content}\nアシスタント:`;
+      // ユーザーの質問を追加（generateContent内でサニタイズされるが、念のためここでもサニタイズ）
+      const { sanitizeInputForPrompt } = await import('../../utils/securityUtils');
+      const sanitizedUserContent = sanitizeInputForPrompt(userMessage.content);
+      const fullPrompt = `${systemPrompt}\n\nユーザー: ${sanitizedUserContent}\nアシスタント:`;
 
       let accumulatedContent = '';
 

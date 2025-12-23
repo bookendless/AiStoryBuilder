@@ -1,6 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { HistoryState, PlotFormData, PlotStructureType } from '../types';
-import { MAX_HISTORY_SIZE, HISTORY_SAVE_DELAY } from '../constants';
+import { MAX_HISTORY_SIZE } from '../constants';
 
 interface UsePlotHistoryProps {
   formData: PlotFormData;
@@ -18,8 +18,6 @@ interface UsePlotHistoryReturn {
 }
 
 export function usePlotHistory({
-  formData,
-  plotStructure,
   projectId,
 }: UsePlotHistoryProps): UsePlotHistoryReturn {
   const historyRef = useRef<HistoryState[]>([]);

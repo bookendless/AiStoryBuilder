@@ -69,7 +69,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 
       {/* 入力要素 */}
       <div className={required && !error ? 'bg-sakura-50/50 dark:bg-sakura-900/10 rounded-lg p-1' : ''}>
-        {React.isValidElement(children) && React.cloneElement(children as React.ReactElement<any>, { id: fieldId })}
+        {React.isValidElement(children) && React.cloneElement(children as React.ReactElement<{ id?: string }>, { id: fieldId })}
         {!React.isValidElement(children) && <div id={fieldId}>{children}</div>}
       </div>
 

@@ -61,3 +61,178 @@ export interface ImageItem {
   category: 'reference' | 'character' | 'setting' | 'mood' | 'other';
   addedAt: Date;
 }
+
+// OpenAI API レスポンス型
+export interface OpenAIRequestBody {
+  model: string;
+  messages: Array<{
+    role: 'system' | 'user' | 'assistant';
+    content: string | Array<{
+      type: 'text' | 'image_url';
+      text?: string;
+      image_url?: { url: string };
+    }>;
+  }>;
+  temperature: number;
+  stream?: boolean;
+  max_tokens?: number;
+  max_completion_tokens?: number;
+}
+
+export interface OpenAIResponse {
+  choices: Array<{
+    message: {
+      content: string;
+    };
+    delta?: {
+      content: string;
+    };
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+export interface OpenAIErrorResponse {
+  error: {
+    message: string;
+    type?: string;
+    code?: string;
+  };
+}
+
+// Claude API レスポンス型
+export interface ClaudeRequestBody {
+  model: string;
+  max_tokens: number;
+  temperature: number;
+  system: string;
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: string | Array<{
+      type: 'text' | 'image';
+      text?: string;
+      source?: {
+        type: 'base64';
+        media_type: string;
+        data: string;
+      };
+    }>;
+  }>;
+  stream?: boolean;
+}
+
+export interface ClaudeResponse {
+  content: Array<{
+    text: string;
+  }>;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+}
+
+export interface ClaudeStreamEvent {
+  type: 'content_block_delta';
+  delta?: {
+    text: string;
+  };
+}
+
+export interface ClaudeErrorResponse {
+  error: {
+    message: string;
+    type?: string;
+  };
+}
+
+// Gemini API レスポンス型
+export interface GeminiRequestBody {
+  contents: Array<{
+    parts: Array<{
+      text?: string;
+      inline_data?: {
+        mime_type: string;
+        data: string;
+      };
+    }>;
+  }>;
+  systemInstruction: {
+    parts: Array<{
+      text: string;
+    }>;
+  };
+  generationConfig: {
+    temperature: number;
+    maxOutputTokens: number;
+  };
+}
+
+export interface GeminiSafetyRating {
+  category: string;
+  probability: 'NEGLIGIBLE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN';
+  blocked?: boolean;
+}
+
+export interface GeminiPromptFeedback {
+  blockReason?: string;
+  safetyRatings?: GeminiSafetyRating[];
+}
+
+export interface GeminiCandidate {
+  content: {
+    parts: Array<{
+      text: string;
+    }>;
+  };
+}
+
+export interface GeminiResponse {
+  candidates?: GeminiCandidate[];
+  promptFeedback?: GeminiPromptFeedback;
+}
+
+export interface GeminiErrorResponse {
+  error: {
+    message: string;
+    code?: number;
+  };
+}
+
+// Local LLM API レスポンス型（OpenAI互換形式をサポート）
+export interface LocalLLMRequestBody {
+  model: string;
+  messages: Array<{
+    role: 'system' | 'user' | 'assistant';
+    content: string | Array<{
+      type: 'text' | 'image_url';
+      text?: string;
+      image_url?: { url: string };
+    }>;
+  }>;
+  temperature: number;
+  max_tokens: number;
+  stream?: boolean;
+}
+
+export interface LocalLLMResponse {
+  choices?: Array<{
+    message: {
+      content: string;
+    };
+    delta?: {
+      content: string;
+    };
+  }>;
+  content?: string;
+  response?: string;
+  error?: string;
+}
+
+export interface LocalLLMErrorResponse {
+  error: {
+    message: string;
+  };
+}

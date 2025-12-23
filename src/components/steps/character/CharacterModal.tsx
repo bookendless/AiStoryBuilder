@@ -381,6 +381,18 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded flex items-center justify-center">
                             <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                           </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleClearFile();
+                            }}
+                            className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            title="画像を削除"
+                            aria-label="画像を削除"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1 font-['Noto_Sans_JP']">
                           クリックで拡大表示
@@ -412,9 +424,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                     <textarea
                       value={formData.appearance}
                       onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > TEXT_LIMITS.APPEARANCE_MAX ? value.substring(0, TEXT_LIMITS.APPEARANCE_MAX) : value;
-                        setFormData({ ...formData, appearance: truncatedValue });
+                        setFormData({ ...formData, appearance: e.target.value });
                       }}
                       placeholder={`キャラクターの外見や特徴を簡潔に（${TEXT_LIMITS.APPEARANCE_WARNING}文字程度推奨）`}
                       rows={3}
@@ -441,7 +451,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                   )}
                   {formData.appearance.length > TEXT_LIMITS.APPEARANCE_MAX && (
                     <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      {TEXT_LIMITS.APPEARANCE_MAX}文字を超えたため切り捨てられました
+                      {TEXT_LIMITS.APPEARANCE_MAX}文字を超えています（推奨: {TEXT_LIMITS.APPEARANCE_WARNING}文字程度）
                     </p>
                   )}
                 </div>
@@ -454,9 +464,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                     <textarea
                       value={formData.personality}
                       onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > TEXT_LIMITS.PERSONALITY_MAX ? value.substring(0, TEXT_LIMITS.PERSONALITY_MAX) : value;
-                        setFormData({ ...formData, personality: truncatedValue });
+                        setFormData({ ...formData, personality: e.target.value });
                       }}
                       placeholder={`キャラクターの性格や特徴を簡潔に（${TEXT_LIMITS.PERSONALITY_WARNING}文字程度推奨）`}
                       rows={3}
@@ -483,7 +491,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                   )}
                   {formData.personality.length > TEXT_LIMITS.PERSONALITY_MAX && (
                     <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      {TEXT_LIMITS.PERSONALITY_MAX}文字を超えたため切り捨てられました
+                      {TEXT_LIMITS.PERSONALITY_MAX}文字を超えています（推奨: {TEXT_LIMITS.PERSONALITY_WARNING}文字程度）
                     </p>
                   )}
                 </div>
@@ -496,9 +504,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                     <textarea
                       value={formData.background}
                       onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > TEXT_LIMITS.BACKGROUND_MAX ? value.substring(0, TEXT_LIMITS.BACKGROUND_MAX) : value;
-                        setFormData({ ...formData, background: truncatedValue });
+                        setFormData({ ...formData, background: e.target.value });
                       }}
                       placeholder={`キャラクターの背景や過去について（${TEXT_LIMITS.BACKGROUND_WARNING}文字程度推奨）`}
                       rows={3}
@@ -525,7 +531,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                   )}
                   {formData.background.length > TEXT_LIMITS.BACKGROUND_MAX && (
                     <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      {TEXT_LIMITS.BACKGROUND_MAX}文字を超えたため切り捨てられました
+                      {TEXT_LIMITS.BACKGROUND_MAX}文字を超えています（推奨: {TEXT_LIMITS.BACKGROUND_WARNING}文字程度）
                     </p>
                   )}
                 </div>
@@ -538,9 +544,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                     <textarea
                       value={formData.speechStyle}
                       onChange={(e) => {
-                        const value = e.target.value;
-                        const truncatedValue = value.length > TEXT_LIMITS.SPEECH_STYLE_MAX ? value.substring(0, TEXT_LIMITS.SPEECH_STYLE_MAX) : value;
-                        setFormData({ ...formData, speechStyle: truncatedValue });
+                        setFormData({ ...formData, speechStyle: e.target.value });
                       }}
                       placeholder={`例：丁寧語で話す、関西弁、語尾に「〜だぜ」をつける、敬語を使わないなど（${TEXT_LIMITS.SPEECH_STYLE_WARNING}文字程度推奨）`}
                       rows={3}
@@ -567,7 +571,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                   )}
                   {formData.speechStyle.length > TEXT_LIMITS.SPEECH_STYLE_MAX && (
                     <p className="text-xs text-red-500 mt-1 font-['Noto_Sans_JP']">
-                      {TEXT_LIMITS.SPEECH_STYLE_MAX}文字を超えたため切り捨てられました
+                      {TEXT_LIMITS.SPEECH_STYLE_MAX}文字を超えています（推奨: {TEXT_LIMITS.SPEECH_STYLE_WARNING}文字程度）
                     </p>
                   )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-['Noto_Sans_JP']">
@@ -606,6 +610,33 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
     </>
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

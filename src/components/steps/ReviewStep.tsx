@@ -3,7 +3,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
-import { EvaluationMode, EvaluationResult, SavedEvaluation } from '../../types/evaluation';
+import { EvaluationMode, EvaluationResult, SavedEvaluation, EvaluationStrictness } from '../../types/evaluation';
 import {
     BookOpen,
     Users,
@@ -22,7 +22,9 @@ import {
     History,
     Trash2,
     ChevronRight,
-    Search
+    Search,
+    Upload,
+    Book
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 
@@ -35,6 +37,14 @@ const EVALUATION_MODES: { id: EvaluationMode; label: string; icon: React.ReactNo
     { id: 'character', label: 'キャラクター', icon: <Users size={18} />, description: 'キャラクターの動機、成長、独自性を評価します' },
     { id: 'style', label: '文体・表現', icon: <Feather size={18} />, description: '文章の読みやすさ、描写力、五感表現をチェックします' },
     { id: 'persona', label: '読者ペルソナ', icon: <UserCheck size={18} />, description: '想定読者になりきって感想と市場性を評価します' },
+];
+
+// 評価の厳しさレベルの定義
+const STRICTNESS_LEVELS: { id: EvaluationStrictness; label: string; description: string }[] = [
+    { id: 'gentle', label: 'やさしい', description: '良い点を重視し、建設的なフィードバックを提供' },
+    { id: 'normal', label: '普通', description: 'バランスの取れた評価（デフォルト）' },
+    { id: 'strict', label: '厳しい', description: 'より厳格な基準で評価し、改善点を明確に指摘' },
+    { id: 'harsh', label: '辛辣', description: 'プロの編集者として厳しく評価し、問題点を率直に指摘' },
 ];
 
 // UUID生成のヘルパー関数（crypto.randomUUID()のフォールバック付き）
@@ -56,12 +66,15 @@ export const ReviewStep: React.FC = () => {
     const { showSuccess, showError } = useToast();
 
     const [activeMode, setActiveMode] = useState<EvaluationMode>('structure');
+    const [evaluationStrictness, setEvaluationStrictness] = useState<EvaluationStrictness>('normal');
     const [targetContent, setTargetContent] = useState<string>('');
-    const [targetType, setTargetType] = useState<'synopsis' | 'chapter' | 'custom'>('synopsis');
+    const [targetType, setTargetType] = useState<'synopsis' | 'chapter' | 'custom' | 'file' | 'whole-story'>('synopsis');
     const [selectedChapterId, setSelectedChapterId] = useState<string>('');
     const [isEvaluating, setIsEvaluating] = useState(false);
     const [result, setResult] = useState<EvaluationResult | null>(null);
     const [showHistory, setShowHistory] = useState(false);
+    const [loadedFileName, setLoadedFileName] = useState<string>('');
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Markdownパーサーの初期化（HTMLを無効化してXSSを防止）
     const mdParser = useMemo(() => new MarkdownIt({
@@ -84,11 +97,25 @@ export const ReviewStep: React.FC = () => {
     const synopsis = currentProject?.synopsis;
     const chapters = currentProject?.chapters;
 
+    // 作品全体のコンテンツを取得（全章の草案を結合）
+    const wholeStoryContent = useMemo(() => {
+        if (!chapters || chapters.length === 0) return '';
+        
+        return chapters
+            .map(chapter => {
+                const draft = chapter.draft || chapter.summary || '';
+                return draft ? `# ${chapter.title}\n\n${draft}\n\n---\n\n` : '';
+            })
+            .join('')
+            .replace(/\n\n---\n\n$/, ''); // 最後の区切りを削除
+    }, [chapters]);
+
     useEffect(() => {
         if (!currentProject) return;
 
         if (targetType === 'synopsis') {
             setTargetContent(synopsis || '');
+            setLoadedFileName(''); // ファイル名をクリア
         } else if (targetType === 'chapter') {
             if (selectedChapterId) {
                 const chapter = chapters?.find(c => c.id === selectedChapterId);
@@ -97,8 +124,17 @@ export const ReviewStep: React.FC = () => {
                 setSelectedChapterId(chapters[0].id);
                 setTargetContent(chapters[0].draft || chapters[0].summary || '');
             }
+            setLoadedFileName(''); // ファイル名をクリア
+        } else if (targetType === 'whole-story') {
+            setTargetContent(wholeStoryContent);
+            setLoadedFileName(''); // ファイル名をクリア
+        } else if (targetType === 'file') {
+            // ファイルから読み込んだ場合は、既にtargetContentに設定されているので何もしない
+        } else if (targetType === 'custom') {
+            setLoadedFileName(''); // ファイル名をクリア
+            // カスタムの場合は、ユーザーが手動で入力するので何もしない
         }
-    }, [targetType, selectedChapterId, projectId, synopsis, chapters]);
+    }, [targetType, selectedChapterId, projectId, synopsis, chapters, wholeStoryContent]);
 
     const handleEvaluate = async () => {
         if (!isConfigured) {
@@ -125,6 +161,7 @@ export const ReviewStep: React.FC = () => {
             const evaluationResult = await aiService.evaluateStory({
                 mode: activeMode,
                 content: targetContent,
+                strictness: evaluationStrictness,
                 context
             }, settings);
 
@@ -142,15 +179,22 @@ export const ReviewStep: React.FC = () => {
     const handleSave = async () => {
         if (!currentProject || !result) return;
 
+        let targetTitle: string | undefined;
+        if (targetType === 'chapter') {
+            targetTitle = currentProject.chapters?.find(c => c.id === selectedChapterId)?.title;
+        } else if (targetType === 'file') {
+            targetTitle = loadedFileName || 'ファイルから読み込み';
+        } else if (targetType === 'whole-story') {
+            targetTitle = '作品全体';
+        }
+
         const newEvaluation: SavedEvaluation = {
             ...result,
             id: generateUUID(),
             date: new Date(),
             mode: activeMode,
             targetType,
-            targetTitle: targetType === 'chapter'
-                ? currentProject.chapters?.find(c => c.id === selectedChapterId)?.title
-                : undefined
+            targetTitle
         };
 
         const updatedEvaluations = [...(currentProject.evaluations || []), newEvaluation];
@@ -214,6 +258,36 @@ ${result.detailedAnalysis}
         showSuccess('履歴を削除しました');
     };
 
+    // ファイル読み込み処理
+    const handleFileLoad = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        // ファイル形式のチェック
+        const fileName = file.name.toLowerCase();
+        if (!fileName.endsWith('.txt') && !fileName.endsWith('.md')) {
+            showError('テキストファイル(.txt)またはMarkdownファイル(.md)を選択してください');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target?.result as string;
+            setTargetContent(content);
+            setTargetType('file');
+            setLoadedFileName(file.name);
+            showSuccess(`ファイル「${file.name}」を読み込みました`);
+        };
+        reader.onerror = () => {
+            showError('ファイルの読み込みに失敗しました');
+        };
+        reader.readAsText(file, 'UTF-8');
+    };
+
+    const handleFileSelect = () => {
+        fileInputRef.current?.click();
+    };
+
     const loadHistory = useCallback((evaluation: SavedEvaluation) => {
         setResult(evaluation);
         setActiveMode(evaluation.mode);
@@ -231,7 +305,7 @@ ${result.detailedAnalysis}
     }, [currentProject?.evaluations]);
 
     return (
-        <div className="h-full flex flex-col gap-6 p-6 max-w-7xl mx-auto overflow-y-auto">
+        <div className="h-full flex flex-col gap-6 p-6 overflow-y-auto">
             <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3">
@@ -327,6 +401,37 @@ ${result.detailedAnalysis}
                         ))}
                     </div>
 
+                    {/* 評価の厳しさレベル選択 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                        <h3 className="font-bold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+                            <AlertCircle size={18} />
+                            評価の厳しさレベル
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {STRICTNESS_LEVELS.map((level) => (
+                                <button
+                                    key={level.id}
+                                    onClick={() => setEvaluationStrictness(level.id)}
+                                    className={`flex flex-col items-start p-3 rounded-lg border-2 transition-all ${evaluationStrictness === level.id
+                                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                                            : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 bg-white dark:bg-gray-800'
+                                        }`}
+                                    title={level.description}
+                                >
+                                    <span className={`font-bold text-sm mb-1 ${evaluationStrictness === level.id
+                                            ? 'text-orange-700 dark:text-orange-300'
+                                            : 'text-gray-700 dark:text-gray-300'
+                                        }`}>
+                                        {level.label}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 text-left line-clamp-2">
+                                        {level.description}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* 左側: 入力エリア */}
                         <div className="lg:col-span-1 flex flex-col gap-4">
@@ -341,27 +446,55 @@ ${result.detailedAnalysis}
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                             ソース選択
                                         </label>
-                                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                                            <button
-                                                onClick={() => setTargetType('synopsis')}
-                                                className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'synopsis'
-                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
-                                                    }`}
-                                            >
-                                                あらすじ
-                                            </button>
-                                            <div className="w-px bg-gray-200 dark:bg-gray-700" />
-                                            <button
-                                                onClick={() => setTargetType('chapter')}
-                                                className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'chapter'
-                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
-                                                    }`}
-                                            >
-                                                章
-                                            </button>
-                                            <div className="w-px bg-gray-200 dark:bg-gray-700" />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                                <button
+                                                    onClick={() => setTargetType('synopsis')}
+                                                    className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'synopsis'
+                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        }`}
+                                                >
+                                                    あらすじ
+                                                </button>
+                                                <div className="w-px bg-gray-200 dark:bg-gray-700" />
+                                                <button
+                                                    onClick={() => setTargetType('chapter')}
+                                                    className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'chapter'
+                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        }`}
+                                                >
+                                                    章
+                                                </button>
+                                            </div>
+                                            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                                <button
+                                                    onClick={() => setTargetType('whole-story')}
+                                                    className={`flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${targetType === 'whole-story'
+                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        }`}
+                                                    title="全章の草案を結合して評価"
+                                                >
+                                                    <Book size={14} />
+                                                    作品全体
+                                                </button>
+                                                <div className="w-px bg-gray-200 dark:bg-gray-700" />
+                                                <button
+                                                    onClick={handleFileSelect}
+                                                    className={`flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${targetType === 'file'
+                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        }`}
+                                                    title="ファイルから読み込み (.txt, .md)"
+                                                >
+                                                    <Upload size={14} />
+                                                    ファイル
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mt-2">
                                             <button
                                                 onClick={() => setTargetType('custom')}
                                                 className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'custom'
@@ -369,10 +502,40 @@ ${result.detailedAnalysis}
                                                         : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
                                                     }`}
                                             >
-                                                カスタム
+                                                カスタム（手入力）
                                             </button>
                                         </div>
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept=".txt,.md"
+                                            onChange={handleFileLoad}
+                                            className="hidden"
+                                        />
                                     </div>
+
+                                    {targetType === 'file' && loadedFileName && (
+                                        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3">
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <FileText size={16} className="text-indigo-600 dark:text-indigo-400" />
+                                                <span className="text-indigo-700 dark:text-indigo-300 font-medium">
+                                                    読み込み済み: {loadedFileName}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {targetType === 'whole-story' && (
+                                        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3">
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Book size={16} className="text-indigo-600 dark:text-indigo-400" />
+                                                <span className="text-indigo-700 dark:text-indigo-300 font-medium">
+                                                    全{chapters?.length || 0}章を結合して評価
+                                                    {targetContent && ` (${targetContent.length}文字)`}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {targetType === 'chapter' && (
                                         <div>

@@ -37,6 +37,7 @@ interface UseAllChaptersGenerationOptions {
   updateProject: (updates: Partial<Project>) => void;
   setChapterDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setShowCompletionToast: (message: string | null) => void;
+  addLog?: (log: { type: string; prompt: string; response: string; error?: string; chapterId?: string }) => Promise<unknown>;
 }
 
 interface UseAllChaptersGenerationReturn {
@@ -58,6 +59,7 @@ export const useAllChaptersGeneration = ({
   updateProject,
   setChapterDrafts,
   setShowCompletionToast,
+  addLog,
 }: UseAllChaptersGenerationOptions): UseAllChaptersGenerationReturn => {
   const [isGeneratingAllChapters, setIsGeneratingAllChapters] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
@@ -95,15 +97,7 @@ export const useAllChaptersGeneration = ({
       return;
     }
 
-    // 非ローカルLLM推奨の警告
-    if (settings.provider === 'local') {
-      const useNonLocal = confirm('全章生成には非ローカルLLM（OpenAI、Anthropic等）の使用を強く推奨します。\n\n理由：\n• 一貫性のある長文生成\n• キャラクター設定の維持\n• 物語の流れの統一\n• 高品質な文章生成\n\n続行しますか？');
-      if (!useNonLocal) return;
-    }
-
-    // 確認ダイアログ
-    const confirmMessage = `全${currentProject.chapters.length}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`;
-    if (!confirm(confirmMessage)) return;
+    // 確認は親コンポーネントで行う（ConfirmDialogを使用）
 
     setIsGeneratingAllChapters(true);
     setGenerationProgress({ current: 0, total: currentProject.chapters.length });
@@ -121,6 +115,8 @@ export const useAllChaptersGeneration = ({
     const abortController = new AbortController();
     generationAbortControllerRef.current = abortController;
 
+    let fullPrompt = '';
+    
     try {
       // プロジェクト全体の情報を整理
       const projectInfo = {
@@ -174,7 +170,7 @@ export const useAllChaptersGeneration = ({
       }).join('\n\n');
 
       // 全章生成用のプロンプトを作成
-      const fullPrompt = aiService.buildPrompt('draft', 'generateFull', {
+      fullPrompt = aiService.buildPrompt('draft', 'generateFull', {
         title: projectInfo.title,
         mainGenre: projectInfo.mainGenre,
         subGenre: projectInfo.subGenre,
@@ -271,6 +267,19 @@ export const useAllChaptersGeneration = ({
         setTimeout(() => {
           setShowCompletionToast(null);
         }, 5000);
+
+        // AIログを記録
+        if (addLog) {
+          try {
+            await addLog({
+              type: 'generateFull',
+              prompt: fullPrompt,
+              response: response.content,
+            });
+          } catch (logError) {
+            console.error('AIログの記録に失敗しました:', logError);
+          }
+        }
         
       } else {
         throw new Error('AI生成に失敗しました');
@@ -321,6 +330,21 @@ export const useAllChaptersGeneration = ({
           details: errorDetailsText,
         });
         setGenerationStatus('エラーが発生しました');
+
+        // エラー時もAIログを記録
+        if (addLog && currentProject) {
+          try {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await addLog({
+              type: 'generateFull',
+              prompt: fullPrompt || '',
+              response: '',
+              error: errorMessage,
+            });
+          } catch (logError) {
+            console.error('AIログの記録に失敗しました:', logError);
+          }
+        }
       }
     } finally {
       setIsGeneratingAllChapters(false);
@@ -338,6 +362,7 @@ export const useAllChaptersGeneration = ({
     updateProject,
     setChapterDrafts,
     setShowCompletionToast,
+    addLog,
   ]);
 
   return {

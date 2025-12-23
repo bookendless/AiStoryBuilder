@@ -275,7 +275,7 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {/* ステップナビゲーション */}
       <StepNavigation
         currentStep="synopsis"
