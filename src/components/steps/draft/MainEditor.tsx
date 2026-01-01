@@ -79,7 +79,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
       const applyStyles = () => {
         const editor = mdEditorRef.current;
         if (!editor) return;
-        
+
         const textarea = editor.querySelector?.('textarea');
         if (textarea) {
           textarea.style.fontSize = `${mainFontSize}px`;
@@ -92,7 +92,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
 
       // 少し遅延して再適用（Markdownエディタの内部レンダリングを待つ）
       const timeoutId = setTimeout(applyStyles, 100);
-      
+
       return () => clearTimeout(timeoutId);
     }
   }, [mainFontSize, mainComputedLineHeight, isVerticalWriting, draft]);
@@ -154,21 +154,21 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
     },
     insertText: (text: string) => {
       let textarea: HTMLTextAreaElement | null = null;
-      
+
       if (isVerticalWriting) {
         textarea = mainTextareaRef.current;
       } else if (mdEditorRef.current) {
         textarea = mdEditorRef.current?.querySelector?.('textarea') || null;
       }
-      
+
       if (!textarea) return;
-      
+
       const { selectionStart, selectionEnd, value } = textarea;
       const newValue = value.slice(0, selectionStart) + text + value.slice(selectionEnd);
-      
+
       // 値を更新
       onDraftChange(newValue);
-      
+
       // カーソル位置を挿入したテキストの後に移動
       setTimeout(() => {
         if (textarea) {
@@ -181,7 +181,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   }), [isVerticalWriting, onDraftChange]);
 
   return (
-    <div className={`flex-1 min-w-0 space-y-6 ${isZenMode ? 'z-50' : ''}`}>
+    <div className={`flex-1 min-w-0 w-full max-w-full space-y-6 overflow-hidden ${isZenMode ? 'z-50' : ''}`}>
       <div
         className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden ${isZenMode ? 'fixed inset-0 z-50 flex flex-col' : ''}`}
         style={isZenMode ? { borderRadius: 0, border: 'none' } : undefined}
@@ -204,11 +204,11 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                         value={draft}
                         onChange={(e) => onDraftChange(e.target.value)}
                         placeholder="ここに草案を執筆してください..."
-                        className={`flex-1 px-6 py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none font-serif-jp text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${isZenMode ? 'h-full' : ''}`}
+                        className={`flex-1 px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none font-serif-jp text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${isZenMode ? 'h-full' : ''}`}
                         style={{
                           fontSize: mainFontSize,
                           lineHeight: mainLineHeight,
-                          height: isZenMode ? '100%' : mainTextareaHeight,
+                          height: isZenMode ? '100%' : `min(${mainTextareaHeight}px, 80vh)`,
                           writingMode: 'vertical-rl',
                           textOrientation: 'upright',
                           letterSpacing: '0.05em',
@@ -226,7 +226,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                         ref={mdEditorRef}
                         className="flex-1"
                         style={{
-                          height: isZenMode ? '100%' : mainTextareaHeight,
+                          height: isZenMode ? '100%' : `min(${mainTextareaHeight}px, 80vh)`,
                           '--editor-font-size': `${mainFontSize}px`,
                           '--editor-line-height': `${mainComputedLineHeight}px`,
                         } as React.CSSProperties}
@@ -234,7 +234,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                         <MdEditor
                           value={draft}
                           style={{
-                            height: isZenMode ? '100%' : mainTextareaHeight,
+                            height: isZenMode ? '100%' : `min(${mainTextareaHeight}px, 80vh)`,
                           }}
                           renderHTML={(text: string) => mdParser.render(text)}
                           onChange={handleMarkdownChange}
@@ -279,7 +279,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
         </div>
 
         {/* フッター（禅モード時は簡易表示） */}
-        <div className={`border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-900/30 ${isZenMode ? 'bg-gray-900/90 text-white border-none' : ''}`}>
+        <div className={`border-t border-gray-200 dark:border-gray-700 px-4 py-3 sm:px-6 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-900/30 ${isZenMode ? 'bg-gray-900/90 text-white border-none' : ''}`}>
           <div className="flex flex-col gap-1">
             <div className={`text-sm font-['Noto_Sans_JP'] ${isZenMode ? 'text-gray-300' : 'text-gray-600 dark:text-gray-400'}`}>
               文字数: {wordCount.toLocaleString()}
@@ -310,8 +310,8 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                 onClick={onSave}
                 disabled={!selectedChapter}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-['Noto_Sans_JP'] text-sm disabled:opacity-50 disabled:cursor-not-allowed ${isZenMode
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
                   }`}
               >
                 <Save className="h-4 w-4" />
@@ -335,8 +335,8 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                 type="button"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={`flex items-center justify-center p-2 rounded-lg border transition-colors ${isZenMode
-                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 aria-label="その他の操作"
                 aria-expanded={isMenuOpen}

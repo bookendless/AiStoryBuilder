@@ -10,6 +10,7 @@ import { PieChart, type PieChartData } from './common/PieChart';
 import { ConfirmDialog } from './common/ConfirmDialog';
 import { BackupDescriptionModal } from './steps/draft/BackupDescriptionModal';
 import { ClearAllDataConfirmModal } from './common/ClearAllDataConfirmModal';
+import { isTauriEnvironment, isAndroidEnvironment } from '../utils/platformUtils';
 
 interface DataManagerProps {
   isOpen: boolean;
@@ -59,10 +60,10 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
   // 確認ダイアログの状態（全ての確認操作を統合）
   const [confirmDialogState, setConfirmDialogState] = useState<{
     isOpen: boolean;
-    type: 'delete-backup' | 'restore-backup' | 'import-data' | 
-          'cleanup-localstorage' | 'cleanup-history-date' | 'cleanup-ailog-date' |
-          'delete-project-history' | 'delete-project-ailog' | 
-          'optimize-database' | 'optimize-database-compact' | 'clear-all-data' | null;
+    type: 'delete-backup' | 'restore-backup' | 'import-data' |
+    'cleanup-localstorage' | 'cleanup-history-date' | 'cleanup-ailog-date' |
+    'delete-project-history' | 'delete-project-ailog' |
+    'optimize-database' | 'optimize-database-compact' | 'clear-all-data' | null;
     // バックアップ関連
     backupId?: string;
     backupType?: 'manual' | 'auto';
@@ -123,7 +124,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         } else if (!b.compressed && typeof b.data === 'object') {
           projectData = b.data as Project;
         }
-        
+
         return {
           id: b.id,
           projectId: b.projectId,
@@ -146,7 +147,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         } else if (!b.compressed && typeof b.data === 'object') {
           projectData = b.data as Project;
         }
-        
+
         return {
           id: b.id,
           projectId: b.projectId,
@@ -228,7 +229,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     if (!projectData) return [];
     const { historyCount, aiLogCount, backupCount } = projectData;
     const total = historyCount + aiLogCount + backupCount;
-    
+
     if (total === 0) {
       return [
         { name: 'データなし', value: 1, color: '#9CA3AF' }
@@ -353,27 +354,24 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  // Tauri環境の検出
-  const isTauriEnvironment = (): boolean => {
-    if (typeof window === 'undefined') return false;
-    const typedWindow = window as Window & { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown };
-    return Boolean(typedWindow.__TAURI_INTERNALS__ || typedWindow.__TAURI__);
-  };
-
   const handleExportData = async () => {
     setIsLoading(true);
     try {
       const exportData = await databaseService.exportData();
       const fileName = `story-builder-backup-${new Date().toISOString().split('T')[0]}.json`;
 
-      // Tauri環境の場合、プラグインを動的にインポート
+      // Tauri環境かどうかを確認（Tauri 2対応）
       const isTauri = isTauriEnvironment();
+      const _isAndroid = await isAndroidEnvironment();
+
+      // Tauri環境（デスクトップまたはAndroid/iOS）
       if (isTauri) {
         try {
+          // 動的インポートを使用してプラグインを読み込み
           const { save } = await import('@tauri-apps/plugin-dialog');
           const { writeTextFile } = await import('@tauri-apps/plugin-fs');
 
-          // Tauriのダイアログを使用してファイル保存場所を選択
+          // 保存ダイアログを表示（Androidでも対応している場合はドキュメントピッカーが開く）
           const filePath = await save({
             title: 'バックアップファイルを保存',
             defaultPath: fileName,
@@ -386,28 +384,68 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
           });
 
           if (filePath) {
-            // TauriのファイルシステムAPIを使用してファイルを保存
             await writeTextFile(filePath, exportData);
-            showSuccess('データをエクスポートしました', 3000);
+            showSuccess('データを指定の場所に保存しました', 3000);
+            return;
+          }
+
+          // ユーザーがダイアログをキャンセルした場合はここで終了
+          if (filePath === null) {
+            setIsLoading(false);
             return;
           }
         } catch (pluginError) {
-          console.warn('Tauri plugin error, falling back to browser download:', pluginError);
-          // エラーが発生した場合はブラウザダウンロードにフォールバック
+          console.warn('Tauri plugin error, falling back to share/download:', pluginError);
+          // ダイアログプラグインがAndroidで機能しない、または未セットアップの場合は共有メニューへ
         }
       }
 
-      // ブラウザ環境またはTauriプラグインが使えない場合
-      const blob = new Blob([exportData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showSuccess('データをエクスポートしました', 3000);
+      // Android端末またはWeb環境での共有・ダウンロード
+      let exported = false;
+
+      // Share APIを試行（特にAndroidで有効）
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          // JSONデータが大きい場合、Fileオブジェクトとして共有
+          const file = new File([exportData], fileName, { type: 'application/json' });
+
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: 'データバックアップ',
+              text: 'AI Story Builderのデータバックアップ',
+              files: [file]
+            });
+            showSuccess('共有メニューを開きました', 3000);
+            exported = true;
+          } else {
+            // ファイル形式が共有不可の場合、テキストとして共有
+            await navigator.share({
+              title: fileName,
+              text: exportData
+            });
+            showSuccess('データをテキストとして共有しました', 3000);
+            exported = true;
+          }
+        } catch (shareError) {
+          if (shareError instanceof Error && shareError.name !== 'AbortError') {
+            console.warn('Share API failed:', shareError);
+          }
+        }
+      }
+
+      // Share APIも失敗した場合（または非対応）、ブラウザダウンロード
+      if (!exported) {
+        const blob = new Blob([exportData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showSuccess('ブラウザ経由でダウンロードを開始しました', 3000);
+      }
     } catch (error) {
       console.error('Export error:', error);
       const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
@@ -430,7 +468,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       type: 'import-data',
       importFile: file,
     });
-    
+
     // ファイル入力をリセット（確認後に処理される）
     event.target.value = '';
   };
@@ -742,8 +780,8 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
               key={tab.id}
               onClick={() => setActiveTab(tab.id as 'overview' | 'backups' | 'cleanup' | 'import-export')}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors font-['Noto_Sans_JP'] ${activeTab === tab.id
-                  ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
             >
               <Icon className="h-4 w-4" />
@@ -1107,7 +1145,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                           showError('日付を選択してください', 3000);
                           return;
                         }
-                        const projectName = historyCleanupProjectId 
+                        const projectName = historyCleanupProjectId
                           ? projects.find(p => p.id === historyCleanupProjectId)?.title || ''
                           : '全プロジェクト';
                         setConfirmDialogState({
@@ -1167,7 +1205,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                           showError('日付を選択してください', 3000);
                           return;
                         }
-                        const projectName = aiLogCleanupProjectId 
+                        const projectName = aiLogCleanupProjectId
                           ? projects.find(p => p.id === aiLogCleanupProjectId)?.title || ''
                           : '全プロジェクト';
                         setConfirmDialogState({

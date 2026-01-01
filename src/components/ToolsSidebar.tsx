@@ -268,8 +268,8 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
   return (
     <>
       <aside
-        className={`fixed right-0 top-0 h-full bg-white dark:bg-gray-800 shadow-lg border-l border-gray-200 dark:border-gray-700 transition-all duration-300 z-30 ${className} ${isCollapsed ? 'w-16' : 'w-72'
-          }`}
+        className={`bg-white dark:bg-gray-800 transition-all duration-300 z-30 ${className.includes('static') || className.includes('relative') ? '' : 'fixed right-0 top-0 h-full shadow-lg border-l border-gray-200 dark:border-gray-700'
+          } ${className} ${isCollapsed ? 'w-16' : 'w-72'}`}
         role="complementary"
         aria-label="ツールサイドバー"
       >

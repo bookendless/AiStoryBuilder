@@ -1,5 +1,8 @@
 import { HistoryEntryType } from '../constants/draft';
 
+// HistoryEntryTypeを再エクスポート（後方互換性のため）
+export type { HistoryEntryType };
+
 export interface ChapterHistoryEntry {
   id: string;
   timestamp: number;
@@ -27,8 +30,20 @@ export interface ImprovementLog {
   revisedLength: number;
 }
 
-export type GenerationAction = 'fullDraft' | 'continue' | 'description' | 'style' | 'shorten' | 'improve' | 'selfRefine';
-export type SecondaryTab = 'ai' | 'display' | 'history' | 'project';
+export type GenerationAction =
+  | 'fullDraft'
+  | 'continue'
+  | 'description'
+  | 'style'
+  | 'shorten'
+  | 'improve'
+  | 'selfRefine';
+
+export type SecondaryTab = 'ai' | 'display' | 'history' | 'project' | 'aiLogs';
+
+export type AIStatusTone = 'emerald' | 'blue' | 'purple';
+
+export type AILogType = 'generateSingle' | 'continue' | 'suggestions';
 
 export interface SuggestionPromptPayload {
   selectedText: string;
@@ -36,4 +51,3 @@ export interface SuggestionPromptPayload {
   chapterSummary?: string;
   projectTitle?: string;
 }
-

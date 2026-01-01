@@ -150,26 +150,86 @@ export const ChapterFormModal: React.FC<ChapterFormModalProps> = ({
                   </div>
                 )}
 
-                {/* 選択されたキャラクター表示 */}
+                {/* 選択されたキャラクター表示（プロジェクトキャラクター + 端役） */}
                 {formData.characters.length > 0 && currentProject && (
-                  <div className="flex flex-wrap gap-2">
-                    {formData.characters.map((characterId) => {
-                      const character = currentProject.characters.find(c => c.id === characterId);
-                      return character ? (
-                        <div
-                          key={characterId}
-                          className="flex items-center space-x-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full text-sm"
-                        >
-                          <span>{character.name}</span>
-                          <button
-                            onClick={() => onCharacterToggle(characterId)}
-                            className="ml-1 text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-200"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ) : null;
-                    })}
+                  <div className="space-y-2">
+                    {/* プロジェクトに登録されたキャラクター（IDまたは名前でマッチ） */}
+                    {(() => {
+                      // キャラクターがプロジェクトのキャラクターにマッチするかチェック
+                      const isRegisteredCharacter = (charIdOrName: string) => {
+                        return currentProject.characters.some(c =>
+                          c.id === charIdOrName ||
+                          c.name === charIdOrName ||
+                          c.name.includes(charIdOrName) ||
+                          charIdOrName.includes(c.name)
+                        );
+                      };
+
+                      // プロジェクトキャラクターを取得
+                      const getProjectCharacter = (charIdOrName: string) => {
+                        return currentProject.characters.find(c =>
+                          c.id === charIdOrName ||
+                          c.name === charIdOrName ||
+                          c.name.includes(charIdOrName) ||
+                          charIdOrName.includes(c.name)
+                        );
+                      };
+
+                      const registeredChars = formData.characters.filter(isRegisteredCharacter);
+                      const minorChars = formData.characters.filter(c => !isRegisteredCharacter(c));
+
+                      return (
+                        <>
+                          {registeredChars.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {registeredChars.map((charIdOrName) => {
+                                const character = getProjectCharacter(charIdOrName);
+                                return character ? (
+                                  <div
+                                    key={charIdOrName}
+                                    className="flex items-center space-x-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full text-sm"
+                                  >
+                                    <span>{character.name}</span>
+                                    <button
+                                      onClick={() => onCharacterToggle(character.id)}
+                                      className="ml-1 text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-200"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          )}
+
+                          {/* 端役（プロジェクトに登録されていないキャラクター） */}
+                          {minorChars.length > 0 && (
+                            <div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-['Noto_Sans_JP']">端役</p>
+                              <div className="flex flex-wrap gap-2">
+                                {minorChars.map((characterName) => (
+                                  <div
+                                    key={characterName}
+                                    className="flex items-center space-x-1 px-3 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded-full text-sm border border-amber-300 dark:border-amber-700"
+                                  >
+                                    <span>{characterName}</span>
+                                    <button
+                                      onClick={() => onFormDataChange({
+                                        ...formData,
+                                        characters: formData.characters.filter(c => c !== characterName)
+                                      })}
+                                      className="ml-1 text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 

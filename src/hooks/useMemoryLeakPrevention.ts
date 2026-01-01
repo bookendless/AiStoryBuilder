@@ -3,7 +3,7 @@
  * Phase 1: メモリリークの修正とクリーンアップ強化
  */
 
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 
 /**
  * 安全なuseEffectフック
@@ -19,7 +19,7 @@ export const useSafeEffect = (
   useEffect(() => {
     // 前回のクリーンアップを実行
     cleanupRef.current?.();
-    
+
     // 新しいエフェクトを実行
     const cleanup = effect();
     cleanupRef.current = cleanup || null;
@@ -28,7 +28,7 @@ export const useSafeEffect = (
       cleanupRef.current?.();
       cleanupRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   // コンポーネントのマウント状態を管理
@@ -54,7 +54,7 @@ export const useTimer = () => {
       timersRef.current.delete(timerId);
       callback();
     }, delay);
-    
+
     timersRef.current.add(timerId);
     return timerId;
   }, []);

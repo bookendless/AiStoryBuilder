@@ -56,7 +56,7 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
       setCanScrollRight(false);
       return;
     }
-    
+
     const { scrollLeft, scrollWidth, clientWidth } = container;
     setCanScrollLeft(scrollLeft > 0);
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1);
@@ -82,7 +82,7 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
     const scrollLeft = tabCenter - containerWidth / 2;
 
     container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
-    
+
     // スクロール完了後にボタン状態を更新
     setTimeout(updateScrollButtons, 300);
   }, [selectedChapterId, updateScrollButtons]);
@@ -166,7 +166,7 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
       <div className="relative">
         {/* スクロール可能な章タブエリア */}
         <div className="relative">
-          {/* 左スクロールボタン */}
+          {/* 左スクロールボタン (デスクトップのみ) */}
           {canScrollLeft && (
             <button
               type="button"
@@ -176,14 +176,14 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
                   container.scrollBy({ left: -300, behavior: 'smooth' });
                 }
               }}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               aria-label="左にスクロール"
             >
               <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
             </button>
           )}
 
-          {/* 右スクロールボタン */}
+          {/* 右スクロールボタン (デスクトップのみ) */}
           {canScrollRight && (
             <button
               type="button"
@@ -193,7 +193,7 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
                   container.scrollBy({ left: 300, behavior: 'smooth' });
                 }
               }}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="hidden sm:block absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               aria-label="右にスクロール"
             >
               <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-300" />
@@ -204,7 +204,7 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
             ref={chapterTabsContainerRef}
             role="tablist"
             aria-label="章一覧"
-            className="flex gap-2 overflow-x-auto pb-2 pt-1 scrollbar-hide"
+            className="grid grid-cols-2 gap-2 sm:flex sm:overflow-x-auto pb-2 pt-1 scrollbar-hide"
             style={{
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
@@ -222,26 +222,25 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
                   tabIndex={isSelected ? 0 : -1}
                   aria-selected={isSelected}
                   onClick={() => onChapterSelect(chapter.id)}
-                  className={`group flex min-w-[200px] flex-col gap-1 rounded-xl border px-4 py-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 font-['Noto_Sans_JP'] ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-400 dark:bg-blue-900/40 dark:text-blue-100'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-gray-700'
-                  }`}
+                  className={`group flex sm:min-w-[200px] flex-col gap-1 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 font-['Noto_Sans_JP'] ${isSelected
+                    ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-400 dark:bg-blue-900/40 dark:text-blue-100'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-gray-700'
+                    }`}
                 >
-                  <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400">
                     <span>{`第${index + 1}章`}</span>
                     {hasContent && (
                       <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                        <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                        草案あり
+                        <span className="inline-block h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-emerald-500" />
+                        <span className="hidden sm:inline">草案あり</span>
                       </span>
                     )}
                   </div>
-                  <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                  <div className="truncate text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
                     {chapter.title || `章 ${index + 1}`}
                   </div>
                   {chapter.summary && (
-                    <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 max-h-10 overflow-hidden">
+                    <p className="hidden sm:block text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 max-h-10 overflow-hidden">
                       {convertSummaryCharacterIds(chapter.summary)}
                     </p>
                   )}
@@ -251,56 +250,20 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
           </div>
         </div>
 
-        {/* 章数が多い場合のドロップダウン（モバイル表示） */}
-        {chapters.length > 5 && (
-          <div className="mt-3 sm:hidden">
-            <select
-              value={selectedChapterId || ''}
-              onChange={(e) => onChapterSelect(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-['Noto_Sans_JP'] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">章を選択してください</option>
-              {chapters.map((chapter, index) => (
-                <option key={chapter.id} value={chapter.id}>
-                  第{index + 1}章: {chapter.title || `章 ${index + 1}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* 章数が多い場合のデスクトップ用ドロップダウン */}
-        {chapters.length > 8 && (
-          <div className="hidden sm:block mt-3">
-            <select
-              value={selectedChapterId || ''}
-              onChange={(e) => onChapterSelect(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-['Noto_Sans_JP'] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">章を選択してください（クイック選択）</option>
-              {chapters.map((chapter, index) => (
-                <option key={chapter.id} value={chapter.id}>
-                  第{index + 1}章: {chapter.title || `章 ${index + 1}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <select
+          value={selectedChapterId || ''}
+          onChange={(e) => onChapterSelect(e.target.value)}
+          className="sr-only"
+          aria-label="章を選択"
+        >
+          <option value="">章を選択してください</option>
+          {chapters.map(chapter => (
+            <option key={chapter.id} value={chapter.id}>
+              {chapter.title}
+            </option>
+          ))}
+        </select>
       </div>
-
-      <select
-        value={selectedChapterId || ''}
-        onChange={(e) => onChapterSelect(e.target.value)}
-        className="sr-only"
-        aria-label="章を選択"
-      >
-        <option value="">章を選択してください</option>
-        {chapters.map(chapter => (
-          <option key={chapter.id} value={chapter.id}>
-            {chapter.title}
-          </option>
-        ))}
-      </select>
     </div>
   );
 };

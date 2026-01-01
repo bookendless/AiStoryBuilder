@@ -4,14 +4,24 @@
 
 ## 開発環境とTauri環境の違い
 
-AI Story Builder は Tauri ベースのデスクトップアプリケーションですが、開発時には通常のブラウザ環境（`npm run dev`）でも動作するように設計されています。
+AI Story Builder は Tauri ベースのデスクトップアプリケーションおよびAndroidアプリケーションですが、開発時には通常のブラウザ環境（`npm run dev`）でも動作するように設計されています。
 
 ### 環境の検出
 
 アプリケーションは自動的に実行環境を検出します：
 
-- **Tauri環境**: `npm run tauri:dev` または ビルドされたアプリケーション
+- **Tauri環境（デスクトップ）**: `npm run tauri:dev` または ビルドされたアプリケーション
+- **Tauri環境（Android）**: `npm run tauri:dev:android` または ビルドされたAndroidアプリ
 - **ブラウザ環境**: `npm run dev` （開発用Viteサーバー）
+
+### Android開発環境
+
+Androidアプリを開発する場合は、追加のセットアップが必要です。詳細は [TAURI_SETUP.md](TAURI_SETUP.md#android) を参照してください。
+
+主な要件：
+- Java JDK 17以上
+- Android Studio（Android SDK、NDK、Build Tools）
+- 環境変数の設定（`JAVA_HOME`、`ANDROID_HOME`）
 
 ## 開発環境でのAI機能
 

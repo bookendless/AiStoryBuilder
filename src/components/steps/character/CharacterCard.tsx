@@ -69,13 +69,67 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo<CharacterC
           : 'border-gray-100 dark:border-gray-700 cursor-move hover:shadow-xl hover:scale-[1.02]'
         }`}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-4 sm:gap-0">
+        <div className="flex justify-end sm:block order-1 sm:order-2">
+          <div className="flex items-center space-x-2">
+            {onPossession && (
+              <button
+                onClick={onPossession}
+                className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                title="🎭 キャラクター憑依モード"
+                aria-label="キャラクター憑依モード"
+              >
+                <MessageSquare className="h-4 w-4" />
+              </button>
+            )}
+            {onDiary && (
+              <button
+                onClick={onDiary}
+                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                title="📔 本音日記"
+                aria-label="本音日記"
+              >
+                <BookOpen className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={onEdit}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="キャラクターを編集"
+              aria-label="キャラクターを編集"
+            >
+              <Edit3 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onAIEnhance}
+              disabled={enhancingId === character.id || !isConfigured}
+              className="p-2 text-pink-600 dark:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 rounded-lg transition-colors disabled:opacity-50"
+              title="AI支援で詳細を補完"
+              aria-label="AI支援で詳細を補完"
+            >
+              {enhancingId === character.id ? (
+                <Loader className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              title="キャラクターを削除"
+              aria-label="キャラクターを削除"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3 w-full sm:w-auto order-2 sm:order-1">
           <div className="flex items-center space-x-2">
             <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
               <GripVertical className="h-5 w-5" />
             </div>
-            <div className="w-16 h-24 rounded-lg flex items-center justify-center overflow-hidden relative group">
+            <div className="w-16 h-24 rounded-lg flex items-center justify-center overflow-hidden relative group shrink-0">
               {character.image ? (
                 <div
                   className="relative cursor-pointer w-full h-full"
@@ -89,19 +143,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo<CharacterC
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
                     <ZoomIn className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                   </div>
-                  {onUpdate && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onUpdate({ ...character, image: '' });
-                      }}
-                      className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                      title="画像を削除"
-                      aria-label="画像を削除"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
                 </div>
               ) : (
                 <div className="bg-gradient-to-br from-pink-500 to-purple-600 w-full h-full rounded-lg flex items-center justify-center">
@@ -136,66 +177,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo<CharacterC
                   className="text-sm"
                   maxLength={100}
                   showEditIcon={true}
+                  multiline={true}
                 />
               ) : (
-                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] break-words whitespace-pre-wrap">
                   {character.role}
                 </p>
               )}
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          {onPossession && (
-            <button
-              onClick={onPossession}
-              className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-              title="🎭 キャラクター憑依モード"
-              aria-label="キャラクター憑依モード"
-            >
-              <MessageSquare className="h-4 w-4" />
-            </button>
-          )}
-          {onDiary && (
-            <button
-              onClick={onDiary}
-              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-              title="📔 本音日記"
-              aria-label="本音日記"
-            >
-              <BookOpen className="h-4 w-4" />
-            </button>
-          )}
-          <button
-            onClick={onEdit}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="キャラクターを編集"
-            aria-label="キャラクターを編集"
-          >
-            <Edit3 className="h-4 w-4" />
-          </button>
-          <button
-            onClick={onAIEnhance}
-            disabled={enhancingId === character.id || !isConfigured}
-            className="p-2 text-pink-600 dark:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 rounded-lg transition-colors disabled:opacity-50"
-            title="AI支援で詳細を補完"
-            aria-label="AI支援で詳細を補完"
-          >
-            {enhancingId === character.id ? (
-              <Loader className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-            title="キャラクターを削除"
-            aria-label="キャラクターを削除"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
         </div>
       </div>
 

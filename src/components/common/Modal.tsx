@@ -26,7 +26,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
     const modalRef = (ref as React.RefObject<HTMLDivElement>) || internalRef;
     const previousActiveElement = useRef<HTMLElement | null>(null);
     const hasInitialFocused = useRef(false);
-    
+
     // onCloseをrefで保持して、依存関係から除外
     const onCloseRef = useRef(onClose);
     useEffect(() => {
@@ -44,7 +44,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
     // キーボードイベントハンドラー（refを使用して安定した参照を維持）
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if (!modalRef.current) return;
-        
+
         // Escapeキーでモーダルを閉じる
         if (e.key === 'Escape') {
             onCloseRef.current();
@@ -111,7 +111,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = 'unset';
-            
+
             // 前の要素にフォーカスを戻す
             if (previousActiveElement.current) {
                 previousActiveElement.current.focus();
@@ -126,12 +126,12 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
         md: 'max-w-2xl',
         lg: 'max-w-4xl',
         xl: 'max-w-6xl',
-        full: 'max-w-full mx-4',
+        full: 'max-w-full mx-0 sm:mx-4',
     };
 
     return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6"
             role="dialog"
             aria-modal="true"
         >
@@ -149,16 +149,16 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
                 className={`
           relative w-full ${sizeClasses[size]} 
           glass-strong glass-shimmer
-          rounded-2xl
-          transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95
-          flex flex-col max-h-[90vh]
+          rounded-t-2xl sm:rounded-2xl
+          transform transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95
+          flex flex-col max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[90vh]
           focus:outline-none
           ${className}
         `}
             >
                 {/* ヘッダー */}
                 {(title || showCloseButton) && (
-                    <div className="flex items-center justify-between p-6 border-b border-white/20 dark:border-white/10 shrink-0">
+                    <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/20 dark:border-white/10 shrink-0">
                         {title && (
                             <div className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                                 {title}
@@ -177,7 +177,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
                 )}
 
                 {/* コンテンツ */}
-                <div className="p-6 overflow-y-auto custom-scrollbar">
+                <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
                     {children}
                 </div>
             </div>

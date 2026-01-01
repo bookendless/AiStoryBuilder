@@ -179,7 +179,7 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
     };
   }, [currentProject, buildCharactersInfo, buildBasicPlotInfo, buildDetailedStructureInfo, buildProjectInfo]);
 
-  const handleAIGenerate = async () => {
+  const _handleAIGenerate = async () => {
     if (!isConfigured) {
       showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
         title: 'AI設定が必要',
@@ -220,7 +220,7 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
           errorInfo.details,
           errorInfo.retryable ? {
             label: '再試行',
-            onClick: () => handleAIGenerate(),
+            onClick: () => _handleAIGenerate(),
             variant: 'primary',
           } : undefined
         );
@@ -243,7 +243,7 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
         errorInfo.details,
         errorInfo.retryable ? {
           label: '再試行',
-          onClick: () => handleAIGenerate(),
+          onClick: () => _handleAIGenerate(),
           variant: 'primary',
         } : undefined
       );

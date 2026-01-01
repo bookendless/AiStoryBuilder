@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import { Project } from '../../../../contexts/ProjectContext';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
-import { downloadTextFileInBrowser, isTauriEnvironment, sanitizeFilename } from '../utils';
+import { downloadTextFileInBrowser, sanitizeFilename } from '../utils';
+import { isTauriEnvironment, isAndroidEnvironment } from '../../../../utils/platformUtils';
 
 interface UseExportOptions {
   currentProject: Project | null;
@@ -31,7 +32,11 @@ export const useExport = ({
       const filename = sanitizeFilename(`${chapterTitle}.txt`);
       let exported = false;
 
-      if (isTauriEnvironment()) {
+      const isTauri = isTauriEnvironment();
+      const isAndroid = isTauri ? await isAndroidEnvironment() : false;
+
+      // Android環境ではファイルシステムAPIの代わりにShare APIまたはブラウザダウンロードを使用
+      if (isTauri && !isAndroid) {
         try {
           const filePath = await save({
             title: 'ファイルを保存',
@@ -54,10 +59,34 @@ export const useExport = ({
         }
       }
 
+      // Android環境またはファイルシステムAPIが使えない場合
       if (!exported) {
         try {
-          downloadTextFileInBrowser(filename, content);
-          onSuccess?.('ブラウザから章のテキストをダウンロードしました');
+          // Android環境ではShare APIを試行
+          if (isAndroid && typeof navigator !== 'undefined' && navigator.share) {
+            try {
+              await navigator.share({
+                title: chapterTitle,
+                text: content,
+                files: [
+                  new File([content], filename, { type: 'text/plain' })
+                ]
+              });
+              onSuccess?.('ファイルを共有しました');
+              exported = true;
+            } catch (shareError) {
+              // Share APIがキャンセルされた場合や失敗した場合はダウンロードにフォールバック
+              if (shareError instanceof Error && shareError.name !== 'AbortError') {
+                console.warn('Share API failed, falling back to download:', shareError);
+              }
+            }
+          }
+          
+          // Share APIが使えない場合や失敗した場合はブラウザダウンロード
+          if (!exported) {
+            downloadTextFileInBrowser(filename, content);
+            onSuccess?.('ブラウザから章のテキストをダウンロードしました');
+          }
         } catch (error) {
           console.error('Browser export error:', error);
           onError?.(
@@ -92,7 +121,11 @@ export const useExport = ({
     const filename = sanitizeFilename(`${currentProject.title}_完全版.txt`);
     let exported = false;
 
-    if (isTauriEnvironment()) {
+    const isTauri = isTauriEnvironment();
+    const isAndroid = isTauri ? await isAndroidEnvironment() : false;
+
+    // Android環境ではファイルシステムAPIの代わりにShare APIまたはブラウザダウンロードを使用
+    if (isTauri && !isAndroid) {
       try {
         const filePath = await save({
           title: 'ファイルを保存',
@@ -115,10 +148,34 @@ export const useExport = ({
       }
     }
 
+    // Android環境またはファイルシステムAPIが使えない場合
     if (!exported) {
       try {
-        downloadTextFileInBrowser(filename, content);
-        onSuccess?.('ブラウザから完全版テキストをダウンロードしました');
+        // Android環境ではShare APIを試行
+        if (isAndroid && typeof navigator !== 'undefined' && navigator.share) {
+          try {
+            await navigator.share({
+              title: currentProject.title,
+              text: content,
+              files: [
+                new File([content], filename, { type: 'text/plain' })
+              ]
+            });
+            onSuccess?.('ファイルを共有しました');
+            exported = true;
+          } catch (shareError) {
+            // Share APIがキャンセルされた場合や失敗した場合はダウンロードにフォールバック
+            if (shareError instanceof Error && shareError.name !== 'AbortError') {
+              console.warn('Share API failed, falling back to download:', shareError);
+            }
+          }
+        }
+        
+        // Share APIが使えない場合や失敗した場合はブラウザダウンロード
+        if (!exported) {
+          downloadTextFileInBrowser(filename, content);
+          onSuccess?.('ブラウザから完全版テキストをダウンロードしました');
+        }
       } catch (error) {
         console.error('Browser export error:', error);
         onError?.(

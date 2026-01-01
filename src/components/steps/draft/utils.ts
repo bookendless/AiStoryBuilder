@@ -58,11 +58,8 @@ export const parseAISuggestions = (raw: string): AISuggestion[] => {
   ];
 };
 
-export const isTauriEnvironment = () => {
-  if (typeof window === 'undefined') return false;
-  const typedWindow = window as Window & { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown };
-  return Boolean(typedWindow.__TAURI_INTERNALS__ || typedWindow.__TAURI__);
-};
+// プラットフォーム検出関数は共通ユーティリティからインポート
+export { isTauriEnvironment, isAndroidEnvironment } from '../../../utils/platformUtils';
 
 export const sanitizeFilename = (filename: string) => filename.replace(/[\\/:*?"<>|]/g, '_');
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Home, Save, PanelLeftClose, PanelLeftOpen, Database, Settings, TrendingUp, ChevronRight, Check, HelpCircle, Menu, GraduationCap, MoreVertical, Circle } from 'lucide-react';
+import { Moon, Sun, Home, Save, PanelLeftClose, PanelLeftOpen, Database, Settings, TrendingUp, ChevronRight, Check, HelpCircle, Menu, GraduationCap, MoreVertical, Circle, Wrench } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAI } from '../contexts/AIContext';
 import { DataManager } from './DataManager';
@@ -23,6 +23,7 @@ interface HeaderProps {
   currentStep?: Step;
   onNavigate?: (step: Step, chapterId?: string) => void;
   onToggleMobileMenu?: () => void;
+  onToggleMobileToolsMenu?: () => void;
   onShowOnboarding?: (mode?: 'full' | 'quick') => void;
 }
 
@@ -37,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentStep = 'home',
   onNavigate,
   onToggleMobileMenu,
+  onToggleMobileToolsMenu,
   onShowOnboarding,
 }) => {
   const breakpoint = useBreakpoint();
@@ -115,8 +117,8 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="px-3 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 sm:space-x-4">
-              {/* モバイルメニューボタン */}
-              {breakpoint === 'mobile' && showSidebarControls && onToggleMobileMenu && (
+              {/* モバイル/タブレットメニューボタン */}
+              {breakpoint !== 'desktop' && showSidebarControls && onToggleMobileMenu && (
                 <button
                   onClick={onToggleMobileMenu}
                   className="p-2 rounded-lg text-sumi-700 dark:text-usuzumi-300 hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2 lg:hidden"
@@ -132,10 +134,12 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-label="ホームページに戻る"
               >
                 <Home className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
-                <span className="hidden sm:inline">ホーム</span>
+                <span className="hidden lg:inline">ホーム</span>
               </button>
 
-              <div className="hidden md:flex items-center space-x-4 flex-1">
+              {/* ツールメニューボタンは右端に移動 */}
+
+              <div className="hidden lg:flex items-center space-x-4 flex-1">
                 <SearchBar onNavigate={onNavigate} />
 
                 {/* 進捗バー */}
@@ -144,7 +148,12 @@ export const Header: React.FC<HeaderProps> = ({
                     <div
                       className="relative cursor-pointer group"
                       onClick={() => setShowProgressDetails(!showProgressDetails)}
-                      onMouseEnter={() => setShowProgressDetails(true)}
+                      onMouseEnter={() => {
+                        // Landscapeモードで高さが足りない場合はツールチップを表示しない
+                        if (window.innerHeight > 500) {
+                          setShowProgressDetails(true);
+                        }
+                      }}
                       onMouseLeave={() => setShowProgressDetails(false)}
                     >
                       <div className="flex items-center space-x-2 mb-1">
@@ -159,10 +168,10 @@ export const Header: React.FC<HeaderProps> = ({
                       <div className="w-full bg-usuzumi-200 dark:bg-usuzumi-700 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all duration-300 ${projectProgress.percentage === 100
-                              ? 'bg-semantic-success'
-                              : projectProgress.percentage >= 50
-                                ? 'bg-semantic-primary'
-                                : 'bg-semantic-warning'
+                            ? 'bg-semantic-success'
+                            : projectProgress.percentage >= 50
+                              ? 'bg-semantic-primary'
+                              : 'bg-semantic-warning'
                             }`}
                           style={{ width: `${projectProgress.percentage}%` }}
                         />
@@ -252,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
                     aria-describedby="save-status"
                   >
                     <Save className={`h-4 w-4 sm:h-5 sm:w-5 text-wakagusa-600 dark:text-wakagusa-400 ${isLoading ? 'animate-pulse' : ''}`} aria-hidden="true" />
-                    <span className="hidden md:inline text-sm font-['Noto_Sans_JP']">
+                    <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
                       {isLoading ? '保存中...' : lastSaved ? `保存済み ${lastSaved.toLocaleTimeString('ja-JP')}` : '保存'}
                     </span>
                   </button>
@@ -273,21 +282,21 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="relative">
                     <Database className="h-4 w-4 sm:h-5 sm:w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
                   </div>
-                  <span className="hidden md:inline text-sm font-['Noto_Sans_JP']">
+                  <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
                     データ管理
                   </span>
                 </button>
               )}
 
-              {/* ヘルプ（常時表示） */}
+              {/* ヘルプ（デスクトップのみ表示、モバイルは三点リーダー内） */}
               <button
                 onClick={() => setShowContextHelp(true)}
-                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                className="hidden lg:flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
                 aria-label="ヘルプを表示"
                 title="ヘルプ"
               >
                 <HelpCircle className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
-                <span className="hidden md:inline text-sm font-['Noto_Sans_JP']">
+                <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
                   ヘルプ
                 </span>
               </button>
@@ -309,7 +318,7 @@ export const Header: React.FC<HeaderProps> = ({
                       />
                     )}
                   </div>
-                  <span className="hidden md:inline text-sm font-['Noto_Sans_JP']">
+                  <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
                     AI設定
                   </span>
                 </button>
@@ -388,13 +397,52 @@ export const Header: React.FC<HeaderProps> = ({
                         </span>
                       </button>
                     )}
+
+                    {/* ヘルプ（モバイル/タブレット用） */}
+                    {breakpoint !== 'desktop' && (
+                      <button
+                        onClick={() => {
+                          setShowContextHelp(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
+                        aria-label="ヘルプを表示"
+                      >
+                        <HelpCircle className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
+                          ヘルプ
+                        </span>
+                      </button>
+                    )}
+
+                    {/* ダークモード切替（モバイル/タブレット用） */}
+                    {breakpoint !== 'desktop' && (
+                      <button
+                        onClick={() => {
+                          onToggleTheme();
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-yamabuki-500 focus:ring-inset"
+                        aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
+                      >
+                        {isDarkMode ? (
+                          <Sun className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
+                        ) : (
+                          <Moon className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
+                        )}
+                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
+                          {isDarkMode ? 'ライトモード' : 'ダークモード'}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
 
+              {/* ダークモードボタン（デスクトップのみ表示、モバイルは三点リーダー内） */}
               <button
                 onClick={onToggleTheme}
-                className="p-2 rounded-lg bg-yamabuki-100 dark:bg-yamabuki-900/30 hover:bg-yamabuki-200 dark:hover:bg-yamabuki-900/50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yamabuki-500 focus:ring-offset-2"
+                className="hidden lg:block p-2 rounded-lg bg-yamabuki-100 dark:bg-yamabuki-900/30 hover:bg-yamabuki-200 dark:hover:bg-yamabuki-900/50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yamabuki-500 focus:ring-offset-2"
                 aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
               >
                 {isDarkMode ? (
@@ -404,8 +452,19 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </button>
 
+              {/* モバイル/タブレット用ツールメニューボタン（右端） */}
+              {showSidebarControls && onToggleMobileToolsMenu && (
+                <button
+                  onClick={onToggleMobileToolsMenu}
+                  className="p-2 rounded-lg text-sumi-700 dark:text-usuzumi-300 hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2 lg:hidden"
+                  aria-label="ツールを開く"
+                >
+                  <Wrench className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
+                </button>
+              )}
+
               {/* スペーサー（ツールサイドバーとの間隔を確保） */}
-              <div className="p-2 opacity-0 pointer-events-none" aria-hidden="true">
+              <div className="hidden lg:block p-2 opacity-0 pointer-events-none" aria-hidden="true">
                 <Circle className="h-1 w-1 sm:h-1.5 sm:w-1.5" />
               </div>
             </nav>

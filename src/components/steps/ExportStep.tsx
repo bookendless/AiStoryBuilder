@@ -1,15 +1,22 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Download, FileText, File, Globe, Check, Copy, Search, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../Toast';
 import { escapeHtml, sanitizeFileName } from '../../utils/securityUtils';
+import { isTauriEnvironment } from '../../utils/platformUtils';
+import { StepNavigation } from '../common/StepNavigation';
+import { Step } from '../../contexts/ProjectContext';
 
-export const ExportStep: React.FC = () => {
+interface ExportStepProps {
+  onNavigateToStep?: (step: Step) => void;
+}
+
+export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
   const { currentProject } = useProject();
   const { showSuccess, showError } = useToast();
   const [selectedFormat, setSelectedFormat] = useState('txt');
   const [isExporting, setIsExporting] = useState(false);
-  
+
   // エクスポート内容の選択
   const [exportOptions, setExportOptions] = useState({
     basicInfo: true,
@@ -96,15 +103,15 @@ export const ExportStep: React.FC = () => {
     setExportOptions(preset.options);
     setSelectedPreset(presetKey);
   };
-  
+
   // ファイル名のカスタマイズ
   const [customFileName, setCustomFileName] = useState('');
   const [addTimestamp, setAddTimestamp] = useState(false);
   const [addVersion, setAddVersion] = useState(false);
   const [versionNumber, setVersionNumber] = useState(1);
-  
+
   const [lastExportPath, setLastExportPath] = useState<string | null>(null);
-  
+
   // プレビュー機能の強化
   const PREVIEW_HEIGHT_DEFAULT = 384;
   const PREVIEW_HEIGHT_MIN = 200;
@@ -116,7 +123,7 @@ export const ExportStep: React.FC = () => {
   const previewRef = useRef<HTMLDivElement>(null);
   const previewContentRef = useRef<HTMLPreElement | HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
-  
+
   // セクション名と検索文字列のマッピング
   const sectionSearchMap: Record<string, string> = {
     title: currentProject?.title || '',
@@ -134,7 +141,7 @@ export const ExportStep: React.FC = () => {
     foreshadowings: '伏線トラッカー',
     memo: 'クイックメモ',
   };
-  
+
   // 正規表現エスケープ関数
   const escapeRegex = (str: string): string => {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -143,26 +150,26 @@ export const ExportStep: React.FC = () => {
   // セクションまでスクロールする関数
   const scrollToSection = (sectionId: string) => {
     setSelectedSection(sectionId);
-    
+
     // 既存のタイマーをクリア
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
-    
+
     if (!previewRef.current || !previewContentRef.current) return;
-    
+
     const searchText = sectionSearchMap[sectionId];
     if (!searchText) return;
-    
+
     // 少し遅延を入れて、コンテンツがレンダリングされた後にスクロール
-    scrollTimeoutRef.current = setTimeout(() => {
+    scrollTimeoutRef.current = window.setTimeout(() => {
       if (!previewContentRef.current || !previewRef.current) return;
-      
+
       const content = previewContentRef.current.textContent || '';
       const escapedSearchText = escapeRegex(searchText);
       const regex = new RegExp(escapedSearchText, 'i');
       const match = content.match(regex);
-      
+
       if (match && match.index !== undefined) {
         const container = previewRef.current;
         if (container) {
@@ -186,6 +193,26 @@ export const ExportStep: React.FC = () => {
     };
   }, []);
 
+  // 草案の文字数を計算する
+  const draftTotalLength = useMemo(() => {
+    if (!currentProject) return 0;
+    // すべての章の草案文字数を合計
+    const chapterDraftLength = currentProject.chapters.reduce((sum, chapter) => {
+      return sum + (chapter.draft?.length || 0);
+    }, 0);
+
+    // プロジェクト全体の草案文字数を追加（重複を避ける）
+    const projectDraft = currentProject.draft?.trim() || '';
+    const projectDraftLength = projectDraft.length;
+
+    // プロジェクト全体の草案が章の草案に含まれていない場合のみ追加
+    const isProjectDraftInChapters = currentProject.chapters.some(
+      chapter => chapter.draft?.includes(projectDraft)
+    );
+
+    return chapterDraftLength + (isProjectDraftInChapters ? 0 : projectDraftLength);
+  }, [currentProject]);
+
   const exportFormats = [
     { id: 'txt', name: 'テキスト (.txt)', icon: FileText, description: 'シンプルなテキスト形式' },
     { id: 'md', name: 'マークダウン (.md)', icon: File, description: '構造化されたマークダウン形式' },
@@ -195,28 +222,28 @@ export const ExportStep: React.FC = () => {
   // ファイル名を生成する関数
   const generateFileName = (): string => {
     let fileName = customFileName || currentProject?.title || 'export';
-    
+
     if (addVersion) {
       fileName += `_v${versionNumber}`;
     }
-    
+
     if (addTimestamp) {
       const now = new Date();
       const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
       fileName += `_${timestamp}`;
     }
-    
+
     return fileName;
   };
 
   const handleExport = async () => {
     if (!currentProject) return;
-    
+
     setIsExporting(true);
-    
+
     try {
       let content = '';
-      
+
       if (selectedFormat === 'txt') {
         content = generateTxtContent();
       } else if (selectedFormat === 'md') {
@@ -224,18 +251,88 @@ export const ExportStep: React.FC = () => {
       } else if (selectedFormat === 'html') {
         content = generateHtmlContent();
       }
-      
+
       const rawFileName = generateFileName();
       const fileName = sanitizeFileName(rawFileName);
-      
+
       // Tauri環境かどうかを確認（Tauri 2対応）
-      const isTauri = typeof window !== 'undefined' && 
-        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-      
-      if (!isTauri) {
-        // ブラウザ環境の場合、ダウンロードリンクを作成
-        const blob = new Blob([content], { 
-          type: selectedFormat === 'html' ? 'text/html' : selectedFormat === 'md' ? 'text/markdown' : 'text/plain' 
+      const isTauri = isTauriEnvironment();
+
+      // Tauri環境（デスクトップまたはAndroid/iOS）
+      if (isTauri) {
+        try {
+          const { save } = await import('@tauri-apps/plugin-dialog');
+          const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
+          const filePath = await save({
+            title: 'ファイルを保存',
+            defaultPath: lastExportPath ? `${lastExportPath}/${fileName}.${selectedFormat}` : `${fileName}.${selectedFormat}`,
+            filters: [
+              {
+                name: 'Files',
+                extensions: [selectedFormat]
+              }
+            ]
+          });
+
+          if (filePath) {
+            await writeTextFile(filePath, content);
+            setLastExportPath(filePath);
+
+            try {
+              await navigator.clipboard.writeText(content);
+            } catch (e) {
+              console.warn('クリップボードへのコピーに失敗', e);
+            }
+
+            showSuccess('ファイルを指定の場所に保存しました');
+            setIsExporting(false);
+            return;
+          }
+
+          if (filePath === null) {
+            setIsExporting(false);
+            return;
+          }
+        } catch (pluginError) {
+          console.warn('Tauri plugin error, falling back to share/download:', pluginError);
+        }
+      }
+
+      let exported = false;
+
+      // Share APIを試行
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          const mimeType = selectedFormat === 'html' ? 'text/html' : selectedFormat === 'md' ? 'text/markdown' : 'text/plain';
+          const file = new (window.File || File)([content], `${fileName}.${selectedFormat}`, { type: mimeType }) as File;
+
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: fileName,
+              files: [file]
+            });
+            showSuccess('共有メニューを開きました');
+            exported = true;
+          } else {
+            await navigator.share({
+              title: fileName,
+              text: content
+            });
+            showSuccess('テキストとして共有しました');
+            exported = true;
+          }
+        } catch (shareError: unknown) {
+          if (shareError instanceof Error && shareError.name !== 'AbortError') {
+            console.warn('Share API failed:', shareError.message);
+          }
+        }
+      }
+
+      // ブラウザダウンロード
+      if (!exported) {
+        const blob = new Blob([content], {
+          type: selectedFormat === 'html' ? 'text/html' : selectedFormat === 'md' ? 'text/markdown' : 'text/plain'
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -245,88 +342,16 @@ export const ExportStep: React.FC = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
-        // クリップボードにコピー
+
         try {
           await navigator.clipboard.writeText(content);
         } catch (e) {
-          console.warn('クリップボードへのコピーに失敗しました', e);
+          console.warn('クリップボードへのコピーに失敗', e);
         }
-        
-        showSuccess('エクスポートが完了しました');
-        setIsExporting(false);
-        return;
+
+        showSuccess('ブラウザ経由でダウンロードを開始しました');
       }
-      
-      // Tauri環境の場合、プラグインを動的にインポート
-      try {
-        const { save } = await import('@tauri-apps/plugin-dialog');
-        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-        
-        // 最近保存したフォルダがある場合はそれを使用、なければダイアログを表示
-        let filePath: string | null = null;
-        
-        if (lastExportPath) {
-          // 最後に保存したパスからディレクトリを取得
-          const lastSlash = Math.max(
-            lastExportPath.lastIndexOf('/'),
-            lastExportPath.lastIndexOf('\\')
-          );
-          const dirPath = lastSlash > 0 ? lastExportPath.substring(0, lastSlash) : '';
-          filePath = await save({
-            title: 'ファイルを保存',
-            defaultPath: dirPath ? `${dirPath}/${fileName}.${selectedFormat}` : `${fileName}.${selectedFormat}`,
-            filters: [
-              {
-                name: 'Text Files',
-                extensions: [selectedFormat]
-              }
-            ]
-          });
-        } else {
-          filePath = await save({
-            title: 'ファイルを保存',
-            defaultPath: `${fileName}.${selectedFormat}`,
-            filters: [
-              {
-                name: 'Text Files',
-                extensions: [selectedFormat]
-              }
-            ]
-          });
-        }
-        
-        if (filePath) {
-          // TauriのファイルシステムAPIを使用してファイルを保存
-          await writeTextFile(filePath, content);
-          setLastExportPath(filePath);
-          
-          // クリップボードにコピー
-          try {
-            await navigator.clipboard.writeText(content);
-          } catch (e) {
-            console.warn('クリップボードへのコピーに失敗しました', e);
-          }
-          
-          showSuccess('エクスポートが完了しました');
-        }
-      } catch (pluginError) {
-        console.error('Tauri plugin error:', pluginError);
-        // プラグインが利用できない場合、ブラウザのダウンロード機能にフォールバック
-        const blob = new Blob([content], { 
-          type: selectedFormat === 'html' ? 'text/html' : selectedFormat === 'md' ? 'text/markdown' : 'text/plain' 
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${fileName}.${selectedFormat}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showSuccess('エクスポートが完了しました（ブラウザダウンロード）');
-      }
-      
+
     } catch (error) {
       console.error('Export error:', error);
       showError('エクスポートに失敗しました: ' + (error as Error).message, 7000, {
@@ -336,11 +361,11 @@ export const ExportStep: React.FC = () => {
       setIsExporting(false);
     }
   };
-  
+
   // クリップボードにコピーする関数
   const handleCopyToClipboard = async () => {
     if (!currentProject) return;
-    
+
     let content = '';
     if (selectedFormat === 'txt') {
       content = generateTxtContent();
@@ -349,7 +374,7 @@ export const ExportStep: React.FC = () => {
     } else if (selectedFormat === 'html') {
       content = generateHtmlContent();
     }
-    
+
     try {
       await navigator.clipboard.writeText(content);
       showSuccess('クリップボードにコピーしました');
@@ -361,17 +386,18 @@ export const ExportStep: React.FC = () => {
     }
   };
 
-  const generateTxtContent = () => {
+
+  const generateTxtContent = useCallback(() => {
     if (!currentProject) return '';
-    
+
     let content = `${currentProject.title}\n`;
     content += '='.repeat(currentProject.title.length) + '\n\n';
-    
+
     if (exportOptions.basicInfo) {
       if (currentProject.description) {
         content += `概要: ${currentProject.description}\n\n`;
       }
-      
+
       // ジャンル・読者層・テーマ情報の追加
       if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
         content += '基本情報\n';
@@ -383,7 +409,7 @@ export const ExportStep: React.FC = () => {
         content += '\n';
       }
     }
-    
+
     if (exportOptions.characters && currentProject.characters.length > 0) {
       content += 'キャラクター一覧\n';
       content += '-'.repeat(20) + '\n';
@@ -395,7 +421,7 @@ export const ExportStep: React.FC = () => {
         content += '\n';
       });
     }
-    
+
     if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
       content += 'プロット\n';
       content += '-'.repeat(20) + '\n';
@@ -404,7 +430,7 @@ export const ExportStep: React.FC = () => {
       if (currentProject.plot.hook) content += `フック: ${currentProject.plot.hook}\n\n`;
       if (currentProject.plot.protagonistGoal) content += `主人公の目標: ${currentProject.plot.protagonistGoal}\n\n`;
       if (currentProject.plot.mainObstacle) content += `主要な障害: ${currentProject.plot.mainObstacle}\n\n`;
-      
+
       // 構成詳細の追加
       if (currentProject.plot.structure === 'kishotenketsu') {
         if (currentProject.plot.ki) content += `起（導入）: ${currentProject.plot.ki}\n\n`;
@@ -422,24 +448,24 @@ export const ExportStep: React.FC = () => {
         if (currentProject.plot.fourAct4) content += `第4幕（混沌）: ${currentProject.plot.fourAct4}\n\n`;
       }
     }
-    
+
     if (exportOptions.synopsis && currentProject.synopsis) {
       content += 'あらすじ\n';
       content += '-'.repeat(20) + '\n';
       content += `${currentProject.synopsis}\n\n`;
     }
-    
+
     if (exportOptions.chapters && currentProject.chapters.length > 0) {
       content += '章立て\n';
       content += '-'.repeat(20) + '\n';
       currentProject.chapters.forEach((chapter, index) => {
         content += `第${index + 1}章: ${chapter.title}\n`;
         if (chapter.summary) content += `${chapter.summary}\n`;
-        
+
         content += '\n';
       });
     }
-    
+
     if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) {
       content += 'イメージボード\n';
       content += '-'.repeat(20) + '\n';
@@ -449,7 +475,7 @@ export const ExportStep: React.FC = () => {
         content += `   URL: ${image.url}\n\n`;
       });
     }
-    
+
     if (exportOptions.draft) {
       // すべての章の草案を結合
       const allDrafts = currentProject.chapters
@@ -461,26 +487,26 @@ export const ExportStep: React.FC = () => {
           return null;
         })
         .filter((draft): draft is string => draft !== null);
-      
+
       // プロジェクト全体の草案がある場合は追加
       const projectDraft = currentProject.draft?.trim() || '';
-      
+
       if (allDrafts.length > 0 || projectDraft) {
         content += '草案\n';
         content += '-'.repeat(20) + '\n';
-        
+
         // 章の草案を追加
         if (allDrafts.length > 0) {
           content += allDrafts.join('\n\n') + '\n\n';
         }
-        
+
         // プロジェクト全体の草案がある場合は追加
         if (projectDraft && !allDrafts.some(d => d.includes(projectDraft))) {
           content += `${projectDraft}\n\n`;
         }
       }
     }
-    
+
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
       content += '用語集\n';
       content += '-'.repeat(20) + '\n';
@@ -493,7 +519,7 @@ export const ExportStep: React.FC = () => {
         content += '\n';
       });
     }
-    
+
     if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) {
       content += 'キャラクター相関図\n';
       content += '-'.repeat(20) + '\n';
@@ -508,7 +534,7 @@ export const ExportStep: React.FC = () => {
         content += '\n';
       });
     }
-    
+
     if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) {
       content += 'タイムライン\n';
       content += '-'.repeat(20) + '\n';
@@ -530,7 +556,7 @@ export const ExportStep: React.FC = () => {
         content += '\n';
       });
     }
-    
+
     if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) {
       content += '世界観設定\n';
       content += '-'.repeat(20) + '\n';
@@ -543,13 +569,13 @@ export const ExportStep: React.FC = () => {
         content += '\n';
       });
     }
-    
+
     if (exportOptions.foreshadowings && currentProject.foreshadowings && currentProject.foreshadowings.length > 0) {
       const statusLabels: Record<string, string> = { planted: '設置済み', hinted: '進行中', resolved: '回収済み', abandoned: '破棄' };
       const categoryLabels: Record<string, string> = { character: 'キャラクター', plot: 'プロット', world: '世界観', mystery: 'ミステリー', relationship: '人間関係', other: 'その他' };
       const importanceLabels: Record<string, string> = { high: '★★★高', medium: '★★☆中', low: '★☆☆低' };
       const pointTypeLabels: Record<string, string> = { plant: '📍設置', hint: '💡ヒント', payoff: '🎯回収' };
-      
+
       content += '伏線トラッカー\n';
       content += '-'.repeat(20) + '\n';
       currentProject.foreshadowings.forEach(foreshadowing => {
@@ -557,7 +583,7 @@ export const ExportStep: React.FC = () => {
         content += `ステータス: ${statusLabels[foreshadowing.status] || foreshadowing.status}\n`;
         content += `重要度: ${importanceLabels[foreshadowing.importance] || foreshadowing.importance}\n`;
         content += `説明: ${foreshadowing.description}\n`;
-        
+
         if (foreshadowing.points && foreshadowing.points.length > 0) {
           content += 'ポイント:\n';
           foreshadowing.points.forEach(point => {
@@ -567,33 +593,33 @@ export const ExportStep: React.FC = () => {
             if (point.lineReference) content += `    引用: 「${point.lineReference}」\n`;
           });
         }
-        
+
         if (foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0) {
           const charNames = foreshadowing.relatedCharacterIds
             .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
             .join(', ');
           content += `関連キャラクター: ${charNames}\n`;
         }
-        
+
         if (foreshadowing.plannedPayoffChapterId) {
           const chapter = currentProject.chapters.find(c => c.id === foreshadowing.plannedPayoffChapterId);
           if (chapter) content += `回収予定章: ${chapter.title}\n`;
           if (foreshadowing.plannedPayoffDescription) content += `回収予定方法: ${foreshadowing.plannedPayoffDescription}\n`;
         }
-        
+
         if (foreshadowing.tags && foreshadowing.tags.length > 0) {
           content += `タグ: ${foreshadowing.tags.join(', ')}\n`;
         }
         if (foreshadowing.notes) content += `メモ: ${foreshadowing.notes}\n`;
         content += '\n';
       });
-      
+
       // 伏線サマリー
       const unresolvedCount = currentProject.foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length;
       const resolvedCount = currentProject.foreshadowings.filter(f => f.status === 'resolved').length;
       content += `【伏線サマリー】全${currentProject.foreshadowings.length}件 / 回収済み${resolvedCount}件 / 未回収${unresolvedCount}件\n\n`;
     }
-    
+
     if (exportOptions.memo) {
       const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
       try {
@@ -620,20 +646,20 @@ export const ExportStep: React.FC = () => {
         console.error('メモ読み込みエラー:', error);
       }
     }
-    
-    return content;
-  };
 
-  const generateMarkdownContent = () => {
+    return content;
+  }, [currentProject, exportOptions]);
+
+  const generateMarkdownContent = useCallback(() => {
     if (!currentProject) return '';
-    
+
     let content = `# ${currentProject.title}\n\n`;
-    
+
     if (exportOptions.basicInfo) {
       if (currentProject.description) {
         content += `## 概要\n\n${currentProject.description}\n\n`;
       }
-      
+
       // ジャンル・読者層・テーマ情報の追加
       if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
         content += '## 基本情報\n\n';
@@ -643,7 +669,7 @@ export const ExportStep: React.FC = () => {
         if (currentProject.projectTheme) content += `**プロジェクトテーマ**: ${currentProject.projectTheme}\n\n`;
       }
     }
-    
+
     if (exportOptions.characters && currentProject.characters.length > 0) {
       content += '## キャラクター一覧\n\n';
       currentProject.characters.forEach(char => {
@@ -653,7 +679,7 @@ export const ExportStep: React.FC = () => {
         if (char.background) content += `**背景**: ${char.background}\n\n`;
       });
     }
-    
+
     if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
       content += '## プロット\n\n';
       if (currentProject.plot.theme) content += `**テーマ**: ${currentProject.plot.theme}\n\n`;
@@ -661,7 +687,7 @@ export const ExportStep: React.FC = () => {
       if (currentProject.plot.hook) content += `**フック**: ${currentProject.plot.hook}\n\n`;
       if (currentProject.plot.protagonistGoal) content += `**主人公の目標**: ${currentProject.plot.protagonistGoal}\n\n`;
       if (currentProject.plot.mainObstacle) content += `**主要な障害**: ${currentProject.plot.mainObstacle}\n\n`;
-      
+
       // 構成詳細の追加
       if (currentProject.plot.structure === 'kishotenketsu') {
         if (currentProject.plot.ki) content += `**起（導入）**: ${currentProject.plot.ki}\n\n`;
@@ -679,21 +705,21 @@ export const ExportStep: React.FC = () => {
         if (currentProject.plot.fourAct4) content += `**第4幕（混沌）**: ${currentProject.plot.fourAct4}\n\n`;
       }
     }
-    
+
     if (exportOptions.synopsis && currentProject.synopsis) {
       content += '## あらすじ\n\n';
       content += `${currentProject.synopsis}\n\n`;
     }
-    
+
     if (exportOptions.chapters && currentProject.chapters.length > 0) {
       content += '## 章立て\n\n';
       currentProject.chapters.forEach((chapter, index) => {
         content += `### 第${index + 1}章: ${chapter.title}\n\n`;
         if (chapter.summary) content += `${chapter.summary}\n\n`;
-        
+
       });
     }
-    
+
     if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) {
       content += '## イメージボード\n\n';
       currentProject.imageBoard.forEach((image, index) => {
@@ -702,7 +728,7 @@ export const ExportStep: React.FC = () => {
         content += `![${image.title}](${image.url})\n\n`;
       });
     }
-    
+
     if (exportOptions.draft) {
       // すべての章の草案を結合
       const allDrafts = currentProject.chapters
@@ -714,25 +740,25 @@ export const ExportStep: React.FC = () => {
           return null;
         })
         .filter((draft): draft is string => draft !== null);
-      
+
       // プロジェクト全体の草案がある場合は追加
       const projectDraft = currentProject.draft?.trim() || '';
-      
+
       if (allDrafts.length > 0 || projectDraft) {
         content += '## 草案\n\n';
-        
+
         // 章の草案を追加
         if (allDrafts.length > 0) {
           content += allDrafts.join('\n\n') + '\n\n';
         }
-        
+
         // プロジェクト全体の草案がある場合は追加
         if (projectDraft && !allDrafts.some(d => d.includes(projectDraft))) {
           content += `${projectDraft}\n\n`;
         }
       }
     }
-    
+
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
       content += '## 用語集\n\n';
       currentProject.glossary.forEach(term => {
@@ -743,7 +769,7 @@ export const ExportStep: React.FC = () => {
         if (term.notes) content += `**備考**: ${term.notes}\n\n`;
       });
     }
-    
+
     if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) {
       content += '## キャラクター相関図\n\n';
       currentProject.relationships.forEach(rel => {
@@ -757,7 +783,7 @@ export const ExportStep: React.FC = () => {
         if (rel.notes) content += `**備考**: ${rel.notes}\n\n`;
       });
     }
-    
+
     if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) {
       content += '## タイムライン\n\n';
       const sortedTimeline = [...currentProject.timeline].sort((a, b) => a.order - b.order);
@@ -777,7 +803,7 @@ export const ExportStep: React.FC = () => {
         }
       });
     }
-    
+
     if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) {
       content += '## 世界観設定\n\n';
       currentProject.worldSettings.forEach(setting => {
@@ -788,13 +814,13 @@ export const ExportStep: React.FC = () => {
         }
       });
     }
-    
+
     if (exportOptions.foreshadowings && currentProject.foreshadowings && currentProject.foreshadowings.length > 0) {
       const statusLabels: Record<string, string> = { planted: '設置済み', hinted: '進行中', resolved: '回収済み', abandoned: '破棄' };
       const categoryLabels: Record<string, string> = { character: 'キャラクター', plot: 'プロット', world: '世界観', mystery: 'ミステリー', relationship: '人間関係', other: 'その他' };
       const importanceLabels: Record<string, string> = { high: '★★★高', medium: '★★☆中', low: '★☆☆低' };
       const pointTypeLabels: Record<string, string> = { plant: '📍設置', hint: '💡ヒント', payoff: '🎯回収' };
-      
+
       content += '## 伏線トラッカー\n\n';
       currentProject.foreshadowings.forEach(foreshadowing => {
         content += `### ${foreshadowing.title}\n\n`;
@@ -802,7 +828,7 @@ export const ExportStep: React.FC = () => {
         content += `**ステータス**: ${statusLabels[foreshadowing.status] || foreshadowing.status}\n\n`;
         content += `**重要度**: ${importanceLabels[foreshadowing.importance] || foreshadowing.importance}\n\n`;
         content += `${foreshadowing.description}\n\n`;
-        
+
         if (foreshadowing.points && foreshadowing.points.length > 0) {
           content += '#### ポイント\n\n';
           foreshadowing.points.forEach(point => {
@@ -813,32 +839,32 @@ export const ExportStep: React.FC = () => {
           });
           content += '\n';
         }
-        
+
         if (foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0) {
           const charNames = foreshadowing.relatedCharacterIds
             .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
             .join(', ');
           content += `**関連キャラクター**: ${charNames}\n\n`;
         }
-        
+
         if (foreshadowing.plannedPayoffChapterId) {
           const chapter = currentProject.chapters.find(c => c.id === foreshadowing.plannedPayoffChapterId);
           if (chapter) content += `**回収予定章**: ${chapter.title}\n\n`;
           if (foreshadowing.plannedPayoffDescription) content += `**回収予定方法**: ${foreshadowing.plannedPayoffDescription}\n\n`;
         }
-        
+
         if (foreshadowing.tags && foreshadowing.tags.length > 0) {
           content += `**タグ**: ${foreshadowing.tags.join(', ')}\n\n`;
         }
         if (foreshadowing.notes) content += `**メモ**: ${foreshadowing.notes}\n\n`;
       });
-      
+
       // 伏線サマリー
       const unresolvedCount = currentProject.foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length;
       const resolvedCount = currentProject.foreshadowings.filter(f => f.status === 'resolved').length;
       content += `> **伏線サマリー**: 全${currentProject.foreshadowings.length}件 / 回収済み${resolvedCount}件 / 未回収${unresolvedCount}件\n\n`;
     }
-    
+
     if (exportOptions.memo) {
       const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
       try {
@@ -864,13 +890,13 @@ export const ExportStep: React.FC = () => {
         console.error('メモ読み込みエラー:', error);
       }
     }
-    
-    return content;
-  };
 
-  const generateHtmlContent = () => {
+    return content;
+  }, [currentProject, exportOptions]);
+
+  const generateHtmlContent = useCallback(() => {
     if (!currentProject) return '';
-    
+
     let content = `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -947,7 +973,7 @@ export const ExportStep: React.FC = () => {
 </head>
 <body>
     <h1>${escapeHtml(currentProject.title)}</h1>`;
-    
+
     if (exportOptions.basicInfo) {
       if (currentProject.description) {
         content += `
@@ -955,7 +981,7 @@ export const ExportStep: React.FC = () => {
         <strong>概要:</strong> ${escapeHtml(currentProject.description)}
     </div>`;
       }
-      
+
       // ジャンル・読者層・テーマ情報の追加
       if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
         content += `
@@ -973,7 +999,7 @@ export const ExportStep: React.FC = () => {
     </div>`;
       }
     }
-    
+
     if (exportOptions.characters && currentProject.characters.length > 0) {
       content += `
     <h2>キャラクター一覧</h2>`;
@@ -991,7 +1017,7 @@ export const ExportStep: React.FC = () => {
     </div>`;
       });
     }
-    
+
     if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
       content += `
     <h2>プロット</h2>`;
@@ -1015,7 +1041,7 @@ export const ExportStep: React.FC = () => {
     <div class="plot-item">
         <strong>主要な障害:</strong> ${escapeHtml(currentProject.plot.mainObstacle)}
     </div>`;
-      
+
       // 構成詳細の追加
       if (currentProject.plot.structure === 'kishotenketsu') {
         if (currentProject.plot.ki) content += `
@@ -1066,13 +1092,13 @@ export const ExportStep: React.FC = () => {
     </div>`;
       }
     }
-    
+
     if (exportOptions.synopsis && currentProject.synopsis) {
       content += `
     <h2>あらすじ</h2>
     <div class="draft-content">${escapeHtml(currentProject.synopsis)}</div>`;
     }
-    
+
     if (exportOptions.chapters && currentProject.chapters.length > 0) {
       content += `
     <h2>章立て</h2>`;
@@ -1082,12 +1108,12 @@ export const ExportStep: React.FC = () => {
         <h3>第${index + 1}章: ${escapeHtml(chapter.title)}</h3>`;
         if (chapter.summary) content += `
         <p class="summary">${escapeHtml(chapter.summary)}</p>`;
-        
+
         content += `
     </div>`;
       });
     }
-    
+
     if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) {
       content += `
     <h2>イメージボード</h2>`;
@@ -1103,7 +1129,7 @@ export const ExportStep: React.FC = () => {
     </div>`;
       });
     }
-    
+
     if (exportOptions.draft) {
       // すべての章の草案を結合
       const allDrafts = currentProject.chapters
@@ -1116,19 +1142,19 @@ export const ExportStep: React.FC = () => {
           return null;
         })
         .filter((draft): draft is string => draft !== null);
-      
+
       // プロジェクト全体の草案がある場合は追加
       const projectDraft = currentProject.draft?.trim() || '';
-      
+
       if (allDrafts.length > 0 || projectDraft) {
         content += `
     <h2>草案</h2>`;
-        
+
         // 章の草案を追加
         if (allDrafts.length > 0) {
           content += allDrafts.join('\n');
         }
-        
+
         // プロジェクト全体の草案がある場合は追加
         if (projectDraft && !allDrafts.some(d => d.includes(escapeHtml(projectDraft)))) {
           content += `
@@ -1136,7 +1162,7 @@ export const ExportStep: React.FC = () => {
         }
       }
     }
-    
+
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
       content += `
     <h2>用語集</h2>`;
@@ -1153,7 +1179,7 @@ export const ExportStep: React.FC = () => {
     </div>`;
       });
     }
-    
+
     if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) {
       content += `
     <h2>キャラクター相関図</h2>`;
@@ -1174,7 +1200,7 @@ export const ExportStep: React.FC = () => {
     </div>`;
       });
     }
-    
+
     if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) {
       content += `
     <h2>タイムライン</h2>`;
@@ -1204,7 +1230,7 @@ export const ExportStep: React.FC = () => {
     </div>`;
       });
     }
-    
+
     if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) {
       content += `
     <h2>世界観設定</h2>`;
@@ -1222,14 +1248,14 @@ export const ExportStep: React.FC = () => {
     </div>`;
       });
     }
-    
+
     if (exportOptions.foreshadowings && currentProject.foreshadowings && currentProject.foreshadowings.length > 0) {
       const statusLabels: Record<string, string> = { planted: '設置済み', hinted: '進行中', resolved: '回収済み', abandoned: '破棄' };
       const categoryLabels: Record<string, string> = { character: 'キャラクター', plot: 'プロット', world: '世界観', mystery: 'ミステリー', relationship: '人間関係', other: 'その他' };
       const importanceLabels: Record<string, string> = { high: '★★★高', medium: '★★☆中', low: '★☆☆低' };
       const pointTypeLabels: Record<string, string> = { plant: '📍設置', hint: '💡ヒント', payoff: '🎯回収' };
       const statusColors: Record<string, string> = { planted: '#3498db', hinted: '#f39c12', resolved: '#27ae60', abandoned: '#7f8c8d' };
-      
+
       content += `
     <h2>伏線トラッカー</h2>`;
       currentProject.foreshadowings.forEach(foreshadowing => {
@@ -1248,7 +1274,7 @@ export const ExportStep: React.FC = () => {
             </span>
         </div>
         <p>${escapeHtml(foreshadowing.description)}</p>`;
-        
+
         if (foreshadowing.points && foreshadowing.points.length > 0) {
           content += `
         <h4 style="margin-top: 15px;">ポイント</h4>
@@ -1270,7 +1296,7 @@ export const ExportStep: React.FC = () => {
           content += `
         </ul>`;
         }
-        
+
         if (foreshadowing.relatedCharacterIds && foreshadowing.relatedCharacterIds.length > 0) {
           const charNames = foreshadowing.relatedCharacterIds
             .map(id => currentProject.characters.find(c => c.id === id)?.name || id)
@@ -1279,7 +1305,7 @@ export const ExportStep: React.FC = () => {
           content += `
         <p><strong>関連キャラクター:</strong> ${charNames}</p>`;
         }
-        
+
         if (foreshadowing.plannedPayoffChapterId) {
           const chapter = currentProject.chapters.find(c => c.id === foreshadowing.plannedPayoffChapterId);
           if (chapter) {
@@ -1291,7 +1317,7 @@ export const ExportStep: React.FC = () => {
         <p><strong>回収予定方法:</strong> ${escapeHtml(foreshadowing.plannedPayoffDescription)}</p>`;
           }
         }
-        
+
         if (foreshadowing.tags && foreshadowing.tags.length > 0) {
           const escapedTags = foreshadowing.tags.map(t => escapeHtml(t));
           content += `
@@ -1304,7 +1330,7 @@ export const ExportStep: React.FC = () => {
         content += `
     </div>`;
       });
-      
+
       // 伏線サマリー
       const unresolvedCount = currentProject.foreshadowings.filter(f => f.status === 'planted' || f.status === 'hinted').length;
       const resolvedCount = currentProject.foreshadowings.filter(f => f.status === 'resolved').length;
@@ -1313,7 +1339,7 @@ export const ExportStep: React.FC = () => {
         <p><strong>伏線サマリー:</strong> 全${currentProject.foreshadowings.length}件 / 回収済み${resolvedCount}件 / 未回収${unresolvedCount}件</p>
     </div>`;
     }
-    
+
     if (exportOptions.memo) {
       const memoStorageKey = currentProject ? `toolsSidebarMemo:${currentProject.id}` : 'toolsSidebarMemo:global';
       try {
@@ -1344,11 +1370,11 @@ export const ExportStep: React.FC = () => {
         console.error('メモ読み込みエラー:', error);
       }
     }
-    
+
     // 日付を安全に変換
     const createdAtDate = currentProject.createdAt instanceof Date ? currentProject.createdAt : new Date(currentProject.createdAt);
     const updatedAtDate = currentProject.updatedAt instanceof Date ? currentProject.updatedAt : new Date(currentProject.updatedAt);
-    
+
     content += `
     <div class="metadata">
         <p><strong>作成日:</strong> ${createdAtDate.toLocaleDateString('ja-JP')}</p>
@@ -1356,16 +1382,28 @@ export const ExportStep: React.FC = () => {
     </div>
 </body>
 </html>`;
-    
+
     return content;
-  };
+  }, [currentProject, exportOptions]);
+
+  const totalContentLength = useMemo(() => {
+    if (!currentProject) return 0;
+    if (selectedFormat === 'html') return generateHtmlContent().length;
+    if (selectedFormat === 'md') return generateMarkdownContent().length;
+    return generateTxtContent().length;
+  }, [selectedFormat, currentProject, generateHtmlContent, generateMarkdownContent, generateTxtContent]);
 
   if (!currentProject) {
     return <div>プロジェクトを選択してください</div>;
   }
 
   return (
-    <div className="max-w-full">
+    <div className="max-w-7xl mx-auto space-y-8 overflow-y-auto">
+      <StepNavigation
+        currentStep="export"
+        onPrevious={() => onNavigateToStep?.('review')}
+        onNext={() => { }}
+      />
       <div className="mb-4 lg:mb-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-amber-500">
@@ -1396,18 +1434,16 @@ export const ExportStep: React.FC = () => {
                 <button
                   key={format.id}
                   onClick={() => setSelectedFormat(format.id)}
-                  className={`w-full p-3 lg:p-4 rounded-lg border-2 transition-all text-left ${
-                    selectedFormat === format.id
-                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700'
-                  }`}
+                  className={`w-full p-3 lg:p-4 rounded-lg border-2 transition-all text-left ${selectedFormat === format.id
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700'
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
-                    <Icon className={`h-6 w-6 ${
-                      selectedFormat === format.id 
-                        ? 'text-orange-600 dark:text-orange-400'
-                        : 'text-gray-600 dark:text-gray-400'
-                    }`} />
+                    <Icon className={`h-6 w-6 ${selectedFormat === format.id
+                      ? 'text-orange-600 dark:text-orange-400'
+                      : 'text-gray-600 dark:text-gray-400'
+                      }`} />
                     <div className="flex-1">
                       <div className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                         {format.name}
@@ -1487,11 +1523,10 @@ export const ExportStep: React.FC = () => {
                 <button
                   key={key}
                   onClick={() => applyPreset(key as keyof typeof exportPresets)}
-                  className={`p-3 rounded-lg border-2 transition-all text-left ${
-                    selectedPreset === key
-                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700'
-                  }`}
+                  className={`p-3 rounded-lg border-2 transition-all text-left ${selectedPreset === key
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700'
+                    }`}
                 >
                   <div className="font-semibold text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP']">
                     {preset.name}
@@ -1569,77 +1604,61 @@ export const ExportStep: React.FC = () => {
 
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {useMemo(() => {
-                    // すべての章の草案文字数を合計
-                    const chapterDraftLength = currentProject.chapters.reduce((sum, chapter) => {
-                      return sum + (chapter.draft?.length || 0);
-                    }, 0);
-                    
-                    // プロジェクト全体の草案文字数を追加（重複を避ける）
-                    const projectDraft = currentProject.draft?.trim() || '';
-                    const projectDraftLength = projectDraft.length;
-                    
-                    // プロジェクト全体の草案が章の草案に含まれていない場合のみ追加
-                    const isProjectDraftInChapters = currentProject.chapters.some(
-                      chapter => chapter.draft?.includes(projectDraft)
-                    );
-                    
-                    return chapterDraftLength + (isProjectDraftInChapters ? 0 : projectDraftLength);
-                  }, [currentProject])}
+                  {draftTotalLength}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                   草案文字数
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* エクスポートする内容の選択 */}
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-                エクスポートする内容
-              </h4>
-              <div className="space-y-2">
-                {[
-                  { key: 'basicInfo', label: '基本情報' },
-                  { key: 'characters', label: 'キャラクター' },
-                  { key: 'plot', label: 'プロット' },
-                  { key: 'synopsis', label: 'あらすじ' },
-                  { key: 'chapters', label: '章立て' },
-                  { key: 'imageBoard', label: 'イメージボード' },
-                  { key: 'draft', label: '草案' },
-                  { key: 'glossary', label: '用語集' },
-                  { key: 'relationships', label: '相関図' },
-                  { key: 'timeline', label: 'タイムライン' },
-                  { key: 'worldSettings', label: '世界観' },
-                  { key: 'foreshadowings', label: '伏線トラッカー' },
-                  { key: 'memo', label: 'クイックメモ' },
-                ].map((option) => (
-                  <label key={option.key} className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={exportOptions[option.key as keyof typeof exportOptions]}
-                      onChange={(e) => {
-                        setExportOptions({
-                          ...exportOptions,
-                          [option.key]: e.target.checked,
-                        });
-                        setSelectedPreset(null); // カスタム設定に変更されたらプリセット選択を解除
-                      }}
-                      className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                      {option.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
+          {/* エクスポートする内容の選択 */}
+          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
+              エクスポートする内容
+            </h4>
+            <div className="space-y-2">
+              {[
+                { key: 'basicInfo', label: '基本情報' },
+                { key: 'characters', label: 'キャラクター' },
+                { key: 'plot', label: 'プロット' },
+                { key: 'synopsis', label: 'あらすじ' },
+                { key: 'chapters', label: '章立て' },
+                { key: 'imageBoard', label: 'イメージボード' },
+                { key: 'draft', label: '草案' },
+                { key: 'glossary', label: '用語集' },
+                { key: 'relationships', label: '相関図' },
+                { key: 'timeline', label: 'タイムライン' },
+                { key: 'worldSettings', label: '世界観' },
+                { key: 'foreshadowings', label: '伏線トラッカー' },
+                { key: 'memo', label: 'クイックメモ' },
+              ].map((option) => (
+                <label key={option.key} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportOptions[option.key as keyof typeof exportOptions]}
+                    onChange={(e) => {
+                      setExportOptions({
+                        ...exportOptions,
+                        [option.key]: e.target.checked,
+                      });
+                      setSelectedPreset(null); // カスタム設定に変更されたらプリセット選択を解除
+                    }}
+                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                    {option.label}
+                  </span>
+                </label>
+              ))}
             </div>
+          </div>
 
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
-                <div>作成日: {currentProject.createdAt instanceof Date ? currentProject.createdAt.toLocaleDateString('ja-JP') : new Date(currentProject.createdAt).toLocaleDateString('ja-JP')}</div>
-                <div>更新日: {currentProject.updatedAt instanceof Date ? currentProject.updatedAt.toLocaleDateString('ja-JP') : new Date(currentProject.updatedAt).toLocaleDateString('ja-JP')}</div>
-              </div>
+          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
+              <div>作成日: {currentProject.createdAt instanceof Date ? currentProject.createdAt.toLocaleDateString('ja-JP') : new Date(currentProject.createdAt).toLocaleDateString('ja-JP')}</div>
+              <div>更新日: {currentProject.updatedAt instanceof Date ? currentProject.updatedAt.toLocaleDateString('ja-JP') : new Date(currentProject.updatedAt).toLocaleDateString('ja-JP')}</div>
             </div>
           </div>
         </div>
@@ -1713,17 +1732,16 @@ export const ExportStep: React.FC = () => {
               <button
                 key={section.id}
                 onClick={() => scrollToSection(section.id)}
-                className={`px-3 py-1 text-xs rounded-lg transition-colors font-['Noto_Sans_JP'] ${
-                  selectedSection === section.id
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                }`}
+                className={`px-3 py-1 text-xs rounded-lg transition-colors font-['Noto_Sans_JP'] ${selectedSection === section.id
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                  }`}
               >
                 {section.label}
               </button>
             ))}
         </div>
-        
+
         <div
           ref={previewRef}
           className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg overflow-y-auto"
@@ -1754,7 +1772,7 @@ export const ExportStep: React.FC = () => {
               </p>
             </div>
           ) : (
-            <pre 
+            <pre
               ref={previewContentRef as React.RefObject<HTMLPreElement>}
               className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-['Noto_Sans_JP']"
             >
@@ -1767,10 +1785,10 @@ export const ExportStep: React.FC = () => {
                     const parts = content.split(searchRegex);
                     const matches = content.match(searchRegex);
                     if (matches) {
-                      return parts.map((part, i) => (
+                      return parts.map((part: string, i: number) => (
                         <React.Fragment key={i}>
                           {part}
-                          {i < parts.length - 1 && (
+                          {i < parts.length - 1 && matches && matches[i] && (
                             <mark className="bg-yellow-300 dark:bg-yellow-600">{matches[i]}</mark>
                           )}
                         </React.Fragment>
@@ -1798,14 +1816,10 @@ export const ExportStep: React.FC = () => {
             </pre>
           )}
         </div>
-        
+
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
           <div>
-            総文字数: {useMemo(() => {
-              if (selectedFormat === 'html') return generateHtmlContent().length;
-              if (selectedFormat === 'md') return generateMarkdownContent().length;
-              return generateTxtContent().length;
-            }, [selectedFormat, exportOptions, currentProject]).toLocaleString()} 文字
+            総文字数: {totalContentLength.toLocaleString()} 文字
           </div>
           <button
             onClick={handleCopyToClipboard}
@@ -1816,6 +1830,6 @@ export const ExportStep: React.FC = () => {
           </button>
         </div>
       </div>
-    </div>
+    </div >
   );
 };

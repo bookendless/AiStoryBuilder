@@ -27,7 +27,7 @@ import { ChapterTabs } from './draft/ChapterTabs';
 import { MainEditor, type MainEditorHandle } from './draft/MainEditor';
 import { ForeshadowingPanel } from './draft/ForeshadowingPanel';
 import { useAILog } from '../common/hooks/useAILog';
-import { AILogPanel } from '../common/AILogPanel';
+// AILogPanel is used in ToolsSidebar, reference removed from here
 import { useChapterDraft } from './draft/hooks/useChapterDraft';
 import { useExport } from './draft/hooks/useExport';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -36,7 +36,7 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { useAllChaptersGeneration } from './draft/hooks/useAllChaptersGeneration';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
-import { AILoadingIndicator } from '../common/AILoadingIndicator';
+// AILoadingIndicator is used elsewhere
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
 import type {
@@ -44,7 +44,6 @@ import type {
   ChapterHistoryEntry,
   HistoryEntryType,
   ImprovementLog,
-  SecondaryTab,
 } from './draft/types';
 
 
@@ -56,8 +55,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject, createManualBackup } = useProject();
   const { isConfigured, settings } = useAI();
   const { showError, showSuccess, showWarning } = useToast();
-  const { handleError, handleAPIError, handleDatabaseError, getErrorMessage } = useErrorHandler();
-  
+  const { handleDatabaseError } = useErrorHandler();
+
   // State variables
   const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -68,26 +67,32 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
   const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
   const [selectedHistoryEntryId, setSelectedHistoryEntryId] = useState<string | null>(null);
-  const [improvementLogs, setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
+  const [improvementLogs, _setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
   const [selectedImprovementLogId, setSelectedImprovementLogId] = useState<string | null>(null);
-  
+
   // カスタムプロンプト用の状態
   const [customPrompt, setCustomPrompt] = useState('');
   const [useCustomPrompt, setUseCustomPrompt] = useState(false);
   const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
-  
+
   // バックアップモーダル用の状態
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [isChapterInfoCollapsed, setIsChapterInfoCollapsed] = useState(false);
-  const [mainTextareaHeight, setMainTextareaHeight] = useState(MODAL_TEXTAREA_DEFAULT_HEIGHT);
+  const [mainTextareaHeight, setMainTextareaHeight] = useState(() => {
+    if (typeof window !== 'undefined') {
+      // 画面の高さに応じて適切な初期値を設定（モバイル: 300px, デスクトップ: 420px）
+      return window.innerHeight < 768 ? 300 : MODAL_TEXTAREA_DEFAULT_HEIGHT;
+    }
+    return MODAL_TEXTAREA_DEFAULT_HEIGHT;
+  });
   const [mainFontSize, setMainFontSize] = useState<number>(MODAL_DEFAULT_FONT_SIZE);
   const [mainLineHeight, setMainLineHeight] = useState<number>(MODAL_DEFAULT_LINE_HEIGHT);
-  
+
   // ワークスペースサイドバーは削除され、AI機能はToolsSidebarに移行
-  
+
   // 伏線パネル用の状態
   const [isForeshadowingPanelCollapsed, setIsForeshadowingPanelCollapsed] = useState(false);
-  
+
   // トースト通知用の状態
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -99,7 +104,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     isOpen: false,
     type: null,
   });
-  
+
   // 章の草案管理フック
   const {
     draft,
@@ -117,7 +122,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     },
     onToastMessage: setToastMessage,
   });
-  
+
   // エクスポート機能
   const { exportChapter, exportFull } = useExport({
     currentProject,
@@ -132,7 +137,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   });
 
   // AIログ管理
-  const { aiLogs, addLog } = useAILog({
+  const { aiLogs } = useAILog({
     projectId: currentProject?.id,
     chapterId: selectedChapter || undefined,
     autoLoad: true,
@@ -160,10 +165,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     // キャラクターIDの場合はキャラクター名に変換する
     const characters = chapter.characters && chapter.characters.length > 0
       ? chapter.characters.map(charIdOrName => {
-          // キャラクターIDかどうかを判定（IDは通常UUIDやタイムスタンプベースの文字列）
-          const character = currentProject.characters.find(c => c.id === charIdOrName);
-          return character ? character.name : charIdOrName;
-        }).join(', ')
+        // キャラクターIDかどうかを判定（IDは通常UUIDやタイムスタンプベースの文字列）
+        const character = currentProject.characters.find(c => c.id === charIdOrName);
+        return character ? character.name : charIdOrName;
+      }).join(', ')
       : '未設定';
 
     const setting = chapter.setting || '未設定';
@@ -176,19 +181,19 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   }, [currentProject]);
 
   // 設定情報の取得ヘルパー
-  const getProjectContextInfo = useCallback(() => {
+  const _getProjectContextInfo = useCallback(() => {
     if (!currentProject) return { worldSettings: '', glossary: '', relationships: '', plotInfo: '' };
 
     // 1. 世界観設定・用語集
     const worldSettingsList = currentProject.worldSettings || [];
     const glossaryList = currentProject.glossary || [];
-    
+
     // 重要度が高いものを優先的に抽出（ここでは簡易的に全件、ただし長すぎる場合は制限が必要）
     // プロンプトサイズ削減のため、タイトルと内容の要約のみを抽出するなどの工夫が可能
-    const worldSettingsText = worldSettingsList.length > 0 
+    const worldSettingsText = worldSettingsList.length > 0
       ? worldSettingsList.map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n')
       : '特になし';
-      
+
     const glossaryText = glossaryList.length > 0
       ? glossaryList.map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n')
       : '特になし';
@@ -197,17 +202,17 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     const relationshipsList = currentProject.relationships || [];
     const relationshipsText = relationshipsList.length > 0
       ? relationshipsList.map(r => {
-          const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
-          const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
-          return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
-        }).join('\n')
+        const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
+        const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
+        return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
+      }).join('\n')
       : '特になし';
 
     // 3. 物語構造の進行度
     // PlotStep2の情報を活用
     const plot = currentProject.plot;
     let plotInfo = '構成情報なし';
-    
+
     if (plot.structure === 'kishotenketsu') {
       plotInfo = `全体構造: 起承転結
 起: ${plot.ki?.substring(0, 50) || '未設定'}...
@@ -265,7 +270,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
 
   // カスタムプロンプトの構築（メモ化）
   // フックのインターフェースに合わせて、オブジェクト形式で受け取る
-  const buildCustomPrompt = useCallback((args: {
+  const _buildCustomPrompt = useCallback((args: {
     currentChapter: { title: string; summary: string };
     chapterDetails: { characters: string; setting: string; mood: string; keyEvents: string };
     projectCharacters: string;
@@ -349,7 +354,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
       const sanitizedCustomPrompt = sanitizeInputForPrompt(customPrompt);
       return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${sanitizedCustomPrompt}`;
     }
-    
+
     return basePrompt;
   }, [currentProject, useCustomPrompt, customPrompt]);
 
@@ -357,7 +362,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   // AIStatusBar用の簡易状態は全章生成フックの後に定義
 
   // AIログをコピー（DraftStep特有の形式に対応）
-  const handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
+  const _handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
     const typeLabels: Record<string, string> = {
       generateSingle: '章生成',
       continue: '続き生成',
@@ -383,7 +388,7 @@ ${log.error}` : ''}`;
   }, [setToastMessage]);
 
   // AIログをダウンロード（DraftStep特有の形式に対応）
-  const handleDownloadLogs = useCallback(() => {
+  const _handleDownloadLogs = useCallback(() => {
     const typeLabels: Record<string, string> = {
       generateSingle: '章生成',
       continue: '続き生成',
@@ -419,11 +424,11 @@ ${'='.repeat(80)}`;
     URL.revokeObjectURL(url);
     setToastMessage('ログをダウンロードしました');
   }, [aiLogs, setToastMessage]);
-  
+
   // ドロップダウンメニュー用の状態
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  
+
   const [showCompletionToast, setShowCompletionToast] = useState<string | null>(null);
 
   const mainEditorRef = useRef<MainEditorHandle | null>(null);
@@ -505,7 +510,7 @@ ${'='.repeat(80)}`;
     isGeneratingAllChapters,
     generationProgress,
     generationStatus,
-    chapterProgressList,
+    chapterProgressList: _chapterProgressList,
     handleGenerateAllChapters,
     handleCancelAllChaptersGeneration,
   } = useAllChaptersGeneration({
@@ -519,15 +524,15 @@ ${'='.repeat(80)}`;
     setChapterDrafts,
     setShowCompletionToast,
   });
-  
+
   // AIStatusBar用の簡易状態（全章生成のみを表示）
   const isGenerating = isGeneratingAllChapters;
-  const currentGenerationAction = null;
-  const handleCancelGeneration = () => {
+  const _currentGenerationAction = null;
+  const _handleCancelGeneration = () => {
     handleCancelAllChaptersGeneration();
   };
 
-  const handleManualHistorySnapshot = useCallback(async () => {
+  const _handleManualHistorySnapshot = useCallback(async () => {
     await createHistorySnapshot('manual', { force: true, label: '手動保存' });
   }, [createHistorySnapshot]);
 
@@ -537,7 +542,7 @@ ${'='.repeat(80)}`;
     if (currentProject) {
       const savedCustomPrompt = localStorage.getItem(`customPrompt_${currentProject.id}`);
       const savedUseCustomPrompt = localStorage.getItem(`useCustomPrompt_${currentProject.id}`);
-      
+
       if (savedCustomPrompt) {
         setCustomPrompt(savedCustomPrompt);
       }
@@ -554,10 +559,10 @@ ${'='.repeat(80)}`;
       localStorage.setItem(`useCustomPrompt_${currentProject.id}`, useCustomPrompt.toString());
     }
   }, [customPrompt, useCustomPrompt, currentProject]);
-  
+
   useEffect(() => {
     setIsChapterInfoCollapsed(false);
-    
+
     // sessionStorageに保存してDraftAssistantPanelと同期
     if (currentProject && selectedChapter) {
       sessionStorage.setItem(`draftSelectedChapter_${currentProject.id}`, selectedChapter);
@@ -565,7 +570,7 @@ ${'='.repeat(80)}`;
       window.dispatchEvent(new CustomEvent('draftChapterSelected', { detail: { chapterId: selectedChapter, projectId: currentProject.id, source: 'draftStep' } }));
     }
   }, [selectedChapter, currentProject]);
-  
+
   // 初期化時にsessionStorageから読み込む
   useEffect(() => {
     if (currentProject && !selectedChapter && currentProject.chapters.length > 0) {
@@ -578,16 +583,16 @@ ${'='.repeat(80)}`;
       }
     }
   }, [currentProject]);
-  
+
   // DraftAssistantPanelからの章選択変更を監視して同期
   useEffect(() => {
     if (!currentProject) return;
-    
+
     const handleChapterSelected = async (e: Event) => {
       const customEvent = e as CustomEvent<{ chapterId: string; projectId: string; source?: string }>;
       // 自分が発火したイベントは無視
       if (customEvent.detail.source === 'draftStep') return;
-      
+
       if (customEvent.detail.projectId === currentProject.id && customEvent.detail.chapterId !== selectedChapter) {
         // 現在の章の内容を保存
         if (selectedChapter) {
@@ -597,9 +602,9 @@ ${'='.repeat(80)}`;
         setSelectedChapter(customEvent.detail.chapterId);
       }
     };
-    
+
     window.addEventListener('draftChapterSelected', handleChapterSelected);
-    
+
     return () => {
       window.removeEventListener('draftChapterSelected', handleChapterSelected);
     };
@@ -609,12 +614,12 @@ ${'='.repeat(80)}`;
   // データ管理側のバックアップ機能を利用
   const handleCreateManualBackup = async () => {
     if (!currentProject) return;
-    
+
     // 現在の草案状態を保存してからバックアップを作成
     if (selectedChapter) {
       await handleSaveChapterDraft(selectedChapter, draft);
     }
-    
+
     // バックアップモーダルを表示
     setShowBackupModal(true);
   };
@@ -622,7 +627,7 @@ ${'='.repeat(80)}`;
   // バックアップ作成の実行
   const handleConfirmBackup = async (description: string) => {
     if (!currentProject) return;
-    
+
     try {
       await createManualBackup(description);
       setToastMessage('バックアップを作成しました');
@@ -648,11 +653,11 @@ ${'='.repeat(80)}`;
     }
   }, [isModalOpen, selectedChapter, chapterDrafts]);
 
-useEffect(() => {
-  if (isModalOpen) {
-    setModalDraft(draft);
-  }
-}, [draft, isModalOpen]);
+  useEffect(() => {
+    if (isModalOpen) {
+      setModalDraft(draft);
+    }
+  }, [draft, isModalOpen]);
 
 
   useEffect(() => {
@@ -791,10 +796,10 @@ useEffect(() => {
     if (selectedChapter) {
       await handleSaveChapterDraft(selectedChapter, draft);
     }
-    
+
     // 選択された章を設定（草案はuseEffectで適切に初期化される）
     setSelectedChapter(chapterId);
-    
+
     // sessionStorageに保存してDraftAssistantPanelと同期
     if (currentProject) {
       sessionStorage.setItem(`draftSelectedChapter_${currentProject.id}`, chapterId);
@@ -896,7 +901,7 @@ useEffect(() => {
   // AI生成状態はDraftAssistantPanelで管理されるため、ここでは全章生成のみ
 
   // AIStatusBar用の状態（全章生成のみを表示）
-  const aiStatus = useMemo<{
+  const _aiStatus = useMemo<{
     tone: AIStatusTone;
     title: string;
     detail?: string;
@@ -922,7 +927,7 @@ useEffect(() => {
     isGeneratingAllChapters,
   ]);
 
-  const historyEntries = useMemo(
+  const _historyEntries = useMemo(
     () => (selectedChapter ? chapterHistories[selectedChapter] || [] : []),
     [chapterHistories, selectedChapter]
   );
@@ -938,7 +943,7 @@ useEffect(() => {
     return diffLines(selectedHistoryEntry.content ?? '', draft ?? '');
   }, [selectedHistoryEntry, draft]);
 
-  const hasHistoryDiff = useMemo(
+  const _hasHistoryDiff = useMemo(
     () => historyDiffSegments.some(segment => segment.added || segment.removed),
     [historyDiffSegments]
   );
@@ -947,7 +952,7 @@ useEffect(() => {
   // 章草案保存ハンドラー（フックから取得した関数をエイリアス）
   const handleSaveChapterDraft = handleSaveChapterDraftFromHook;
 
-  const handleRestoreHistoryEntry = useCallback(async () => {
+  const _handleRestoreHistoryEntry = useCallback(async () => {
     if (!selectedChapter || !selectedHistoryEntry) return;
 
     if (selectedHistoryEntry.content === draft) return;
@@ -977,7 +982,7 @@ useEffect(() => {
     }, 0);
   }, [createHistorySnapshot, draft, handleSaveChapterDraft, selectedChapter, selectedHistoryEntry]);
 
-  const handleDeleteHistoryEntry = useCallback(async (entryId: string) => {
+  const _handleDeleteHistoryEntry = useCallback(async (entryId: string) => {
     if (!currentProject || !selectedChapter) return;
 
     try {
@@ -988,7 +993,7 @@ useEffect(() => {
       setChapterHistories(prev => {
         const entries = prev[selectedChapter] || [];
         const updatedEntries = entries.filter(e => e.id !== entryId);
-        
+
         // 削除されたエントリが選択されていた場合、選択を解除
         if (selectedHistoryEntryId === entryId) {
           setSelectedHistoryEntryId(null);
@@ -1028,7 +1033,7 @@ useEffect(() => {
   const wordCount = useMemo(() => draft.length, [draft]);
 
   // 全章生成の確認ダイアログを表示するラッパー
-  const handleGenerateAllChaptersWithConfirm = () => {
+  const _handleGenerateAllChaptersWithConfirm = () => {
     if (!isConfigured) {
       showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
         title: 'AI設定が必要',
@@ -1259,7 +1264,7 @@ useEffect(() => {
     await exportChapter(currentChapter.title, draft);
   }, [currentChapter, draft, exportChapter]);
 
-  const handleExportFull = useCallback(async () => {
+  const _handleExportFull = useCallback(async () => {
     await exportFull();
   }, [exportFull]);
 
@@ -1330,7 +1335,7 @@ useEffect(() => {
   const handleCancelAllGeneration = useCallback(() => {
     // 全章生成をキャンセル
     handleCancelAllChaptersGeneration();
-    
+
     setToastMessage('生成をキャンセルしました');
     setTimeout(() => {
       setToastMessage(null);
@@ -1345,7 +1350,7 @@ useEffect(() => {
       return {
         visible: true,
         title: '全章を生成しています…',
-        detail: generationStatus || 
+        detail: generationStatus ||
           (generationProgress.total > 0
             ? `${generationProgress.current} / ${generationProgress.total}章を処理中です`
             : 'AIが章を順番に執筆しています'),
@@ -1353,7 +1358,7 @@ useEffect(() => {
         canCancel: true,
       };
     }
-    
+
     // 個別のAI生成はDraftAssistantPanelで管理されるため、ここでは全章生成のみ
     return { visible: false };
   }, [isGeneratingAllChapters, generationStatus, generationProgress]);
@@ -1445,26 +1450,26 @@ useEffect(() => {
       />
 
       {/* タイトルセクション */}
-      <div className="mb-8 max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+      <div className="mb-6 sm:mb-8 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-emerald-500">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex-shrink-0">
                 <PenTool className="h-5 w-5 text-white" />
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
                 草案作成
               </h1>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-2">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-2 truncate">
               章ごとに詳細な草案を作成し、物語を完成させましょう
             </p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 w-full sm:w-auto flex-shrink-0">
             <button
               type="button"
               onClick={handleCreateManualBackup}
-              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm font-['Noto_Sans_JP']"
+              className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm font-['Noto_Sans_JP']"
             >
               <Save className="h-4 w-4" />
               <span>バックアップ</span>
@@ -1484,12 +1489,12 @@ useEffect(() => {
       />
 
       {/* メインコンテンツ */}
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-        {/* メインエディタエリア - サイドバー削除により最大化 */}
-        <div className="flex-1 min-w-0 space-y-6">
+          {/* メインエディタエリア - サイドバー削除により最大化 */}
+          <div className="flex-1 min-w-0 space-y-6">
             {/* 章選択 */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden p-4 sm:p-6">
               <ChapterTabs
                 chapters={currentProject.chapters}
                 selectedChapterId={selectedChapter}
@@ -1625,20 +1630,20 @@ useEffect(() => {
               onDraftChange={(value) => {
                 const newContent = value;
                 setDraft(newContent);
-                
+
                 // 即座にchapterDraftsを更新（保存はしない）
                 if (selectedChapter) {
                   setChapterDrafts(prev => ({
                     ...prev,
                     [selectedChapter]: newContent
                   }));
-                  
+
                   // 自動保存のタイマーを設定（2秒後に保存）
                   if (autoSaveTimeoutRef.current) {
                     clearTimeout(autoSaveTimeoutRef.current);
                   }
-                  
-                  autoSaveTimeoutRef.current = setTimeout(() => {
+
+                  autoSaveTimeoutRef.current = window.setTimeout(() => {
                     if (selectedChapter && newContent.trim()) {
                       handleSaveChapterDraft(selectedChapter, newContent, true);
                     }

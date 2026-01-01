@@ -122,12 +122,13 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
   const [currentView, setCurrentView] = useState<'list' | 'timeline' | 'stats'>('list');
 
   // AI関連のステート
-  const { settings: aiSettings } = useAI();
+  const { settings: aiSettings, isConfigured } = useAI();
   const [isAILoading, setIsAILoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [deletingForeshadowingId, setDeletingForeshadowingId] = useState<string | null>(null);
   const [deletingPointInfo, setDeletingPointInfo] = useState<{ foreshadowingId: string; pointId: string } | null>(null);
-  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [aiMode, setAiMode] = useState<'suggest' | 'check'>('suggest');
   const [aiSuggestions, setAiSuggestions] = useState<Array<{
     title: string;
     description: string;
@@ -1013,8 +1014,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
               <button
                 onClick={() => setCurrentView('list')}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'list'
-                    ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
               >
                 <List className="h-4 w-4" />
@@ -1023,8 +1024,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
               <button
                 onClick={() => setCurrentView('timeline')}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'timeline'
-                    ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
               >
                 <Calendar className="h-4 w-4" />
@@ -1033,8 +1034,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
               <button
                 onClick={() => setCurrentView('stats')}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'stats'
-                    ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
               >
                 <BarChart3 className="h-4 w-4" />
@@ -1057,8 +1058,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                     <button
                       onClick={() => setSelectedStatus('all')}
                       className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${selectedStatus === 'all'
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                         }`}
                     >
                       全て ({statusCounts.all || 0})
@@ -1068,8 +1069,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                         key={key}
                         onClick={() => setSelectedStatus(key)}
                         className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${selectedStatus === key
-                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                           }`}
                       >
                         {config.label} ({statusCounts[key] || 0})
@@ -1080,15 +1081,17 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 <div className="flex items-center space-x-2">
                   {/* AI機能ボタン */}
                   <button
-                    onClick={() => setShowAIPanel(!showAIPanel)}
+                    onClick={() => {
+                      setShowAIAssistant(true);
+                      setAiMode('suggest');
+                      setAiError(null);
+                    }}
                     disabled={isAILoading}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${showAIPanel
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                      }`}
+                    className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
+                    title="AIアシスタント"
                   >
-                    {isAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                    <span className="text-sm font-['Noto_Sans_JP']">AI</span>
+                    {isAILoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                    <span className="font-['Noto_Sans_JP']">AIアシスト</span>
                   </button>
 
                   <button
@@ -1097,7 +1100,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                       setEditingForeshadowing(null);
                       setShowAddForm(true);
                     }}
-                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-lg hover:from-rose-600 hover:to-pink-700 transition-colors"
+                    className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     <Plus className="h-5 w-5" />
                     <span className="font-['Noto_Sans_JP']">追加</span>
@@ -1105,107 +1108,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 </div>
               </div>
 
-              {/* AIパネル */}
-              {showAIPanel && (
-                <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-xl">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-purple-900 dark:text-purple-100 font-['Noto_Sans_JP'] flex items-center space-x-2">
-                      <Sparkles className="h-5 w-5" />
-                      <span>AI伏線アシスタント</span>
-                    </h4>
-                    <button
-                      onClick={() => setShowAIPanel(false)}
-                      className="text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
 
-                  {/* AIエラー表示 */}
-                  {aiError && (
-                    <div className="mb-3 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
-                      <p className="text-sm text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">{aiError}</p>
-                    </div>
-                  )}
-
-                  {/* AI機能ボタン群 */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
-                    <button
-                      onClick={handleAISuggest}
-                      disabled={isAILoading}
-                      className="flex items-center justify-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
-                    >
-                      <Lightbulb className="h-4 w-4 text-amber-500" />
-                      <span className="text-sm font-['Noto_Sans_JP']">伏線提案</span>
-                    </button>
-                    <button
-                      onClick={handleConsistencyCheck}
-                      disabled={isAILoading || foreshadowings.length === 0}
-                      className="flex items-center justify-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
-                    >
-                      <Shield className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-['Noto_Sans_JP']">整合性チェック</span>
-                    </button>
-                  </div>
-
-                  {/* AI提案リスト */}
-                  {aiSuggestions.length > 0 && (
-                    <div className="space-y-3">
-                      <h5 className="text-sm font-semibold text-purple-800 dark:text-purple-200 font-['Noto_Sans_JP']">
-                        💡 AI提案（{aiSuggestions.length}件）
-                      </h5>
-                      <div className="max-h-60 overflow-y-auto space-y-2">
-                        {aiSuggestions.map((suggestion, idx) => (
-                          <div
-                            key={idx}
-                            className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                    {suggestion.title}
-                                  </span>
-                                  <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryConfig[suggestion.category]?.color || 'bg-gray-500'}`}>
-                                    {categoryConfig[suggestion.category]?.label || suggestion.category}
-                                  </span>
-                                  <span className={`text-xs ${importanceConfig[suggestion.importance]?.color || 'text-gray-500'}`}>
-                                    {importanceConfig[suggestion.importance]?.stars || ''}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-2">
-                                  {suggestion.description}
-                                </p>
-                                <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP'] space-y-1">
-                                  <p>📍 設置: {suggestion.plantChapter} - {suggestion.plantDescription}</p>
-                                  <p>🎯 回収: {suggestion.payoffChapter} - {suggestion.payoffDescription}</p>
-                                  <p>✨ 効果: {suggestion.effect}</p>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleAddFromSuggestion(suggestion)}
-                                className="ml-2 px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP']"
-                              >
-                                採用
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ローディング表示 */}
-                  {isAILoading && (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
-                      <span className="ml-2 text-purple-600 dark:text-purple-400 font-['Noto_Sans_JP']">
-                        AI分析中...
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* フィルタ */}
               <div className="flex items-center space-x-4 mb-4">
@@ -1263,17 +1166,17 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                       >
                         {/* ヘッダー */}
                         <div className="p-4">
-                          <div className="flex items-start justify-between">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
                             <div className="flex items-start space-x-3 flex-1">
-                              <div className={`${statusInfo.color} p-2 rounded-lg`}>
+                              <div className={`${statusInfo.color} p-2 rounded-lg flex-shrink-0`}>
                                 <StatusIcon className="h-5 w-5 text-white" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
+                                <div className="flex items-start justify-between sm:justify-start sm:items-center sm:space-x-2 mb-1">
+                                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] break-words">
                                     {foreshadowing.title}
                                   </h3>
-                                  <span className={`text-sm ${importanceInfo.color}`}>
+                                  <span className={`text-sm flex-shrink-0 ${importanceInfo.color}`}>
                                     {importanceInfo.stars}
                                   </span>
                                 </div>
@@ -1285,37 +1188,41 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                     {statusInfo.label}
                                   </span>
                                 </div>
-                                <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP'] line-clamp-2">
+                                <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP'] sm:line-clamp-2 break-words">
                                   {foreshadowing.description}
                                 </p>
 
                                 {/* ポイントサマリー */}
                                 {foreshadowing.points.length > 0 && (
-                                  <div className="flex items-center space-x-3 mt-2 text-sm">
+                                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-sm">
                                     {foreshadowing.points.map((point, idx) => {
                                       const pointTypeInfo = pointTypeConfig[point.type] || pointTypeConfig.plant;
                                       return (
-                                        <span
+                                        <div
                                           key={point.id}
-                                          className={`flex items-center space-x-1 ${pointTypeInfo.color}`}
+                                          className="flex items-center"
                                         >
-                                          <span>{pointTypeInfo.icon}</span>
-                                          <span className="font-['Noto_Sans_JP']">
-                                            {chapters.findIndex(c => c.id === point.chapterId) + 1}章
+                                          <span
+                                            className={`flex items-center space-x-1 ${pointTypeInfo.color}`}
+                                          >
+                                            <span>{pointTypeInfo.icon}</span>
+                                            <span className="font-['Noto_Sans_JP']">
+                                              {chapters.findIndex(c => c.id === point.chapterId) + 1}章
+                                            </span>
                                           </span>
                                           {idx < foreshadowing.points.length - 1 && (
-                                            <span className="text-gray-300 dark:text-gray-600 ml-2">→</span>
+                                            <span className="text-gray-300 dark:text-gray-600 ml-3">→</span>
                                           )}
-                                        </span>
+                                        </div>
                                       );
                                     })}
                                     {foreshadowing.plannedPayoffChapterId && foreshadowing.status !== 'resolved' && (
-                                      <>
-                                        <span className="text-gray-300 dark:text-gray-600">→</span>
+                                      <div className="flex items-center">
+                                        <span className="text-gray-300 dark:text-gray-600 mr-3">→</span>
                                         <span className="text-gray-400 font-['Noto_Sans_JP']">
                                           🎯 {chapters.findIndex(c => c.id === foreshadowing.plannedPayoffChapterId) + 1}章(予定)
                                         </span>
-                                      </>
+                                      </div>
                                     )}
                                   </div>
                                 )}
@@ -1335,22 +1242,25 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center space-x-2 ml-4">
+                            <div className="flex items-center space-x-1 sm:space-x-2 mt-4 sm:mt-0 sm:ml-4 justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100 dark:border-gray-700">
                               <button
                                 onClick={() => toggleExpand(foreshadowing.id)}
                                 className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                title={isExpanded ? "閉じる" : "詳細を表示"}
                               >
                                 {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                               </button>
                               <button
                                 onClick={() => handleEditForeshadowing(foreshadowing)}
                                 className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                title="編集"
                               >
                                 <Edit2 className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteForeshadowing(foreshadowing.id)}
                                 className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="削除"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -1640,15 +1550,15 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                         <div key={chapterData.chapterId} className="relative">
                           {/* 章ヘッダー */}
                           <div className={`flex items-center space-x-4 p-3 rounded-lg ${hasContent
-                              ? 'bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 border border-rose-200 dark:border-rose-800'
-                              : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                            ? 'bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 border border-rose-200 dark:border-rose-800'
+                            : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
                             }`}>
                             <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${hasContent ? 'bg-rose-500 text-white' : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
                               }`}>
                               <span className="font-bold text-sm">{idx + 1}</span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
+                              <h4 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] break-words">
                                 第{idx + 1}章: {chapterData.chapterTitle}
                               </h4>
                               <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -1680,8 +1590,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                             </div>
                             <div className="flex items-center space-x-2">
                               <span className={`px-2 py-1 text-xs rounded-full ${chapterData.points.length > 5 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                                  chapterData.points.length > 2 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                                    'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                chapterData.points.length > 2 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                                  'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                                 }`}>
                                 密度: {chapterData.points.length}
                               </span>
@@ -1817,7 +1727,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                 <span className={`px-2 py-1 text-xs rounded-full ${categoryInfo.color} text-white`}>
                                   {categoryInfo.label}
                                 </span>
-                                <span className="font-medium text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP'] min-w-0 truncate flex-shrink-0" style={{ maxWidth: '150px' }}>
+                                <span className="font-medium text-gray-900 dark:text-white text-sm font-['Noto_Sans_JP'] min-w-0 break-words flex-shrink-0" style={{ maxWidth: '200px' }}>
                                   {flow.foreshadowing.title}
                                 </span>
                                 <div className="flex-1 flex items-center space-x-1 overflow-x-auto">
@@ -1826,8 +1736,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                     return (
                                       <React.Fragment key={point.id}>
                                         <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded ${point.type === 'plant' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                                            point.type === 'hint' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                          point.type === 'hint' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                                            'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                           }`}>
                                           {pointTypeInfo.icon} {chapters.findIndex(c => c.id === point.chapterId) + 1}章
                                         </span>
@@ -1986,7 +1896,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                           <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                             <div
                               className={`h-full transition-all duration-500 ${chapter.density > 5 ? 'bg-red-500' :
-                                  chapter.density > 2 ? 'bg-amber-500' : 'bg-rose-500'
+                                chapter.density > 2 ? 'bg-amber-500' : 'bg-rose-500'
                                 }`}
                               style={{ width: `${(chapter.density / maxDensity) * 100}%` }}
                             />
@@ -2247,10 +2157,10 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
             </button>
             <button
               onClick={editingForeshadowing ? handleUpdateForeshadowing : handleAddForeshadowing}
-              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-lg hover:from-rose-600 hover:to-pink-700 transition-colors"
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               <Save className="h-5 w-5" />
-              <span className="font-['Noto_Sans_JP']">{editingForeshadowing ? '更新' : '追加'}</span>
+              <span className="font-['Noto_Sans_JP']">保存</span>
             </button>
           </div>
         </div>
@@ -2274,7 +2184,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
             {/* スコア表示 */}
             <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl">
               <div className={`text-5xl font-bold ${consistencyResult.overallScore >= 80 ? 'text-green-600' :
-                  consistencyResult.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'
+                consistencyResult.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'
                 }`}>
                 {consistencyResult.overallScore}
               </div>
@@ -2321,7 +2231,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                           {issue.foreshadowingTitle}
                         </span>
                         <span className={`px-2 py-0.5 text-xs rounded-full ${issue.severity === 'high' ? 'bg-red-100 text-red-700' :
-                            issue.severity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'
+                          issue.severity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'
                           }`}>
                           {issue.severity === 'high' ? '高' : issue.severity === 'medium' ? '中' : '低'}
                         </span>
@@ -2624,6 +2534,204 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         type="warning"
         confirmLabel="削除"
       />
+
+      {/* AIアシスタントモーダル */}
+      <Modal
+        isOpen={showAIAssistant}
+        onClose={() => {
+          setShowAIAssistant(false);
+          setAiSuggestions([]);
+          setAiError(null);
+        }}
+        title={
+          <div className="flex items-center space-x-3">
+            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-2 rounded-lg">
+              <Sparkles className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                AIアシスタント
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                伏線の提案・整合性チェック
+              </p>
+            </div>
+          </div>
+        }
+        size="lg"
+        className="z-[70]"
+      >
+        <div className="space-y-6">
+          {!isConfigured ? (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 font-['Noto_Sans_JP']">
+                    AI設定が必要です
+                  </p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1 font-['Noto_Sans_JP']">
+                    設定画面でAPIキーを設定してください。
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* モード選択 */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setAiMode('suggest');
+                    setAiSuggestions([]);
+                    setAiError(null);
+                  }}
+                  className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'suggest'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                >
+                  <Lightbulb className="h-5 w-5 mx-auto mb-1" />
+                  <div className="text-sm font-medium">伏線提案</div>
+                  <div className="text-xs mt-1 opacity-80">新しい伏線を提案</div>
+                </button>
+                <button
+                  onClick={() => {
+                    setAiMode('check');
+                    setAiSuggestions([]);
+                    setAiError(null);
+                  }}
+                  className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'check'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                >
+                  <Shield className="h-5 w-5 mx-auto mb-1" />
+                  <div className="text-sm font-medium">整合性チェック</div>
+                  <div className="text-xs mt-1 opacity-80">伏線の矛盾を検出</div>
+                </button>
+              </div>
+
+              {/* 伏線提案モード */}
+              {aiMode === 'suggest' && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <p className="text-sm text-blue-800 dark:text-blue-300 font-['Noto_Sans_JP']">
+                      <strong>伏線提案機能</strong><br />
+                      プロジェクトのあらすじや章の内容を分析し、物語を豊かにする伏線を提案します。設置場所と回収場所も含めて提案されます。
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleAISuggest}
+                    disabled={isAILoading}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAILoading ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="font-['Noto_Sans_JP']">提案中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lightbulb className="h-5 w-5" />
+                        <span className="font-['Noto_Sans_JP']">伏線を提案</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* AI提案リスト */}
+                  {aiSuggestions.length > 0 && (
+                    <div className="space-y-3">
+                      <h5 className="text-sm font-semibold text-purple-800 dark:text-purple-200 font-['Noto_Sans_JP']">
+                        💡 AI提案（{aiSuggestions.length}件）
+                      </h5>
+                      <div className="max-h-80 overflow-y-auto space-y-2">
+                        {aiSuggestions.map((suggestion, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                                    {suggestion.title}
+                                  </span>
+                                  <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryConfig[suggestion.category]?.color || 'bg-gray-500'}`}>
+                                    {categoryConfig[suggestion.category]?.label || suggestion.category}
+                                  </span>
+                                  <span className={`text-xs ${importanceConfig[suggestion.importance]?.color || 'text-gray-500'}`}>
+                                    {importanceConfig[suggestion.importance]?.stars || ''}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mb-2">
+                                  {suggestion.description}
+                                </p>
+                                <div className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP'] space-y-1">
+                                  <p>📍 設置: {suggestion.plantChapter} - {suggestion.plantDescription}</p>
+                                  <p>🎯 回収: {suggestion.payoffChapter} - {suggestion.payoffDescription}</p>
+                                  <p>✨ 効果: {suggestion.effect}</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleAddFromSuggestion(suggestion)}
+                                className="ml-2 px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP']"
+                              >
+                                採用
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 整合性チェックモード */}
+              {aiMode === 'check' && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <p className="text-sm text-blue-800 dark:text-blue-300 font-['Noto_Sans_JP']">
+                      <strong>整合性チェック機能</strong><br />
+                      登録されている伏線を分析し、未回収の伏線、矛盾、バランスの問題を検出します。
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleConsistencyCheck}
+                    disabled={isAILoading || foreshadowings.length === 0}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAILoading ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="font-['Noto_Sans_JP']">チェック中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="h-5 w-5" />
+                        <span className="font-['Noto_Sans_JP']">整合性をチェック</span>
+                      </>
+                    )}
+                  </button>
+                  {foreshadowings.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center font-['Noto_Sans_JP']">
+                      伏線が登録されていません。先に伏線を追加してください。
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* AIエラー表示 */}
+              {aiError && (
+                <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+                  <p className="text-sm text-red-700 dark:text-red-300 font-['Noto_Sans_JP']">{aiError}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Modal>
     </>
   );
 };

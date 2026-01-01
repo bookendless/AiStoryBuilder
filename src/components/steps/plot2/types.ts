@@ -1,10 +1,14 @@
+import { Step } from '../../../types/common';
+
 export type PlotStructureType = 'kishotenketsu' | 'three-act' | 'four-act' | 'heroes-journey' | 'beat-sheet' | 'mystery-suspense';
 
-export type Step = 'home' | 'character' | 'plot1' | 'plot2' | 'synopsis' | 'chapter' | 'draft' | 'export';
+// Step型を再エクスポート（後方互換性のため）
+export type { Step };
 
 export interface PlotStep2Props {
   onNavigateToStep?: (step: Step) => void;
 }
+
 
 export interface PlotFormData {
   ki: string;

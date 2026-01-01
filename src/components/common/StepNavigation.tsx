@@ -22,7 +22,7 @@ const STEP_LABELS: Record<Step, string> = {
   synopsis: 'あらすじ',
   chapter: '章立て',
   draft: '草案作成',
-  review: 'レビュー',
+  review: '作品評価',
   export: 'エクスポート',
 };
 

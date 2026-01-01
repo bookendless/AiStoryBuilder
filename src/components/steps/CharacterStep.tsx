@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Plus, User, Network } from 'lucide-react';
+import { Plus, User, Network, ArrowUpDown } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -15,6 +15,7 @@ import { CharacterDiary } from '../tools/CharacterDiary';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
+import { ReorderModal } from './character/ReorderModal';
 
 interface CharacterStepProps {
   onNavigateToStep?: (step: Step) => void;
@@ -33,6 +34,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
   const [showRelationships, setShowRelationships] = useState(false);
   const [possessionCharacterId, setPossessionCharacterId] = useState<string | null>(null);
   const [diaryCharacterId, setDiaryCharacterId] = useState<string | null>(null);
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
   const [confirmDialogState, setConfirmDialogState] = useState<{
     isOpen: boolean;
     type: 'ai-enhance' | 'delete' | null;
@@ -90,6 +92,18 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
     );
 
     updateProject({ characters: updatedCharacters });
+  }, [currentProject, updateProject]);
+
+  // 並べ替えハンドラー（モーダル用）
+  const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
+    if (!currentProject) return;
+    const characters = [...currentProject.characters];
+    if (toIndex < 0 || toIndex >= characters.length) return;
+
+    const [movedChar] = characters.splice(fromIndex, 1);
+    characters.splice(toIndex, 0, movedChar);
+
+    updateProject({ characters });
   }, [currentProject, updateProject]);
 
   // ドラッグ開始
@@ -394,7 +408,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
       )}
 
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between mb-4 gap-4 sm:gap-0">
           <div>
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-pink-400 to-rose-500">
@@ -411,20 +425,27 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
               💡 キャラクターカードをドラッグ&ドロップで並び順を変更できます
             </p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+            <button
+              onClick={() => setIsReorderModalOpen(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP'] shadow-sm whitespace-nowrap"
+            >
+              <ArrowUpDown className="h-5 w-5" />
+              <span className="hidden sm:inline">並べ替え</span>
+            </button>
             <button
               onClick={() => setShowRelationships(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg"
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg whitespace-nowrap"
             >
               <Network className="h-5 w-5" />
               <span>人物相関図</span>
             </button>
             <button
               onClick={handleOpenAddModal}
-              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg"
+              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg whitespace-nowrap"
             >
               <Plus className="h-5 w-5" />
-              <span>新しいキャラクターを追加</span>
+              <span>追加</span>
             </button>
           </div>
         </div>
@@ -502,6 +523,14 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
         onSubmit={handleAddCharacter}
         editingCharacter={editingCharacter}
         onUpdate={handleUpdateCharacter}
+      />
+
+      {/* Reorder Modal */}
+      <ReorderModal
+        isOpen={isReorderModalOpen}
+        onClose={() => setIsReorderModalOpen(false)}
+        characters={currentProject.characters}
+        onReorder={handleReorder}
       />
 
       {/* 画像拡大表示モーダル */}

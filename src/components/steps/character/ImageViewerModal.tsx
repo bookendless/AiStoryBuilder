@@ -31,11 +31,11 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
       ref={modalRef}
       showCloseButton={true}
     >
-      <div className="flex items-center justify-center h-[80vh]">
+      <div className="flex items-center justify-center p-2 min-h-min">
         <OptimizedImage
           src={imageUrl}
           alt={characterName}
-          className="max-w-full max-h-full rounded-lg shadow-2xl cursor-pointer"
+          className="max-w-full h-auto rounded-lg shadow-2xl cursor-pointer"
           lazy={false}
           quality={0.9}
           onClick={onClose}

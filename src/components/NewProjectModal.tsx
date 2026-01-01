@@ -144,11 +144,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const handleFieldBlur = (fieldName: string) => {
     setTouched(prev => ({ ...prev, [fieldName]: true }));
     const value = fieldName === 'title' ? title :
-                  fieldName === 'mainGenre' ? mainGenre :
-                  fieldName === 'customMainGenre' ? customMainGenre :
-                  fieldName === 'customSubGenre' ? customSubGenre :
-                  fieldName === 'customTargetReader' ? customTargetReader :
-                  fieldName === 'customTheme' ? customTheme : '';
+      fieldName === 'mainGenre' ? mainGenre :
+        fieldName === 'customMainGenre' ? customMainGenre :
+          fieldName === 'customSubGenre' ? customSubGenre :
+            fieldName === 'customTargetReader' ? customTargetReader :
+              fieldName === 'customTheme' ? customTheme : '';
     const error = validateField(fieldName, value);
     setErrors(prev => ({
       ...prev,
@@ -229,7 +229,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     try {
       // 画像を圧縮（1920x1080、quality 0.8）
       const compressedBlob = await compressImage(file, 1920, 1080, 0.8);
-      
+
       // 圧縮されたBlobをBase64に変換
       const base64 = await fileToBase64(new File([compressedBlob], file.name, { type: file.type }));
       setPreviewUrl(base64);
@@ -324,7 +324,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateAll()) {
       // エラーがある場合は基本情報タブに切り替え
       if (activeTab === 'style') {
@@ -428,7 +428,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       size="md"
     >
       {/* タブナビゲーション */}
-      <div 
+      <div
         className="mb-6 flex space-x-1 border-b border-gray-200 dark:border-gray-700"
         role="tablist"
         aria-label="プロジェクト設定タブ"
@@ -457,7 +457,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {activeTab === 'basic' && (
-          <div 
+          <div
             id="basic-tabpanel"
             role="tabpanel"
             aria-labelledby="basic-tab"
@@ -474,9 +474,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                 onChange={(e) => handleFieldChange('title', e.target.value, setTitle)}
                 onBlur={() => handleFieldBlur('title')}
                 placeholder="例：異世界転生物語"
-                className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-['Noto_Sans_JP'] ${
-                  errors.title ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                }`}
+                className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-['Noto_Sans_JP'] ${errors.title ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  }`}
                 required
               />
               {errors.title && (
@@ -505,7 +504,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
                 メインジャンル <span className="text-red-500 font-bold">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-2">
                 {GENRES.map((genreOption) => (
                   <button
                     key={genreOption}
@@ -539,9 +538,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                     value={customMainGenre}
                     onChange={(e) => handleFieldChange('customMainGenre', e.target.value, setCustomMainGenre)}
                     onBlur={() => handleFieldBlur('customMainGenre')}
-                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] ${
-                      errors.customMainGenre ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                    }`}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] ${errors.customMainGenre ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
                     placeholder="カスタムジャンルを入力してください"
                   />
                   {errors.customMainGenre && (
@@ -558,7 +556,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
                 サブジャンル <span className="text-gray-500">（任意）</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-2">
                 {GENRES.map((genreOption) => (
                   <button
                     key={genreOption}
@@ -588,9 +586,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                     value={customSubGenre}
                     onChange={(e) => handleFieldChange('customSubGenre', e.target.value, setCustomSubGenre)}
                     onBlur={() => handleFieldBlur('customSubGenre')}
-                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] ${
-                      errors.customSubGenre ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                    }`}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-['Noto_Sans_JP'] ${errors.customSubGenre ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
                     placeholder="カスタムサブジャンルを入力してください"
                   />
                   {errors.customSubGenre && (
@@ -607,7 +604,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
                 ターゲット読者
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {TARGET_READERS.map((target) => (
                   <button
                     key={target}
@@ -637,9 +634,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                     value={customTargetReader}
                     onChange={(e) => handleFieldChange('customTargetReader', e.target.value, setCustomTargetReader)}
                     onBlur={() => handleFieldBlur('customTargetReader')}
-                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] ${
-                      errors.customTargetReader ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                    }`}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent font-['Noto_Sans_JP'] ${errors.customTargetReader ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
                     placeholder="カスタムターゲット読者を入力してください"
                   />
                   {errors.customTargetReader && (
@@ -656,7 +652,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
                 テーマ
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {THEMES.map((themeOption) => (
                   <button
                     key={themeOption}
@@ -686,9 +682,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                     value={customTheme}
                     onChange={(e) => handleFieldChange('customTheme', e.target.value, setCustomTheme)}
                     onBlur={() => handleFieldBlur('customTheme')}
-                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP'] ${
-                      errors.customTheme ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                    }`}
+                    className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent font-['Noto_Sans_JP'] ${errors.customTheme ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
                     placeholder="カスタムテーマを入力してください"
                   />
                   {errors.customTheme && (
@@ -768,7 +763,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
         )}
 
         {activeTab === 'style' && (
-          <div 
+          <div
             id="style-tabpanel"
             role="tabpanel"
             aria-labelledby="style-tab"

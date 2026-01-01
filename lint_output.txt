@@ -1,0 +1,386 @@
+
+> ai-story-builder@2.0.0 lint
+> eslint .
+
+
+D:\Dev\AiStoryBuilder\src\components\DataManager.tsx
+  365:13  error  'isAndroid' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Dev\AiStoryBuilder\src\components\HomePage.tsx
+  463:6  warning  React Hook useMemo has a missing dependency: 'getProjectProgress'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\ImageBoard.tsx
+   938:6  warning  React Hook useEffect has a missing dependency: 'handleCloseImageViewer'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  1005:6  warning  React Hook useMemo has a missing dependency: 'currentProject'. Either include it or remove the dependency array            react-hooks/exhaustive-deps
+  1125:6  warning  React Hook useEffect has a missing dependency: 'selectedImageIds'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\Toast.tsx
+   35:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  147:6   warning  React Hook useEffect has a missing dependency: 'handleRemove'. Either include it or remove the dependency array                 react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\common\DraggableSidebar.tsx
+  37:17  warning  Unsafe assignment of an `any` value       @typescript-eslint/no-unsafe-assignment
+  40:13  warning  Unsafe return of a value of type `any[]`  @typescript-eslint/no-unsafe-return
+
+D:\Dev\AiStoryBuilder\src\components\common\MicroInteractions.tsx
+  37:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Dev\AiStoryBuilder\src\components\common\Modal.tsx
+  120:8  warning  React Hook useEffect has a missing dependency: 'modalRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\common\hooks\useAutoSave.ts
+  33:6  warning  React Hook useEffect has a missing dependency: 'value'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\steps\DraftStep.tsx
+    30:10  error    'AILogPanel' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                           @typescript-eslint/no-unused-vars
+    39:10  error    'AILoadingIndicator' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                   @typescript-eslint/no-unused-vars
+    47:3   error    'SecondaryTab' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                         @typescript-eslint/no-unused-vars
+    59:11  error    'handleError' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                 @typescript-eslint/no-unused-vars
+    59:24  error    'handleAPIError' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                              @typescript-eslint/no-unused-vars
+    59:61  error    'getErrorMessage' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                             @typescript-eslint/no-unused-vars
+    71:27  error    'setImprovementLogs' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                          @typescript-eslint/no-unused-vars
+   135:19  error    'addLog' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   179:9   error    'getProjectContextInfo' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                       @typescript-eslint/no-unused-vars
+   268:9   error    'buildCustomPrompt' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                           @typescript-eslint/no-unused-vars
+   360:9   error    'handleCopyLog' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                               @typescript-eslint/no-unused-vars
+   386:9   error    'handleDownloadLogs' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                          @typescript-eslint/no-unused-vars
+   508:5   error    'chapterProgressList' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                         @typescript-eslint/no-unused-vars
+   525:9   error    'currentGenerationAction' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                     @typescript-eslint/no-unused-vars
+   526:9   error    'handleCancelGeneration' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                      @typescript-eslint/no-unused-vars
+   530:9   error    'handleManualHistorySnapshot' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                 @typescript-eslint/no-unused-vars
+   580:6   warning  React Hook useEffect has a missing dependency: 'selectedChapter'. Either include it or remove the dependency array                                                                                                                                     react-hooks/exhaustive-deps
+   784:9   warning  The 'handleChapterSelect' function makes the dependencies of useCallback Hook (at line 832) change on every render. To fix this, wrap the definition of 'handleChapterSelect' in its own useCallback() Hook                                            react-hooks/exhaustive-deps
+   899:9   error    'aiStatus' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                    @typescript-eslint/no-unused-vars
+   918:6   warning  React Hook useMemo has a missing dependency: 'generationProgress'. Either include it or remove the dependency array. Mutable values like 'generationProgress.current' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+   925:9   error    'historyEntries' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                              @typescript-eslint/no-unused-vars
+   941:9   error    'hasHistoryDiff' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                              @typescript-eslint/no-unused-vars
+   950:9   error    'handleRestoreHistoryEntry' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                   @typescript-eslint/no-unused-vars
+   978:6   warning  React Hook useCallback has missing dependencies: 'setChapterDrafts' and 'setDraft'. Either include them or remove the dependency array                                                                                                                 react-hooks/exhaustive-deps
+   980:9   error    'handleDeleteHistoryEntry' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                    @typescript-eslint/no-unused-vars
+  1008:6   warning  React Hook useCallback has a missing dependency: 'handleDatabaseError'. Either include it or remove the dependency array                                                                                                                               react-hooks/exhaustive-deps
+  1031:9   error    'handleGenerateAllChaptersWithConfirm' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                        @typescript-eslint/no-unused-vars
+  1262:9   error    'handleExportFull' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                            @typescript-eslint/no-unused-vars
+
+D:\Dev\AiStoryBuilder\src\components\steps\ExportStep.tsx
+  302:17  warning  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+D:\Dev\AiStoryBuilder\src\components\steps\PlotStep1.tsx
+  348:6  warning  React Hook useEffect has a missing dependency: 'fieldOrder'. Either include it or remove the dependency array           react-hooks/exhaustive-deps
+  603:6  warning  React Hook useCallback has a missing dependency: 'getProjectContext'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\steps\PlotStep2.tsx
+  342:17  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  344:46  warning  Unsafe member access [fieldLabel] on an `any` value  @typescript-eslint/no-unsafe-member-access
+  345:22  warning  Unsafe member access [fieldLabel] on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\components\steps\ReviewStep.tsx
+  137:8  warning  React Hook useEffect has a missing dependency: 'currentProject'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\steps\SynopsisStep.tsx
+   53:37  warning  The ref value 'saveTimeoutRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'saveTimeoutRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  182:9   error    'handleAIGenerate' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+
+D:\Dev\AiStoryBuilder\src\components\steps\draft\ForeshadowingPanel.tsx
+  69:9  warning  The 'foreshadowings' logical expression could make the dependencies of useMemo Hook (at line 86) change on every render. To fix this, wrap the initialization of 'foreshadowings' in its own useMemo() Hook   react-hooks/exhaustive-deps
+  69:9  warning  The 'foreshadowings' logical expression could make the dependencies of useMemo Hook (at line 105) change on every render. To fix this, wrap the initialization of 'foreshadowings' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  69:9  warning  The 'foreshadowings' logical expression could make the dependencies of useMemo Hook (at line 127) change on every render. To fix this, wrap the initialization of 'foreshadowings' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  70:9  warning  The 'chapters' logical expression could make the dependencies of useMemo Hook (at line 105) change on every render. To fix this, wrap the initialization of 'chapters' in its own useMemo() Hook              react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\steps\draft\hooks\useAIGeneration.ts
+  240:6    warning  React Hook useCallback has an unnecessary dependency: 'draft'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  716:17   warning  Unsafe assignment of an `any` value                                                                              @typescript-eslint/no-unsafe-assignment
+  719:28   warning  Unsafe member access .summary on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  720:13   warning  Unsafe assignment of an `any` value                                                                              @typescript-eslint/no-unsafe-assignment
+  720:44   warning  Unsafe member access .summary on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  724:28   warning  Unsafe member access .weaknesses on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+  724:69   warning  Unsafe member access .weaknesses on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+  731:13   warning  Unsafe assignment of an `any` value                                                                              @typescript-eslint/no-unsafe-assignment
+  731:26   warning  Unsafe call of a(n) `any` typed value                                                                            @typescript-eslint/no-unsafe-call
+  731:39   warning  Unsafe member access .weaknesses on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+  746:76   warning  Unsafe member access .summary on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  746:110  warning  Unsafe member access .summary on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  755:76   warning  Unsafe member access .summary on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  755:110  warning  Unsafe member access .summary on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  866:19   warning  Unsafe assignment of an `any` value                                                                              @typescript-eslint/no-unsafe-assignment
+  868:19   warning  Unsafe assignment of an `any` value                                                                              @typescript-eslint/no-unsafe-assignment
+  868:43   warning  Unsafe member access .revisedText on an `any` value                                                              @typescript-eslint/no-unsafe-member-access
+  868:65   warning  Unsafe member access .revised_text on an `any` value                                                             @typescript-eslint/no-unsafe-member-access
+  870:13   warning  Unsafe assignment of an `any` value                                                                              @typescript-eslint/no-unsafe-assignment
+  870:41   warning  Unsafe member access .improvementSummary on an `any` value                                                       @typescript-eslint/no-unsafe-member-access
+  870:70   warning  Unsafe member access .improvement_summary on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  871:13   warning  Unsafe assignment of an `any` value                                                                              @typescript-eslint/no-unsafe-assignment
+  871:36   warning  Unsafe member access .changes on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  914:96   error    Unnecessary escape character: \[                                                                                 no-useless-escape
+
+D:\Dev\AiStoryBuilder\src\components\steps\draft\utils.ts
+  25:11  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  26:40  warning  Unsafe member access .suggestions on an `any` value  @typescript-eslint/no-unsafe-member-access
+  27:7   warning  Unsafe return of a value of type `any`               @typescript-eslint/no-unsafe-return
+  27:14  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  27:14  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  27:21  warning  Unsafe member access .suggestions on an `any` value  @typescript-eslint/no-unsafe-member-access
+  33:10  warning  Unsafe member access .filter on an `any` value       @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\components\tools\CharacterPossessionChat.tsx
+  57:15  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  59:15  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  59:26  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+  59:34  warning  Unsafe member access .messages on an `any` value   @typescript-eslint/no-unsafe-member-access
+  59:50  warning  Unsafe member access .map on an `any` value        @typescript-eslint/no-unsafe-member-access
+  66:9   warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  66:39  warning  Unsafe member access .sessionId on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\components\tools\GlossaryManager.tsx
+  52:9  warning  The 'glossary' logical expression could make the dependencies of useMemo Hook (at line 74) change on every render. To fix this, wrap the initialization of 'glossary' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\components\tools\PlotStep1AssistantPanel.tsx
+   34:11  warning  The 'plotData' logical expression could make the dependencies of useCallback Hook (at line 428) change on every render. To fix this, wrap the initialization of 'plotData' in its own useMemo() Hook  react-hooks/exhaustive-deps
+   34:11  warning  The 'plotData' logical expression could make the dependencies of useMemo Hook (at line 449) change on every render. To fix this, wrap the initialization of 'plotData' in its own useMemo() Hook      react-hooks/exhaustive-deps
+  312:35  warning  Unsafe assignment of an `any` value                                                                                                                                                                   @typescript-eslint/no-unsafe-assignment
+  324:33  warning  Unsafe assignment of an `any` value                                                                                                                                                                   @typescript-eslint/no-unsafe-assignment
+
+D:\Dev\AiStoryBuilder\src\components\tools\PlotStep2AssistantPanel.tsx
+  299:27  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  302:31  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  302:46  warning  Unsafe member access [key] on an `any` value       @typescript-eslint/no-unsafe-member-access
+  493:27  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  494:27  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  494:57  warning  Unsafe member access .issues on an `any` value     @typescript-eslint/no-unsafe-member-access
+  495:27  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+  495:34  warning  Unsafe member access .issues on an `any` value     @typescript-eslint/no-unsafe-member-access
+  498:25  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  498:50  warning  Unsafe member access .hasIssues on an `any` value  @typescript-eslint/no-unsafe-member-access
+  498:83  warning  Unsafe member access .hasIssues on an `any` value  @typescript-eslint/no-unsafe-member-access
+  499:25  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+
+D:\Dev\AiStoryBuilder\src\components\tools\SynopsisAssistantPanel.tsx
+  481:8  warning  React Hook useCallback has an unnecessary dependency: 'aiLogs'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Dev\AiStoryBuilder\src\contexts\AIContext.tsx
+   20:9   warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+   71:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   89:15  warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+   90:73  warning  Unsafe member access .provider on an `any` value                                                                                @typescript-eslint/no-unsafe-member-access
+   91:82  warning  Unsafe member access .model on an `any` value                                                                                   @typescript-eslint/no-unsafe-member-access
+   94:9   warning  Unsafe return of a value of type `any`                                                                                          @typescript-eslint/no-unsafe-return
+  100:55  warning  Unsafe member access .temperature on an `any` value                                                                             @typescript-eslint/no-unsafe-member-access
+  101:68  warning  Unsafe member access .maxTokens on an `any` value                                                                               @typescript-eslint/no-unsafe-member-access
+  175:19  warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+  176:19  warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+  176:36  warning  Unsafe member access .apiKeys on an `any` value                                                                                 @typescript-eslint/no-unsafe-member-access
+  177:19  warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+  177:42  warning  Unsafe member access .provider on an `any` value                                                                                @typescript-eslint/no-unsafe-member-access
+  178:23  warning  Unsafe member access [parsed.provider] on an `any` value                                                                        @typescript-eslint/no-unsafe-member-access
+  178:23  warning  Computed name [parsed.provider] resolves to an `any` value                                                                      @typescript-eslint/no-unsafe-member-access
+  178:30  warning  Unsafe member access .provider on an `any` value                                                                                @typescript-eslint/no-unsafe-member-access
+  178:50  warning  Unsafe member access .apiKey on an `any` value                                                                                  @typescript-eslint/no-unsafe-member-access
+  182:17  warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+  183:17  warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+  258:15  warning  Unsafe assignment of an `any` value                                                                                             @typescript-eslint/no-unsafe-assignment
+
+D:\Dev\AiStoryBuilder\src\contexts\ProjectContext.tsx
+  59:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Dev\AiStoryBuilder\src\hooks\useMemoryLeakPrevention.ts
+  6:49  error  'useState' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Dev\AiStoryBuilder\src\main.tsx
+  11:9   warning  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  11:23  warning  Unsafe call of a(n) `any` typed value             @typescript-eslint/no-unsafe-call
+  11:36  warning  Unsafe member access .toString on an `any` value  @typescript-eslint/no-unsafe-member-access
+  20:5   warning  Unsafe call of a(n) `any` typed value             @typescript-eslint/no-unsafe-call
+  20:17  warning  Unsafe member access .includes on an `any` value  @typescript-eslint/no-unsafe-member-access
+  32:9   warning  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  34:9   warning  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  34:33  warning  Unsafe member access .message on an `any` value   @typescript-eslint/no-unsafe-member-access
+  37:5   warning  Unsafe call of a(n) `any` typed value             @typescript-eslint/no-unsafe-call
+  37:19  warning  Unsafe member access .includes on an `any` value  @typescript-eslint/no-unsafe-member-access
+  38:5   warning  Unsafe call of a(n) `any` typed value             @typescript-eslint/no-unsafe-call
+  38:19  warning  Unsafe member access .includes on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\services\aiService.ts
+    43:19  error    'PromptTemplates' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   337:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   338:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   338:42  warning  Unsafe member access .choices on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   572:25  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   573:28  warning  Unsafe member access .type on an `any` value                                       @typescript-eslint/no-unsafe-member-access
+   573:67  warning  Unsafe member access .delta on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+   574:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   574:42  warning  Unsafe member access .delta on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+   817:29  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   818:29  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   818:41  warning  Unsafe member access .text on an `any` value                                       @typescript-eslint/no-unsafe-member-access
+   830:33  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   855:23  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   856:23  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   856:35  warning  Unsafe member access .text on an `any` value                                       @typescript-eslint/no-unsafe-member-access
+   868:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+  1221:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+  1222:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+  1222:42  warning  Unsafe member access .choices on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+  1477:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+  1478:27  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+  1478:42  warning  Unsafe member access .choices on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\services\databaseService.ts
+   677:9   warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+   680:9   warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+   803:13  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+   806:31  warning  Unsafe member access .version on an `any` value    @typescript-eslint/no-unsafe-member-access
+   808:16  warning  Unsafe member access .projects on an `any` value   @typescript-eslint/no-unsafe-member-access
+   808:46  warning  Unsafe member access .projects on an `any` value   @typescript-eslint/no-unsafe-member-access
+   810:15  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+   810:35  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   810:35  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   810:40  warning  Unsafe member access .projects on an `any` value   @typescript-eslint/no-unsafe-member-access
+   847:12  warning  Unsafe member access .filter on an `any` value     @typescript-eslint/no-unsafe-member-access
+   852:16  warning  Unsafe member access .backups on an `any` value    @typescript-eslint/no-unsafe-member-access
+   852:45  warning  Unsafe member access .backups on an `any` value    @typescript-eslint/no-unsafe-member-access
+   854:15  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+   854:34  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   854:34  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   854:39  warning  Unsafe member access .backups on an `any` value    @typescript-eslint/no-unsafe-member-access
+   898:12  warning  Unsafe member access .filter on an `any` value     @typescript-eslint/no-unsafe-member-access
+   903:16  warning  Unsafe member access .settings on an `any` value   @typescript-eslint/no-unsafe-member-access
+   903:46  warning  Unsafe member access .settings on an `any` value   @typescript-eslint/no-unsafe-member-access
+   904:40  warning  Unsafe member access .settings on an `any` value   @typescript-eslint/no-unsafe-member-access
+   909:18  warning  Unsafe member access .histories on an `any` value  @typescript-eslint/no-unsafe-member-access
+   909:49  warning  Unsafe member access .histories on an `any` value  @typescript-eslint/no-unsafe-member-access
+   910:17  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+   910:38  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   910:38  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   910:43  warning  Unsafe member access .histories on an `any` value  @typescript-eslint/no-unsafe-member-access
+   918:14  warning  Unsafe member access .filter on an `any` value     @typescript-eslint/no-unsafe-member-access
+   923:18  warning  Unsafe member access .aiLogs on an `any` value     @typescript-eslint/no-unsafe-member-access
+   923:46  warning  Unsafe member access .aiLogs on an `any` value     @typescript-eslint/no-unsafe-member-access
+   924:17  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+   924:35  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   924:35  warning  Unsafe call of a(n) `any` typed value              @typescript-eslint/no-unsafe-call
+   924:40  warning  Unsafe member access .aiLogs on an `any` value     @typescript-eslint/no-unsafe-member-access
+   930:14  warning  Unsafe member access .filter on an `any` value     @typescript-eslint/no-unsafe-member-access
+  1137:17  warning  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+
+D:\Dev\AiStoryBuilder\src\services\storageService.ts
+  128:11  warning  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  130:16  warning  Unsafe member access .apiKeys on an `any` value   @typescript-eslint/no-unsafe-member-access
+  130:46  warning  Unsafe member access .apiKeys on an `any` value   @typescript-eslint/no-unsafe-member-access
+  131:7   warning  Unsafe return of a value of type `any`            @typescript-eslint/no-unsafe-return
+  131:21  warning  Unsafe member access .apiKeys on an `any` value   @typescript-eslint/no-unsafe-member-access
+  133:16  warning  Unsafe member access .apiKey on an `any` value    @typescript-eslint/no-unsafe-member-access
+  133:33  warning  Unsafe member access .provider on an `any` value  @typescript-eslint/no-unsafe-member-access
+  134:16  warning  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  134:24  warning  Unsafe member access .provider on an `any` value  @typescript-eslint/no-unsafe-member-access
+  134:42  warning  Unsafe member access .apiKey on an `any` value    @typescript-eslint/no-unsafe-member-access
+  149:11  warning  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  150:13  warning  Unsafe member access .apiKeys on an `any` value   @typescript-eslint/no-unsafe-member-access
+  165:13  warning  Unsafe assignment of an `any` value               @typescript-eslint/no-unsafe-assignment
+  167:22  warning  Unsafe member access .apiKeys on an `any` value   @typescript-eslint/no-unsafe-member-access
+  168:22  warning  Unsafe member access .apiKey on an `any` value    @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\tests\services\aiService.test.ts
+  7:32  error  'vi' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  7:36  error  'beforeEach' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  7:48  error  'afterEach' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+D:\Dev\AiStoryBuilder\src\tests\setup.ts
+  129:5  warning  Unused eslint-disable directive (no problems were reported from 'no-var')
+
+D:\Dev\AiStoryBuilder\src\utils\aiResponseParser.ts
+  169:11  warning  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+D:\Dev\AiStoryBuilder\src\utils\characterParser.ts
+   55:11  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   62:23  warning  Unsafe member access .characters on an `any` value   @typescript-eslint/no-unsafe-member-access
+   62:58  warning  Unsafe member access .characters on an `any` value   @typescript-eslint/no-unsafe-member-access
+   63:7   warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   63:31  warning  Unsafe member access .characters on an `any` value   @typescript-eslint/no-unsafe-member-access
+   64:23  warning  Unsafe member access .data on an `any` value         @typescript-eslint/no-unsafe-member-access
+   64:52  warning  Unsafe member access .data on an `any` value         @typescript-eslint/no-unsafe-member-access
+   65:7   warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   65:31  warning  Unsafe member access .data on an `any` value         @typescript-eslint/no-unsafe-member-access
+   77:9   warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   77:20  warning  Unsafe member access .name on an `any` value         @typescript-eslint/no-unsafe-member-access
+   77:33  warning  Unsafe member access .名前 on an `any` value           @typescript-eslint/no-unsafe-member-access
+   78:9   warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   78:20  warning  Unsafe member access .role on an `any` value         @typescript-eslint/no-unsafe-member-access
+   78:33  warning  Unsafe member access .役割 on an `any` value           @typescript-eslint/no-unsafe-member-access
+   78:44  warning  Unsafe member access .基本設定 on an `any` value         @typescript-eslint/no-unsafe-member-access
+   78:57  warning  Unsafe member access .basic on an `any` value        @typescript-eslint/no-unsafe-member-access
+   79:9   warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   79:21  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+   79:27  warning  Unsafe member access .appearance on an `any` value   @typescript-eslint/no-unsafe-member-access
+   79:46  warning  Unsafe member access .外見 on an `any` value           @typescript-eslint/no-unsafe-member-access
+   79:56  warning  Unsafe member access .substring on an `any` value    @typescript-eslint/no-unsafe-member-access
+   80:9   warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   80:22  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+   80:28  warning  Unsafe member access .personality on an `any` value  @typescript-eslint/no-unsafe-member-access
+   80:48  warning  Unsafe member access .性格 on an `any` value           @typescript-eslint/no-unsafe-member-access
+   80:58  warning  Unsafe member access .substring on an `any` value    @typescript-eslint/no-unsafe-member-access
+   81:9   warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+   81:21  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+   81:27  warning  Unsafe member access .background on an `any` value   @typescript-eslint/no-unsafe-member-access
+   81:46  warning  Unsafe member access .背景 on an `any` value           @typescript-eslint/no-unsafe-member-access
+   81:56  warning  Unsafe member access .substring on an `any` value    @typescript-eslint/no-unsafe-member-access
+  345:35  error    Unnecessary escape character: \[                     no-useless-escape
+  345:37  error    Unnecessary escape character: \{                     no-useless-escape
+  372:15  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  373:18  warning  Unsafe member access .type on an `any` value         @typescript-eslint/no-unsafe-member-access
+  373:62  warning  Unsafe member access .characters on an `any` value   @typescript-eslint/no-unsafe-member-access
+  375:17  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  375:51  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  375:51  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  375:56  warning  Unsafe member access .characters on an `any` value   @typescript-eslint/no-unsafe-member-access
+  377:13  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  377:24  warning  Unsafe member access .name on an `any` value         @typescript-eslint/no-unsafe-member-access
+  378:13  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  378:24  warning  Unsafe member access .role on an `any` value         @typescript-eslint/no-unsafe-member-access
+  379:13  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  379:25  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  379:31  warning  Unsafe member access .appearance on an `any` value   @typescript-eslint/no-unsafe-member-access
+  379:49  warning  Unsafe member access .substring on an `any` value    @typescript-eslint/no-unsafe-member-access
+  380:13  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  380:26  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  380:32  warning  Unsafe member access .personality on an `any` value  @typescript-eslint/no-unsafe-member-access
+  380:51  warning  Unsafe member access .substring on an `any` value    @typescript-eslint/no-unsafe-member-access
+  381:13  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  381:25  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  381:31  warning  Unsafe member access .background on an `any` value   @typescript-eslint/no-unsafe-member-access
+  381:49  warning  Unsafe member access .substring on an `any` value    @typescript-eslint/no-unsafe-member-access
+  383:15  warning  Unsafe member access .filter on an `any` value       @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\utils\platformUtils.ts
+  43:11  warning  Unsafe assignment of an error typed value     @typescript-eslint/no-unsafe-assignment
+  43:35  warning  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call
+  60:11  warning  Unsafe assignment of an error typed value     @typescript-eslint/no-unsafe-assignment
+  60:35  warning  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call
+
+D:\Dev\AiStoryBuilder\src\utils\securityUtils.ts
+  572:11  warning  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+D:\Dev\AiStoryBuilder\src\utils\textFormatter.ts
+   99:11  warning  Unsafe assignment of an `any` value                                                    @typescript-eslint/no-unsafe-assignment
+  102:11  warning  Unsafe assignment of an `any` value                                                    @typescript-eslint/no-unsafe-assignment
+  102:25  warning  Unsafe member access [key] on an `any` value                                           @typescript-eslint/no-unsafe-member-access
+  102:40  warning  Unsafe member access [key.replace(/([A-Z])/g, '_$1').toLowerCase()] on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\src\utils\timelineParser.ts
+  279:15  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  584:15  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  586:39  warning  Unsafe member access .hasIssues on an `any` value    @typescript-eslint/no-unsafe-member-access
+  587:13  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  587:42  warning  Unsafe member access .issues on an `any` value       @typescript-eslint/no-unsafe-member-access
+  587:52  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  587:59  warning  Unsafe member access .issues on an `any` value       @typescript-eslint/no-unsafe-member-access
+  588:13  warning  Unsafe assignment of an `any` value                  @typescript-eslint/no-unsafe-assignment
+  588:47  warning  Unsafe member access .suggestions on an `any` value  @typescript-eslint/no-unsafe-member-access
+  588:62  warning  Unsafe call of a(n) `any` typed value                @typescript-eslint/no-unsafe-call
+  588:69  warning  Unsafe member access .suggestions on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+D:\Dev\AiStoryBuilder\vitest.config.ts
+  0:0  error  Parsing error: "parserOptions.project" has been provided for @typescript-eslint/parser.
+The file was not found in any of the provided project(s): vitest.config.ts
+
+✖ 301 problems (34 errors, 267 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

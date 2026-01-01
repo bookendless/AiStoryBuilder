@@ -98,8 +98,8 @@ const ProjectCard = React.memo<ProjectCardProps>(({
         </p>
       </div>
 
-      {/* ホバー時に表示される詳細情報 */}
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 space-y-3">
+      {/* 詳細情報（常に表示） */}
+      <div className="space-y-3">
         {/* 説明文 */}
         {project.description && (
           <p className="text-sm text-sumi-600 dark:text-usuzumi-400 line-clamp-2 font-['Noto_Sans_JP']">
@@ -310,7 +310,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
 
   const confirmDeleteProject = async () => {
     if (!deletingProjectId) return;
-    
+
     try {
       await deleteProject(deletingProjectId);
       showSuccess('プロジェクトを削除しました', 3000);
@@ -526,11 +526,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
           </Card>
 
           <Card
-            className={`p-6 border-usuzumi-200 dark:border-usuzumi-700 ${
-              projects.length >= 5
+            className={`p-6 border-usuzumi-200 dark:border-usuzumi-700 ${projects.length >= 5
                 ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 hover:scale-[1.02] transition-all duration-200'
                 : ''
-            }`}
+              }`}
             onClick={projects.length >= 5 ? () => setShowAudioImageToStoryModal(true) : undefined}
           >
             <div className="flex items-center justify-between">

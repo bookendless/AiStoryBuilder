@@ -21,7 +21,9 @@ import { PerformanceMonitor, registerServiceWorker } from './utils/performanceUt
 import { useGlobalShortcuts } from './hooks/useKeyboardNavigation';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { Onboarding } from './components/Onboarding';
+import { MobileMenu } from './components/MobileMenu';
 import { databaseService } from './services/databaseService';
+import { useBreakpoint } from './hooks/useMediaQuery';
 
 // Step型はProjectContextから再エクスポート（後方互換性のため）
 export type { Step };
@@ -178,6 +180,8 @@ const StepChangeAutoSave: React.FC<{ currentStep: Step }> = ({ currentStep }) =>
 const AppContent: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('home');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const breakpoint = useBreakpoint();
+  const isDesktop = breakpoint === 'desktop';
   // サイドバーの折りたたみ状態をlocalStorageから読み込む（デフォルト: true = 折りたたみ）
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
@@ -191,6 +195,7 @@ const AppContent: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingMode, setOnboardingMode] = useState<'full' | 'quick'>('quick');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileToolsMenuOpen, setIsMobileToolsMenuOpen] = useState(false);
 
   // テーマの初期化
   useEffect(() => {
@@ -319,9 +324,9 @@ const AppContent: React.FC = () => {
       case 'draft':
         return <DraftStep onNavigateToStep={setCurrentStep} />;
       case 'review':
-        return <ReviewStep />;
+        return <ReviewStep onNavigateToStep={setCurrentStep} />;
       case 'export':
-        return <ExportStep />;
+        return <ExportStep onNavigateToStep={setCurrentStep} />;
       default:
         return <HomePage onNavigateToStep={setCurrentStep} />;
     }
@@ -331,102 +336,132 @@ const AppContent: React.FC = () => {
     <ErrorBoundary>
       <AIProvider>
         <ProjectProvider>
-        <StepChangeAutoSave currentStep={currentStep} />
-        <OfflineNotifier />
-        {/* スキップリンク */}
-        <a
-          href="#main-content"
-          className="skip-link"
-          aria-label="メインコンテンツにスキップ"
-        >
-          メインコンテンツにスキップ
-        </a>
+          <StepChangeAutoSave currentStep={currentStep} />
+          <OfflineNotifier />
+          {/* スキップリンク */}
+          <a
+            href="#main-content"
+            className="skip-link"
+            aria-label="メインコンテンツにスキップ"
+          >
+            メインコンテンツにスキップ
+          </a>
 
-        <div
-          className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'dark bg-sumi-900' : 'bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200'
-            }`}
-          role="application"
-          aria-label="AI小説創作支援アプリケーション"
-        >
-          <div className="flex">
-            <Sidebar
-              currentStep={currentStep}
-              onStepChange={(step) => {
-                setCurrentStep(step);
-                setIsMobileMenuOpen(false); // ステップ変更時にモバイルメニューを閉じる
-              }}
-              className={currentStep === 'home' ? 'hidden' : ''}
-              isCollapsed={currentStep === 'home' ? true : isMobileMenuOpen ? false : isSidebarCollapsed}
-              onCollapseChange={(collapsed) => {
-                setIsSidebarCollapsed(collapsed);
-                if (!collapsed) {
-                  setIsMobileMenuOpen(false);
-                }
-              }}
-            />
-
-            <div className={`flex-1 transition-all duration-300 ${currentStep === 'home'
-              ? 'ml-0'
-              : 'ml-0 md:ml-16 lg:ml-64'
-              } ${currentStep === 'home' ? 'mr-0' : 'mr-0 md:mr-16 lg:mr-64'
-              }`}>
-              <Header
-                isDarkMode={isDarkMode}
-                onToggleTheme={toggleTheme}
-                onHomeClick={() => setCurrentStep('home')}
-                isSidebarCollapsed={isSidebarCollapsed}
-                isToolsSidebarCollapsed={isToolsSidebarCollapsed}
-                onToggleBothSidebars={() => {
-                  const newState = !(isSidebarCollapsed && isToolsSidebarCollapsed);
-                  setIsSidebarCollapsed(newState);
-                  setIsToolsSidebarCollapsed(newState);
-                }}
-                showSidebarControls={currentStep !== 'home'}
+          <div
+            className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'dark bg-sumi-900' : 'bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200'
+              }`}
+            role="application"
+            aria-label="AI小説創作支援アプリケーション"
+          >
+            <div className="flex">
+              {/* デスクトップでは常時表示、モバイル/タブレットではハンバーガーメニュー経由でスライドイン */}
+              <Sidebar
                 currentStep={currentStep}
-                onNavigate={(step, _chapterId) => {
+                onStepChange={(step) => {
                   setCurrentStep(step);
-                  // 章IDが必要な場合は、各ステップコンポーネントで処理
-                  // 必要に応じて、ここで章IDを状態として管理することも可能
+                  setIsMobileMenuOpen(false); // ステップ変更時にモバイルメニューを閉じる
                 }}
-                onToggleMobileMenu={toggleMobileMenu}
-                onShowOnboarding={handleShowOnboarding}
+                className={currentStep === 'home' ? 'hidden' : ''}
+                isCollapsed={
+                  currentStep === 'home'
+                    ? true
+                    : isDesktop
+                      ? isSidebarCollapsed
+                      : !isMobileMenuOpen // モバイル/タブレット: メニューが開いている時のみ展開
+                }
+                onCollapseChange={(collapsed) => {
+                  if (isDesktop) {
+                    setIsSidebarCollapsed(collapsed);
+                  }
+                  // モバイルでバックドロップをクリックした時もメニューを閉じる
+                  if (collapsed) {
+                    setIsMobileMenuOpen(false);
+                  }
+                }}
               />
 
-              <main
-                id="main-content"
-                className="p-6"
-                role="main"
-                aria-label="メインコンテンツ"
-                tabIndex={-1}
+              <div className={`flex-1 transition-all duration-300 ${currentStep === 'home'
+                ? 'ml-0'
+                : 'ml-0 lg:ml-64'
+                } ${currentStep === 'home' ? 'mr-0' : 'mr-0 lg:mr-64'
+                }`}>
+                <Header
+                  isDarkMode={isDarkMode}
+                  onToggleTheme={toggleTheme}
+                  onHomeClick={() => setCurrentStep('home')}
+                  isSidebarCollapsed={isSidebarCollapsed}
+                  isToolsSidebarCollapsed={isToolsSidebarCollapsed}
+                  onToggleBothSidebars={() => {
+                    const newState = !(isSidebarCollapsed && isToolsSidebarCollapsed);
+                    setIsSidebarCollapsed(newState);
+                    setIsToolsSidebarCollapsed(newState);
+                  }}
+                  showSidebarControls={currentStep !== 'home'}
+                  currentStep={currentStep}
+                  onNavigate={(step, _chapterId) => {
+                    setCurrentStep(step);
+                    // 章IDが必要な場合は、各ステップコンポーネントで処理
+                    // 必要に応じて、ここで章IDを状態として管理することも可能
+                  }}
+                  onToggleMobileMenu={toggleMobileMenu}
+                  onToggleMobileToolsMenu={() => setIsMobileToolsMenuOpen(!isMobileToolsMenuOpen)}
+                  onShowOnboarding={handleShowOnboarding}
+                />
+
+                <main
+                  id="main-content"
+                  className="p-6"
+                  role="main"
+                  aria-label="メインコンテンツ"
+                  tabIndex={-1}
+                >
+                  {renderStep()}
+                </main>
+              </div>
+
+              {/* PC（デスクトップ）環境ではホーム画面でツールサイドバーを非表示 */}
+              {!(isDesktop && currentStep === 'home') && (
+                <ToolsSidebar
+                  className="hidden lg:block"
+                  isCollapsed={isToolsSidebarCollapsed}
+                  onCollapseChange={setIsToolsSidebarCollapsed}
+                  currentStep={currentStep}
+                />
+              )}
+
+              {/* モバイル用ツールメニュー（右側ドロワー） */}
+              <MobileMenu
+                isOpen={isMobileToolsMenuOpen}
+                onClose={() => setIsMobileToolsMenuOpen(false)}
+                position="right"
+                title="支援・ツール"
               >
-                {renderStep()}
-              </main>
+                <div className="h-full bg-white dark:bg-gray-800 overflow-y-auto">
+                  <ToolsSidebar
+                    className="w-full shadow-none border-none relative h-auto min-h-full"
+                    isCollapsed={false}
+                    currentStep={currentStep}
+                  />
+                </div>
+              </MobileMenu>
             </div>
-
-            <ToolsSidebar
-              className={currentStep === 'home' ? 'hidden' : ''}
-              isCollapsed={isToolsSidebarCollapsed}
-              onCollapseChange={setIsToolsSidebarCollapsed}
-              currentStep={currentStep}
-            />
           </div>
-        </div>
 
-        {/* ショートカットヘルプモーダル */}
-        <ShortcutHelpModal
-          isOpen={showShortcutHelp}
-          onClose={() => setShowShortcutHelp(false)}
-        />
+          {/* ショートカットヘルプモーダル */}
+          <ShortcutHelpModal
+            isOpen={showShortcutHelp}
+            onClose={() => setShowShortcutHelp(false)}
+          />
 
-        {/* オンボーディング */}
-        <Onboarding
-          isOpen={showOnboarding}
-          onClose={() => setShowOnboarding(false)}
-          onComplete={() => {
-            setShowOnboarding(false);
-          }}
-          mode={onboardingMode}
-        />
+          {/* オンボーディング */}
+          <Onboarding
+            isOpen={showOnboarding}
+            onClose={() => setShowOnboarding(false)}
+            onComplete={() => {
+              setShowOnboarding(false);
+            }}
+            mode={onboardingMode}
+          />
         </ProjectProvider>
       </AIProvider>
     </ErrorBoundary>

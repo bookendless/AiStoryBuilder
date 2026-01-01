@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Image, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save, X, Search, ArrowUpDown, CheckSquare, Square, Grid3x3, Grid2x2, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { ImageItem } from '../types/ai';
@@ -23,7 +24,10 @@ interface ImageCardProps {
 
 const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onEdit, onDelete, isSelectionMode = false, isSelected = false, onToggleSelection }) => {
   return (
-    <div className={`bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 group ${isSelected ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''}`}>
+    <div
+      className={`bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 group ${isSelected ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''}`}
+      onClick={() => !isSelectionMode && onView(image)}
+    >
       <div className="aspect-square relative overflow-hidden">
         {/* チェックボックス（選択モード時） */}
         {isSelectionMode && (
@@ -33,11 +37,10 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
                 e.stopPropagation();
                 onToggleSelection?.(image.id);
               }}
-              className={`p-1.5 rounded-full transition-colors ${
-                isSelected
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-white/90 text-gray-600 hover:bg-white'
-              }`}
+              className={`p-2 rounded-full transition-colors ${isSelected
+                ? 'bg-indigo-500 text-white'
+                : 'bg-white/90 text-gray-600 hover:bg-white'
+                }`}
             >
               {isSelected ? (
                 <CheckSquare className="h-5 w-5" />
@@ -59,35 +62,44 @@ const ImageCard = React.memo<ImageCardProps>(({ image, categoryInfo, onView, onE
           }}
         />
         {!isSelectionMode && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-          <div className="flex space-x-2">
-            <button
-              onClick={() => onView(image)}
-              className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
-              title="画像を表示"
-            >
-              <Eye className="h-4 w-4 text-gray-700" />
-            </button>
-            <button
-              onClick={() => onEdit(image)}
-              className="p-2 bg-blue-500/90 rounded-full hover:bg-blue-500 transition-colors"
-              title="画像を編集"
-            >
-              <Edit3 className="h-4 w-4 text-white" />
-            </button>
-            <button
-              onClick={() => onDelete(image.id)}
-              className="p-2 bg-red-500/90 rounded-full hover:bg-red-500 transition-colors"
-              title="画像を削除"
-            >
-              <Trash2 className="h-4 w-4 text-white" />
-            </button>
-          </div>
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 pointer-events-none">
+            <div className="flex space-x-2 pointer-events-auto">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onView(image);
+                }}
+                className="p-3 bg-white/90 rounded-full hover:bg-white transition-colors shadow-sm sm:shadow-none"
+                title="画像を表示"
+              >
+                <Eye className="h-5 w-5 text-gray-700" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(image);
+                }}
+                className="p-3 bg-blue-500/90 rounded-full hover:bg-blue-500 transition-colors shadow-sm sm:shadow-none"
+                title="画像を編集"
+              >
+                <Edit3 className="h-5 w-5 text-white" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(image.id);
+                }}
+                className="p-3 bg-red-500/90 rounded-full hover:bg-red-500 transition-colors shadow-sm sm:shadow-none"
+                title="画像を削除"
+              >
+                <Trash2 className="h-5 w-5 text-white" />
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         <div className="flex items-center justify-between mb-2">
           <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate font-['Noto_Sans_JP']">
             {image.title}
@@ -321,7 +333,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       // 画像のサイズを取得
       const img = document.createElement('img');
       let tempUrl: string | null = null;
-      
+
       try {
         await new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
@@ -536,8 +548,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     if (!currentProject || !formData.url.trim() || !formData.title.trim()) return;
 
     // 重複チェック: 同じimageIdまたはurlが既に存在する場合は追加しない
-    const existingImage = currentProject.imageBoard.find(img => 
-      (formData.imageId && img.imageId === formData.imageId) || 
+    const existingImage = currentProject.imageBoard.find(img =>
+      (formData.imageId && img.imageId === formData.imageId) ||
       img.url === formData.url.trim()
     );
 
@@ -582,17 +594,17 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
   const handleDeleteImage = async (id: string) => {
     if (!currentProject) return;
-    
+
     // 削除する画像を取得
     const imageToDelete = currentProject.imageBoard.find(img => img.id === id) as ImageItem | undefined;
-    
+
     try {
       // Blobストレージから削除（参照カウントを減らす）
       if (imageToDelete?.imageId) {
         await databaseService.decrementImageReference(imageToDelete.imageId);
         // 参照カウントが0になった場合は自動削除される（オプション）
       }
-      
+
       // プロジェクトから削除（即座に保存して自動保存の巻き戻しを防ぐ）
       await updateProject({
         imageBoard: currentProject.imageBoard.filter(img => img.id !== id),
@@ -621,7 +633,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     setShowImageInfo(false);
     setPanX(0);
     setPanY(0);
-    
+
     // imageIdから画像を読み込む
     if (image.imageId) {
       try {
@@ -710,33 +722,33 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     // Ctrl/Cmd + ホイールでズーム
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      
+
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
       const newZoom = Math.max(0.25, Math.min(3, zoomLevel + delta));
-      
+
       if (newZoom !== zoomLevel) {
         // マウス位置を中心にズーム
         if (imageContainerRef.current && imageRef.current && imageNaturalSize.width > 0) {
           const containerRect = imageContainerRef.current.getBoundingClientRect();
           const containerWidth = containerRect.width - 32;
           const containerHeight = containerRect.height - 32;
-          
+
           // マウス位置をコンテナ中心からの相対位置に変換
           const mouseX = e.clientX - containerRect.left - containerWidth / 2;
           const mouseY = e.clientY - containerRect.top - containerHeight / 2;
-          
+
           // ズーム中心点を計算
           const zoomFactor = newZoom / zoomLevel;
           const newPanX = mouseX - (mouseX - panX) * zoomFactor;
           const newPanY = mouseY - (mouseY - panY) * zoomFactor;
-          
+
           // パンの範囲を制限
           const imageAspect = imageNaturalSize.width / imageNaturalSize.height;
           const containerAspect = containerWidth / containerHeight;
-          
+
           let displayWidth: number;
           let displayHeight: number;
-          
+
           if (imageAspect > containerAspect) {
             displayWidth = containerWidth;
             displayHeight = containerWidth / imageAspect;
@@ -744,17 +756,17 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
             displayHeight = containerHeight;
             displayWidth = containerHeight * imageAspect;
           }
-          
+
           const zoomedWidth = displayWidth * newZoom;
           const zoomedHeight = displayHeight * newZoom;
-          
+
           const maxPanX = Math.max(0, (zoomedWidth - containerWidth) / 2);
           const maxPanY = Math.max(0, (zoomedHeight - containerHeight) / 2);
-          
+
           setPanX(Math.max(-maxPanX, Math.min(maxPanX, newPanX)));
           setPanY(Math.max(-maxPanY, Math.min(maxPanY, newPanY)));
         }
-        
+
         setZoomLevel(newZoom);
       }
     }
@@ -777,20 +789,20 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     if (isDragging && zoomLevel > 1) {
       const newPanX = e.clientX - dragStart.x;
       const newPanY = e.clientY - dragStart.y;
-      
+
       // パンの範囲を制限（画像がコンテナからはみ出さないように）
       if (imageContainerRef.current && imageRef.current && imageNaturalSize.width > 0) {
         const containerRect = imageContainerRef.current.getBoundingClientRect();
         const containerWidth = containerRect.width - 32; // padding分を引く
         const containerHeight = containerRect.height - 32;
-        
+
         // 画像の表示サイズを計算（object-containを考慮）
         const imageAspect = imageNaturalSize.width / imageNaturalSize.height;
         const containerAspect = containerWidth / containerHeight;
-        
+
         let displayWidth: number;
         let displayHeight: number;
-        
+
         if (imageAspect > containerAspect) {
           // 画像の方が横長
           displayWidth = containerWidth;
@@ -800,15 +812,15 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
           displayHeight = containerHeight;
           displayWidth = containerHeight * imageAspect;
         }
-        
+
         // ズーム後のサイズ
         const zoomedWidth = displayWidth * zoomLevel;
         const zoomedHeight = displayHeight * zoomLevel;
-        
+
         // パンの最大範囲を計算
         const maxPanX = Math.max(0, (zoomedWidth - containerWidth) / 2);
         const maxPanY = Math.max(0, (zoomedHeight - containerHeight) / 2);
-        
+
         setPanX(Math.max(-maxPanX, Math.min(maxPanX, newPanX)));
         setPanY(Math.max(-maxPanY, Math.min(maxPanY, newPanY)));
       } else {
@@ -833,7 +845,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     if (showImageViewer && imageContainerRef.current) {
       const container = imageContainerRef.current;
       container.addEventListener('wheel', handleWheelZoom, { passive: false });
-      
+
       return () => {
         container.removeEventListener('wheel', handleWheelZoom);
       };
@@ -849,7 +861,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       category: image.category,
     });
     setShowEditForm(true);
-    
+
     // imageIdから画像を読み込む
     if (image.imageId) {
       try {
@@ -964,7 +976,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   // フィルタリングとソート処理（Hooksは早期リターンの前に配置する必要がある）
   const filteredAndSortedImages = useMemo(() => {
     if (!currentProject) return [];
-    
+
     let filtered = currentProject.imageBoard;
 
     // カテゴリフィルタリング
@@ -1011,7 +1023,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     if (!selectedImage || !currentProject || !filteredImages.length) return;
     const currentIndex = filteredImages.findIndex(img => img.id === selectedImage.id);
     if (currentIndex === -1) return;
-    
+
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredImages.length - 1;
     if (filteredImages[prevIndex]) {
       handleViewImage(filteredImages[prevIndex]);
@@ -1022,7 +1034,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     if (!selectedImage || !currentProject || !filteredImages.length) return;
     const currentIndex = filteredImages.findIndex(img => img.id === selectedImage.id);
     if (currentIndex === -1) return;
-    
+
     const nextIndex = currentIndex < filteredImages.length - 1 ? currentIndex + 1 : 0;
     if (filteredImages[nextIndex]) {
       handleViewImage(filteredImages[nextIndex]);
@@ -1032,7 +1044,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   // キーボードショートカット
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // 入力フィールド内では通常の文字編集操作を優先
       const target = e.target as HTMLElement | null;
@@ -1081,7 +1093,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
         // 一括削除処理を実行（非同期処理のため、直接呼び出し）
         const idsToDelete = Array.from(selectedImageIds);
         const imagesToDelete = currentProject?.imageBoard.filter(img => idsToDelete.includes(img.id)) || [];
-        
+
         (async () => {
           if (!currentProject || imagesToDelete.length === 0) return;
           try {
@@ -1091,12 +1103,12 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                 await databaseService.decrementImageReference(image.imageId);
               }
             }
-            
+
             // プロジェクトから削除（即座に保存して自動保存の巻き戻しを防ぐ）
             await updateProject({
               imageBoard: currentProject.imageBoard.filter(img => !idsToDelete.includes(img.id)),
             }, true); // immediate: true で即座に保存
-            
+
             showSuccess(`${idsToDelete.length}個の画像を削除しました`);
             setSelectedImageIds(new Set());
             setIsSelectionMode(false);
@@ -1119,7 +1131,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
         return;
       }
     };
-    
+
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isSelectionMode, selectedImageIds.size, showImageViewer, showAddForm, showEditForm, filteredImages, selectedImage, currentProject, updateProject, showSuccess, showError, handleNavigateToPrevious, handleNavigateToNext]);
@@ -1157,10 +1169,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
   const handleBulkDelete = async () => {
     if (!currentProject || selectedImageIds.size === 0) return;
-    
+
     const idsToDelete = Array.from(selectedImageIds);
     const imagesToDelete = currentProject.imageBoard.filter(img => idsToDelete.includes(img.id));
-    
+
     try {
       // Blobストレージから削除（参照カウントを減らす）
       for (const image of imagesToDelete) {
@@ -1168,12 +1180,12 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
           await databaseService.decrementImageReference(image.imageId);
         }
       }
-      
+
       // プロジェクトから削除（即座に保存して自動保存の巻き戻しを防ぐ）
       await updateProject({
         imageBoard: currentProject.imageBoard.filter(img => !idsToDelete.includes(img.id)),
       }, true); // immediate: true で即座に保存
-      
+
       showSuccess(`${idsToDelete.length}個の画像を削除しました`);
       setSelectedImageIds(new Set());
       setIsSelectionMode(false);
@@ -1210,28 +1222,28 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 glass-overlay flex items-center justify-center z-50 transition-opacity duration-300"
+      className="fixed inset-0 glass-overlay flex items-end sm:items-center justify-center z-50 transition-opacity duration-300 p-0 sm:p-4"
       onClick={handleOverlayClick}
     >
       <div
         ref={modalRef}
-        className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-6xl w-full mx-4 h-[90vh] flex flex-col transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95"
+        className="glass-strong glass-shimmer rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-6xl w-full sm:mx-4 h-[95vh] sm:h-[90vh] flex flex-col transform transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
+        <div className="p-4 sm:p-6 border-b border-white/20 dark:border-white/10 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
                 <Image className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                   イメージボード
                 </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                   {currentProject.title} - {filteredImages.length} 枚の画像
                 </p>
               </div>
@@ -1239,10 +1251,11 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setShowAddForm(true)}
-                className="flex items-center space-x-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors text-sm"
+                className="flex items-center space-x-1 px-3 py-2 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors text-sm"
               >
                 <Plus className="h-4 w-4" />
-                <span>画像追加</span>
+                <span className="hidden sm:inline">画像追加</span>
+                <span className="inline sm:hidden">追加</span>
               </button>
               <button
                 onClick={onClose}
@@ -1279,14 +1292,14 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
             {/* ツールバー（ソート、一括選択、サムネイルサイズ） */}
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
                 {/* ソート機能 */}
                 <div className="flex items-center space-x-2">
                   <ArrowUpDown className="h-4 w-4 text-gray-500" />
                   <select
                     value={sortOption}
                     onChange={(e) => setSortOption(e.target.value as SortOption)}
-                    className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                    className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
                   >
                     <option value="date-desc">追加日（新しい順）</option>
                     <option value="date-asc">追加日（古い順）</option>
@@ -1304,11 +1317,10 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                       setSelectedImageIds(new Set());
                     }
                   }}
-                  className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${
-                    isSelectionMode
-                      ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${isSelectionMode
+                    ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
                 >
                   <CheckSquare className="h-4 w-4" />
                   <span>一括選択</span>
@@ -1318,7 +1330,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                 {isSelectionMode && selectedImageIds.size > 0 && (
                   <button
                     onClick={handleBulkDelete}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 transition-colors font-['Noto_Sans_JP']"
+                    className="flex items-center space-x-1 px-3 py-2 rounded-lg text-sm bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 transition-colors font-['Noto_Sans_JP']"
                   >
                     <Trash2 className="h-4 w-4" />
                     <span>削除 ({selectedImageIds.size})</span>
@@ -1329,7 +1341,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                 {isSelectionMode && (
                   <button
                     onClick={handleSelectAll}
-                    className="px-3 py-1.5 rounded-lg text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-['Noto_Sans_JP']"
+                    className="px-3 py-2 rounded-lg text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-['Noto_Sans_JP']"
                   >
                     {selectedImageIds.size === filteredImages.length ? 'すべて解除' : 'すべて選択'}
                   </button>
@@ -1340,33 +1352,30 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
               <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                 <button
                   onClick={() => setThumbnailSize('small')}
-                  className={`p-1.5 rounded transition-colors ${
-                    thumbnailSize === 'small'
-                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
+                  className={`p-1.5 rounded transition-colors ${thumbnailSize === 'small'
+                    ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
                   title="小"
                 >
                   <Grid3x3 className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => setThumbnailSize('medium')}
-                  className={`p-1.5 rounded transition-colors ${
-                    thumbnailSize === 'medium'
-                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
+                  className={`p-1.5 rounded transition-colors ${thumbnailSize === 'medium'
+                    ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
                   title="中"
                 >
                   <LayoutGrid className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => setThumbnailSize('large')}
-                  className={`p-1.5 rounded transition-colors ${
-                    thumbnailSize === 'large'
-                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
+                  className={`p-1.5 rounded transition-colors ${thumbnailSize === 'large'
+                    ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
                   title="大"
                 >
                   <Grid2x2 className="h-4 w-4" />
@@ -1376,12 +1385,12 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Category Filter */}
-          <div className="flex items-center space-x-2 mt-4">
+          <div className="flex flex-wrap items-center gap-2 mt-4">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === 'all'
-                  ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50'
+              className={`px-3 py-2 rounded-full text-sm transition-colors whitespace-nowrap ${selectedCategory === 'all'
+                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50'
                 }`}
             >
               すべて ({currentProject.imageBoard.length})
@@ -1392,9 +1401,9 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === category.id
-                      ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50'
+                  className={`px-3 py-2 rounded-full text-sm transition-colors whitespace-nowrap ${selectedCategory === category.id
+                    ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50'
                     }`}
                 >
                   {category.label} ({count})
@@ -1408,7 +1417,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
         <div className="flex-1 overflow-hidden">
           {showAddForm ? (
             /* Add Form */
-            <div className="p-6 h-full overflow-y-auto">
+            <div className="p-4 sm:p-6 h-full overflow-y-auto">
               <div className="max-w-2xl mx-auto">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 font-['Noto_Sans_JP']">
                   新しい画像を追加
@@ -1429,8 +1438,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         className={`w-full p-6 border-2 border-dashed rounded-lg transition-all duration-200 ${isDraggingOver
-                            ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.02]'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400'
+                          ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.02]'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400'
                           }`}
                       >
                         <button
@@ -1444,13 +1453,13 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
                             ) : (
                               <Upload className={`h-8 w-8 mx-auto mb-2 transition-colors ${isDraggingOver
-                                  ? 'text-indigo-500 dark:text-indigo-400'
-                                  : 'text-gray-400 group-hover:text-indigo-500'
+                                ? 'text-indigo-500 dark:text-indigo-400'
+                                : 'text-gray-400 group-hover:text-indigo-500'
                                 }`} />
                             )}
                             <p className={`font-['Noto_Sans_JP'] transition-colors ${isDraggingOver
-                                ? 'text-indigo-600 dark:text-indigo-400 font-semibold'
-                                : 'text-gray-600 dark:text-gray-400'
+                              ? 'text-indigo-600 dark:text-indigo-400 font-semibold'
+                              : 'text-gray-600 dark:text-gray-400'
                               }`}>
                               {isUploading
                                 ? '読み込み中...'
@@ -1599,7 +1608,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
             /* Image Grid with Virtual Scroll */
             <div
               ref={gridContainerRef}
-              className="p-6 h-full relative"
+              className="p-4 sm:p-6 h-full relative"
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -1621,8 +1630,8 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
                     <EmptyState
                       icon={Image}
                       iconColor="text-indigo-400 dark:text-indigo-500"
-                      title={selectedCategory === 'all' 
-                        ? 'まだ画像がありません' 
+                      title={selectedCategory === 'all'
+                        ? 'まだ画像がありません'
                         : `${getCategoryInfo(selectedCategory).label}の画像がありません`}
                       description={selectedCategory === 'all'
                         ? 'インスピレーションとなる画像を追加して、創作の参考にしましょう。キャラクターのイメージ、世界観、シーンの雰囲気など、物語を彩る画像を集められます。'
@@ -1931,7 +1940,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
             </div>
 
             {/* 画像表示エリア */}
-            <div 
+            <div
               ref={imageContainerRef}
               className="flex-1 flex items-center justify-center p-4 relative overflow-hidden"
               onMouseDown={handleMouseDown}
@@ -2028,6 +2037,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

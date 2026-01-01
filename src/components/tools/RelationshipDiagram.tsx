@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Network, Plus, Edit2, Trash2, Save, Users, Heart, UsersRound, Sword, GraduationCap, Zap, LayoutList, GitBranch, Sparkles, Loader2, Wand2, CheckCircle, AlertCircle, Lightbulb } from 'lucide-react';
+import { Network, Plus, Edit2, Trash2, Save, Users, Heart, UsersRound, Sword, GraduationCap, Zap, LayoutList, GitBranch, Sparkles, Loader2, Wand2, CheckCircle, AlertCircle, Lightbulb, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useProject, CharacterRelationship, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -55,6 +55,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   });
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'flow'>('list');
+  const [zoomLevel, setZoomLevel] = useState(1.0);
   const [editingRelationship, setEditingRelationship] = useState<CharacterRelationship | null>(null);
   const [formData, setFormData] = useState<Partial<CharacterRelationship>>({
     from: '',
@@ -484,7 +485,7 @@ JSON配列形式で出力してください。関係性が見つからない場�
       if (response.content) {
         try {
           let jsonText = response.content.trim();
-          
+
           // JSON配列を抽出（複数の方法を試行）
           let jsonMatch = jsonText.match(/\[[\s\S]*\]/);
           if (!jsonMatch) {
@@ -535,25 +536,25 @@ JSON配列形式で出力してください。関係性が見つからない場�
           const findCharacterByName = (name: string): Character | undefined => {
             if (!name) return undefined;
             const normalizedName = name.trim();
-            
+
             // 完全一致
             let char = characters.find(c => c.name === normalizedName);
             if (char) return char;
-            
+
             // 部分一致（前方一致、後方一致、包含）
-            char = characters.find(c => 
-              c.name.includes(normalizedName) || 
+            char = characters.find(c =>
+              c.name.includes(normalizedName) ||
               normalizedName.includes(c.name)
             );
             if (char) return char;
-            
+
             // 空白を無視した比較
             const nameWithoutSpaces = normalizedName.replace(/\s+/g, '');
-            char = characters.find(c => 
+            char = characters.find(c =>
               c.name.replace(/\s+/g, '') === nameWithoutSpaces
             );
             if (char) return char;
-            
+
             return undefined;
           };
 
@@ -605,7 +606,7 @@ JSON配列形式で出力してください。関係性が見つからない場�
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
           console.error('AI応答内容:', response.content);
-          
+
           // エラーメッセージを詳細化
           const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
           showError(`AIの応答を解析できませんでした: ${errorMessage}\n\n応答の最初の500文字:\n${response.content.substring(0, 500)}`, 10000, {
@@ -727,7 +728,7 @@ JSON配列形式で出力してください。提案がない場合は空配列[
       if (response.content) {
         try {
           let jsonText = response.content.trim();
-          
+
           // JSON配列を抽出（複数の方法を試行）
           let jsonMatch = jsonText.match(/\[[\s\S]*\]/);
           if (!jsonMatch) {
@@ -778,25 +779,25 @@ JSON配列形式で出力してください。提案がない場合は空配列[
           const findCharacterByName = (name: string): Character | undefined => {
             if (!name) return undefined;
             const normalizedName = name.trim();
-            
+
             // 完全一致
             let char = characters.find(c => c.name === normalizedName);
             if (char) return char;
-            
+
             // 部分一致（前方一致、後方一致、包含）
-            char = characters.find(c => 
-              c.name.includes(normalizedName) || 
+            char = characters.find(c =>
+              c.name.includes(normalizedName) ||
               normalizedName.includes(c.name)
             );
             if (char) return char;
-            
+
             // 空白を無視した比較
             const nameWithoutSpaces = normalizedName.replace(/\s+/g, '');
-            char = characters.find(c => 
+            char = characters.find(c =>
               c.name.replace(/\s+/g, '') === nameWithoutSpaces
             );
             if (char) return char;
-            
+
             return undefined;
           };
 
@@ -848,7 +849,7 @@ JSON配列形式で出力してください。提案がない場合は空配列[
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
           console.error('AI応答内容:', response.content);
-          
+
           // エラーメッセージを詳細化
           const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
           showError(`AIの応答を解析できませんでした: ${errorMessage}\n\n応答の最初の500文字:\n${response.content.substring(0, 500)}`, 10000, {
@@ -1188,14 +1189,6 @@ JSON形式で出力してください：
           {/* ヘッダーアクション */}
           <div className="flex items-center justify-end space-x-2 mb-4">
             <button
-              onClick={() => setShowAIAssistant(true)}
-              className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
-              title="AIアシスタント"
-            >
-              <Sparkles className="h-5 w-5" />
-              <span className="font-['Noto_Sans_JP']">AIアシスト</span>
-            </button>
-            <button
               onClick={() => setViewMode('list')}
               className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${viewMode === 'list'
                 ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
@@ -1214,6 +1207,14 @@ JSON形式で出力してください：
               title="フローチャート表示"
             >
               <GitBranch className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setShowAIAssistant(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
+              title="AIアシスタント"
+            >
+              <Sparkles className="h-5 w-5" />
+              <span className="font-['Noto_Sans_JP']">AIアシスト</span>
             </button>
             <button
               onClick={() => setShowAddForm(true)}
@@ -1249,7 +1250,7 @@ JSON形式で出力してください：
                         key={rel.id}
                         className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
                           <div className="flex-1">
                             <div className="flex items-center space-x-3 mb-2">
                               <div className="flex items-center space-x-2">
@@ -1257,56 +1258,57 @@ JSON形式で出力してください：
                                   <TypeIcon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                  <div className="flex items-center space-x-2">
-                                    <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                      {getCharacterName(rel.from)}
-                                    </span>
-                                    <span className="text-gray-500">→</span>
-                                    <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                                      {getCharacterName(rel.to)}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <span className="text-sm px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-['Noto_Sans_JP']">
-                                      {typeInfo.label}
-                                    </span>
-                                    <div className="flex items-center space-x-1">
-                                      {[1, 2, 3, 4, 5].map((level) => (
-                                        <div
-                                          key={level}
-                                          className={`w-3 h-3 rounded-full ${level <= rel.strength ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'
-                                            }`}
-                                        />
-                                      ))}
-                                      <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] ml-1">
-                                        強度: {rel.strength}/5
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] text-base sm:text-lg">
+                                        {getCharacterName(rel.from)}
                                       </span>
+                                      <span className="text-gray-500">→</span>
+                                      <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] text-base sm:text-lg">
+                                        {getCharacterName(rel.to)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-1 mt-1 sm:mt-0">
+                                      <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-['Noto_Sans_JP']">
+                                        {typeInfo.label}
+                                      </span>
+                                      <div className="flex items-center space-x-1 ml-2">
+                                        {[1, 2, 3, 4, 5].map((level) => (
+                                          <div
+                                            key={level}
+                                            className={`w-2.5 h-2.5 rounded-full ${level <= rel.strength ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'
+                                              }`}
+                                          />
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
                             {rel.description && (
-                              <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 font-['Noto_Sans_JP']">
+                              <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 font-['Noto_Sans_JP'] break-words">
                                 {rel.description}
                               </p>
                             )}
                             {rel.notes && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 italic font-['Noto_Sans_JP']">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 italic font-['Noto_Sans_JP'] break-words">
                                 {rel.notes}
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center space-x-2 ml-4">
+                          <div className="flex items-center space-x-1 sm:space-x-2 mt-4 sm:mt-0 sm:ml-4 justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100 dark:border-gray-700">
                             <button
                               onClick={() => handleEditRelationship(rel)}
                               className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="編集"
                             >
                               <Edit2 className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteRelationship(rel.id)}
                               className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="削除"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -1331,179 +1333,215 @@ JSON形式で出力してください：
                   />
                 </div>
               ) : (
-                <div className="relative w-full h-full overflow-auto">
-                  <svg
-                    className="w-full h-full"
+                <div className="relative w-full h-full border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-900/50 overflow-auto">
+                  {/* ズームコントロール */}
+                  <div className="absolute top-4 right-4 z-10 flex flex-col space-y-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm p-2 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2.0))}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
+                      title="拡大"
+                    >
+                      <ZoomIn className="h-5 w-5" />
+                    </button>
+                    <div className="h-px bg-gray-200 dark:bg-gray-700 mx-1" />
+                    <button
+                      onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.2))}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
+                      title="縮小"
+                    >
+                      <ZoomOut className="h-5 w-5" />
+                    </button>
+                    <div className="h-px bg-gray-200 dark:bg-gray-700 mx-1" />
+                    <button
+                      onClick={() => setZoomLevel(1.0)}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
+                      title="リセット"
+                    >
+                      <RotateCcw className="h-5 w-5" />
+                    </button>
+                    <div className="text-[10px] text-center font-bold text-gray-500 mt-1">
+                      {Math.round(zoomLevel * 100)}%
+                    </div>
+                  </div>
+
+                  <div
+                    className="origin-top-left transition-transform duration-200"
                     style={{
+                      transform: `scale(${zoomLevel})`,
                       width: `${flowChartLayout.svgWidth}px`,
                       height: `${flowChartLayout.svgHeight}px`
                     }}
                   >
-                    {/* SVG定義 */}
-                    <defs>
-                      {/* 矢印マーカー */}
-                      <marker
-                        id="arrowhead"
-                        markerWidth="10"
-                        markerHeight="10"
-                        refX="9"
-                        refY="3"
-                        orient="auto"
-                      >
-                        <polygon
-                          points="0 0, 10 3, 0 6"
-                          fill="#374151"
-                        />
-                      </marker>
+                    <svg
+                      className="w-full h-full"
+                      viewBox={`0 0 ${flowChartLayout.svgWidth} ${flowChartLayout.svgHeight}`}
+                    >
+                      {/* SVG定義 */}
+                      <defs>
+                        {/* 矢印マーカー */}
+                        <marker
+                          id="arrowhead"
+                          markerWidth="10"
+                          markerHeight="10"
+                          refX="9"
+                          refY="3"
+                          orient="auto"
+                        >
+                          <polygon
+                            points="0 0, 10 3, 0 6"
+                            fill="#374151"
+                          />
+                        </marker>
 
-                      {/* クリッピングパス定義 */}
+                        {/* クリッピングパス定義 */}
+                        {flowChartLayout.nodes.map((node: FlowChartNode, idx: number) => (
+                          <clipPath key={`clip-${idx}`} id={`clip-${idx}`}>
+                            <circle cx={node.x} cy={node.y - 50} r="35" />
+                          </clipPath>
+                        ))}
+                      </defs>
+
+                      {/* エッジ（矢印）の線を先に描画 */}
+                      {flowChartLayout.edges.map((edge: FlowChartEdge, idx: number) => {
+                        if (!edge) return null;
+                        const relType = relationshipTypes[edge.type as CharacterRelationship['type']];
+
+                        // キャラクター円の中心座標（y-50のオフセットを考慮）
+                        const fromCenterY = edge.fromY - 50;
+                        const toCenterY = edge.toY - 50;
+
+                        const dx = edge.toX - edge.fromX;
+                        const dy = toCenterY - fromCenterY;
+                        const angle = Math.atan2(dy, dx);
+
+                        // ノードのサイズを考慮して線を描画（円の半径45）
+                        const nodeRadius = 45;
+
+                        // オフセットを適用（双方向の矢印を並列に配置）
+                        const perpendicularAngle = angle + Math.PI / 2;
+                        const offsetX = edge.offset !== undefined ? edge.offset * Math.cos(perpendicularAngle) : 0;
+                        const offsetY = edge.offset !== undefined ? edge.offset * Math.sin(perpendicularAngle) : 0;
+
+                        const startX = edge.fromX + nodeRadius * Math.cos(angle) + offsetX;
+                        const startY = fromCenterY + nodeRadius * Math.sin(angle) + offsetY;
+                        const endX = edge.toX - nodeRadius * Math.cos(angle) + offsetX;
+                        const endY = toCenterY - nodeRadius * Math.sin(angle) + offsetY;
+
+                        // ラベル位置を矢印の先端側に配置（65%の位置）
+                        const labelRatio = 0.65;
+                        const labelX = startX + (endX - startX) * labelRatio;
+                        const labelY = startY + (endY - startY) * labelRatio;
+
+                        // 強度に応じた線の太さ（1-5を1-3ピクセルに調整）
+                        const strokeWidth = edge.strength * 0.4 + 0.6;
+
+                        return (
+                          <g key={`edge-${idx}`}>
+                            {/* 矢印の線 */}
+                            <line
+                              x1={startX}
+                              y1={startY}
+                              x2={endX}
+                              y2={endY}
+                              stroke={relType.svgColor}
+                              strokeWidth={strokeWidth}
+                              fill="none"
+                              opacity="0.8"
+                              markerEnd="url(#arrowhead)"
+                              strokeDasharray={edge.type === 'enemy' ? "5,5" : "none"}
+                            />
+                            {/* ラベル背景 */}
+                            <ellipse
+                              cx={labelX}
+                              cy={labelY}
+                              rx="35"
+                              ry="20"
+                              fill={relType.svgColor}
+                              opacity="0.9"
+                            />
+                            {/* 関係の種類ラベル */}
+                            <text
+                              x={labelX}
+                              y={labelY}
+                              textAnchor="middle"
+                              fill="white"
+                              fontSize="11"
+                              fontWeight="bold"
+                              dy="4"
+                            >
+                              {relType.label}
+                            </text>
+                            <text
+                              x={labelX}
+                              y={labelY}
+                              textAnchor="middle"
+                              fill="white"
+                              fontSize="11"
+                              fontWeight="bold"
+                              dy="18"
+                            >
+                              {`★${edge.strength}`}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {/* ノード（キャラクター）を描画 */}
                       {flowChartLayout.nodes.map((node: FlowChartNode, idx: number) => (
-                        <clipPath key={`clip-${idx}`} id={`clip-${idx}`}>
-                          <circle cx={node.x} cy={node.y - 50} r="35" />
-                        </clipPath>
-                      ))}
-                    </defs>
-
-                    {/* エッジ（矢印）の線を先に描画 */}
-                    {flowChartLayout.edges.map((edge: FlowChartEdge, idx: number) => {
-                      if (!edge) return null;
-                      const relType = relationshipTypes[edge.type as CharacterRelationship['type']];
-
-                      // キャラクター円の中心座標（y-50のオフセットを考慮）
-                      const fromCenterY = edge.fromY - 50;
-                      const toCenterY = edge.toY - 50;
-
-                      const dx = edge.toX - edge.fromX;
-                      const dy = toCenterY - fromCenterY;
-                      const angle = Math.atan2(dy, dx);
-
-                      // ノードのサイズを考慮して線を描画（円の半径45）
-                      const nodeRadius = 45;
-
-                      // オフセットを適用（双方向の矢印を並列に配置）
-                      const perpendicularAngle = angle + Math.PI / 2;
-                      const offsetX = edge.offset !== undefined ? edge.offset * Math.cos(perpendicularAngle) : 0;
-                      const offsetY = edge.offset !== undefined ? edge.offset * Math.sin(perpendicularAngle) : 0;
-
-                      const startX = edge.fromX + nodeRadius * Math.cos(angle) + offsetX;
-                      const startY = fromCenterY + nodeRadius * Math.sin(angle) + offsetY;
-                      const endX = edge.toX - nodeRadius * Math.cos(angle) + offsetX;
-                      const endY = toCenterY - nodeRadius * Math.sin(angle) + offsetY;
-
-                      // ラベル位置を矢印の先端側に配置（65%の位置）
-                      const labelRatio = 0.65;
-                      const labelX = startX + (endX - startX) * labelRatio;
-                      const labelY = startY + (endY - startY) * labelRatio;
-
-                      // 強度に応じた線の太さ（1-5を1-3ピクセルに調整）
-                      const strokeWidth = edge.strength * 0.4 + 0.6;
-
-                      return (
-                        <g key={`edge-${idx}`}>
-                          {/* 矢印の線 */}
-                          <line
-                            x1={startX}
-                            y1={startY}
-                            x2={endX}
-                            y2={endY}
-                            stroke={relType.svgColor}
-                            strokeWidth={strokeWidth}
-                            fill="none"
-                            opacity="0.8"
-                            markerEnd="url(#arrowhead)"
-                            strokeDasharray={edge.type === 'enemy' ? "5,5" : "none"}
+                        <g key={node.id}>
+                          {/* キャラクター背景（円形） */}
+                          <circle
+                            cx={node.x}
+                            cy={node.y - 50}
+                            r="45"
+                            fill="#ffffff"
+                            stroke="#c7d2fe"
+                            strokeWidth="2"
                           />
-                          {/* ラベル背景 */}
-                          <ellipse
-                            cx={labelX}
-                            cy={labelY}
-                            rx="35"
-                            ry="20"
-                            fill={relType.svgColor}
-                            opacity="0.9"
-                          />
-                          {/* 関係の種類ラベル */}
-                          <text
-                            x={labelX}
-                            y={labelY}
-                            textAnchor="middle"
-                            fill="white"
-                            fontSize="11"
-                            fontWeight="bold"
-                            dy="4"
-                          >
-                            {relType.label}
-                          </text>
-                          <text
-                            x={labelX}
-                            y={labelY}
-                            textAnchor="middle"
-                            fill="white"
-                            fontSize="11"
-                            fontWeight="bold"
-                            dy="18"
-                          >
-                            {`★${edge.strength}`}
-                          </text>
-                        </g>
-                      );
-                    })}
 
-                    {/* ノード（キャラクター）を描画 */}
-                    {flowChartLayout.nodes.map((node: FlowChartNode, idx: number) => (
-                      <g key={node.id}>
-                        {/* キャラクター背景（円形） */}
-                        <circle
-                          cx={node.x}
-                          cy={node.y - 50}
-                          r="45"
-                          fill="#ffffff"
-                          stroke="#c7d2fe"
-                          strokeWidth="2"
-                        />
-
-                        {/* キャラクター画像 */}
-                        <circle
-                          cx={node.x}
-                          cy={node.y - 50}
-                          r="35"
-                          fill="#6366f1"
-                        />
-                        {node.image ? (
-                          <image
-                            href={node.image}
-                            x={node.x - 35}
-                            y={node.y - 85}
-                            width="70"
-                            height="70"
-                            clipPath={`url(#clip-${idx})`}
+                          {/* キャラクター画像 */}
+                          <circle
+                            cx={node.x}
+                            cy={node.y - 50}
+                            r="35"
+                            fill="#6366f1"
                           />
-                        ) : (
+                          {node.image ? (
+                            <image
+                              href={node.image}
+                              x={node.x - 35}
+                              y={node.y - 85}
+                              width="70"
+                              height="70"
+                              clipPath={`url(#clip-${idx})`}
+                            />
+                          ) : (
+                            <text
+                              x={node.x}
+                              y={node.y - 40}
+                              textAnchor="middle"
+                              fill="#ffffff"
+                              fontSize="40"
+                            >
+                              👤
+                            </text>
+                          )}
+
+                          {/* キャラクター名 */}
                           <text
                             x={node.x}
-                            y={node.y - 40}
+                            y={node.y + 20}
                             textAnchor="middle"
-                            fill="#ffffff"
-                            fontSize="40"
+                            fill="#111827"
+                            fontSize="14"
+                            fontWeight="bold"
                           >
-                            👤
+                            {node.name}
                           </text>
-                        )}
-
-                        {/* キャラクター名 */}
-                        <text
-                          x={node.x}
-                          y={node.y + 20}
-                          textAnchor="middle"
-                          fill="#111827"
-                          fontSize="14"
-                          fontWeight="bold"
-                        >
-                          {node.name}
-                        </text>
-                      </g>
-                    ))}
-                  </svg>
+                        </g>
+                      ))}
+                    </svg>
+                  </div>
                 </div>
               )
             )}

@@ -1,52 +1,20 @@
-export type HistoryEntryType = 'auto' | 'manual' | 'restore';
+/**
+ * Draft関連の型定義
+ * 
+ * このファイルはsrc/types/draft.tsから型を再エクスポートします。
+ * 後方互換性のために維持されています。
+ */
 
-export interface ChapterHistoryEntry {
-  id: string;
-  timestamp: number;
-  content: string;
-  type: HistoryEntryType;
-  label: string;
-}
-
-export type AISuggestionType = 'rewrite' | 'tone' | 'summary';
-
-export interface AISuggestion {
-  id: string;
-  title: string;
-  body: string;
-}
-
-export interface ImprovementLog {
-  id: string;
-  timestamp: number;
-  chapterId: string;
-  phase1Critique: string;
-  phase2Summary: string;
-  phase2Changes: string[];
-  originalLength: number;
-  revisedLength: number;
-}
-
-export type GenerationAction =
-  | 'fullDraft'
-  | 'continue'
-  | 'description'
-  | 'style'
-  | 'shorten'
-  | 'improve'
-  | 'selfRefine';
-
-export type AIStatusTone = 'emerald' | 'blue' | 'purple';
-
-export type SecondaryTab = 'ai' | 'display' | 'history' | 'project' | 'aiLogs';
-
-export interface SuggestionPromptPayload {
-  selectedText: string;
-  chapterTitle?: string;
-  chapterSummary?: string;
-  projectTitle?: string;
-}
-
-export type AILogType = 'generateSingle' | 'continue' | 'suggestions';
-
-
+// src/types/draft.tsから全ての型を再エクスポート
+export type {
+  HistoryEntryType,
+  ChapterHistoryEntry,
+  AISuggestionType,
+  AISuggestion,
+  ImprovementLog,
+  GenerationAction,
+  SecondaryTab,
+  AIStatusTone,
+  AILogType,
+  SuggestionPromptPayload,
+} from '../../../types/draft';

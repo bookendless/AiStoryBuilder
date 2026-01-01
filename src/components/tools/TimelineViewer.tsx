@@ -8,6 +8,7 @@ import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { parseTimelineAIResponse, parseConsistencyCheckResponse } from '../../utils/timelineParser';
 
 interface TimelineViewerProps {
   isOpen: boolean;
@@ -220,6 +221,11 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
 
 ${projectContext}
 
+【重要な注意事項】
+- すべての章の内容を均等に参照し、特定の章に偏らないでください
+- 物語全体を俯瞰して、重要なイベントを網羅的に抽出してください
+- 各章から少なくとも1つ以上のイベントを検討してください
+
 【指示】
 1. プロジェクト内で発生する重要なイベント（プロット上の転換点、キャラクターの成長、世界観の変化など）を抽出してください
 2. 既存のタイムラインに含まれているイベントは除外してください
@@ -231,8 +237,7 @@ ${projectContext}
    - 関連する章（該当する章のタイトル）
    - 関連するキャラクター（該当するキャラクター名）
 
-【出力形式】
-JSON配列形式で出力してください：
+【出力形式 - 必ずJSON配列形式で出力してください】
 [
   {
     "title": "イベントタイトル",
@@ -241,9 +246,23 @@ JSON配列形式で出力してください：
     "category": "plot|character|world|other",
     "chapterTitle": "章のタイトル（任意）",
     "characterNames": ["キャラクター名1", "キャラクター名2"]
-  },
-  ...
+  }
 ]
+
+【Few-Shot例】
+入力: 「第1章で主人公が旅に出る。第2章で仲間と出会う。第3章で敵と戦う。」
+
+正しい出力例:
+[
+  {"title": "主人公の旅立ち", "description": "主人公が故郷を離れ、冒険の旅に出発する重要な転換点。これまでの日常から決別し、未知の世界へと足を踏み出す。", "date": "第1章", "category": "plot", "chapterTitle": "第1章", "characterNames": ["主人公"]},
+  {"title": "仲間との出会い", "description": "旅の途中で重要な仲間と出会う。互いの力を認め合い、共に旅を続けることを決意する。", "date": "第2章", "category": "character", "chapterTitle": "第2章", "characterNames": ["主人公", "仲間"]},
+  {"title": "敵との初戦", "description": "強大な敵との最初の戦い。主人公たちの力が試される。", "date": "第3章", "category": "plot", "chapterTitle": "第3章", "characterNames": ["主人公", "仲間", "敵"]}
+]
+
+❌ 間違った出力（これは避けてください）:
+- 箇条書き形式
+- マークダウン形式
+- テキストのみの説明
 
 既存のタイムライン: ${JSON.stringify(timeline.map(e => e.title), null, 2)}`;
 
@@ -309,10 +328,46 @@ JSON配列形式で出力してください：
           setAiResults(filteredEvents);
           setSelectedResults(new Set(filteredEvents.map((_, idx) => idx)));
         } catch (parseError) {
-          console.error('JSON解析エラー:', parseError);
-          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
-            title: '解析エラー',
-          });
+          console.warn('JSON解析に失敗、フォールバック解析を試みます:', parseError);
+
+          // フォールバック: テキスト/Markdown形式での解析を試みる
+          const fallbackResult = parseTimelineAIResponse(response.content);
+
+          if (fallbackResult.success && fallbackResult.events.length > 0) {
+            showWarning(`${fallbackResult.warning || 'テキスト形式で解析しました'}（JSON形式を推奨）`, 7000, {
+              title: '解析成功（フォールバック）',
+            });
+
+            const existingTitles = new Set(timeline.map(e => e.title.toLowerCase()));
+            const filteredEvents = fallbackResult.events
+              .filter(event => event.title && !existingTitles.has(event.title.toLowerCase()))
+              .map((event, index) => {
+                const chapterId = event.chapterTitle
+                  ? chapters.find(c => c.title === event.chapterTitle)?.id
+                  : undefined;
+                const characterIds = event.characterNames
+                  ? event.characterNames
+                    .map(name => characters.find(c => c.name === name)?.id)
+                    .filter((id): id is string => id !== undefined)
+                  : [];
+                return {
+                  title: event.title,
+                  description: event.description,
+                  date: event.date,
+                  category: event.category || 'plot',
+                  chapterId,
+                  characterIds,
+                  order: timeline.length + index,
+                } as Partial<TimelineEvent>;
+              });
+
+            setAiResults(filteredEvents);
+            setSelectedResults(new Set(filteredEvents.map((_, idx) => idx)));
+          } else {
+            showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+              title: '解析エラー',
+            });
+          }
         }
       }
     } catch (error) {
@@ -491,13 +546,25 @@ ${timelineText}
 4. キャラクターの行動や動機の一貫性
 5. 時系列のギャップや飛躍がないか
 
-【出力形式】
-問題があれば具体的に指摘し、改善提案をしてください。JSON形式で出力してください：
+【出力形式 - 必ずJSON形式で出力してください】
+問題があれば具体的に指摘し、改善提案をしてください：
 {
-  "hasIssues": true/false,
-  "issues": ["問題点1", "問題点2", ...],
-  "suggestions": ["改善提案1", "改善提案2", ...]
-}`;
+  "hasIssues": trueまたはfalse,
+  "issues": ["問題点1", "問題点2"],
+  "suggestions": ["改善提案1", "改善提案2"]
+}
+
+【Few-Shot例】
+問題がある場合の出力例:
+{"hasIssues": true, "issues": ["主人公が第2章で敵と戦っていますが、第3章で初めて敵に会うという記述があり矛盾しています", "第1章から第5章の間に大きな時間の飛躍があります"], "suggestions": ["第2章と第3章のイベント順序を見直してください", "第1章と第5章の間に中間的なイベントを追加することを検討してください"]}
+
+問題がない場合の出力例:
+{"hasIssues": false, "issues": [], "suggestions": []}
+
+❌ 間違った出力（これは避けてください）:
+- 箇条書き形式
+- マークダウン形式
+- テキストのみの説明`;
 
       const response = await aiService.generateContent({
         prompt,
@@ -550,9 +617,36 @@ ${timelineText}
 
           setConsistencyCheckResult(resultText);
         } catch (parseError) {
-          console.error('JSON解析エラー:', parseError);
-          // JSON解析に失敗した場合、テキストをそのまま表示
-          setConsistencyCheckResult(response.content);
+          console.warn('JSON解析に失敗、フォールバック解析を試みます:', parseError);
+
+          // フォールバック: テキスト形式での解析を試みる
+          const fallbackResult = parseConsistencyCheckResponse(response.content);
+
+          let resultText = '';
+          if (!fallbackResult.hasIssues) {
+            resultText = '✅ タイムラインに問題は見つかりませんでした。整合性が保たれています。';
+          } else {
+            resultText = '⚠️ 以下の問題が見つかりました：\n\n';
+            if (fallbackResult.issues.length > 0) {
+              resultText += '【問題点】\n';
+              fallbackResult.issues.forEach((issue, idx) => {
+                resultText += `${idx + 1}. ${issue}\n`;
+              });
+              resultText += '\n';
+            }
+            if (fallbackResult.suggestions.length > 0) {
+              resultText += '【改善提案】\n';
+              fallbackResult.suggestions.forEach((suggestion, idx) => {
+                resultText += `${idx + 1}. ${suggestion}\n`;
+              });
+            }
+            // 問題点も提案もない場合は元のテキストを表示
+            if (fallbackResult.issues.length === 0 && fallbackResult.suggestions.length === 0) {
+              resultText = response.content;
+            }
+          }
+
+          setConsistencyCheckResult(resultText);
         }
       }
     } catch (error) {
@@ -593,6 +687,10 @@ ${projectContext}
 【現在のタイムライン】
 ${timelineText}
 
+【重要な注意事項】
+- すべての章を考慮し、特定の章に偏らないように提案してください
+- 物語全体の流れを俯瞰して提案してください
+
 【指示】
 1. プロットの流れを考慮して、物語に必要なイベントを提案してください
 2. キャラクターの成長や関係性の発展に関わるイベントも含めてください
@@ -604,8 +702,7 @@ ${timelineText}
    - 関連する章（該当する場合）
    - 関連するキャラクター（該当する場合）
 
-【出力形式】
-JSON配列形式で出力してください：
+【出力形式 - 必ずJSON配列形式で出力してください】
 [
   {
     "title": "イベントタイトル",
@@ -614,9 +711,22 @@ JSON配列形式で出力してください：
     "category": "plot|character|world|other",
     "chapterTitle": "章のタイトル（任意）",
     "characterNames": ["キャラクター名1", "キャラクター名2"]
-  },
-  ...
-]`;
+  }
+]
+
+【Few-Shot例】
+入力: 「主人公が旅立ち、仲間と出会う物語」
+
+正しい出力例:
+[
+  {"title": "主人公の決意", "description": "困難に直面し、主人公が新たな覚悟を決める重要なターニングポイント。", "date": "中盤", "category": "character", "characterNames": ["主人公"]},
+  {"title": "仲間の過去の秘密", "description": "仲間の隠された過去が明かされ、物語に新たな展開をもたらす。", "date": "後半", "category": "character", "characterNames": ["仲間"]}
+]
+
+❌ 間違った出力（これは避けてください）:
+- 箇条書き形式
+- マークダウン形式
+- テキストのみの説明`;
 
       const response = await aiService.generateContent({
         prompt,
@@ -676,10 +786,43 @@ JSON配列形式で出力してください：
           setAiResults(processedEvents);
           setSelectedResults(new Set(processedEvents.map((_, idx) => idx)));
         } catch (parseError) {
-          console.error('JSON解析エラー:', parseError);
-          showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
-            title: '解析エラー',
-          });
+          console.warn('JSON解析に失敗、フォールバック解析を試みます:', parseError);
+
+          // フォールバック: テキスト/Markdown形式での解析を試みる
+          const fallbackResult = parseTimelineAIResponse(response.content);
+
+          if (fallbackResult.success && fallbackResult.events.length > 0) {
+            showWarning(`${fallbackResult.warning || 'テキスト形式で解析しました'}（JSON形式を推奨）`, 7000, {
+              title: '解析成功（フォールバック）',
+            });
+
+            const processedEvents = fallbackResult.events.map((event, index) => {
+              const chapterId = event.chapterTitle
+                ? chapters.find(c => c.title === event.chapterTitle)?.id
+                : undefined;
+              const characterIds = event.characterNames
+                ? event.characterNames
+                  .map(name => characters.find(c => c.name === name)?.id)
+                  .filter((id): id is string => id !== undefined)
+                : [];
+              return {
+                title: event.title,
+                description: event.description,
+                date: event.date,
+                category: event.category || 'plot',
+                chapterId,
+                characterIds,
+                order: timeline.length + index,
+              } as Partial<TimelineEvent>;
+            });
+
+            setAiResults(processedEvents);
+            setSelectedResults(new Set(processedEvents.map((_, idx) => idx)));
+          } else {
+            showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
+              title: '解析エラー',
+            });
+          }
         }
       }
     } catch (error) {
@@ -789,7 +932,7 @@ JSON配列形式で出力してください：
           </div>
 
           {/* タイムラインリスト */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6">
             {sortedTimeline.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                 <EmptyState
@@ -820,20 +963,20 @@ JSON配列形式で出力してください：
                         </div>
 
                         {/* イベントコンテンツ */}
-                        <div className="flex-1 ml-6 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-white dark:bg-gray-800">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-2">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                        <div className="flex-1 ml-4 sm:ml-6 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow bg-white dark:bg-gray-800">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] break-words">
                                   {event.title}
                                 </h3>
                                 {event.date && (
-                                  <span className="text-sm px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-['Noto_Sans_JP']">
+                                  <span className="text-xs sm:text-sm px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-['Noto_Sans_JP'] whitespace-nowrap">
                                     {event.date}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                              <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP'] break-words leading-relaxed">
                                 {event.description}
                               </p>
 
@@ -856,7 +999,7 @@ JSON配列形式で出力してください：
                               </div>
                             </div>
 
-                            <div className="flex items-center space-x-2 ml-4">
+                            <div className="flex items-center space-x-1 sm:space-x-2 mt-4 sm:mt-0 sm:ml-4 justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100 dark:border-gray-700">
                               <button
                                 onClick={() => handleReorder(event.id, 'up')}
                                 disabled={index === 0}

@@ -323,7 +323,7 @@ export const ChapterAssistantPanel: React.FC = () => {
                     }
                 }
 
-                // 登場キャラクターの検出
+                // 登場キャラクターの検出（名前のまま保存）
                 if (!detailFound) {
                     for (const pattern of detailPatterns.characters) {
                         const match = trimmedLine.match(pattern);

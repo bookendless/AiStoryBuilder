@@ -33,7 +33,7 @@ const parseJsonCharacters = (content: string): ParseResult => {
   try {
     // JSON文字列を抽出（コードブロック内のJSONも対応）
     let jsonString = content.trim();
-    
+
     // コードブロック内のJSONを抽出
     const codeBlockMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (codeBlockMatch) {
@@ -53,7 +53,7 @@ const parseJsonCharacters = (content: string): ParseResult => {
     }
 
     const parsed = JSON.parse(jsonString);
-    
+
     // 配列形式: [{name: "...", role: "...", ...}, ...]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let characterArray: any[] = [];
@@ -124,7 +124,7 @@ const parseTextCharacters = (content: string, maxCharacters: number = 5): ParseR
 
   // キャラクターセクションを分割
   const sections: Array<{ index: number; content: string }> = [];
-  
+
   for (const pattern of characterStartPatterns) {
     const matches = [...content.matchAll(pattern)];
     if (matches.length > 0) {
@@ -135,7 +135,7 @@ const parseTextCharacters = (content: string, maxCharacters: number = 5): ParseR
         const endPos = nextMatch ? (nextMatch.index || content.length) : content.length;
         const sectionContent = content.substring(startPos, endPos);
         const index = parseInt(match[1] || '1');
-        
+
         sections.push({ index, content: sectionContent });
       }
       break; // 最初にマッチしたパターンを使用
@@ -298,7 +298,7 @@ export const extractCharacterFromContent = (
   const pattern = index === 5
     ? new RegExp(`【キャラクター${index}】\\s*([\\s\\S]*?)$`)
     : new RegExp(`【キャラクター${index}】\\s*([\\s\\S]*?)(?=【キャラクター${nextIndex}】|$)`);
-  
+
   const match = content.match(pattern);
   if (!match) {
     return null;
@@ -341,8 +341,8 @@ export const extractCharactersFromContent = (
   }
 
   // 形式の自動検出
-  const format: 'json' | 'text' = preferredFormat === 'auto' 
-    ? (trimmedContent.match(/^\s*[\[\{]/) ? 'json' : 'text')
+  const format: 'json' | 'text' = preferredFormat === 'auto'
+    ? (trimmedContent.match(/^\s*[[{]/) ? 'json' : 'text')
     : preferredFormat;
 
   // JSON形式を試行
@@ -362,12 +362,12 @@ export const extractCharactersFromContent = (
 
   // テキスト形式を試行
   const textResult = parseTextCharacters(trimmedContent, maxCharacters);
-  
+
   // テキスト形式でも失敗した場合、aiResponseParserのparseCharacterInfoをフォールバックとして試行
   if (textResult.characters.length === 0 && textResult.errors.length > 0) {
     try {
-              const fallbackResult = parseAIResponse(trimmedContent, 'text');
-        if (fallbackResult.success && fallbackResult.data) {
+      const fallbackResult = parseAIResponse(trimmedContent, 'text');
+      if (fallbackResult.success && fallbackResult.data) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const data = fallbackResult.data as any;
         if (data.type === 'characters' && Array.isArray(data.characters)) {
@@ -381,7 +381,7 @@ export const extractCharactersFromContent = (
             background: (char.background || '').substring(0, TEXT_LIMITS.BACKGROUND_MAX),
             image: '',
           })).filter((char: Character) => char.name && char.name !== `AI生成キャラクター${textResult.characters.length + 1}`);
-          
+
           if (fallbackCharacters.length > 0) {
             return {
               characters: fallbackCharacters,
@@ -397,6 +397,6 @@ export const extractCharactersFromContent = (
       textResult.errors.push(`フォールバック解析も失敗: ${error instanceof Error ? error.message : '不明なエラー'}`);
     }
   }
-  
+
   return textResult;
 };

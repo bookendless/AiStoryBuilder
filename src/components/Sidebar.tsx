@@ -166,8 +166,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
 
   return (
     <>
-      {/* モバイル用バックドロップ */}
-      {breakpoint === 'mobile' && !isCollapsed && (
+      {/* モバイル/タブレット用バックドロップ */}
+      {breakpoint !== 'desktop' && !isCollapsed && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden"
           onClick={handleToggleCollapse}
@@ -178,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentStep, onStepChange, cla
       <aside
         ref={sidebarRef}
         className={`fixed left-0 top-0 h-full glass border-r transition-all duration-300 z-40 ${className
-          } ${breakpoint === 'mobile'
+          } ${breakpoint !== 'desktop'
             ? isCollapsed
               ? '-translate-x-full w-64'
               : 'translate-x-0 w-64'

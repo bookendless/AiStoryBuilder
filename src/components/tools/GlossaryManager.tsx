@@ -620,14 +620,6 @@ JSON配列形式で出力してください：
           {/* ヘッダーアクション */}
           <div className="flex items-center justify-end space-x-2 mb-4">
             <button
-              onClick={() => setShowAIAssistant(true)}
-              className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
-              title="AIアシスタント"
-            >
-              <Sparkles className="h-5 w-5" />
-              <span className="font-['Noto_Sans_JP']">AIアシスト</span>
-            </button>
-            <button
               onClick={handleExport}
               className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               title="エクスポート"
@@ -640,6 +632,21 @@ JSON配列形式で出力してください：
               title="インポート"
             >
               <Upload className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setShowAIAssistant(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
+              title="AIアシスタント"
+            >
+              <Sparkles className="h-5 w-5" />
+              <span className="font-['Noto_Sans_JP']">AIアシスト</span>
+            </button>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              <span className="font-['Noto_Sans_JP']">追加</span>
             </button>
           </div>
 
@@ -656,27 +663,18 @@ JSON配列形式で出力してください：
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-              <div className="flex gap-2">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="all">すべて</option>
-                  {Object.entries(categoryLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  <Plus className="h-5 w-5" />
-                  <span className="font-['Noto_Sans_JP']">追加</span>
-                </button>
-              </div>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">すべて</option>
+                {Object.entries(categoryLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -702,38 +700,40 @@ JSON配列形式で出力してください：
                     key={term.id}
                     className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
                   >
-                    <div className="flex items-start justify-between mb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                             {term.term}
                           </h3>
                           {term.reading && (
                             <span className="text-sm text-gray-500 dark:text-gray-400">({term.reading})</span>
                           )}
-                          <span className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full font-['Noto_Sans_JP']">
+                          <span className="px-2 py-0.5 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full font-['Noto_Sans_JP']">
                             {categoryLabels[term.category]}
                           </span>
                         </div>
-                        <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                        <p className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] break-words">
                           {term.definition}
                         </p>
                         {term.notes && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic font-['Noto_Sans_JP']">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic font-['Noto_Sans_JP'] break-words">
                             {term.notes}
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center space-x-2 ml-4">
+                      <div className="flex items-center space-x-1 sm:space-x-2 mt-4 sm:mt-0 sm:ml-4 justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100 dark:border-gray-700">
                         <button
                           onClick={() => handleEditTerm(term)}
                           className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="編集"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteTerm(term.id)}
                           className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="削除"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

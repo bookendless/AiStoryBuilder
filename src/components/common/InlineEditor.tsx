@@ -129,19 +129,19 @@ export const InlineEditor: React.FC<InlineEditorProps> = ({
         <div className="flex items-center space-x-1">
           <button
             onClick={handleSave}
-            className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+            className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
             aria-label="保存"
             title="保存 (Enter)"
           >
-            <Check className="h-4 w-4" />
+            <Check className="h-5 w-5" />
           </button>
           <button
             onClick={handleCancel}
-            className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
             aria-label="キャンセル"
             title="キャンセル (Esc)"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
       </div>

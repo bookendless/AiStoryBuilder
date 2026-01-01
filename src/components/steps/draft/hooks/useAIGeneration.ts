@@ -125,7 +125,7 @@ export const useAIGeneration = ({
 
     setCurrentGenerationAction('fullDraft');
     setIsGenerating(true);
-    
+
     try {
       if (!currentChapter) {
         onWarning('章を選択してください。', 5000, {
@@ -136,7 +136,7 @@ export const useAIGeneration = ({
 
       // 章詳細情報を取得
       const chapterDetails = getChapterDetails(currentChapter);
-      
+
       // プロジェクトのキャラクター情報を整理
       const projectCharacters = currentProject.characters.map((char: Character) => {
         let charInfo = `${char.name}`;
@@ -153,8 +153,8 @@ export const useAIGeneration = ({
         if (char.speechStyle) {
           // 口調設定を簡潔に（最大100文字）
           const speechStyle = char.speechStyle.trim();
-          const truncatedSpeechStyle = speechStyle.length > 100 
-            ? speechStyle.substring(0, 100) + '...' 
+          const truncatedSpeechStyle = speechStyle.length > 100
+            ? speechStyle.substring(0, 100) + '...'
             : speechStyle;
           charInfo += `\n  口調: ${truncatedSpeechStyle}`;
         }
@@ -175,8 +175,8 @@ export const useAIGeneration = ({
         if (prevChapter.draft && prevChapter.draft.trim()) {
           // 末尾1000文字程度を取得
           const prevDraft = prevChapter.draft.trim();
-          previousChapterEnd = prevDraft.length > 1000 
-            ? '...' + prevDraft.slice(-1000) 
+          previousChapterEnd = prevDraft.length > 1000
+            ? '...' + prevDraft.slice(-1000)
             : prevDraft;
         }
       }
@@ -217,7 +217,7 @@ export const useAIGeneration = ({
         error: response.error,
         chapterId: selectedChapter || undefined,
       });
-      
+
       if (response && response.content) {
         onDraftUpdate(response.content);
         // 章草案を保存
@@ -258,10 +258,10 @@ export const useAIGeneration = ({
   // 続き生成
   const handleContinueGeneration = useCallback(async () => {
     if (!currentProject || !selectedChapter) return;
-    
+
     setCurrentGenerationAction('continue');
     setIsGenerating(true);
-    
+
     try {
       // プロジェクトのキャラクター情報を整理
       const projectCharacters = currentProject.characters.map((char: Character) => {
@@ -279,8 +279,8 @@ export const useAIGeneration = ({
         if (char.speechStyle) {
           // 口調設定を簡潔に（最大100文字）
           const speechStyle = char.speechStyle.trim();
-          const truncatedSpeechStyle = speechStyle.length > 100 
-            ? speechStyle.substring(0, 100) + '...' 
+          const truncatedSpeechStyle = speechStyle.length > 100
+            ? speechStyle.substring(0, 100) + '...'
             : speechStyle;
           charInfo += `\n  口調: ${truncatedSpeechStyle}`;
         }
@@ -302,20 +302,20 @@ export const useAIGeneration = ({
       const tone = writingStyle.tone || '';
 
       // プロット情報の整理
-      const plotStructure = currentProject.plot?.structure 
-        ? (currentProject.plot.structure === 'kishotenketsu' 
-            ? `起承転結構成\n起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`
-            : currentProject.plot.structure === 'three-act'
+      const plotStructure = currentProject.plot?.structure
+        ? (currentProject.plot.structure === 'kishotenketsu'
+          ? `起承転結構成\n起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`
+          : currentProject.plot.structure === 'three-act'
             ? `三幕構成\n第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`
             : currentProject.plot.structure === 'four-act'
-            ? `四幕構成\n第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`
-            : currentProject.plot.structure === 'heroes-journey'
-            ? `ヒーローズ・ジャーニー\n日常の世界: ${currentProject.plot.hj1 || '未設定'}\n冒険への誘い: ${currentProject.plot.hj2 || '未設定'}\n境界越え: ${currentProject.plot.hj3 || '未設定'}\n試練と仲間: ${currentProject.plot.hj4 || '未設定'}\n最大の試練: ${currentProject.plot.hj5 || '未設定'}\n報酬: ${currentProject.plot.hj6 || '未設定'}\n帰路: ${currentProject.plot.hj7 || '未設定'}\n復活と帰還: ${currentProject.plot.hj8 || '未設定'}`
-            : currentProject.plot.structure === 'beat-sheet'
-            ? `ビートシート\n導入 (Setup): ${currentProject.plot.bs1 || '未設定'}\n決断 (Break into Two): ${currentProject.plot.bs2 || '未設定'}\n試練 (Fun and Games): ${currentProject.plot.bs3 || '未設定'}\n転換点 (Midpoint): ${currentProject.plot.bs4 || '未設定'}\n危機 (All Is Lost): ${currentProject.plot.bs5 || '未設定'}\nクライマックス (Finale): ${currentProject.plot.bs6 || '未設定'}\n結末 (Final Image): ${currentProject.plot.bs7 || '未設定'}`
-            : currentProject.plot.structure === 'mystery-suspense'
-            ? `ミステリー・サスペンス構成\n発端（事件発生）: ${currentProject.plot.ms1 || '未設定'}\n捜査（初期）: ${currentProject.plot.ms2 || '未設定'}\n仮説とミスリード: ${currentProject.plot.ms3 || '未設定'}\n第二の事件/急展開: ${currentProject.plot.ms4 || '未設定'}\n手がかりの統合: ${currentProject.plot.ms5 || '未設定'}\n解決（真相解明）: ${currentProject.plot.ms6 || '未設定'}\nエピローグ: ${currentProject.plot.ms7 || '未設定'}`
-            : '未設定')
+              ? `四幕構成\n第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`
+              : currentProject.plot.structure === 'heroes-journey'
+                ? `ヒーローズ・ジャーニー\n日常の世界: ${currentProject.plot.hj1 || '未設定'}\n冒険への誘い: ${currentProject.plot.hj2 || '未設定'}\n境界越え: ${currentProject.plot.hj3 || '未設定'}\n試練と仲間: ${currentProject.plot.hj4 || '未設定'}\n最大の試練: ${currentProject.plot.hj5 || '未設定'}\n報酬: ${currentProject.plot.hj6 || '未設定'}\n帰路: ${currentProject.plot.hj7 || '未設定'}\n復活と帰還: ${currentProject.plot.hj8 || '未設定'}`
+                : currentProject.plot.structure === 'beat-sheet'
+                  ? `ビートシート\n導入 (Setup): ${currentProject.plot.bs1 || '未設定'}\n決断 (Break into Two): ${currentProject.plot.bs2 || '未設定'}\n試練 (Fun and Games): ${currentProject.plot.bs3 || '未設定'}\n転換点 (Midpoint): ${currentProject.plot.bs4 || '未設定'}\n危機 (All Is Lost): ${currentProject.plot.bs5 || '未設定'}\nクライマックス (Finale): ${currentProject.plot.bs6 || '未設定'}\n結末 (Final Image): ${currentProject.plot.bs7 || '未設定'}`
+                  : currentProject.plot.structure === 'mystery-suspense'
+                    ? `ミステリー・サスペンス構成\n発端（事件発生）: ${currentProject.plot.ms1 || '未設定'}\n捜査（初期）: ${currentProject.plot.ms2 || '未設定'}\n仮説とミスリード: ${currentProject.plot.ms3 || '未設定'}\n第二の事件/急展開: ${currentProject.plot.ms4 || '未設定'}\n手がかりの統合: ${currentProject.plot.ms5 || '未設定'}\n解決（真相解明）: ${currentProject.plot.ms6 || '未設定'}\nエピローグ: ${currentProject.plot.ms7 || '未設定'}`
+                    : '未設定')
         : '未設定';
 
       // buildPromptを使用してプロンプトを構築
@@ -379,7 +379,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         error: response.error,
         chapterId: selectedChapter || undefined,
       });
-      
+
       if (response && response.content) {
         const newContent = draft + '\n\n' + response.content;
         onDraftUpdate(newContent);
@@ -415,10 +415,10 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
   // 描写強化
   const handleDescriptionEnhancement = useCallback(async () => {
     if (!selectedChapter || !draft.trim()) return;
-    
+
     setCurrentGenerationAction('description');
     setIsGenerating(true);
-    
+
     try {
       const prompt = aiService.buildPrompt('draft', 'enhanceDescription', {
         currentText: draft,
@@ -438,7 +438,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       if (abortController.signal.aborted) {
         return;
       }
-      
+
       if (response && response.content) {
         onDraftUpdate(response.content);
         await onSaveChapterDraft(selectedChapter!, response.content);
@@ -461,10 +461,10 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
   // 文体調整
   const handleStyleAdjustment = useCallback(async () => {
     if (!selectedChapter || !draft.trim()) return;
-    
+
     setCurrentGenerationAction('style');
     setIsGenerating(true);
-    
+
     try {
       const prompt = aiService.buildPrompt('draft', 'adjustStyle', {
         currentText: draft,
@@ -484,7 +484,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       if (abortController.signal.aborted) {
         return;
       }
-      
+
       if (response && response.content) {
         onDraftUpdate(response.content);
         await onSaveChapterDraft(selectedChapter!, response.content);
@@ -507,10 +507,10 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
   // 文章短縮
   const handleShortenText = useCallback(async () => {
     if (!selectedChapter || !draft.trim()) return;
-    
+
     setCurrentGenerationAction('shorten');
     setIsGenerating(true);
-    
+
     try {
       const prompt = aiService.buildPrompt('draft', 'shorten', {
         currentText: draft,
@@ -530,7 +530,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       if (abortController.signal.aborted) {
         return;
       }
-      
+
       if (response && response.content) {
         onDraftUpdate(response.content);
         await onSaveChapterDraft(selectedChapter!, response.content);
@@ -553,7 +553,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
   // 章全体改善（描写強化＋文体調整の組み合わせ）
   const handleChapterImprovement = useCallback(async () => {
     if (!selectedChapter || !draft.trim()) return;
-    
+
     if (!isConfigured) {
       onError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
         title: 'AI設定が必要',
@@ -563,7 +563,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
 
     setCurrentGenerationAction('improve');
     setIsGenerating(true);
-    
+
     try {
       const prompt = aiService.buildPrompt('draft', 'improve', {
         chapterTitle: currentChapter?.title || '未設定',
@@ -586,7 +586,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       if (abortController.signal.aborted) {
         return;
       }
-      
+
       if (response && response.content) {
         onDraftUpdate(response.content);
         await onSaveChapterDraft(selectedChapter!, response.content);
@@ -619,7 +619,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
   // 弱点の特定と修正案の生成ループ（Self-Refine）
   const handleSelfRefineImprovement = useCallback(async () => {
     if (!selectedChapter || !draft.trim()) return;
-    
+
     if (!isConfigured) {
       onError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
         title: 'AI設定が必要',
@@ -629,7 +629,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
 
     setCurrentGenerationAction('selfRefine');
     setIsGenerating(true);
-    
+
     try {
       // フェーズ1：批評フェーズ（弱点の特定と修正案の生成）
       const critiquePrompt = aiService.buildPrompt('draft', 'critique', {
@@ -661,19 +661,19 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       // フェーズ2：改訂フェーズ（改善実行と統合）
       // プロンプトの長さを制限するため、元の文章を適切な長さに切り詰める
       const maxDraftLength = 4000; // プロンプトの長さをさらに制限
-      const truncatedDraft = draft.length > maxDraftLength 
-        ? draft.substring(0, maxDraftLength) + '\n\n[以下省略]' 
+      const truncatedDraft = draft.length > maxDraftLength
+        ? draft.substring(0, maxDraftLength) + '\n\n[以下省略]'
         : draft;
-      
+
       // 評価結果から重要なポイントを抽出（JSON形式から要約を抽出）
       let critiqueResult = '';
       let critiqueSummary = '';
       let weaknesses: Array<{ aspect: string; score: number; problem: string; solutions: string[] }> = [];
-      
+
       try {
         // JSON形式の評価結果を抽出（コードブロックがあれば除去）
         let jsonContent = critiqueResponse.content.trim();
-        
+
         // コードブロックを除去
         if (jsonContent.startsWith('```')) {
           const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -684,17 +684,17 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             jsonContent = jsonContent.replace(/```json\s*|\s*```/g, '').trim();
           }
         }
-        
+
         // Gemini APIのレスポンスで時々付く {{ と }} を削除
         jsonContent = jsonContent
           .replace(/^\{\{/, '')
           .replace(/\}\}$/, '')
           .trim();
-        
+
         // JSONオブジェクトを抽出（複数行に対応、最も長いマッチを選択）
         const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
         let jsonString = '';
-        
+
         if (jsonMatches && jsonMatches.length > 0) {
           // 最も長いマッチを選択（完全なJSONの可能性が高い）
           jsonString = jsonMatches.reduce((a, b) => a.length > b.length ? a : b);
@@ -702,7 +702,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           // マッチが見つからない場合は、全体を試行
           jsonString = jsonContent;
         }
-        
+
         // JSON文字列のクリーニング
         jsonString = jsonString
           .replace(/^[\s\n\r]*/, '')
@@ -711,15 +711,15 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           .replace(/^\{\{/, '')
           .replace(/\}\}$/, '')
           .trim();
-        
+
         if (jsonString && jsonString.startsWith('{')) {
           const critiqueData = JSON.parse(jsonString);
-          
+
           // summaryを取得
           if (critiqueData.summary) {
             critiqueSummary = critiqueData.summary;
           }
-          
+
           // weaknessesを取得
           if (critiqueData.weaknesses && Array.isArray(critiqueData.weaknesses)) {
             interface WeaknessItem {
@@ -729,17 +729,17 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
               solutions?: string[];
             }
             weaknesses = critiqueData.weaknesses.filter((w: WeaknessItem) => w && w.aspect && w.problem);
-            
+
             // 7点以下の弱点を優先的に抽出
             const lowScoreWeaknesses = weaknesses
               .filter((w: WeaknessItem) => w.score !== undefined && w.score <= 7)
               .slice(0, 5); // 最大5つまで
-            
+
             // 弱点の要約を作成
             if (lowScoreWeaknesses.length > 0) {
               const weaknessTexts = lowScoreWeaknesses.map((w: WeaknessItem) => {
-                const solutions = w.solutions && Array.isArray(w.solutions) 
-                  ? w.solutions.slice(0, 2).join('、') 
+                const solutions = w.solutions && Array.isArray(w.solutions)
+                  ? w.solutions.slice(0, 2).join('、')
                   : '';
                 return `【${w.aspect}】（スコア: ${w.score}/10）\n問題: ${w.problem}\n改善策: ${solutions}`;
               });
@@ -747,15 +747,15 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             } else if (weaknesses.length > 0) {
               // スコアが不明な場合は最初の3つを使用
               const weaknessTexts = weaknesses.slice(0, 3).map((w: WeaknessItem) => {
-                const solutions = w.solutions && Array.isArray(w.solutions) 
-                  ? w.solutions.slice(0, 2).join('、') 
+                const solutions = w.solutions && Array.isArray(w.solutions)
+                  ? w.solutions.slice(0, 2).join('、')
                   : '';
                 return `【${w.aspect}】\n問題: ${w.problem}\n改善策: ${solutions}`;
               });
               critiqueSummary = weaknessTexts.join('\n\n') + (critiqueData.summary ? `\n\n総評: ${critiqueData.summary}` : '');
             }
           }
-          
+
           // 完全な評価結果を保持（reviseプロンプトで使用）
           critiqueResult = JSON.stringify(critiqueData, null, 2);
         } else {
@@ -767,21 +767,21 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         // JSON解析に失敗した場合は、評価結果をそのまま使用
         console.warn('Critique JSON解析エラー:', e);
         critiqueResult = critiqueResponse.content;
-        
+
         // テキストから重要な部分を抽出
         const lines = critiqueResponse.content.split('\n').filter(line => line.trim());
-        const importantLines = lines.filter(line => 
-          line.includes('問題') || 
-          line.includes('改善') || 
-          line.includes('弱点') || 
+        const importantLines = lines.filter(line =>
+          line.includes('問題') ||
+          line.includes('改善') ||
+          line.includes('弱点') ||
           line.includes('評価') ||
           line.includes('スコア')
         );
-        critiqueSummary = importantLines.length > 0 
+        critiqueSummary = importantLines.length > 0
           ? importantLines.slice(0, 10).join('\n')
           : lines.slice(0, 10).join('\n');
       }
-      
+
       // 要約が長すぎる場合は切り詰める
       const maxSummaryLength = 1500;
       if (critiqueSummary.length > maxSummaryLength) {
@@ -821,11 +821,11 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       let revisedText = '';
       let improvementSummary = '';
       let phase2Changes: string[] = [];
-      
+
       try {
         // JSON形式の応答を抽出（コードブロックがあれば除去）
         let jsonContent = revisionResponse.content.trim();
-        
+
         // コードブロックを除去
         if (jsonContent.startsWith('```')) {
           const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -833,17 +833,17 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             jsonContent = jsonMatch[1].trim();
           }
         }
-        
+
         // Gemini APIのレスポンスで時々付く {{ と }} を削除
         jsonContent = jsonContent
           .replace(/^\{\{/, '')
           .replace(/\}\}$/, '')
           .trim();
-        
+
         // JSONオブジェクトを抽出（複数行に対応、最も長いマッチを選択）
         const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
         let jsonString = '';
-        
+
         if (jsonMatches && jsonMatches.length > 0) {
           // 最も長いマッチを選択（完全なJSONの可能性が高い）
           jsonString = jsonMatches.reduce((a, b) => a.length > b.length ? a : b);
@@ -851,7 +851,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           // マッチが見つからない場合は、全体を試行
           jsonString = jsonContent;
         }
-        
+
         // JSON文字列のクリーニング
         jsonString = jsonString
           .replace(/^[\s\n\r]*/, '')
@@ -860,7 +860,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           .replace(/^\{\{/, '')
           .replace(/\}\}$/, '')
           .trim();
-        
+
         if (jsonString && jsonString.startsWith('{')) {
           try {
             const parsed = JSON.parse(jsonString);
@@ -876,7 +876,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         } else {
           throw new Error('JSON形式が見つかりません');
         }
-        
+
         // revisedTextが空の場合は、テキストから文章を抽出
         if (!revisedText || revisedText.trim().length < 100) {
           // 応答から文章らしい部分を抽出
@@ -886,7 +886,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             /改訂後の文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,  // テキスト形式
             /改善された文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,  // テキスト形式
           ];
-          
+
           for (const pattern of textPatterns) {
             const match = revisionResponse.content.match(pattern);
             if (match && match[1] && match[1].trim().length > 100) {
@@ -895,37 +895,37 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
               break;
             }
           }
-          
+
           // それでも見つからない場合は、応答全体から文章部分を抽出
           if (!revisedText || revisedText.trim().length < 100) {
             // JSON以外の部分から文章を抽出
             const lines = revisionResponse.content.split('\n');
             const textLines: string[] = [];
             let inTextBlock = false;
-            
+
             for (const line of lines) {
               const trimmed = line.trim();
               // JSONのキーや構造的な部分をスキップ
-              if (trimmed.startsWith('{') || trimmed.startsWith('}') || 
-                  trimmed.startsWith('"') && trimmed.includes(':') && !trimmed.includes('、') && !trimmed.includes('。')) {
+              if (trimmed.startsWith('{') || trimmed.startsWith('}') ||
+                trimmed.startsWith('"') && trimmed.includes(':') && !trimmed.includes('、') && !trimmed.includes('。')) {
                 continue;
               }
               // 文章らしい行を抽出
-              if (trimmed.length > 20 && !trimmed.startsWith('//') && !trimmed.match(/^[\s\w":,\[\]]+$/)) {
+              if (trimmed.length > 20 && !trimmed.startsWith('//') && !trimmed.match(/^[\s\w":,[\]]+$/)) {
                 textLines.push(line);
                 inTextBlock = true;
               } else if (inTextBlock && trimmed.length > 0) {
                 textLines.push(line);
               }
             }
-            
+
             if (textLines.length > 0) {
               // 改行処理を適用
               revisedText = formatText(textLines.join('\n').trim());
             }
           }
         }
-        
+
         // 最終的にrevisedTextが空の場合は、元の応答を使用（ただし警告を出す）
         if (!revisedText || revisedText.trim().length < 100) {
           console.warn('改訂後の文章の抽出に失敗。応答全体を使用します。');
@@ -936,7 +936,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             .replace(/\{[^}]*"changes"[^}]*\}/g, '')
             .replace(/\{[\s\S]*?\}/g, '')
             .trim();
-          
+
           if (cleanedContent.length > 100) {
             // 改行処理を適用
             revisedText = formatText(cleanedContent);
@@ -947,14 +947,14 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
         }
       } catch (parseError) {
         console.warn('JSONパースエラー、テキスト抽出を試行:', parseError);
-        
+
         // JSONパースに失敗した場合でも、テキストから文章を抽出
         const textPatterns = [
           /改訂後の文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,
           /改善された文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,
           /改訂された文章[：:]\s*([^\n]+(?:\n[^\n]+)*)/,
         ];
-        
+
         let extracted = false;
         for (const pattern of textPatterns) {
           const match = revisionResponse.content.match(pattern);
@@ -965,7 +965,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             break;
           }
         }
-        
+
         // それでも見つからない場合は、応答全体を使用（ただし構造的な部分を除去）
         if (!extracted) {
           const cleanedContent = revisionResponse.content
@@ -975,10 +975,10 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             .replace(/```json[\s\S]*?```/g, '')
             .replace(/```[\s\S]*?```/g, '')
             .trim();
-          
+
           // 改行処理を適用
-          revisedText = cleanedContent.length > 100 
-            ? formatText(cleanedContent) 
+          revisedText = cleanedContent.length > 100
+            ? formatText(cleanedContent)
             : formatText(revisionResponse.content);
         }
       }
@@ -986,7 +986,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
       if (revisedText.trim()) {
         onDraftUpdate(revisedText);
         await onSaveChapterDraft(selectedChapter!, revisedText);
-        
+
         // 改善ログを保存
         const logId = `log-${Date.now()}`;
         const improvementLog: ImprovementLog = {
@@ -999,7 +999,7 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
           originalLength: draft.length,
           revisedLength: revisedText.length,
         };
-        
+
         setImprovementLogs(prev => {
           const chapterLogs = prev[selectedChapter!] || [];
           return {
@@ -1007,9 +1007,9 @@ ${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''
             [selectedChapter!]: [improvementLog, ...chapterLogs].slice(0, 20), // 最新20件まで保持
           };
         });
-        
+
         // 改善戦略の要約をトーストで表示
-        const toastMsg = improvementSummary 
+        const toastMsg = improvementSummary
           ? `弱点を特定し、改善しました。改善ログを確認できます。`
           : '弱点を特定し、改善しました';
         onCompletionToast(toastMsg);

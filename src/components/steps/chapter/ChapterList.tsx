@@ -75,22 +75,22 @@ const ChapterItem = React.memo<ChapterItemProps>(({
     >
       {/* 章ヘッダー（常に表示） */}
       <div
-        className="p-6 cursor-pointer"
+        className="p-4 sm:p-6 cursor-pointer"
         onClick={() => onToggleExpansion(chapter.id)}
         onDoubleClick={(e) => {
           e.stopPropagation();
           onEdit(chapter);
         }}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-4 flex-1">
-            <div className="bg-gradient-to-br from-blue-500 to-teal-600 w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-lg">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-0">
+          <div className="flex items-start space-x-3 sm:space-x-4 flex-1 w-full sm:w-auto">
+            <div className="bg-gradient-to-br from-blue-500 to-teal-600 w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-base sm:text-lg">
                 {originalIndex + 1}
               </span>
             </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2 mb-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2 mb-1 sm:mb-2">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -104,13 +104,13 @@ const ChapterItem = React.memo<ChapterItemProps>(({
                     <ChevronRight className="h-5 w-5" />
                   )}
                 </button>
-                <h4 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                <h4 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
                   {chapter.title}
                 </h4>
               </div>
               {!isExpanded && (
                 <div className="ml-7">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] line-clamp-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] line-clamp-2 break-all">
                     {chapter.summary}
                   </p>
                   {chapter.characters && chapter.characters.length > 0 && (
@@ -139,18 +139,18 @@ const ChapterItem = React.memo<ChapterItemProps>(({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 ml-4">
-            <div className="flex flex-col space-y-1">
+          <div className="flex items-center justify-end space-x-2 ml-0 sm:ml-4 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100 dark:border-gray-700">
+            <div className="flex space-x-1">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onMoveUp(originalIndex);
                 }}
                 disabled={originalIndex === 0}
-                className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 sm:p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none border sm:border-none border-gray-200 dark:border-gray-600"
                 title="上に移動"
               >
-                <ChevronUp className="h-3 w-3" />
+                <ChevronUp className="h-4 w-4 sm:h-3 sm:w-3 mx-auto" />
               </button>
               <button
                 onClick={(e) => {
@@ -158,12 +158,13 @@ const ChapterItem = React.memo<ChapterItemProps>(({
                   onMoveDown(originalIndex);
                 }}
                 disabled={originalIndex === totalChapters - 1}
-                className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 sm:p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none border sm:border-none border-gray-200 dark:border-gray-600"
                 title="下に移動"
               >
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="h-4 w-4 sm:h-3 sm:w-3 mx-auto" />
               </button>
             </div>
+            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2 hidden sm:block"></div>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -309,6 +310,13 @@ export const ChapterList: React.FC<ChapterListProps> = ({
 }) => {
   const { currentProject } = useProject();
 
+  // メモ化：originalIndicesの計算を最適化
+  // Hooksは常に同じ順序で呼び出す必要があるため、早期リターンの前に配置
+  const originalIndices = useMemo(() => {
+    if (!currentProject) return new Map<string, number>();
+    return new Map(filteredChapters.map(ch => [ch.id, currentProject.chapters.findIndex(c => c.id === ch.id)]));
+  }, [filteredChapters, currentProject]);
+
   if (!currentProject) return null;
 
   if (currentProject.chapters.length === 0) {
@@ -333,11 +341,6 @@ export const ChapterList: React.FC<ChapterListProps> = ({
   }
 
   const chaptersToDisplay = filteredChapters;
-  
-  // メモ化：originalIndicesの計算を最適化
-  const originalIndices = useMemo(() => {
-    return new Map(chaptersToDisplay.map(ch => [ch.id, currentProject.chapters.findIndex(c => c.id === ch.id)]));
-  }, [chaptersToDisplay, currentProject.chapters]);
 
   if (chaptersToDisplay.length === 0) {
     return (

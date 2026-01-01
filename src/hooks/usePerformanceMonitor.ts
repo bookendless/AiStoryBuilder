@@ -78,7 +78,7 @@ export function usePerformanceMonitor(
     if (!enabled) return;
 
     updateMetrics();
-    intervalRef.current = setInterval(updateMetrics, logInterval);
+    intervalRef.current = window.setInterval(updateMetrics, logInterval);
 
     return () => {
       if (intervalRef.current) {

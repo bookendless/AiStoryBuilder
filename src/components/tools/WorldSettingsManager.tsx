@@ -478,7 +478,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
         size="xl"
         ref={modalRef}
       >
-        <div className="flex flex-col h-[80vh]">
+        <div className="flex flex-col h-[75vh] sm:h-[80vh]">
           {/* ツールバー */}
           <div className="pb-4 border-b border-gray-200 dark:border-gray-700 space-y-4">
             {/* 検索と追加ボタン */}
@@ -495,6 +495,22 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
               </div>
               <button
                 onClick={() => {
+                  setShowAIAssistant(true);
+                  setAiMode('generate');
+                  setAiResult(null);
+                  setAiError(null);
+                  setAiInstruction('');
+                  setSelectedSettingForAI(null);
+                }}
+                className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!isConfigured}
+                title={!isConfigured ? 'AI設定が必要です' : 'AIで世界観を生成'}
+              >
+                <Sparkles className="h-5 w-5" />
+                <span>AIアシスト</span>
+              </button>
+              <button
+                onClick={() => {
                   setShowAddForm(true);
                   setEditingSetting(null);
                   setFormData({
@@ -508,23 +524,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                 className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
               >
                 <Plus className="h-5 w-5" />
-                <span>新規作成</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowAIAssistant(true);
-                  setAiMode('generate');
-                  setAiResult(null);
-                  setAiError(null);
-                  setAiInstruction('');
-                  setSelectedSettingForAI(null);
-                }}
-                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!isConfigured}
-                title={!isConfigured ? 'AI設定が必要です' : 'AIで世界観を生成'}
-              >
-                <Sparkles className="h-5 w-5" />
-                <span>AI生成</span>
+                <span>追加</span>
               </button>
             </div>
 
@@ -555,9 +555,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
           </div>
 
           {/* メインコンテンツ */}
-          <div className="flex-1 overflow-hidden pt-4">
+          <div className="flex-1 min-h-0 pt-4">
             {/* 設定一覧 */}
-            <div className="overflow-y-auto">
+            <div className="h-full overflow-y-auto px-1">
               {filteredSettings.length === 0 ? (
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                   <EmptyState
@@ -801,7 +801,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
               className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-['Noto_Sans_JP']"
             >
               <Save className="h-5 w-5" />
-              <span>{editingSetting ? '更新' : '作成'}</span>
+              <span>{editingSetting ? '更新' : '保存'}</span>
             </button>
           </div>
         </div>

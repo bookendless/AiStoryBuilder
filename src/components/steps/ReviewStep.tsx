@@ -27,6 +27,12 @@ import {
     Book
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
+import { StepNavigation } from '../common/StepNavigation';
+import { Step } from '../../contexts/ProjectContext';
+
+interface ReviewStepProps {
+    onNavigateToStep?: (step: Step) => void;
+}
 
 // 定数定義
 const MAX_SCORE = 5;
@@ -60,7 +66,7 @@ const generateUUID = (): string => {
     });
 };
 
-export const ReviewStep: React.FC = () => {
+export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
     const { showSuccess, showError } = useToast();
@@ -100,7 +106,7 @@ export const ReviewStep: React.FC = () => {
     // 作品全体のコンテンツを取得（全章の草案を結合）
     const wholeStoryContent = useMemo(() => {
         if (!chapters || chapters.length === 0) return '';
-        
+
         return chapters
             .map(chapter => {
                 const draft = chapter.draft || chapter.summary || '';
@@ -305,7 +311,12 @@ ${result.detailedAnalysis}
     }, [currentProject?.evaluations]);
 
     return (
-        <div className="h-full flex flex-col gap-6 p-6 overflow-y-auto">
+        <div className="h-full flex flex-col gap-6 overflow-y-auto">
+            <StepNavigation
+                currentStep="review"
+                onPrevious={() => onNavigateToStep?.('draft')}
+                onNext={() => onNavigateToStep?.('export')}
+            />
             <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3">
@@ -323,8 +334,8 @@ ${result.detailedAnalysis}
                 <button
                     onClick={() => setShowHistory(!showHistory)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${showHistory
-                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
-                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'
+                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'
                         }`}
                 >
                     <History size={18} />
@@ -358,8 +369,8 @@ ${result.detailedAnalysis}
                                             {evaluation.summary}
                                         </p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {evaluation.date instanceof Date 
-                                                ? evaluation.date.toLocaleString() 
+                                            {evaluation.date instanceof Date
+                                                ? evaluation.date.toLocaleString()
                                                 : new Date(evaluation.date).toLocaleString()}
                                         </p>
                                     </div>
@@ -387,8 +398,8 @@ ${result.detailedAnalysis}
                                 key={mode.id}
                                 onClick={() => setActiveMode(mode.id)}
                                 className={`flex flex-col items-start p-4 rounded-xl border-2 transition-all ${activeMode === mode.id
-                                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                                        : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-gray-800'
+                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                                    : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-gray-800'
                                     }`}
                             >
                                 <div className={`p-2 rounded-lg mb-3 ${activeMode === mode.id ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
@@ -413,14 +424,14 @@ ${result.detailedAnalysis}
                                     key={level.id}
                                     onClick={() => setEvaluationStrictness(level.id)}
                                     className={`flex flex-col items-start p-3 rounded-lg border-2 transition-all ${evaluationStrictness === level.id
-                                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                                            : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 bg-white dark:bg-gray-800'
+                                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 bg-white dark:bg-gray-800'
                                         }`}
                                     title={level.description}
                                 >
                                     <span className={`font-bold text-sm mb-1 ${evaluationStrictness === level.id
-                                            ? 'text-orange-700 dark:text-orange-300'
-                                            : 'text-gray-700 dark:text-gray-300'
+                                        ? 'text-orange-700 dark:text-orange-300'
+                                        : 'text-gray-700 dark:text-gray-300'
                                         }`}>
                                         {level.label}
                                     </span>
@@ -451,8 +462,8 @@ ${result.detailedAnalysis}
                                                 <button
                                                     onClick={() => setTargetType('synopsis')}
                                                     className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'synopsis'
-                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
                                                         }`}
                                                 >
                                                     あらすじ
@@ -461,8 +472,8 @@ ${result.detailedAnalysis}
                                                 <button
                                                     onClick={() => setTargetType('chapter')}
                                                     className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'chapter'
-                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
                                                         }`}
                                                 >
                                                     章
@@ -472,8 +483,8 @@ ${result.detailedAnalysis}
                                                 <button
                                                     onClick={() => setTargetType('whole-story')}
                                                     className={`flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${targetType === 'whole-story'
-                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
                                                         }`}
                                                     title="全章の草案を結合して評価"
                                                 >
@@ -484,8 +495,8 @@ ${result.detailedAnalysis}
                                                 <button
                                                     onClick={handleFileSelect}
                                                     className={`flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${targetType === 'file'
-                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                            : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
                                                         }`}
                                                     title="ファイルから読み込み (.txt, .md)"
                                                 >
@@ -498,8 +509,8 @@ ${result.detailedAnalysis}
                                             <button
                                                 onClick={() => setTargetType('custom')}
                                                 className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'custom'
-                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                    : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
                                                     }`}
                                             >
                                                 カスタム（手入力）
