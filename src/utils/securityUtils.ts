@@ -84,7 +84,7 @@ const deriveKey = async (salt: Uint8Array): Promise<CryptoKey> => {
     false,
     ['deriveKey']
   );
-  
+
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
@@ -103,9 +103,9 @@ const deriveKey = async (salt: Uint8Array): Promise<CryptoKey> => {
  * Web Crypto APIが利用可能かチェック
  */
 const isWebCryptoAvailable = (): boolean => {
-  return typeof window !== 'undefined' && 
-         window.crypto && 
-         window.crypto.subtle !== undefined;
+  return typeof window !== 'undefined' &&
+    window.crypto &&
+    window.crypto.subtle !== undefined;
 };
 
 /**
@@ -114,7 +114,7 @@ const isWebCryptoAvailable = (): boolean => {
  */
 export const encryptApiKeyAsync = async (key: string): Promise<string> => {
   if (!key) return '';
-  
+
   try {
     const encryptionEnabled = isEncryptionEnabled();
     if (!encryptionEnabled) {
@@ -129,10 +129,10 @@ export const encryptApiKeyAsync = async (key: string): Promise<string> => {
     // ランダムなソルトとIVを生成
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(AES_IV_LENGTH));
-    
+
     // 暗号化キーを導出
     const cryptoKey = await deriveKey(salt);
-    
+
     // データを暗号化
     const encodedData = stringToUint8Array(key);
     const encryptedData = await crypto.subtle.encrypt(
@@ -144,13 +144,13 @@ export const encryptApiKeyAsync = async (key: string): Promise<string> => {
       cryptoKey,
       encodedData.buffer as ArrayBuffer
     );
-    
+
     // フォーマット: version + ':' + base64(salt + iv + encryptedData)
     const combined = new Uint8Array(salt.length + iv.length + encryptedData.byteLength);
     combined.set(salt, 0);
     combined.set(iv, salt.length);
     combined.set(new Uint8Array(encryptedData), salt.length + iv.length);
-    
+
     return `${ENCRYPTION_VERSION}:${arrayBufferToBase64(combined.buffer)}`;
   } catch (error) {
     console.error('API key encryption error:', error);
@@ -164,7 +164,7 @@ export const encryptApiKeyAsync = async (key: string): Promise<string> => {
  */
 export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> => {
   if (!encryptedKey) return '';
-  
+
   try {
     const encryptionEnabled = isEncryptionEnabled();
     if (!encryptionEnabled) {
@@ -181,15 +181,15 @@ export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> 
 
       const base64Data = encryptedKey.substring(ENCRYPTION_VERSION.length + 1);
       const combined = base64ToUint8Array(base64Data);
-      
+
       // salt, iv, encryptedDataを分離
       const salt = combined.slice(0, 16);
       const iv = combined.slice(16, 16 + AES_IV_LENGTH);
       const encryptedData = combined.slice(16 + AES_IV_LENGTH);
-      
+
       // 暗号化キーを導出
       const cryptoKey = await deriveKey(salt);
-      
+
       // データを復号化
       const decryptedData = await crypto.subtle.decrypt(
         {
@@ -200,7 +200,7 @@ export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> 
         cryptoKey,
         encryptedData
       );
-      
+
       return uint8ArrayToString(new Uint8Array(decryptedData));
     } else {
       // レガシー形式（後方互換性のため）
@@ -223,14 +223,14 @@ export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> 
  */
 const encryptApiKeyLegacy = (key: string): string => {
   if (!key) return '';
-  
+
   try {
     const salt = generateSecureRandomString(16);
     const encoded = btoa(key);
-    const encrypted = encoded.split('').map((char, index) => 
+    const encrypted = encoded.split('').map((char, index) =>
       String.fromCharCode(char.charCodeAt(0) ^ (salt.charCodeAt(index % salt.length) ^ (index % 256)))
     ).join('');
-    
+
     return btoa(salt + encrypted);
   } catch (error) {
     console.error('Legacy API key encryption error:', error);
@@ -244,16 +244,16 @@ const encryptApiKeyLegacy = (key: string): string => {
  */
 const decryptApiKeyLegacy = (encryptedKey: string): string => {
   if (!encryptedKey) return '';
-  
+
   try {
     const decoded = atob(encryptedKey);
     const salt = decoded.substring(0, 16);
     const encrypted = decoded.substring(16);
-    
-    const decrypted = encrypted.split('').map((char, index) => 
+
+    const decrypted = encrypted.split('').map((char, index) =>
       String.fromCharCode(char.charCodeAt(0) ^ (salt.charCodeAt(index % salt.length) ^ (index % 256)))
     ).join('');
-    
+
     return atob(decrypted);
   } catch (error) {
     console.error('Legacy API key decryption error:', error);
@@ -268,7 +268,7 @@ const decryptApiKeyLegacy = (encryptedKey: string): string => {
  */
 export const encryptApiKey = (key: string): string => {
   if (!key) return '';
-  
+
   try {
     const encryptionEnabled = isEncryptionEnabled();
     if (!encryptionEnabled) {
@@ -291,7 +291,7 @@ export const encryptApiKey = (key: string): string => {
  */
 export const decryptApiKey = (encryptedKey: string): string => {
   if (!encryptedKey) return '';
-  
+
   try {
     const encryptionEnabled = isEncryptionEnabled();
     if (!encryptionEnabled) {
@@ -321,7 +321,7 @@ const detectPromptInjection = (input: string): {
   patterns: string[];
 } => {
   const patterns: string[] = [];
-  
+
   // プロンプトインジェクションの一般的なパターン
   const injectionPatterns = [
     // システムプロンプトの上書き試行
@@ -329,37 +329,37 @@ const detectPromptInjection = (input: string): {
     /(?:system|assistant|user):\s*(?:ignore|forget|disregard)/gi,
     /(?:you are|you're|act as|pretend to be|roleplay as)/gi,
     /(?:new instructions?|override|replace)\s+(?:previous|prior|all|above|earlier)/gi,
-    
+
     // プロンプトの終了と新しい指示の挿入
     /(?:end of prompt|stop here|ignore above|forget everything)/gi,
     /(?:now|next|then|after this)\s+(?:you|assistant|system)\s+(?:should|must|will|need to)/gi,
-    
+
     // 特殊な区切り文字の使用
     /(?:---|===|###|```)\s*(?:new|override|ignore|system|assistant)/gi,
     /(?:\[|\(|\{)\s*(?:system|assistant|user|ignore|override)/gi,
-    
+
     // エスケープシーケンスの使用
     /(?:\\n|\\r|\\t)\s*(?:system|assistant|ignore|override)/gi,
-    
+
     // 指示の強制
     /(?:must|should|will|need to|required to)\s+(?:ignore|forget|disregard|override)/gi,
     /(?:important|critical|urgent)\s*:\s*(?:ignore|forget|disregard|override)/gi,
-    
+
     // プロンプトの構造を壊す試行
     /(?:<|\[|\{)\s*(?:system|assistant|user|prompt|instruction)/gi,
     /(?:system|assistant|user)\s*(?:>|\]|\})/gi,
-    
+
     // 多言語でのインジェクション試行
     /(?:無視|忘れる|上書き|置き換え|新しい指示)/gi,
     /(?:前の|以前の|すべての)\s*(?:指示|プロンプト|コマンド|ルール)\s*(?:を|を無視|を忘れる)/gi,
   ];
-  
+
   injectionPatterns.forEach((pattern, index) => {
     if (pattern.test(input)) {
       patterns.push(`パターン${index + 1}`);
     }
   });
-  
+
   return {
     detected: patterns.length > 0,
     patterns
@@ -374,9 +374,9 @@ export const sanitizeInputForPrompt = (input: string, maxLength: number = 10000)
   if (typeof input !== 'string') {
     return '';
   }
-  
+
   let sanitized = input.trim();
-  
+
   // 基本的なXSS対策
   sanitized = sanitized
     .replace(/[<>]/g, '') // HTMLタグの除去
@@ -388,7 +388,7 @@ export const sanitizeInputForPrompt = (input: string, maxLength: number = 10000)
     .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '') // iframeタグの除去
     .replace(/<object[^>]*>.*?<\/object>/gi, '') // objectタグの除去
     .replace(/<embed[^>]*>.*?<\/embed>/gi, ''); // embedタグの除去
-  
+
   // プロンプトインジェクション対策: 危険なパターンの除去
   sanitized = sanitized
     // システムプロンプトの上書き試行を除去
@@ -396,46 +396,46 @@ export const sanitizeInputForPrompt = (input: string, maxLength: number = 10000)
     .replace(/(?:system|assistant|user):\s*(?:ignore|forget|disregard)/gi, '')
     .replace(/(?:you are|you're|act as|pretend to be|roleplay as)\s+[^\n]{0,100}/gi, '')
     .replace(/(?:new instructions?|override|replace)\s+(?:previous|prior|all|above|earlier)/gi, '')
-    
+
     // プロンプトの終了と新しい指示の挿入を除去
     .replace(/(?:end of prompt|stop here|ignore above|forget everything)/gi, '')
     .replace(/(?:now|next|then|after this)\s+(?:you|assistant|system)\s+(?:should|must|will|need to)/gi, '')
-    
+
     // 特殊な区切り文字の使用を除去
     .replace(/(?:---|===|###|```)\s*(?:new|override|ignore|system|assistant)/gi, '')
     .replace(/(?:\[|\(|\{)\s*(?:system|assistant|user|ignore|override)/gi, '')
-    
+
     // エスケープシーケンスの使用を除去
     .replace(/(?:\\n|\\r|\\t)\s*(?:system|assistant|ignore|override)/gi, '')
-    
+
     // 指示の強制を除去
     .replace(/(?:must|should|will|need to|required to)\s+(?:ignore|forget|disregard|override)/gi, '')
     .replace(/(?:important|critical|urgent)\s*:\s*(?:ignore|forget|disregard|override)/gi, '')
-    
+
     // プロンプトの構造を壊す試行を除去
     .replace(/(?:<|\[|\{)\s*(?:system|assistant|user|prompt|instruction)/gi, '')
     .replace(/(?:system|assistant|user)\s*(?:>|\]|\})/gi, '')
-    
+
     // 多言語でのインジェクション試行を除去
     .replace(/(?:無視|忘れる|上書き|置き換え|新しい指示)/gi, '')
     .replace(/(?:前の|以前の|すべての)\s*(?:指示|プロンプト|コマンド|ルール)\s*(?:を|を無視|を忘れる)/gi, '')
-    
+
     // 制御文字の除去（改行とタブ以外）
     .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-    
+
     // 連続する改行の制限（3つ以上を2つに）
     .replace(/\n{3,}/g, '\n\n')
-    
+
     // 連続する空白の制限（5つ以上を1つに）
     .replace(/ {5,}/g, ' ')
-    
+
     // 先頭・末尾の特殊文字の除去
     .replace(/^[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/, '')
     .replace(/[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+$/, '');
-  
+
   // 長さ制限
   sanitized = sanitized.slice(0, maxLength);
-  
+
   // 最終的な検証: プロンプトインジェクションの検出
   const injectionCheck = detectPromptInjection(sanitized);
   if (injectionCheck.detected) {
@@ -449,7 +449,7 @@ export const sanitizeInputForPrompt = (input: string, maxLength: number = 10000)
     });
     sanitized = safeLines.join('\n').slice(0, maxLength);
   }
-  
+
   return sanitized;
 };
 
@@ -461,7 +461,7 @@ export const sanitizeInput = (input: string): string => {
   if (typeof input !== 'string') {
     return '';
   }
-  
+
   return input
     .trim()
     .replace(/[<>]/g, '') // HTMLタグの除去
@@ -486,7 +486,7 @@ export const escapeHtml = (text: string): string => {
   if (typeof text !== 'string') {
     return '';
   }
-  
+
   const map: { [key: string]: string } = {
     '&': '&amp;',
     '<': '&lt;',
@@ -495,7 +495,7 @@ export const escapeHtml = (text: string): string => {
     "'": '&#39;',
     '/': '&#x2F;'
   };
-  
+
   return text.replace(/[&<>"'/]/g, (s) => map[s]);
 };
 
@@ -506,7 +506,7 @@ export const isValidUrl = (url: string): boolean => {
   if (typeof url !== 'string') {
     return false;
   }
-  
+
   try {
     const urlObj = new URL(url);
     // 許可されたプロトコルのみ
@@ -524,7 +524,7 @@ export const sanitizeFileName = (fileName: string): string => {
   if (typeof fileName !== 'string') {
     return 'file';
   }
-  
+
   return fileName
     .replace(/[<>:"/\\|?*]/g, '_') // 無効な文字を置換
     .replace(/\s+/g, '_') // スペースをアンダースコアに置換
@@ -539,24 +539,24 @@ export const validateImageFile = (file: File): { valid: boolean; error?: string 
   if (!file) {
     return { valid: false, error: 'ファイルが選択されていません' };
   }
-  
+
   // ファイルタイプの検証
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   if (!allowedTypes.includes(file.type)) {
     return { valid: false, error: 'サポートされていないファイル形式です' };
   }
-  
+
   // ファイルサイズの検証（10MB制限）
   const maxSize = 10 * 1024 * 1024; // 10MB
   if (file.size > maxSize) {
     return { valid: false, error: 'ファイルサイズが大きすぎます（最大10MB）' };
   }
-  
+
   // ファイル名の検証
   if (file.name.length > 100) {
     return { valid: false, error: 'ファイル名が長すぎます' };
   }
-  
+
   return { valid: true };
 };
 
@@ -567,18 +567,18 @@ export const sanitizeJson = (jsonString: string): { valid: boolean; data?: unkno
   if (typeof jsonString !== 'string') {
     return { valid: false, error: '無効な入力です' };
   }
-  
+
   try {
     const parsed = JSON.parse(jsonString);
-    
+
     // 再帰的に文字列値をサニタイズ
     const sanitized = sanitizeObject(parsed);
-    
+
     return { valid: true, data: sanitized };
   } catch (error) {
-    return { 
-      valid: false, 
-      error: `JSON解析エラー: ${error instanceof Error ? error.message : '不明なエラー'}` 
+    return {
+      valid: false,
+      error: `JSON解析エラー: ${error instanceof Error ? error.message : '不明なエラー'}`
     };
   }
 };
@@ -590,15 +590,15 @@ const sanitizeObject = (obj: unknown): unknown => {
   if (obj === null || obj === undefined) {
     return obj;
   }
-  
+
   if (typeof obj === 'string') {
     return sanitizeInput(obj);
   }
-  
+
   if (Array.isArray(obj)) {
     return obj.map(item => sanitizeObject(item));
   }
-  
+
   if (typeof obj === 'object') {
     const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
@@ -607,7 +607,7 @@ const sanitizeObject = (obj: unknown): unknown => {
     }
     return sanitized;
   }
-  
+
   return obj;
 };
 
@@ -622,45 +622,45 @@ export const validatePasswordStrength = (password: string): {
   if (typeof password !== 'string') {
     return { valid: false, score: 0, feedback: ['パスワードを入力してください'] };
   }
-  
+
   const feedback: string[] = [];
   let score = 0;
-  
+
   // 長さの検証
   if (password.length >= 8) {
     score += 1;
   } else {
     feedback.push('8文字以上にしてください');
   }
-  
+
   // 大文字の検証
   if (/[A-Z]/.test(password)) {
     score += 1;
   } else {
     feedback.push('大文字を含めてください');
   }
-  
+
   // 小文字の検証
   if (/[a-z]/.test(password)) {
     score += 1;
   } else {
     feedback.push('小文字を含めてください');
   }
-  
+
   // 数字の検証
   if (/\d/.test(password)) {
     score += 1;
   } else {
     feedback.push('数字を含めてください');
   }
-  
+
   // 特殊文字の検証
   if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
     score += 1;
   } else {
     feedback.push('特殊文字を含めてください');
   }
-  
+
   return {
     valid: score >= 3,
     score,
@@ -674,11 +674,11 @@ export const validatePasswordStrength = (password: string): {
 export const generateSecureRandomString = (length: number = 32): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
-  
+
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  
+
   return result;
 };
 
@@ -696,7 +696,7 @@ export const validateToken = (token: string): boolean => {
   if (typeof token !== 'string' || token.length < 10) {
     return false;
   }
-  
+
   // 基本的な形式チェック
   const tokenPattern = /^[A-Za-z0-9+/=]+$/;
   return tokenPattern.test(token);
@@ -712,9 +712,9 @@ export const detectDangerousContent = (content: string): {
   if (typeof content !== 'string') {
     return { dangerous: false, threats: [] };
   }
-  
+
   const threats: string[] = [];
-  
+
   // XSS攻撃のパターン
   const xssPatterns = [
     /<script[^>]*>.*?<\/script>/gi,
@@ -728,13 +728,13 @@ export const detectDangerousContent = (content: string): {
     /<svg[^>]*onload/gi,
     /<style[^>]*>.*?<\/style>/gi
   ];
-  
+
   xssPatterns.forEach((pattern, index) => {
     if (pattern.test(content)) {
       threats.push(`XSS攻撃の可能性 (パターン ${index + 1})`);
     }
   });
-  
+
   // SQLインジェクションのパターン
   const sqlPatterns = [
     /union\s+select/gi,
@@ -747,13 +747,13 @@ export const detectDangerousContent = (content: string): {
     /;\s*drop\s+table/gi,
     /'\s*;\s*drop\s+table/gi
   ];
-  
+
   sqlPatterns.forEach((pattern, index) => {
     if (pattern.test(content)) {
       threats.push(`SQLインジェクションの可能性 (パターン ${index + 1})`);
     }
   });
-  
+
   // コマンドインジェクションのパターン
   const commandPatterns = [
     /;\s*rm\s+-rf/gi,
@@ -766,13 +766,13 @@ export const detectDangerousContent = (content: string): {
     /&&\s*rm/gi,
     /\|\|\s*rm/gi
   ];
-  
+
   commandPatterns.forEach((pattern, index) => {
     if (pattern.test(content)) {
       threats.push(`コマンドインジェクションの可能性 (パターン ${index + 1})`);
     }
   });
-  
+
   // パストラバーサル攻撃のパターン
   const pathTraversalPatterns = [
     /\.\.\//g,
@@ -782,13 +782,13 @@ export const detectDangerousContent = (content: string): {
     /\.\.%252f/gi,
     /\.\.%255c/gi
   ];
-  
+
   pathTraversalPatterns.forEach((pattern, index) => {
     if (pattern.test(content)) {
       threats.push(`パストラバーサル攻撃の可能性 (パターン ${index + 1})`);
     }
   });
-  
+
   return {
     dangerous: threats.length > 0,
     threats
@@ -802,42 +802,42 @@ export class RateLimiter {
   private requests: Map<string, number[]> = new Map();
   private maxRequests: number;
   private windowMs: number;
-  
+
   constructor(maxRequests: number = 100, windowMs: number = 60000) { // 1分間に100リクエスト
     this.maxRequests = maxRequests;
     this.windowMs = windowMs;
   }
-  
+
   isAllowed(identifier: string): boolean {
     const now = Date.now();
     const requests = this.requests.get(identifier) || [];
-    
+
     // 古いリクエストを削除
     const validRequests = requests.filter(time => now - time < this.windowMs);
-    
+
     if (validRequests.length >= this.maxRequests) {
       return false;
     }
-    
+
     // 新しいリクエストを追加
     validRequests.push(now);
     this.requests.set(identifier, validRequests);
-    
+
     return true;
   }
-  
+
   getRemainingRequests(identifier: string): number {
     const now = Date.now();
     const requests = this.requests.get(identifier) || [];
     const validRequests = requests.filter(time => now - time < this.windowMs);
-    
+
     return Math.max(0, this.maxRequests - validRequests.length);
   }
-  
+
   reset(identifier: string): void {
     this.requests.delete(identifier);
   }
-  
+
   clear(): void {
     this.requests.clear();
   }
@@ -854,17 +854,17 @@ export const validateCSRFToken = (token: string, expectedToken: string): boolean
   if (!token || !expectedToken) {
     return false;
   }
-  
+
   // タイミング攻撃を防ぐため、定数時間比較を使用
   if (token.length !== expectedToken.length) {
     return false;
   }
-  
+
   let result = 0;
   for (let i = 0; i < token.length; i++) {
     result |= token.charCodeAt(i) ^ expectedToken.charCodeAt(i);
   }
-  
+
   return result === 0;
 };
 
@@ -873,10 +873,10 @@ export const validateCSRFToken = (token: string, expectedToken: string): boolean
  */
 export const setSecurityHeaders = (): void => {
   if (typeof document === 'undefined') return;
-  
+
   // 開発環境ではCSPを緩和
   const isDevelopment = import.meta.env.DEV;
-  
+
   // Content Security Policy
   const csp = isDevelopment ? [
     "default-src 'self'",
@@ -885,7 +885,7 @@ export const setSecurityHeaders = (): void => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*",
+    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://10.0.2.2:* ws://10.0.2.2:* http://192.168.*:* ws://192.168.*:* http://172.*.*.*:* ws://172.*.*.*:*",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ') : [
@@ -899,7 +899,7 @@ export const setSecurityHeaders = (): void => {
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ');
-  
+
   // メタタグでCSPを設定
   let cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
   if (!cspMeta) {
@@ -932,30 +932,30 @@ export class SessionManager {
   private sessionId: string;
   private lastActivity: number;
   private timeout: number;
-  
+
   constructor(timeout: number = 30 * 60 * 1000) { // 30分
     this.sessionId = generateSessionId();
     this.lastActivity = Date.now();
     this.timeout = timeout;
   }
-  
+
   getSessionId(): string {
     return this.sessionId;
   }
-  
+
   updateActivity(): void {
     this.lastActivity = Date.now();
   }
-  
+
   isExpired(): boolean {
     return Date.now() - this.lastActivity > this.timeout;
   }
-  
+
   reset(): void {
     this.sessionId = generateSessionId();
     this.lastActivity = Date.now();
   }
-  
+
   getTimeUntilExpiry(): number {
     return Math.max(0, this.timeout - (Date.now() - this.lastActivity));
   }

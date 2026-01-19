@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../../common/Modal';
+import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { Save } from 'lucide-react';
 
 interface BackupDescriptionModalProps {
@@ -15,6 +16,9 @@ export const BackupDescriptionModal: React.FC<BackupDescriptionModalProps> = ({
   onConfirm,
   defaultDescription = '草案作業時のバックアップ',
 }) => {
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'backup-description-modal', 90);
+
   const [description, setDescription] = useState(defaultDescription);
   const inputRef = useRef<HTMLInputElement>(null);
 

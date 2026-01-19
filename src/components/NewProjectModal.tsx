@@ -4,6 +4,7 @@ import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { compressImage } from '../utils/performanceUtils';
 import { useToast } from './Toast';
 import {
@@ -50,6 +51,9 @@ interface ValidationErrors {
 }
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onNavigateToStep }) => {
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'new-project-modal', 90);
+
   const [activeTab, setActiveTab] = useState<'basic' | 'style'>('basic');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

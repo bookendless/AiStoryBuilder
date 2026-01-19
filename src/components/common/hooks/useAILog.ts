@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { AILogEntry } from '../types';
 import { databaseService } from '../../../services/databaseService';
 import { StoredAILogEntry } from '../../../services/databaseService';
+import { exportFile } from '../../../utils/mobileExportUtils';
 
 const MAX_LOGS = 10;
 
@@ -117,7 +118,7 @@ ${log.error}` : ''}`;
     return logText;
   }, []);
 
-  const downloadLogs = useCallback((filename?: string): string => {
+  const downloadLogs = useCallback(async (filename?: string): Promise<{ success: boolean; content: string }> => {
     const typeLabels: Record<string, string> = {
       'generate': 'あらすじ生成',
       'readable': '読みやすく調整',
@@ -149,22 +150,20 @@ ${log.error}` : ''}
 ${'='.repeat(80)}`;
     }).join('\n\n');
 
-    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename || `ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const targetFilename = filename || `ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+    const result = await exportFile({
+      filename: targetFilename,
+      content: logsText,
+      mimeType: 'text/plain',
+      title: 'AIログ',
+    });
 
-    return logsText;
+    return { success: result.success, content: logsText };
   }, [aiLogs]);
 
   const clearLogs = useCallback(async () => {
     setAiLogs([]);
-    
+
     // IndexedDBからも削除
     if (projectId) {
       try {

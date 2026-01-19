@@ -5,6 +5,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 import { PossessionMessage } from '../../types/characterPossession';
 import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
 import { useToast } from '../Toast';
@@ -24,6 +25,10 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'character-possession-chat-modal', 90);
+
   const { settings, isConfigured } = useAI();
   const { currentProject } = useProject();
   const { showSuccess, showError } = useToast();
@@ -58,8 +63,8 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
         // timestampをDateオブジェクトに変換
         const messages = (parsed.messages || []).map((msg: PossessionMessage) => ({
           ...msg,
-          timestamp: msg.timestamp instanceof Date 
-            ? msg.timestamp 
+          timestamp: msg.timestamp instanceof Date
+            ? msg.timestamp
             : new Date(msg.timestamp)
         }));
         setMessages(messages);
@@ -546,8 +551,8 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
                       : 'text-gray-500 dark:text-gray-400'
                       }`}
                   >
-                    {(message.timestamp instanceof Date 
-                      ? message.timestamp 
+                    {(message.timestamp instanceof Date
+                      ? message.timestamp
                       : new Date(message.timestamp)
                     ).toLocaleTimeString('ja-JP', {
                       hour: '2-digit',

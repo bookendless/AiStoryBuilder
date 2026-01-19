@@ -8,6 +8,7 @@ import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 import { parseTimelineAIResponse, parseConsistencyCheckResponse } from '../../utils/timelineParser';
 
 interface TimelineViewerProps {
@@ -36,6 +37,10 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'timeline-viewer-modal', 80);
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');

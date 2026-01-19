@@ -20,6 +20,7 @@ import { HISTORY_AUTO_SAVE_DELAY, HISTORY_MAX_ENTRIES, HISTORY_TYPE_LABELS, HIST
 import { diffLines, type Change } from 'diff';
 import { Save, RotateCcw, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { exportFile } from '../../utils/mobileExportUtils';
 
 export const DraftAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -1070,7 +1071,7 @@ ${log.error ? `【エラー】\n${log.error}` : ''}`;
                                         navigator.clipboard.writeText(logText);
                                         showSuccess('ログをクリップボードにコピーしました');
                                     }}
-                                    onDownloadLogs={() => {
+                                    onDownloadLogs={async () => {
                                         const typeLabels: Record<string, string> = {
                                             generateSingle: '章生成',
                                             continue: '続き生成',
@@ -1093,16 +1094,17 @@ ${log.error}` : ''}
 ${'='.repeat(80)}`;
                                         }).join('\n\n');
 
-                                        const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-                                        const url = URL.createObjectURL(blob);
-                                        const a = document.createElement('a');
-                                        a.href = url;
-                                        a.download = `draft_ai_logs_${selectedChapterId || 'all'}_${new Date().toISOString().split('T')[0]}.txt`;
-                                        document.body.appendChild(a);
-                                        a.click();
-                                        document.body.removeChild(a);
-                                        URL.revokeObjectURL(url);
-                                        showSuccess('ログをダウンロードしました');
+                                        const filename = `draft_ai_logs_${selectedChapterId || 'all'}_${new Date().toISOString().split('T')[0]}.txt`;
+                                        const result = await exportFile({
+                                            filename,
+                                            content: logsText,
+                                            mimeType: 'text/plain',
+                                            title: '章生成AIログ',
+                                        });
+
+                                        if (result.success) {
+                                            showSuccess('ログをダウンロードしました');
+                                        }
                                     }}
                                     typeLabels={{
                                         generateSingle: '章生成',
@@ -1144,7 +1146,7 @@ ${'='.repeat(80)}`;
                                             cancellable={true}
                                             onCancel={handleCancelAllChaptersGeneration}
                                         />
-                                        
+
                                         {/* 進捗表示 */}
                                         {generationProgress.total > 0 && (
                                             <div className="mt-3">
@@ -1213,11 +1215,10 @@ ${'='.repeat(80)}`;
                                         setShowGenerateAllChaptersConfirm(true);
                                     }}
                                     disabled={isGeneratingAllChapters || !isConfigured}
-                                    className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold font-['Noto_Sans_JP'] transition-all ${
-                                        isGeneratingAllChapters
+                                    className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold font-['Noto_Sans_JP'] transition-all ${isGeneratingAllChapters
                                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                                             : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02]'
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     {isGeneratingAllChapters ? (
                                         <>
@@ -1278,7 +1279,7 @@ ${log.error ? `【エラー】\n${log.error}` : ''}`;
                                                 navigator.clipboard.writeText(logText);
                                                 showSuccess('ログをクリップボードにコピーしました');
                                             }}
-                                            onDownloadLogs={() => {
+                                            onDownloadLogs={async () => {
                                                 const typeLabels: Record<string, string> = {
                                                     generateFull: '全章一括生成',
                                                 };
@@ -1293,21 +1294,23 @@ ${log.prompt}
 【AI応答】
 ${log.response}
 
-${log.error ? `【エラー】\n${log.error}` : ''}
+${log.error ? `【エラー】
+${log.error}` : ''}
 
 ${'='.repeat(80)}`;
                                                 }).join('\n\n');
 
-                                                const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-                                                const url = URL.createObjectURL(blob);
-                                                const a = document.createElement('a');
-                                                a.href = url;
-                                                a.download = `all_chapters_ai_logs_${currentProject?.id || 'all'}_${new Date().toISOString().split('T')[0]}.txt`;
-                                                document.body.appendChild(a);
-                                                a.click();
-                                                document.body.removeChild(a);
-                                                URL.revokeObjectURL(url);
-                                                showSuccess('ログをダウンロードしました');
+                                                const filename = `all_chapters_ai_logs_${currentProject?.id || 'all'}_${new Date().toISOString().split('T')[0]}.txt`;
+                                                const result = await exportFile({
+                                                    filename,
+                                                    content: logsText,
+                                                    mimeType: 'text/plain',
+                                                    title: '全章生成AIログ',
+                                                });
+
+                                                if (result.success) {
+                                                    showSuccess('ログをダウンロードしました');
+                                                }
                                             }}
                                             typeLabels={{
                                                 generateFull: '全章一括生成',
@@ -1350,43 +1353,43 @@ ${'='.repeat(80)}`;
                 onSelectLog={setSelectedImprovementLogId}
             />
 
-        {/* 確認ダイアログ - 履歴削除 */}
-        <ConfirmDialog
-            isOpen={deletingHistoryEntryId !== null}
-            onClose={() => setDeletingHistoryEntryId(null)}
-            onConfirm={() => {
-                if (deletingHistoryEntryId) {
-                    handleDeleteHistoryEntry(deletingHistoryEntryId);
-                    setDeletingHistoryEntryId(null);
-                }
-            }}
-            title="この履歴を削除しますか？"
-            message=""
-            type="warning"
-            confirmLabel="削除"
-        />
+            {/* 確認ダイアログ - 履歴削除 */}
+            <ConfirmDialog
+                isOpen={deletingHistoryEntryId !== null}
+                onClose={() => setDeletingHistoryEntryId(null)}
+                onConfirm={() => {
+                    if (deletingHistoryEntryId) {
+                        handleDeleteHistoryEntry(deletingHistoryEntryId);
+                        setDeletingHistoryEntryId(null);
+                    }
+                }}
+                title="この履歴を削除しますか？"
+                message=""
+                type="warning"
+                confirmLabel="削除"
+            />
 
-        {/* 確認ダイアログ - 全章生成 */}
-        <ConfirmDialog
-            isOpen={showGenerateAllChaptersConfirm}
-            onClose={() => setShowGenerateAllChaptersConfirm(false)}
-            onConfirm={() => {
-                handleGenerateAllChapters();
-                setShowGenerateAllChaptersConfirm(false);
-            }}
-            title={
-                settings.provider === 'local'
-                    ? '非ローカルLLMの使用を推奨します'
-                    : '全章生成を実行しますか？'
-            }
-            message={
-                settings.provider === 'local'
-                    ? '全章生成には非ローカルLLM（OpenAI、Anthropic等）の使用を強く推奨します。\n\n理由：\n• 一貫性のある長文生成\n• キャラクター設定の維持\n• 物語の流れの統一\n• 高品質な文章生成\n\n続行しますか？'
-                    : `全${currentProject?.chapters.length || 0}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`
-            }
-            type={settings.provider === 'local' ? 'warning' : 'info'}
-            confirmLabel="実行"
-        />
+            {/* 確認ダイアログ - 全章生成 */}
+            <ConfirmDialog
+                isOpen={showGenerateAllChaptersConfirm}
+                onClose={() => setShowGenerateAllChaptersConfirm(false)}
+                onConfirm={() => {
+                    handleGenerateAllChapters();
+                    setShowGenerateAllChaptersConfirm(false);
+                }}
+                title={
+                    settings.provider === 'local'
+                        ? '非ローカルLLMの使用を推奨します'
+                        : '全章生成を実行しますか？'
+                }
+                message={
+                    settings.provider === 'local'
+                        ? '全章生成には非ローカルLLM（OpenAI、Anthropic等）の使用を強く推奨します。\n\n理由：\n• 一貫性のある長文生成\n• キャラクター設定の維持\n• 物語の流れの統一\n• 高品質な文章生成\n\n続行しますか？'
+                        : `全${currentProject?.chapters.length || 0}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`
+                }
+                type={settings.provider === 'local' ? 'warning' : 'info'}
+                confirmLabel="実行"
+            />
         </div>
     );
 };

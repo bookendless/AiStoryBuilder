@@ -5,6 +5,7 @@ import { useToast } from './Toast';
 import { databaseService } from '../services/databaseService';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { compressImage } from '../utils/performanceUtils';
 import {
   STYLE_OPTIONS,
@@ -47,6 +48,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
 }) => {
   const { projects, setProjects, currentProject: globalCurrentProject, setCurrentProject } = useProject();
   const { showSuccess, showError } = useToast();
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'project-settings-modal', 90);
+
   const [activeTab, setActiveTab] = useState<'basic' | 'style'>('basic');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -333,7 +338,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
       try {
         // 画像を圧縮（1920x1080、quality 0.8）
         const compressedBlob = await compressImage(file, 1920, 1080, 0.8);
-        
+
         // 圧縮されたBlobをBase64に変換
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -391,8 +396,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             <button
               onClick={() => setActiveTab('basic')}
               className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'basic'
-                  ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
             >
               基本設定
@@ -400,8 +405,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             <button
               onClick={() => setActiveTab('style')}
               className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'style'
-                  ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
             >
               文体設定
@@ -412,7 +417,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
         {/* コンテンツ */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {activeTab === 'basic' && (
-            <div 
+            <div
               id="basic-tabpanel"
               role="tabpanel"
               aria-labelledby="basic-tab"
@@ -469,8 +474,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         });
                       }}
                       className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.mainGenre === genreOption
-                          ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/50'
+                        ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/50'
                         }`}
                     >
                       {genreOption}
@@ -512,8 +517,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         });
                       }}
                       className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.subGenre === genreOption
-                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/50'
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/50'
                         }`}
                     >
                       {genreOption}
@@ -555,8 +560,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         });
                       }}
                       className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.targetReader === targetOption
-                          ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/50'
+                        ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/50'
                         }`}
                     >
                       {targetOption}
@@ -598,8 +603,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         });
                       }}
                       className={`p-2 rounded-lg text-sm transition-colors font-['Noto_Sans_JP'] ${formData.projectTheme === themeOption
-                          ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/50'
+                        ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/50'
                         }`}
                     >
                       {themeOption}
@@ -682,7 +687,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           )}
 
           {activeTab === 'style' && (
-            <div 
+            <div
               id="style-tabpanel"
               role="tabpanel"
               aria-labelledby="style-tab"

@@ -29,6 +29,7 @@ import {
 import MarkdownIt from 'markdown-it';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../contexts/ProjectContext';
+import { exportFile } from '../../utils/mobileExportUtils';
 
 interface ReviewStepProps {
     onNavigateToStep?: (step: Step) => void;
@@ -212,7 +213,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
         showSuccess('評価結果を保存しました');
     };
 
-    const handleExport = () => {
+    const handleExport = async () => {
         if (!result) return;
 
         const modeLabel = modeMap.get(activeMode)?.label || activeMode;
@@ -224,7 +225,6 @@ ${result.summary}
 ## スコア: ${result.score}/${MAX_SCORE}
 
 ${result.persona ? `## 想定ペルソナ\n${result.persona}\n` : ''}
-
 ## 良かった点
 ${result.strengths.map(s => `- ${s}`).join('\n')}
 
@@ -238,19 +238,20 @@ ${result.improvements.map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
 ${result.detailedAnalysis}
 `;
 
-        const blob = new Blob([content], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `evaluation_${activeMode}_${new Date().toISOString().slice(0, 10)}.md`;
-        document.body.appendChild(a);
-        a.click();
-        // ダウンロード完了を待ってからURLを解放
-        setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 100);
-        showSuccess('レポートをダウンロードしました');
+        const filename = `evaluation_${activeMode}_${new Date().toISOString().slice(0, 10)}.md`;
+        const exportResult = await exportFile({
+            filename,
+            content,
+            mimeType: 'text/markdown',
+            title: '評価レポート',
+            dialogTitle: '評価レポートを保存',
+        });
+
+        if (exportResult.success) {
+            showSuccess('レポートをダウンロードしました');
+        } else if (exportResult.method === 'error') {
+            showError(exportResult.error || 'エクスポートに失敗しました');
+        }
     };
 
     const handleDeleteHistory = async (id: string) => {

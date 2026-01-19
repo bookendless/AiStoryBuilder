@@ -9,6 +9,7 @@ import { Modal } from '../common/Modal';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { useToast } from '../Toast';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 
 interface CharacterDiaryProps {
   isOpen: boolean;
@@ -25,6 +26,10 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'character-diary-modal', 90);
+
   const { settings, isConfigured } = useAI();
   const { currentProject } = useProject();
   const { showError, showSuccess } = useToast();
@@ -306,7 +311,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
           content += `[AI生成]\n`;
         }
         content += `\n${diary.content}\n\n`;
-        
+
         if (index < diaries.length - 1) {
           content += `---\n\n`;
         }

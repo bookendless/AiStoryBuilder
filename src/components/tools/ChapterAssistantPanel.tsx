@@ -8,6 +8,7 @@ import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { StructureProgress } from '../steps/chapter/types';
+import { exportFile } from '../../utils/mobileExportUtils';
 
 export const ChapterAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -673,7 +674,7 @@ ${log.parsedChapters.map((ch, i: number) => `${i + 1}. ${ch.title}: ${ch.summary
     }, [showSuccess]);
 
     // ログダウンロード機能
-    const handleDownloadLogs = useCallback(() => {
+    const handleDownloadLogs = useCallback(async () => {
         const typeLabels: Record<string, string> = {
             basic: '基本AI章立て提案',
             structure: '構成バランスAI提案',
@@ -701,17 +702,20 @@ ${log.parsedChapters.map((ch, i: number) => `${i + 1}. ${ch.title}: ${ch.summary
 ${'='.repeat(80)}`;
         }).join('\n\n');
 
-        const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `chapter_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showSuccess('ログをダウンロードしました');
-    }, [aiLogs, showSuccess]);
+        const filename = `chapter_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+        const result = await exportFile({
+            filename,
+            content: logsText,
+            mimeType: 'text/plain',
+            title: '章立てAIログ',
+        });
+
+        if (result.success) {
+            showSuccess('ログをダウンロードしました');
+        } else if (result.method === 'error') {
+            showError(result.error || 'ログのダウンロードに失敗しました');
+        }
+    }, [aiLogs, showSuccess, showError]);
 
     if (!currentProject) return null;
 

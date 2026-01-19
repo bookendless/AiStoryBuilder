@@ -53,6 +53,17 @@ const getDefaultSettings = (): AISettings => {
     apiKeys['grok'] = encryptApiKey(grokKey);
   }
 
+  // Androidエミュレータの場合、localhostを10.0.2.2に自動置換
+  const isAndroid = typeof window !== 'undefined' && (
+    (window as any).__TAURI_PLATFORM__ === 'android' ||
+    /android/i.test(navigator.userAgent) ||
+    window.location.hostname === 'tauri.localhost' // Android Tauriのデフォルトホスト
+  );
+
+  const adjustedLocalEndpoint = (isAndroid && localEndpoint)
+    ? localEndpoint.replace(/localhost|127\.0\.0\.1/, '10.0.2.2')
+    : localEndpoint;
+
   return {
     provider: defaultProvider,
     model: defaultModel,
@@ -60,7 +71,7 @@ const getDefaultSettings = (): AISettings => {
     maxTokens: 3000,
     apiKey: openaiKey || claudeKey || geminiKey || '', // 後方互換性のため、現在のプロバイダーのAPIキー
     apiKeys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined, // プロバイダーごとのAPIキー
-    localEndpoint: localEndpoint,
+    localEndpoint: adjustedLocalEndpoint,
   };
 };
 
@@ -107,11 +118,11 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       return { ...defaultSettings, apiKeys: undefined, apiKey: '' };
     }
   };
-  
+
   const initialSettings = getInitialSettings();
   const settingsRef = React.useRef<AISettings>(initialSettings);
   const [settings, setSettingsState] = useState<AISettings>(initialSettings);
-  
+
   // settingsの更新時にrefも更新
   const setSettings = useCallback((newSettings: AISettings | ((prev: AISettings) => AISettings)) => {
     setSettingsState(prev => {
@@ -130,7 +141,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
         // セキュアストレージからAPIキーを読み込み
         const storedApiKeys = await storageService.loadApiKeys();
-        
+
         if (storedApiKeys && Object.keys(storedApiKeys).length > 0) {
           console.log('Loading API keys from secure storage');
           setSettings(prev => {
@@ -155,7 +166,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
               const updated = {
                 ...prev,
                 apiKeys: envSettings.apiKeys,
-                apiKey: prev.provider !== 'local' && envSettings.apiKeys ? 
+                apiKey: prev.provider !== 'local' && envSettings.apiKeys ?
                   envSettings.apiKeys[prev.provider] || '' : '',
               };
               settingsRef.current = updated;
@@ -174,7 +185,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           if (saved) {
             const parsed = JSON.parse(saved);
             const apiKeys = parsed.apiKeys || {};
-            const currentApiKey = parsed.provider !== 'local' ? 
+            const currentApiKey = parsed.provider !== 'local' ?
               apiKeys[parsed.provider] || parsed.apiKey || '' : '';
             setSettings(prev => {
               const updated = {
@@ -197,7 +208,18 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   }, [setSettings]);
 
   const updateSettings = useCallback(async (newSettings: Partial<AISettings>) => {
-    // refから最新のsettingsを取得（依存関係を減らす）
+    // Androidエミュレータ対応: localEndpointが更新された場合、localhostを10.0.2.2に置換
+    if (newSettings.localEndpoint) {
+      const isAndroid = typeof window !== 'undefined' && (
+        (window as any).__TAURI_PLATFORM__ === 'android' ||
+        /android/i.test(navigator.userAgent) ||
+        window.location.hostname === 'tauri.localhost'
+      );
+      if (isAndroid) {
+        newSettings.localEndpoint = newSettings.localEndpoint.replace(/localhost|127\.0\.0\.1/, '10.0.2.2');
+      }
+    }
+
     const updated = { ...settingsRef.current, ...newSettings };
 
     console.log('Updating AI settings:', {

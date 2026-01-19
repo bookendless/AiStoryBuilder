@@ -442,8 +442,9 @@ body {
 
 /* タッチターゲットの最小サイズ確保 */
 @media (max-width: 640px) {
-  button, 
-  a, 
+
+  button,
+  a,
   [role="button"],
   input[type="checkbox"],
   input[type="radio"] {
@@ -455,8 +456,8 @@ body {
   }
 
   /* 入力フィールドのズーム防止（16px未満だとiOSでズームされるが、操作性向上に寄与） */
-  input, 
-  select, 
+  input,
+  select,
   textarea {
     font-size: 16px !important;
   }
@@ -465,15 +466,23 @@ body {
   .spacing-lg {
     @apply p-4;
   }
+
   .spacing-xl {
     @apply p-6;
   }
+
   .gap-lg {
     @apply gap-3;
   }
+
   .gap-xl {
     @apply gap-4;
   }
+}
+
+/* セーフエリア用ユーティリティクラス */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ダークモードでのボーダー色の視認性向上 */
@@ -713,6 +722,7 @@ textarea:focus-visible,
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(200%);
   }
@@ -809,7 +819,7 @@ textarea:focus-visible,
     width: 100% !important;
     max-width: 100vw !important;
   }
-  
+
   .novel-editor .rc-md-editor {
     max-width: 100vw;
     overflow-x: hidden;
@@ -939,6 +949,7 @@ textarea:focus-visible,
 
 /* タッチターゲットサイズの最小値（Android推奨: 48dp、iOS推奨: 44px） */
 @media (hover: none) and (pointer: coarse) {
+
   /* ボタンやインタラクティブ要素の最小タッチサイズを確保 */
   button,
   a[role="button"],
@@ -947,13 +958,15 @@ textarea:focus-visible,
   .touch-target {
     min-height: 44px;
     min-width: 44px;
-    touch-action: manipulation; /* ダブルタップズームを無効化して応答性を向上 */
+    touch-action: manipulation;
+    /* ダブルタップズームを無効化して応答性を向上 */
   }
 
   /* 小さなアイコンボタンでもタッチ領域を確保 */
   button.p-2,
   button[class*="p-2"] {
-    padding: 10px; /* より大きなパディングでタッチ領域を拡大 */
+    padding: 10px;
+    /* より大きなパディングでタッチ領域を拡大 */
   }
 
   /* タッチフィードバックの改善 */
@@ -969,17 +982,20 @@ textarea:focus-visible,
 /* タッチデバイスでのスクロール最適化 */
 @media (hover: none) and (pointer: coarse) {
   * {
-    -webkit-overflow-scrolling: touch; /* iOS スムーズスクロール */
+    -webkit-overflow-scrolling: touch;
+    /* iOS スムーズスクロール */
   }
 
   /* スクロール可能な要素でのタッチ操作を最適化 */
   [style*="overflow"] {
-    touch-action: pan-y pan-x; /* 垂直・水平スクロールを許可 */
+    touch-action: pan-y pan-x;
+    /* 垂直・水平スクロールを許可 */
   }
 }
 
 /* タブレット向けのレイアウト調整 */
 @media (hover: none) and (pointer: coarse) and (min-width: 768px) {
+
   /* タブレットではより大きなタッチターゲットを推奨 */
   button,
   a[role="button"],
@@ -987,5 +1003,34 @@ textarea:focus-visible,
   input[type="submit"] {
     min-height: 48px;
     min-width: 48px;
+  }
+}
+
+/* ============================================================ */
+/* Android 互換性修正 */
+/* ============================================================ */
+
+/* Android (Chrome) では backdrop-filter の描画が不安定な場合があるため、
+   パフォーマンスと安定性のために無効化または簡略化します。
+*/
+@media screen and (max-width: 1024px) {
+
+  .glass,
+  .glass-strong,
+  .glass-gradient-border,
+  .glass-overlay,
+  .novel-editor .rc-md-editor .editor-toolbar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    /* 背景の不透明度を上げて視認性を確保 */
+    background-color: rgba(239, 249, 253, 0.98) !important;
+  }
+
+  .dark .glass,
+  .dark .glass-strong,
+  .dark .glass-gradient-border,
+  .dark .glass-overlay,
+  .dark .novel-editor .rc-md-editor .editor-toolbar {
+    background-color: rgba(30, 30, 30, 0.98) !important;
   }
 }

@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
 import { databaseService } from '../services/databaseService';
 import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
+import {
+  startAutoRecovery,
+  stopAutoRecovery,
+  setupBeforeUnloadHandler,
+  saveRecoveryData,
+} from '../services/crashRecoveryService';
 
 // 型定義をtypes/からインポート
 import { Step } from '../types/common';
@@ -135,9 +141,26 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
       };
       initAutoSave();
+
+      // クラッシュリカバリー用の自動保存を開始（モバイル安定化）
+      startAutoRecovery(() => currentProjectRef.current);
+
+      // ページアンロード時のリカバリーデータ保存
+      const cleanupBeforeUnload = setupBeforeUnloadHandler(() => currentProjectRef.current);
+
+      return () => {
+        try {
+          databaseService.stopAutoSave();
+          stopAutoRecovery();
+          cleanupBeforeUnload();
+        } catch (err) {
+          console.error('自動保存停止エラー:', err);
+        }
+      };
     } else {
       try {
         databaseService.stopAutoSave();
+        stopAutoRecovery();
       } catch (err) {
         console.error('自動保存停止エラー:', err);
       }
@@ -146,6 +169,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     return () => {
       try {
         databaseService.stopAutoSave();
+        stopAutoRecovery();
       } catch (err) {
         console.error('自動保存停止エラー:', err);
       }
@@ -193,6 +217,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }, 500);
     }
   }, [currentProject, setTimer, setCurrentProject, setLastSaved]);
+
+  // プロジェクト更新時にクラッシュリカバリーデータも保存（モバイル安定化）
+  React.useEffect(() => {
+    if (currentProject) {
+      saveRecoveryData(currentProject);
+    }
+  }, [currentProject?.updatedAt]);
 
   const createNewProject = useCallback((title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string): Project => {
     // デバッグ: あらすじの値を確認

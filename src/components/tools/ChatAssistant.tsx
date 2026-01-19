@@ -5,6 +5,7 @@ import { useProject, CharacterRelationship } from '../../contexts/ProjectContext
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 
 interface Message {
   id: string;
@@ -23,6 +24,10 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'chat-assistant-modal', 80);
+
   const { settings, isConfigured } = useAI();
   const { currentProject } = useProject();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -67,8 +72,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
         // 口調設定は簡潔に（最大100文字）
         if (char.speechStyle) {
           const speechStyle = char.speechStyle.trim();
-          const truncatedSpeechStyle = speechStyle.length > 100 
-            ? speechStyle.substring(0, 100) + '...' 
+          const truncatedSpeechStyle = speechStyle.length > 100
+            ? speechStyle.substring(0, 100) + '...'
             : speechStyle;
           charInfo += `\n  口調: ${truncatedSpeechStyle}`;
         }

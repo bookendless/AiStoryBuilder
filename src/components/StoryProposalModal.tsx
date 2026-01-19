@@ -3,6 +3,7 @@ import { CheckCircle, Circle, Sparkles } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { StoryProposal } from '../utils/storyProposalParser';
 import { useToast } from './Toast';
 
@@ -38,6 +39,9 @@ export const StoryProposalModal: React.FC<StoryProposalModalProps> = ({
 }) => {
   const { createNewProject } = useProject();
   const { showError, showSuccess } = useToast();
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'story-proposal-modal', 90);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

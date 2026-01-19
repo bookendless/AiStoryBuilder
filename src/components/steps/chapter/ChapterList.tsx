@@ -17,6 +17,7 @@ interface ChapterListProps {
   onOpenHistory: (chapterId: string) => void;
   onDragStart: (e: React.DragEvent, chapterId: string) => void;
   onDragOver: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
   onDrop: (e: React.DragEvent, chapterId: string) => void;
   onAddChapter: () => void;
 }
@@ -36,6 +37,7 @@ interface ChapterItemProps {
   onOpenHistory: (chapterId: string) => void;
   onDragStart: (e: React.DragEvent, chapterId: string) => void;
   onDragOver: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
   onDrop: (e: React.DragEvent, chapterId: string) => void;
   totalChapters: number;
 }
@@ -54,6 +56,7 @@ const ChapterItem = React.memo<ChapterItemProps>(({
   onOpenHistory,
   onDragStart,
   onDragOver,
+  onDragEnd,
   onDrop,
   totalChapters,
 }) => {
@@ -71,6 +74,7 @@ const ChapterItem = React.memo<ChapterItemProps>(({
       draggable
       onDragStart={(e) => onDragStart(e, chapter.id)}
       onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
       onDrop={(e) => onDrop(e, chapter.id)}
     >
       {/* 章ヘッダー（常に表示） */}
@@ -305,6 +309,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
   onOpenHistory,
   onDragStart,
   onDragOver,
+  onDragEnd,
   onDrop,
   onAddChapter,
 }) => {
@@ -378,6 +383,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
             onOpenHistory={onOpenHistory}
             onDragStart={onDragStart}
             onDragOver={onDragOver}
+            onDragEnd={onDragEnd}
             onDrop={onDrop}
             totalChapters={currentProject.chapters.length}
           />

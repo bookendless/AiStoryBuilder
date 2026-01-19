@@ -5,6 +5,7 @@ import { AI_PROVIDERS } from '../services/providers';
 import { useToast } from './Toast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { decryptApiKeyAsync } from '../utils/securityUtils';
 import { OpenAIRequestBody } from '../types/ai';
 
@@ -60,6 +61,9 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'ai-settings-modal', 90);
 
   // 環境変数の状態をチェック
   const hasEnvApiKey = Boolean(

@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { useProject } from '../../../contexts/ProjectContext';
+import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { ChapterFormData } from './types';
 
 interface ChapterFormModalProps {
@@ -29,6 +30,9 @@ export const ChapterFormModal: React.FC<ChapterFormModalProps> = ({
   onRemoveKeyEvent,
 }) => {
   const { currentProject } = useProject();
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'chapter-form-modal', 90);
 
   if (!isOpen) return null;
 

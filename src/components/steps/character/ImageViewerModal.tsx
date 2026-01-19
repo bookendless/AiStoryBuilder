@@ -1,6 +1,7 @@
 import React from 'react';
 import { useModalNavigation } from '../../../hooks/useKeyboardNavigation';
 import { Modal } from '../../common/Modal';
+import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { OptimizedImage } from '../../OptimizedImage';
 
 interface ImageViewerModalProps {
@@ -20,6 +21,9 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'image-viewer-modal', 90);
 
   return (
     <Modal

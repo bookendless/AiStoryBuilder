@@ -261,24 +261,34 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
 
   const handleDragStart = (e: React.DragEvent, chapterId: string) => {
     setDraggedChapterId(chapterId);
+    e.dataTransfer.setData('text/plain', chapterId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggedChapterId(null);
   };
 
   const handleDrop = (e: React.DragEvent, dropChapterId: string) => {
     e.preventDefault();
+    e.stopPropagation();
 
-    if (!currentProject || !draggedChapterId || draggedChapterId === dropChapterId) {
+    // dataTransferからドラッグIDを取得（fallbackとしてstateも使用）
+    const dragId = e.dataTransfer.getData('text/plain') || draggedChapterId;
+
+    if (!currentProject || !dragId || dragId === dropChapterId) {
       setDraggedChapterId(null);
       return;
     }
 
     // IDベースで処理（フィルタリング後でも正しく動作）
-    const draggedIndex = currentProject.chapters.findIndex(c => c.id === draggedChapterId);
+    const draggedIndex = currentProject.chapters.findIndex(c => c.id === dragId);
     const dropIndex = currentProject.chapters.findIndex(c => c.id === dropChapterId);
 
     if (draggedIndex === -1 || dropIndex === -1 || draggedIndex === dropIndex) {
@@ -485,89 +495,90 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
       </div>
 
       <div>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                    章構成一覧
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    {currentProject.chapters.length} 章設定済み
-                    {searchQuery && (
-                      <span className="ml-2 text-indigo-600 dark:text-indigo-400">
-                        （検索結果: {filteredChapters.length} 章）
-                      </span>
-                    )}
-                  </p>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="flex items-center space-x-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors text-sm"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>章を追加</span>
-                  </button>
-                </div>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+          {/* Header */}
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  章構成一覧
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                  {currentProject.chapters.length} 章設定済み
+                  {searchQuery && (
+                    <span className="ml-2 text-indigo-600 dark:text-indigo-400">
+                      （検索結果: {filteredChapters.length} 章）
+                    </span>
+                  )}
+                </p>
               </div>
 
-              {/* 検索バー */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="章を検索（タイトル、概要、キャラクター名など）"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center space-x-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors text-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>章を追加</span>
+                </button>
               </div>
+            </div>
 
-              {/* 折りたたみコントロール */}
-              {currentProject.chapters.length > 0 && (
-                <div className="mt-3 flex items-center justify-between">
-                  <button
-                    onClick={toggleAllChapters}
-                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-['Noto_Sans_JP']"
-                  >
-                    {expandedChapters.size === currentProject.chapters.length ? 'すべて折りたたむ' : 'すべて展開する'}
-                  </button>
-                </div>
+            {/* 検索バー */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="章を検索（タイトル、概要、キャラクター名など）"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
 
-            {/* Chapters List */}
-            <div className="p-6">
-              <ChapterList
-                filteredChapters={filteredChapters}
-                searchQuery={searchQuery}
-                expandedChapters={expandedChapters}
-                draggedChapterId={draggedChapterId}
-                chapterRefs={chapterRefs}
-                onToggleExpansion={toggleChapterExpansion}
-                onEdit={handleEditChapter}
-                onDelete={handleDeleteChapter}
-                onMoveUp={(index) => moveChapter(index, Math.max(0, index - 1))}
-                onMoveDown={(index) => moveChapter(index, Math.min(currentProject.chapters.length - 1, index + 1))}
-                onOpenHistory={openHistoryModal}
-                onDragStart={handleDragStart}
-                            onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onAddChapter={() => setShowAddForm(true)}
-                          />
-                        </div>
-                      </div>
+            {/* 折りたたみコントロール */}
+            {currentProject.chapters.length > 0 && (
+              <div className="mt-3 flex items-center justify-between">
+                <button
+                  onClick={toggleAllChapters}
+                  className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-['Noto_Sans_JP']"
+                >
+                  {expandedChapters.size === currentProject.chapters.length ? 'すべて折りたたむ' : 'すべて展開する'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Chapters List */}
+          <div className="p-6">
+            <ChapterList
+              filteredChapters={filteredChapters}
+              searchQuery={searchQuery}
+              expandedChapters={expandedChapters}
+              draggedChapterId={draggedChapterId}
+              chapterRefs={chapterRefs}
+              onToggleExpansion={toggleChapterExpansion}
+              onEdit={handleEditChapter}
+              onDelete={handleDeleteChapter}
+              onMoveUp={(index) => moveChapter(index, Math.max(0, index - 1))}
+              onMoveDown={(index) => moveChapter(index, Math.min(currentProject.chapters.length - 1, index + 1))}
+              onOpenHistory={openHistoryModal}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              onAddChapter={() => setShowAddForm(true)}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Add Chapter Modal */}
@@ -605,8 +616,8 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
         selectedChapterId={selectedChapterId}
         histories={selectedChapterId ? (chapterHistories[selectedChapterId] || []) : []}
         onClose={() => {
-              setShowHistoryModal(false);
-              setSelectedChapterId(null);
+          setShowHistoryModal(false);
+          setSelectedChapterId(null);
         }}
         onRestore={restoreChapterFromHistory}
       />

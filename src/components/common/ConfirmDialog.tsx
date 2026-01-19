@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
 import { Modal } from './Modal';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 
 export type ConfirmDialogType = 'danger' | 'warning' | 'info';
 
@@ -31,6 +32,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     onClose,
     onConfirm,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'confirm-dialog', 100);
 
   const handleConfirm = () => {
     onConfirm();
@@ -73,15 +77,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <div className={`w-16 h-16 rounded-full ${style.iconBg} flex items-center justify-center mb-4`}>
           <Icon className={`h-8 w-8 ${style.iconColor}`} />
         </div>
-        
+
         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
           {title}
         </h3>
-        
+
         <p className="text-gray-700 dark:text-gray-300 mb-6 font-['Noto_Sans_JP'] whitespace-pre-line">
           {message}
         </p>
-        
+
         <div className="flex items-center space-x-3 w-full">
           <button
             onClick={onClose}

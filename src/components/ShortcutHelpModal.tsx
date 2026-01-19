@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Keyboard, Save, Home, Sidebar, FilePlus, Command } from 'lucide-react';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 
 interface ShortcutHelpModalProps {
   isOpen: boolean;
@@ -17,6 +18,8 @@ interface ShortcutCategory {
 }
 
 export const ShortcutHelpModal: React.FC<ShortcutHelpModalProps> = ({ isOpen, onClose }) => {
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'shortcut-help-modal', 80);
 
   // プラットフォームに応じた修飾キー表示
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal } from '../../common/Modal';
+import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import { Character } from '../../../contexts/ProjectContext';
 
@@ -16,6 +17,9 @@ export const ReorderModal: React.FC<ReorderModalProps> = ({
     characters,
     onReorder,
 }) => {
+    // Android戻るボタン対応
+    useOverlayBackHandler(isOpen, onClose, 'reorder-modal', 90);
+
     return (
         <Modal
             isOpen={isOpen}

@@ -4,6 +4,7 @@ import { Character } from '../../../contexts/ProjectContext';
 import { useToast } from '../../Toast';
 import { useModalNavigation } from '../../../hooks/useKeyboardNavigation';
 import { Modal } from '../../common/Modal';
+import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { OptimizedImage } from '../../OptimizedImage';
 import { compressImage } from '../../../utils/performanceUtils';
 import { generateUUID } from '../../../utils/securityUtils';
@@ -30,6 +31,10 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'character-modal', 90);
+
   const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
   const [formData, setFormData] = useState({
     name: '',
@@ -84,17 +89,17 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
     return new Promise((resolve) => {
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
-      
+
       img.onload = () => {
         URL.revokeObjectURL(objectUrl);
         resolve(true);
       };
-      
+
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
         resolve(false);
       };
-      
+
       img.src = objectUrl;
     });
   };
@@ -141,10 +146,10 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
         IMAGE_CONFIG.MAX_HEIGHT,
         IMAGE_CONFIG.QUALITY
       );
-      
+
       // 圧縮されたBlobをBase64に変換
       const base64 = await fileToBase64(compressedBlob);
-      
+
       // Base64サイズの検証
       const base64Size = getBase64Size(base64);
       if (base64Size > IMAGE_CONFIG.MAX_SIZE_BYTES) {
@@ -152,7 +157,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
         setIsUploading(false);
         return;
       }
-      
+
       setPreviewUrl(base64);
       setFormData(prev => ({ ...prev, image: base64 }));
     } catch (error) {
@@ -160,7 +165,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
       // エラーの場合は元のファイルをBase64に変換
       try {
         const base64 = await fileToBase64(file);
-        
+
         // Base64サイズの検証
         const base64Size = getBase64Size(base64);
         if (base64Size > IMAGE_CONFIG.MAX_SIZE_BYTES) {
@@ -168,7 +173,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
           setIsUploading(false);
           return;
         }
-        
+
         setPreviewUrl(base64);
         setFormData(prev => ({ ...prev, image: base64 }));
       } catch (readError) {

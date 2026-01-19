@@ -8,6 +8,7 @@ import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 
 interface RelationshipDiagramProps {
   isOpen: boolean;
@@ -53,6 +54,10 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'relationship-diagram-modal', 80);
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'flow'>('list');
   const [zoomLevel, setZoomLevel] = useState(1.0);

@@ -1,5 +1,6 @@
 import type { AISuggestion } from './types';
 import { HISTORY_STORAGE_PREFIX } from './constants';
+import { exportFile } from '../../../utils/mobileExportUtils';
 
 export const getHistoryStorageKey = (projectId: string, chapterId: string) =>
   `${HISTORY_STORAGE_PREFIX}_${projectId}_${chapterId}`;
@@ -63,18 +64,17 @@ export { isTauriEnvironment, isAndroidEnvironment } from '../../../utils/platfor
 
 export const sanitizeFilename = (filename: string) => filename.replace(/[\\/:*?"<>|]/g, '_');
 
-export const downloadTextFileInBrowser = (filename: string, content: string) => {
+/**
+ * テキストファイルをブラウザでダウンロード（モバイル対応）
+ * mobileExportUtilsのexportFileを使用してTauriダイアログ/Share API/ブラウザダウンロードにフォールバック
+ */
+export const downloadTextFileInBrowser = async (filename: string, content: string): Promise<void> => {
   if (typeof window === 'undefined') return;
 
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  await exportFile({
+    filename,
+    content,
+    mimeType: 'text/plain',
+    title: filename.replace(/\.[^/.]+$/, ''), // 拡張子を除いたファイル名
+  });
 };
-
-

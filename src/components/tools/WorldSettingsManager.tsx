@@ -9,6 +9,7 @@ import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 
 interface WorldSettingsManagerProps {
   isOpen: boolean;
@@ -35,6 +36,10 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'world-settings-modal', 80);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);

@@ -14,6 +14,7 @@ import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { useToast } from '../Toast';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import {
   EmotionMap,
@@ -93,7 +94,7 @@ const EmotionCurveChart: React.FC<{
   const points = chapters.map((chapter, index) => {
     const x = (index / (chapters.length - 1 || 1)) * chartWidth + padding.left;
     let y: number;
-    
+
     if (selectedEmotions.length === 0 || selectedEmotions.includes('overall')) {
       // 総合スコアを使用
       y = padding.top + chartHeight - ((chapter.overallScore - minValue) / valueRange) * chartHeight;
@@ -104,7 +105,7 @@ const EmotionCurveChart: React.FC<{
         .reduce((sum, type) => sum + chapter.emotions[type], 0) / selectedEmotions.filter((type) => type !== 'overall').length;
       y = padding.top + chartHeight - ((avgEmotion - 0) / 100) * chartHeight;
     }
-    
+
     return { x, y, chapter };
   });
 
@@ -182,7 +183,7 @@ const EmotionCurveChart: React.FC<{
           const baseRadius = 12;
           const hoverRadius = 18;
           const outerRingRadius = isHovered ? hoverRadius + 6 : baseRadius + 3;
-          
+
           return (
             <g
               key={point.chapter.id}
@@ -202,7 +203,7 @@ const EmotionCurveChart: React.FC<{
                 opacity={isHovered ? 0.5 : 0.3}
                 style={{ transition: 'all 0.2s ease' }}
               />
-              
+
               {/* メインの円（大きく、目立つ） */}
               <circle
                 cx={point.x}
@@ -213,12 +214,12 @@ const EmotionCurveChart: React.FC<{
                 strokeWidth="3"
                 style={{
                   transition: 'all 0.2s ease',
-                  filter: isHovered 
-                    ? 'drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' 
+                  filter: isHovered
+                    ? 'drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))'
                     : 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3))',
                 }}
               />
-              
+
               {/* 内側のアクセント（クリック可能であることを示す） */}
               <circle
                 cx={point.x}
@@ -228,7 +229,7 @@ const EmotionCurveChart: React.FC<{
                 opacity={0.9}
                 style={{ transition: 'all 0.2s ease' }}
               />
-              
+
               {/* ツールチップ用の透明な大きなヒットエリア（クリックしやすくする） */}
               <circle
                 cx={point.x}
@@ -325,6 +326,9 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'emotion-map-modal', 80);
 
   const [emotionMap, setEmotionMap] = useState<EmotionMap | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -448,22 +452,20 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setSelectedView('curve')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${
-                selectedView === 'curve'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${selectedView === 'curve'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               <BarChart3 className="h-4 w-4 inline mr-1" />
               曲線グラフ
             </button>
             <button
               onClick={() => setSelectedView('heatmap')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${
-                selectedView === 'heatmap'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors font-['Noto_Sans_JP'] ${selectedView === 'heatmap'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               <Activity className="h-4 w-4 inline mr-1" />
               ヒートマップ
@@ -529,11 +531,10 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setSelectedEmotions(['overall'])}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors font-['Noto_Sans_JP'] ${
-                        selectedEmotions.includes('overall')
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors font-['Noto_Sans_JP'] ${selectedEmotions.includes('overall')
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                        }`}
                     >
                       総合スコア
                     </button>
@@ -547,11 +548,10 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
                             setSelectedEmotions([...selectedEmotions.filter((t) => t !== 'overall'), type]);
                           }
                         }}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors font-['Noto_Sans_JP'] flex items-center space-x-1 ${
-                          selectedEmotions.includes(type)
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
-                        }`}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors font-['Noto_Sans_JP'] flex items-center space-x-1 ${selectedEmotions.includes(type)
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                          }`}
                         style={{
                           backgroundColor: selectedEmotions.includes(type)
                             ? emotionColors[type]
@@ -659,7 +659,7 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
                       )}
                     </>
                   )}
-                  
+
                   {/* AI分析ログの表示 */}
                   {selectedChapter.aiLogs && (
                     <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600">
@@ -679,7 +679,7 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
                               </div>
                             </div>
                           )}
-                          
+
                           {/* 生のレスポンス */}
                           {selectedChapter.aiLogs.rawResponse && (
                             <div>
@@ -691,7 +691,7 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
                               </div>
                             </div>
                           )}
-                          
+
                           {/* パースされたデータ */}
                           {selectedChapter.aiLogs.parsedData && (
                             <div>
@@ -703,7 +703,7 @@ export const EmotionMapVisualizer: React.FC<EmotionMapVisualizerProps> = ({
                               </div>
                             </div>
                           )}
-                          
+
                           {/* プロンプト */}
                           {selectedChapter.aiLogs.prompt && (
                             <div>

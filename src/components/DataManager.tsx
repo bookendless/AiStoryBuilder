@@ -6,6 +6,7 @@ import { useToast } from './Toast';
 import { getUserFriendlyError } from '../utils/errorHandler';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { PieChart, type PieChartData } from './common/PieChart';
 import { ConfirmDialog } from './common/ConfirmDialog';
 import { BackupDescriptionModal } from './steps/draft/BackupDescriptionModal';
@@ -56,6 +57,9 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'data-manager-modal', 90);
 
   // 確認ダイアログの状態（全ての確認操作を統合）
   const [confirmDialogState, setConfirmDialogState] = useState<{

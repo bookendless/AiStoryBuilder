@@ -194,3 +194,9 @@ out/
 *.swp
 *.swo
 *~
+
+*.jks
+*.keystore
+# Androidキーストア設定ファイル（機密情報を含む）
+**/keystore.properties
+src-tauri/gen/android/keystore.properties

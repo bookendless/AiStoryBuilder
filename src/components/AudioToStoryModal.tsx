@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Mic, Upload, X, Sparkles } from 'lucide-react';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { useToast } from './Toast';
 import { useAI } from '../contexts/AIContext';
 import { aiService } from '../services/aiService';
@@ -18,6 +19,9 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
   onClose,
   onProposalGenerated,
 }) => {
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'audio-to-story-modal', 90);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
@@ -100,7 +104,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
 
     try {
       // AI設定の確認（apiKeysから、またはapiKeyから取得）
-      const apiKeyForProvider = settings.provider !== 'local' 
+      const apiKeyForProvider = settings.provider !== 'local'
         ? (settings.apiKeys?.[settings.provider] || settings.apiKey)
         : '';
       if (!apiKeyForProvider && settings.provider !== 'local') {
@@ -117,10 +121,10 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
         }
 
         setAnalysisProgress('音声をテキストに変換中...');
-        
+
         // Whisper APIで音声をテキストに変換
         transcriptionText = await aiService.transcribeAudio(selectedFile, apiKeyForProvider);
-        
+
         if (!transcriptionText || transcriptionText.trim().length === 0) {
           throw new Error('音声の文字起こしに失敗しました');
         }
@@ -169,7 +173,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
         showSuccess('物語プロジェクトの提案が生成されました！', 3000);
         onProposalGenerated(proposal);
         onClose();
-      } 
+      }
       // Gemini 3.0 Proの場合：既存の実装（音声を直接送信）
       else if (isGeminiSupported) {
         // 音声ファイルをBase64に変換
@@ -230,13 +234,13 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
       }
     } catch (error) {
       console.error('音声解析エラー:', error);
-      
+
       let errorMessage = '音声の解析に失敗しました';
       let errorDetails = '音声の解析中にエラーが発生しました。別の音声ファイルを試すか、しばらく待ってから再試行してください。';
-      
+
       if (error instanceof Error) {
         errorMessage = error.message;
-        
+
         // Whisper API関連のエラー
         if (error.message.includes('Whisper API')) {
           errorDetails = '音声の文字起こし中にエラーが発生しました。\n\n【考えられる原因】\n- APIキーが無効または期限切れ\n- 音声ファイルの形式が対応していない\n- ファイルサイズが大きすぎる（10MB以下推奨）\n- ネットワーク接続の問題\n\n【対処法】\n- AI設定でAPIキーを確認してください\n- 別の音声ファイルを試してください\n- ファイルサイズを確認してください';
@@ -262,7 +266,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
           errorDetails = '処理がタイムアウトしました。\n\n【考えられる原因】\n- 音声ファイルが大きすぎる\n- ネットワークが遅い\n\n【対処法】\n- より小さい音声ファイルを試してください\n- ネットワーク接続を確認してください';
         }
       }
-      
+
       showError(errorMessage, 10000, {
         title: '解析エラー',
         details: errorDetails,

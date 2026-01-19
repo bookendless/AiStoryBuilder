@@ -2,6 +2,7 @@ import React from 'react';
 import { HelpCircle, BookOpen, Users, FileText, List, PenTool, Download, Layers, Sparkles } from 'lucide-react';
 import { Step } from '../App';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 
 interface ContextHelpProps {
   step: Step;
@@ -233,7 +234,7 @@ const helpContents: Record<Step, HelpContent> = {
       },
     ],
     tips: [
-      '生成された草案はあくまで参考です。自分の言葉で編集・改善してください',      
+      '生成された草案はあくまで参考です。自分の言葉で編集・改善してください',
       '履歴機能で過去のバージョンに戻れます',
     ],
   },
@@ -299,6 +300,8 @@ const helpContents: Record<Step, HelpContent> = {
 };
 
 export const ContextHelp: React.FC<ContextHelpProps> = ({ step, isOpen, onClose }) => {
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'context-help-modal', 80);
 
   if (!isOpen) return null;
 

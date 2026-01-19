@@ -9,6 +9,7 @@ import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { extractCharactersFromContent, ParseResult } from '../../utils/characterParser';
 import { CHARACTER_GENERATION } from '../../constants/character';
+import { exportFile } from '../../utils/mobileExportUtils';
 
 export const CharacterAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -161,14 +162,14 @@ export const CharacterAssistantPanel: React.FC = () => {
                 });
 
                 const characterNames = newCharacters.map(c => c.name).join('、');
-                
+
                 // 警告やエラーがある場合のメッセージ
                 let successMessage = `${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`;
-                
+
                 if (parseResult.warnings.length > 0) {
                     successMessage += `\n注意: ${parseResult.warnings.length}件の警告があります。`;
                 }
-                
+
                 if (parseResult.parseMethod === 'fallback') {
                     successMessage += '\n（JSON形式の解析に失敗したため、テキスト形式で解析しました）';
                 }
@@ -185,7 +186,7 @@ export const CharacterAssistantPanel: React.FC = () => {
 
                 // 詳細なエラーメッセージを構築
                 let errorMessage = 'キャラクターの生成に失敗しました。\n\n';
-                
+
                 if (parseResult.errors.length > 0) {
                     errorMessage += '【エラー詳細】\n';
                     parseResult.errors.forEach((error, index) => {
@@ -193,13 +194,13 @@ export const CharacterAssistantPanel: React.FC = () => {
                     });
                     errorMessage += '\n';
                 }
-                
+
                 errorMessage += '【対処法】\n';
                 errorMessage += '1. AIログを確認して、AIの応答形式を確認してください\n';
                 errorMessage += '2. プロンプトを再実行してみてください\n';
                 errorMessage += '3. ローカルLLMを使用している場合、クラウドAPI（OpenAI、Claude、Gemini）の使用を検討してください\n';
                 errorMessage += '4. それでも解決しない場合、手動でキャラクターを追加してください';
-                
+
                 showError(errorMessage);
             }
 
@@ -247,7 +248,7 @@ ${log.parsedCharacters.length}人
     }, [showSuccess]);
 
     // ログダウンロード機能
-    const handleDownloadLogs = useCallback(() => {
+    const handleDownloadLogs = useCallback(async () => {
         const typeLabels: Record<string, string> = {
             'enhance': 'キャラクター詳細化',
             'generate': 'キャラクター生成',
@@ -276,17 +277,20 @@ ${log.parsedCharacters.map((c, i: number) => `${i + 1}. ${c.name}: ${c.role || '
 ${'='.repeat(80)}`;
         }).join('\n\n');
 
-        const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `character_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showSuccess('ログをダウンロードしました');
-    }, [aiLogs, showSuccess]);
+        const filename = `character_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+        const result = await exportFile({
+            filename,
+            content: logsText,
+            mimeType: 'text/plain',
+            title: 'キャラクターAIログ',
+        });
+
+        if (result.success) {
+            showSuccess('ログをダウンロードしました');
+        } else if (result.method === 'error') {
+            showError(result.error || 'ログのダウンロードに失敗しました');
+        }
+    }, [aiLogs, showSuccess, showError]);
 
     if (!currentProject) return null;
 

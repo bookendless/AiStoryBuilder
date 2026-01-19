@@ -10,6 +10,7 @@ import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import type { PlotStructureType, PlotFormData, ConsistencyCheck } from '../steps/plot2/types';
 import { PLOT_STRUCTURE_CONFIGS, AI_LOG_TYPE_LABELS } from '../steps/plot2/constants';
 import { getProjectContext, getStructureFields, formatCharactersInfo } from '../steps/plot2/utils';
+import { exportFile } from '../../utils/mobileExportUtils';
 
 export const PlotStep2AssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -565,7 +566,7 @@ ${log.error}` : ''}`;
     }, [showSuccess, showError]);
 
     // AIログをダウンロード
-    const handleDownloadLogs = useCallback(() => {
+    const handleDownloadLogs = useCallback(async () => {
         try {
             const logsText = aiLogs.map(log => {
                 const typeLabel = AI_LOG_TYPE_LABELS[log.type] || log.type;
@@ -586,16 +587,21 @@ ${log.error}` : ''}
 ${'='.repeat(80)}`;
             }).join('\n\n');
 
-            const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `plot_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showSuccess('ログをダウンロードしました');
+            const filename = `plot_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+            const result = await exportFile({
+                filename,
+                content: logsText,
+                mimeType: 'text/plain',
+                title: 'プロット構成AIログ',
+            });
+
+            if (result.success) {
+                showSuccess('ログをダウンロードしました');
+            } else if (result.method === 'error') {
+                showError(result.error || 'ログのダウンロードに失敗しました。', 5000, {
+                    title: 'ダウンロードエラー',
+                });
+            }
         } catch (error) {
             console.error('ログのダウンロードに失敗しました:', error);
             showError('ログのダウンロードに失敗しました。', 5000, {

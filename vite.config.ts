@@ -13,13 +13,21 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: false, // ポートが使用中の場合は別のポートを自動選択
-    host: true,
+    strictPort: true, // ポートが使用中の場合はエラーにする（Android開発での整合性確保）
+    host: '0.0.0.0', // すべてのネットワークインターフェースでリッスン
     open: false, // Tauriでは自動で開かない
     cors: true,
     watch: {
       ignored: ["**/src-tauri/**"],
     },
+    // HMR設定（Android開発用）
+    hmr: process.env.TAURI_DEV_HOST
+      ? {
+          protocol: 'ws',
+          host: process.env.TAURI_DEV_HOST,
+          port: 5173,
+        }
+      : undefined,
     // ローカルLLM & クラウドAI用のプロキシ設定（開発環境のCORS回避）
     proxy: {
       // ローカルLLM（LM Studio）

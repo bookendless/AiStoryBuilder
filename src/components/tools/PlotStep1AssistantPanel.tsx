@@ -7,6 +7,7 @@ import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
+import { exportFile } from '../../utils/mobileExportUtils';
 
 // フィールド設定
 const FIELD_MAX_LENGTHS = {
@@ -466,7 +467,7 @@ ${log.error}` : ''}`;
     }, [showSuccess]);
 
     // ログダウンロード機能
-    const handleDownloadLogs = useCallback(() => {
+    const handleDownloadLogs = useCallback(async () => {
         const typeLabels: Record<string, string> = {
             'basic': '基本設定生成',
         };
@@ -487,17 +488,20 @@ ${log.error}` : ''}
 ${'='.repeat(80)}`;
         }).join('\n\n');
 
-        const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `plot_step1_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showSuccess('ログをダウンロードしました');
-    }, [aiLogs, showSuccess]);
+        const filename = `plot_step1_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
+        const result = await exportFile({
+            filename,
+            content: logsText,
+            mimeType: 'text/plain',
+            title: 'プロット基本設定AIログ',
+        });
+
+        if (result.success) {
+            showSuccess('ログをダウンロードしました');
+        } else if (result.method === 'error') {
+            showError(result.error || 'ログのダウンロードに失敗しました');
+        }
+    }, [aiLogs, showSuccess, showError]);
 
     if (!currentProject) return null;
 
@@ -563,16 +567,16 @@ ${'='.repeat(80)}`;
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                         <div
                             className={`h-2 rounded-full transition-all duration-500 ${progress.percentage === 100
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                    : 'bg-gradient-to-r from-blue-500 to-cyan-500'
+                                ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                                : 'bg-gradient-to-r from-blue-500 to-cyan-500'
                                 }`}
                             style={{ width: `${progress.percentage}%` }}
                         />
                     </div>
                     <div className="text-center">
                         <span className={`text-sm font-semibold ${progress.percentage === 100
-                                ? 'text-green-600 dark:text-green-400'
-                                : 'text-gray-900 dark:text-white'
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-gray-900 dark:text-white'
                             }`}>
                             {progress.percentage.toFixed(0)}%
                         </span>

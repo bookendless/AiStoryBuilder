@@ -425,7 +425,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
               💡 キャラクターカードをドラッグ&ドロップで並び順を変更できます
             </p>
           </div>
-          <div className="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+          <div className="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
             <button
               onClick={() => setIsReorderModalOpen(true)}
               className="flex items-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP'] shadow-sm whitespace-nowrap"
@@ -442,7 +442,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
             </button>
             <button
               onClick={handleOpenAddModal}
-              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg whitespace-nowrap"
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] shadow-lg whitespace-nowrap"
             >
               <Plus className="h-5 w-5" />
               <span>追加</span>

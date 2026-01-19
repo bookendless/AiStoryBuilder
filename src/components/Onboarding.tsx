@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight, HelpCircle, Wrench } from 'lucide-react';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 
 interface OnboardingProps {
   isOpen: boolean;
@@ -159,6 +160,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onCompl
     },
   });
 
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'onboarding-modal', 80);
+
   // モードに応じてステップを選択
   const onboardingSteps = mode === 'full' ? fullOnboardingSteps : quickOnboardingSteps;
   const isFirstTime = !localStorage.getItem('onboarding-completed');
@@ -286,8 +290,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onCompl
             onClick={handlePrevious}
             disabled={isFirstStep}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors font-['Noto_Sans_JP'] ${isFirstStep
-                ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
           >
             <ChevronLeft className="h-5 w-5" />
@@ -299,8 +303,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onCompl
               <div
                 key={index}
                 className={`h-2 w-2 rounded-full transition-colors ${index === currentStep
-                    ? 'bg-indigo-600 dark:bg-indigo-400'
-                    : 'bg-gray-300 dark:bg-gray-600'
+                  ? 'bg-indigo-600 dark:bg-indigo-400'
+                  : 'bg-gray-300 dark:bg-gray-600'
                   }`}
               />
             ))}

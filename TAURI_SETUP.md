@@ -124,15 +124,70 @@ npm run tauri:build:android
 
 ビルドされたAPKは `src-tauri/gen/android/app/build/outputs/apk/` に生成されます。
 
+#### 署名付きAPKのビルド
+
+リリース用の署名付きAPKを作成するには、まずキーストアファイルを作成する必要があります。
+
+##### 1. キーストアファイルの作成
+
+**方法A: スクリプトを使用（推奨）**
+
+```bash
+# 環境変数を設定
+export KEYSTORE_PASSWORD="your-secure-password"
+export KEYSTORE_ALIAS="aistorybuilder"
+
+# キーストアを作成
+npm run android:create-keystore
+```
+
+**方法B: 手動で作成**
+
+```bash
+keytool -genkey -v -keystore release.keystore \
+  -alias aistorybuilder \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+キーストアファイルはプロジェクトルートに `release.keystore` として作成されます。
+
+##### 2. keystore.propertiesの設定
+
+`src-tauri/gen/android/keystore.properties` ファイルを作成または更新します：
+
+```properties
+password=your-keystore-password
+keyAlias=aistorybuilder
+storeFile=D:/Dev/AiStoryBuilder/release.keystore
+```
+
+**注意**: 
+- `storeFile` は絶対パスまたはプロジェクトルートからの相対パスを指定
+- Windowsの場合はパス区切りを `/` または `\\` で記述
+- このファイルは機密情報を含むため、バージョン管理に含めないでください
+
+##### 3. 署名付きAPKのビルド
+
+```bash
+npm run tauri:build:android:release
+```
+
+署名付きAPKは `src-tauri/gen/android/app/build/outputs/apk/release/` に生成されます。
+
+**重要**: 
+- キーストアファイルとパスワードは安全に保管してください
+- キーストアを紛失すると、アプリの更新ができなくなります
+- 本番環境では、環境変数からパスワードを読み込むことを推奨します
+
 #### AAB（Android App Bundle）のビルド
 
 Google Playに公開する場合はAAB形式をビルドします：
 
 ```bash
-npm run tauri:build:android -- --bundles aab
+npm run tauri:build:android:release -- --bundles aab
 ```
 
-AABファイルは `src-tauri/gen/android/app/build/outputs/bundle/` に生成されます。
+AABファイルは `src-tauri/gen/android/app/build/outputs/bundle/release/` に生成されます。
 
 ### Android固有の設定
 

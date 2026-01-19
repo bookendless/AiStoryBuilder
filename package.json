@@ -47,7 +47,9 @@
     "tauri:info": "tauri info",
     "tauri:dev:android": "tauri android dev",
     "tauri:build:android": "tauri android build",
-    "tauri:android:init": "tauri android init"
+    "tauri:build:android:release": "tauri android build --release",
+    "tauri:android:init": "tauri android init",
+    "android:create-keystore": "node scripts/create-android-keystore.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

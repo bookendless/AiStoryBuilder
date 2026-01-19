@@ -9,6 +9,8 @@ import { OptimizedImage } from './OptimizedImage';
 import { databaseService } from '../services/databaseService';
 import { optimizeImageToWebP } from '../utils/performanceUtils';
 import { EmptyState } from './common/EmptyState';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { exportFile } from '../utils/mobileExportUtils';
 
 // 画像カードコンポーネント（メモ化）
 interface ImageCardProps {
@@ -249,6 +251,9 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'image-board-modal', 80);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   // 検索機能の状態
@@ -699,15 +704,50 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     setRotation(prev => (prev + 90) % 360);
   };
 
-  const handleDownloadImage = () => {
-    if (!selectedImage || !viewerImageUrl) return;
+  const handleDownloadImage = async () => {
+    if (!selectedImage) return;
 
-    const link = document.createElement('a');
-    link.href = viewerImageUrl;
-    link.download = `${selectedImage.title || 'image'}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const filename = `${selectedImage.title || 'image'}.png`;
+      let blob: Blob | null = null;
+
+      // imageIdがある場合はdatabaseServiceから直接Blobを取得
+      if (selectedImage.imageId) {
+        blob = await databaseService.getImageBlob(selectedImage.imageId);
+      }
+
+      // Blobが取得できない場合はviewerImageUrlまたはurlからフェッチを試行
+      if (!blob && viewerImageUrl) {
+        try {
+          const response = await fetch(viewerImageUrl);
+          blob = await response.blob();
+        } catch (fetchError) {
+          console.warn('Blob URLからのフェッチに失敗:', fetchError);
+        }
+      }
+
+      if (!blob) {
+        showError('画像データを取得できませんでした');
+        return;
+      }
+
+      // exportFileを使用してエクスポート
+      const result = await exportFile({
+        filename,
+        content: blob,
+        mimeType: blob.type || 'image/png',
+        title: selectedImage.title || '画像',
+      });
+
+      if (result.success) {
+        showSuccess('画像をエクスポートしました');
+      } else if (result.method === 'error') {
+        showError(result.error || '画像のエクスポートに失敗しました');
+      }
+    } catch (error) {
+      console.error('画像エクスポートエラー:', error);
+      showError('画像のエクスポートに失敗しました');
+    }
   };
 
   const handleResetView = () => {

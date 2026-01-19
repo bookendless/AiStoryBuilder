@@ -3,17 +3,20 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ToolsSidebar } from './components/ToolsSidebar';
 import { HomePage } from './components/HomePage';
-import { CharacterStep } from './components/steps/CharacterStep';
-import { PlotStep1 } from './components/steps/PlotStep1';
-import { PlotStep2 } from './components/steps/PlotStep2';
-import { SynopsisStep } from './components/steps/SynopsisStep';
-import { ChapterStep } from './components/steps/ChapterStep';
-import { DraftStep } from './components/steps/DraftStep';
-import { ReviewStep } from './components/steps/ReviewStep';
-import { ExportStep } from './components/steps/ExportStep';
+// ステップコンポーネントは遅延読み込み（メモリ最適化）
+import {
+  CharacterStepWithSuspense as CharacterStep,
+  PlotStep1WithSuspense as PlotStep1,
+  PlotStep2WithSuspense as PlotStep2,
+  SynopsisStepWithSuspense as SynopsisStep,
+  ChapterStepWithSuspense as ChapterStep,
+  DraftStepWithSuspense as DraftStep,
+  ReviewStepWithSuspense as ReviewStep,
+  ExportStepWithSuspense as ExportStep,
+} from './components/LazyComponents';
 import { ProjectProvider, useProject, Step } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
-import { ToastProvider } from './components/Toast';
+import { ToastProvider, useToast } from './components/Toast';
 import { OfflineNotifier } from './components/OfflineNotifier';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
@@ -24,6 +27,10 @@ import { Onboarding } from './components/Onboarding';
 import { MobileMenu } from './components/MobileMenu';
 import { databaseService } from './services/databaseService';
 import { useBreakpoint } from './hooks/useMediaQuery';
+import { useMemoryWarning } from './hooks/useMemoryMonitor';
+import { RecoveryDialog } from './components/RecoveryDialog';
+import { hasRecoveryData, RecoveryData, mergeRecoveryData } from './services/crashRecoveryService';
+import { BackButtonProvider, useOverlayBackHandler } from './contexts/BackButtonContext';
 
 // Step型はProjectContextから再エクスポート（後方互換性のため）
 export type { Step };
@@ -126,9 +133,11 @@ function App() {
   }
 
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <BackButtonProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </BackButtonProvider>
   );
 }
 
@@ -177,6 +186,54 @@ const StepChangeAutoSave: React.FC<{ currentStep: Step }> = ({ currentStep }) =>
   return null;
 };
 
+/**
+ * リカバリーダイアログのラッパー
+ * ProjectContextの中で使用するため、別コンポーネントとして定義
+ */
+const RecoveryDialogWrapper: React.FC<{
+  showDialog: boolean;
+  onClose: () => void;
+}> = ({ showDialog, onClose }) => {
+  const { currentProject, updateProject, loadProject } = useProject();
+  const { showSuccess, showError } = useToast();
+
+  const handleRecover = async (data: RecoveryData) => {
+    try {
+      // プロジェクトが読み込まれている場合はマージ
+      if (currentProject && currentProject.id === data.projectId) {
+        const merged = mergeRecoveryData(currentProject, data);
+        await updateProject(merged, true);
+        showSuccess('データを復元しました', 5000);
+      } else if (data.projectId) {
+        // 該当プロジェクトを読み込んでからマージ
+        try {
+          await loadProject(data.projectId);
+          // 読み込み後にマージ（currentProjectが更新される）
+          showSuccess('プロジェクトを読み込み、データを復元しました', 5000);
+        } catch {
+          showError('プロジェクトの読み込みに失敗しました');
+        }
+      }
+    } catch (error) {
+      console.error('[Recovery] 復元エラー:', error);
+      showError('データの復元に失敗しました');
+    }
+  };
+
+  const handleDiscard = () => {
+    showSuccess('リカバリーデータを破棄しました', 3000);
+  };
+
+  return (
+    <RecoveryDialog
+      isOpen={showDialog}
+      onRecover={handleRecover}
+      onDiscard={handleDiscard}
+      onClose={onClose}
+    />
+  );
+};
+
 const AppContent: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('home');
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -196,6 +253,64 @@ const AppContent: React.FC = () => {
   const [onboardingMode, setOnboardingMode] = useState<'full' | 'quick'>('quick');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileToolsMenuOpen, setIsMobileToolsMenuOpen] = useState(false);
+  const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+
+  // サイドバーの戻るボタン対応（ヘッダーのハンバーガーメニューで開いた時）
+  useOverlayBackHandler(
+    isMobileMenuOpen,
+    () => {
+      setIsMobileMenuOpen(false);
+      setIsSidebarCollapsed(true);
+    },
+    'mobile-sidebar',
+    10 // 低い優先度（他のモーダルより後に閉じる）
+  );
+
+  // ツールサイドバーの戻るボタン対応（ヘッダーのツールアイコンで開いた時）
+  useOverlayBackHandler(
+    isMobileToolsMenuOpen,
+    () => {
+      setIsMobileToolsMenuOpen(false);
+      setIsToolsSidebarCollapsed(true);
+    },
+    'mobile-tools-sidebar',
+    10 // 低い優先度
+  );
+
+  // ショートカットヘルプモーダルの戻るボタン対応
+  useOverlayBackHandler(
+    showShortcutHelp,
+    () => setShowShortcutHelp(false),
+    'shortcut-help-modal',
+    50 // 中程度の優先度
+  );
+
+  // オンボーディングの戻るボタン対応
+  useOverlayBackHandler(
+    showOnboarding,
+    () => setShowOnboarding(false),
+    'onboarding-modal',
+    50
+  );
+
+  // リカバリーダイアログの戻るボタン対応
+  useOverlayBackHandler(
+    showRecoveryDialog,
+    () => setShowRecoveryDialog(false),
+    'recovery-dialog',
+    100 // 高い優先度
+  );
+
+  // メモリ使用量の監視（モバイル安定化）
+  useMemoryWarning(70, 85);
+
+  // 起動時のリカバリーデータチェック
+  useEffect(() => {
+    if (hasRecoveryData()) {
+      console.log('[App] リカバリーデータを検出');
+      setShowRecoveryDialog(true);
+    }
+  }, []);
 
   // テーマの初期化
   useEffect(() => {
@@ -338,6 +453,12 @@ const AppContent: React.FC = () => {
         <ProjectProvider>
           <StepChangeAutoSave currentStep={currentStep} />
           <OfflineNotifier />
+
+          {/* クラッシュリカバリーダイアログ */}
+          <RecoveryDialogWrapper
+            showDialog={showRecoveryDialog}
+            onClose={() => setShowRecoveryDialog(false)}
+          />
           {/* スキップリンク */}
           <a
             href="#main-content"

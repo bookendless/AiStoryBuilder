@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Image, Upload, X, Sparkles } from 'lucide-react';
 import { Modal } from './common/Modal';
+import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { OptimizedImage } from './OptimizedImage';
 import { compressImage } from '../utils/performanceUtils';
 import { useToast } from './Toast';
@@ -20,6 +21,9 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
   onClose,
   onProposalGenerated,
 }) => {
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'image-to-story-modal', 90);
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
@@ -60,7 +64,7 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
     try {
       // 画像を圧縮（1920x1080、quality 0.8）
       const compressedBlob = await compressImage(file, 1920, 1080, 0.8);
-      
+
       // 圧縮されたBlobをBase64に変換
       const base64 = await fileToBase64(new File([compressedBlob], file.name, { type: file.type }));
       setPreviewUrl(base64);
@@ -95,7 +99,7 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
     }
 
     // AI設定の確認（apiKeysから、またはapiKeyから取得）
-    const apiKeyForProvider = settings.provider !== 'local' 
+    const apiKeyForProvider = settings.provider !== 'local'
       ? (settings.apiKeys?.[settings.provider] || settings.apiKey)
       : '';
     if (!apiKeyForProvider && settings.provider !== 'local') {

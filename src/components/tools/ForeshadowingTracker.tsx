@@ -35,6 +35,7 @@ import { aiService } from '../../services/aiService';
 import { EmptyState } from '../common/EmptyState';
 import { parseAIResponse } from '../../utils/aiResponseParser';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 
 interface ForeshadowingTrackerProps {
   isOpen: boolean;
@@ -80,6 +81,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'foreshadowing-tracker-modal', 80);
 
   // 状態管理
   const [searchQuery, setSearchQuery] = useState('');

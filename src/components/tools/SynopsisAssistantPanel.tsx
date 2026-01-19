@@ -244,7 +244,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                     response: '',
                     error: response.error,
                 });
-                
+
                 const errorInfo = getUserFriendlyError(response.error);
                 showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
                 return;
@@ -265,7 +265,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 return;
             }
             console.error('AI generation error:', error);
-            
+
             // エラー時のAIログを記録
             const errorMessage = error instanceof Error ? error.message : String(error);
             await addLog({
@@ -274,7 +274,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 response: '',
                 error: errorMessage,
             });
-            
+
             showError('AI生成中にエラーが発生しました');
         } finally {
             if (!abortController.signal.aborted) {
@@ -339,7 +339,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                     response: '',
                     error: response.error,
                 });
-                
+
                 const errorInfo = getUserFriendlyError(response.error);
                 showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
                 return;
@@ -360,7 +360,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 return;
             }
             console.error('Style adjustment error:', error);
-            
+
             // エラー時のAIログを記録
             const errorMessage = error instanceof Error ? error.message : String(error);
             await addLog({
@@ -369,7 +369,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 response: '',
                 error: errorMessage,
             });
-            
+
             showError('文体調整中にエラーが発生しました');
         } finally {
             if (!abortController.signal.aborted) {
@@ -431,7 +431,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                     response: '',
                     error: response.error,
                 });
-                
+
                 const errorInfo = getUserFriendlyError(response.error);
                 showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
                 return;
@@ -452,7 +452,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 return;
             }
             console.error('Full synopsis generation error:', error);
-            
+
             // エラー時のAIログを記録
             const errorMessage = error instanceof Error ? error.message : String(error);
             await addLog({
@@ -461,7 +461,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 response: '',
                 error: errorMessage,
             });
-            
+
             showError('全体あらすじ生成中にエラーが発生しました');
         } finally {
             if (!abortController.signal.aborted) {
@@ -481,9 +481,11 @@ export const SynopsisAssistantPanel: React.FC = () => {
     }, [aiLogs, copyLog, showSuccess]);
 
     // ログダウンロード機能
-    const handleDownloadLogs = useCallback(() => {
-        downloadLogs(`synopsis_ai_logs_${new Date().toISOString().split('T')[0]}.txt`);
-        showSuccess('ログをダウンロードしました');
+    const handleDownloadLogs = useCallback(async () => {
+        const result = await downloadLogs(`synopsis_ai_logs_${new Date().toISOString().split('T')[0]}.txt`);
+        if (result.success) {
+            showSuccess('ログをダウンロードしました');
+        }
     }, [downloadLogs, showSuccess]);
 
     if (!currentProject) return null;
@@ -558,8 +560,8 @@ export const SynopsisAssistantPanel: React.FC = () => {
                         onClick={() => handleStyleAdjustment('readable')}
                         disabled={isAnyLoading || !synopsis.trim()}
                         className={`w-full p-2 rounded-lg transition-all duration-200 text-left ${isAnyLoading || !synopsis.trim()
-                                ? 'bg-gray-100 dark:bg-gray-700 opacity-50 cursor-not-allowed'
-                                : 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                            ? 'bg-gray-100 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                            : 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30'
                             }`}
                     >
                         <div className="flex items-center justify-between">
@@ -583,8 +585,8 @@ export const SynopsisAssistantPanel: React.FC = () => {
                         onClick={() => handleStyleAdjustment('summary')}
                         disabled={isAnyLoading || !synopsis.trim()}
                         className={`w-full p-2 rounded-lg transition-all duration-200 text-left ${isAnyLoading || !synopsis.trim()
-                                ? 'bg-gray-100 dark:bg-gray-700 opacity-50 cursor-not-allowed'
-                                : 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
+                            ? 'bg-gray-100 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                            : 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
                             }`}
                     >
                         <div className="flex items-center justify-between">
@@ -650,8 +652,8 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                     <div
                         className={`h-1.5 rounded-full transition-all duration-500 ${synopsis.length >= 500
-                                ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                : 'bg-gradient-to-r from-indigo-500 to-purple-500'
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                            : 'bg-gradient-to-r from-indigo-500 to-purple-500'
                             }`}
                         style={{ width: `${Math.min((synopsis.length / 500) * 100, 100)}%` }}
                     />

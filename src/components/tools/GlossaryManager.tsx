@@ -8,6 +8,8 @@ import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { exportFile } from '../../utils/mobileExportUtils';
 
 interface GlossaryManagerProps {
   isOpen: boolean;
@@ -29,6 +31,10 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
     isOpen,
     onClose,
   });
+
+  // Android戻るボタン対応
+  useOverlayBackHandler(isOpen, onClose, 'glossary-manager-modal', 80);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -162,15 +168,23 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
     setDeletingTermId(null);
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const dataStr = JSON.stringify(glossary, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${currentProject.title}_用語集.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const filename = `${currentProject.title}_用語集.json`;
+
+    const result = await exportFile({
+      filename,
+      content: dataStr,
+      mimeType: 'application/json',
+      title: '用語集エクスポート',
+      dialogTitle: '用語集を保存',
+    });
+
+    if (result.success) {
+      showSuccess('用語集をエクスポートしました');
+    } else if (result.method === 'error') {
+      showError(result.error || 'エクスポートに失敗しました');
+    }
   };
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
