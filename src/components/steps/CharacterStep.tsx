@@ -494,7 +494,8 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
                     onImageClick={() => handleOpenCharacterImageViewer(character)}
                     onPossession={() => setPossessionCharacterId(character.id)}
                     onDiary={() => setDiaryCharacterId(character.id)}
-                    onUpdate={handleUpdateCharacter}
+                    // 直接編集機能を一時的に無効化（将来的に復帰可能）
+                    // onUpdate={handleUpdateCharacter}
                   />
                 );
               })}
