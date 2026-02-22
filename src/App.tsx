@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ToolsSidebar } from './components/ToolsSidebar';
@@ -14,7 +14,7 @@ import {
   ReviewStepWithSuspense as ReviewStep,
   ExportStepWithSuspense as ExportStep,
 } from './components/LazyComponents';
-import { ProjectProvider, useProject, Step } from './contexts/ProjectContext';
+import { ProjectProvider, useProject, Step, ProjectErrorNotifier } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
 import { ToastProvider, useToast } from './components/Toast';
 import { OfflineNotifier } from './components/OfflineNotifier';
@@ -22,6 +22,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
 import { PerformanceMonitor, registerServiceWorker } from './utils/performanceUtils';
 import { useGlobalShortcuts } from './hooks/useKeyboardNavigation';
+import { useErrorHandler } from './hooks/useErrorHandler';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { Onboarding } from './components/Onboarding';
 import { MobileMenu } from './components/MobileMenu';
@@ -235,6 +236,7 @@ const RecoveryDialogWrapper: React.FC<{
 };
 
 const AppContent: React.FC = () => {
+  const { handleError } = useErrorHandler();
   const [currentStep, setCurrentStep] = useState<Step>('home');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const breakpoint = useBreakpoint();
@@ -254,6 +256,23 @@ const AppContent: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileToolsMenuOpen, setIsMobileToolsMenuOpen] = useState(false);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+
+  // ProjectContext用のエラー通知ハンドラー
+  const errorNotifier: ProjectErrorNotifier = useMemo(() => ({
+    notifyError: (error: unknown, context: string, options?: {
+      title?: string;
+      duration?: number;
+      showDetails?: boolean;
+      onRetry?: () => void;
+    }) => {
+      handleError(error, context, {
+        title: options?.title,
+        duration: options?.duration,
+        showDetails: options?.showDetails,
+        onRetry: options?.onRetry,
+      });
+    },
+  }), [handleError]);
 
   // サイドバーの戻るボタン対応（ヘッダーのハンバーガーメニューで開いた時）
   useOverlayBackHandler(
@@ -450,7 +469,7 @@ const AppContent: React.FC = () => {
   return (
     <ErrorBoundary>
       <AIProvider>
-        <ProjectProvider>
+        <ProjectProvider errorNotifier={errorNotifier}>
           <StepChangeAutoSave currentStep={currentStep} />
           <OfflineNotifier />
 
@@ -501,7 +520,7 @@ const AppContent: React.FC = () => {
                 }}
               />
 
-              <div className={`flex-1 transition-all duration-300 ${currentStep === 'home'
+              <div className={`flex-1 min-w-0 overflow-hidden transition-all duration-300 ${currentStep === 'home'
                 ? 'ml-0'
                 : 'ml-0 lg:ml-64'
                 } ${currentStep === 'home' ? 'mr-0' : 'mr-0 lg:mr-64'

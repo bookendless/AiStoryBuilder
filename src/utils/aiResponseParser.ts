@@ -18,7 +18,7 @@ export interface ParsedResponse {
  * @returns 解析結果
  */
 export const parseAIResponse = (
-  content: string, 
+  content: string,
   expectedFormat: 'json' | 'text' | 'auto' = 'auto'
 ): ParsedResponse => {
   if (!content || typeof content !== 'string') {
@@ -67,7 +67,7 @@ const detectResponseFormat = (content: string): 'json' | 'text' => {
   ];
 
   const hasJsonIndicators = jsonIndicators.some(pattern => pattern.test(content));
-  
+
   // 文字数が少なく、JSONの構造が明確な場合はJSONとして扱う
   if (hasJsonIndicators && content.length < 10000) {
     return 'json';
@@ -90,7 +90,7 @@ const parseJsonResponse = (content: string): ParsedResponse => {
   }
 
   const trimmedContent = content.trim();
-  
+
   // 複数のパターンでJSONを抽出（優先順位順）
   const extractionPatterns = [
     // 1. コードブロック内のJSON（json指定あり）
@@ -148,7 +148,7 @@ const parseJsonResponse = (content: string): ParsedResponse => {
     .replace(/```json\s*|\s*```/g, '') // コードブロックマーカーを除去
     .replace(/^[\s\n\r]*/, '') // 先頭の空白・改行を除去
     .replace(/[\s\n\r]*$/, ''); // 末尾の空白・改行を除去
-  
+
   // {{ と }} で囲まれたJSONを正しく処理するため、外側の波括弧を1つ削除
   if (jsonString.startsWith('{{') && jsonString.endsWith('}}')) {
     jsonString = jsonString.slice(1, -1);
@@ -177,7 +177,7 @@ const parseJsonResponse = (content: string): ParsedResponse => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.warn(`JSON parsing failed (${extractionMethod}), falling back to text parsing:`, errorMessage);
     console.debug('Attempted JSON string (first 200 chars):', jsonString.substring(0, 200));
-    
+
     // テキスト解析にフォールバック
     return parseTextResponse(content);
   }
@@ -189,22 +189,22 @@ const parseJsonResponse = (content: string): ParsedResponse => {
 const parseTextResponse = (content: string): ParsedResponse => {
   // テキストから構造化データを抽出
   const lines = content.split('\n').filter(line => line.trim());
-  
+
   // 章立ての解析
   if (content.includes('第') && content.includes('章')) {
     return parseChapterStructure(content);
   }
-  
+
   // キャラクター情報の解析
   if (content.includes('キャラクター') || content.includes('登場人物')) {
     return parseCharacterInfo(content);
   }
-  
+
   // プロット情報の解析
   if (content.includes('プロット') || content.includes('構成')) {
     return parsePlotInfo(content);
   }
-  
+
   // デフォルトのテキスト解析
   return {
     success: true,
@@ -239,13 +239,17 @@ const parseChapterStructure = (content: string): ParsedResponse => {
   let currentChapter: Chapter | null = null;
   const warnings: string[] = [];
 
-  // 拡張された章検出パターン
-  const chapterPatterns = [
+  // 章検出パターン（厳格な形式のみ - 新しい章の開始時に使用）
+  const strictChapterPatterns = [
     /第(\d+)章[：:]\s*(.+)/,           // 標準形式: 第1章: タイトル
-    /(\d+)\.\s*(.+)/,                  // 番号付き形式: 1. タイトル
     /【第(\d+)章】\s*(.+)/,            // 括弧形式: 【第1章】 タイトル
     /Chapter\s*(\d+)[：:]\s*(.+)/i,    // 英語形式: Chapter 1: タイトル
     /章(\d+)[：:]\s*(.+)/,             // 簡略形式: 章1: タイトル
+  ];
+
+  // 拡張された章検出パターン（最初の章検出時のみ使用 - フォールバック用）
+  const looseChapterPatterns = [
+    /(\d+)\.\s*(.+)/,                  // 番号付き形式: 1. タイトル
     /^(\d+)\s*[．.]\s*(.+)/,           // 数字+句点形式: 1．タイトル
     /^(\d+)\s*[-－]\s*(.+)/,           // 数字+ハイフン形式: 1-タイトル
   ];
@@ -287,13 +291,14 @@ const parseChapterStructure = (content: string): ParsedResponse => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
-    
+
     // 章の開始を検出（複数パターンを試行）
     let chapterMatch: RegExpMatchArray | null = null;
     let chapterNumber = 0;
     let chapterTitle = '';
 
-    for (const pattern of chapterPatterns) {
+    // まず厳格なパターン（「第X章」形式など）をチェック
+    for (const pattern of strictChapterPatterns) {
       const match = trimmedLine.match(pattern);
       if (match) {
         chapterMatch = match;
@@ -302,13 +307,27 @@ const parseChapterStructure = (content: string): ParsedResponse => {
         break;
       }
     }
-    
+
+    // 厳格なパターンで見つからず、かつ現在の章がまだない場合のみ緩いパターンを試行
+    // （番号リスト「1. 出来事」などが章として誤認識されるのを防ぐ）
+    if (!chapterMatch && !currentChapter) {
+      for (const pattern of looseChapterPatterns) {
+        const match = trimmedLine.match(pattern);
+        if (match) {
+          chapterMatch = match;
+          chapterNumber = parseInt(match[1]);
+          chapterTitle = match[2].trim();
+          break;
+        }
+      }
+    }
+
     if (chapterMatch) {
       // 前の章を保存
       if (currentChapter) {
         chapters.push(currentChapter);
       }
-      
+
       // 新しい章を開始
       currentChapter = {
         id: `chapter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -385,12 +404,12 @@ const parseChapterStructure = (content: string): ParsedResponse => {
       }
 
       // 詳細情報が見つからず、概要も空の場合は最初の説明文を概要として使用
-      if (!detailFound && !currentChapter.summary && 
-          !trimmedLine.startsWith('役割:') && 
-          !trimmedLine.startsWith('ペース:') &&
-          !trimmedLine.includes('【') &&
-          !trimmedLine.includes('】') &&
-          trimmedLine.length > 10) {
+      if (!detailFound && !currentChapter.summary &&
+        !trimmedLine.startsWith('役割:') &&
+        !trimmedLine.startsWith('ペース:') &&
+        !trimmedLine.includes('【') &&
+        !trimmedLine.includes('】') &&
+        trimmedLine.length > 10) {
         currentChapter.summary = trimmedLine;
       }
     }
@@ -402,7 +421,7 @@ const parseChapterStructure = (content: string): ParsedResponse => {
   }
 
   // 解析結果の検証と警告生成
-  const incompleteChapters = chapters.filter(ch => 
+  const incompleteChapters = chapters.filter(ch =>
     !ch.summary || !ch.setting || !ch.mood || ch.keyEvents.length === 0 || ch.characters.length === 0
   );
 
@@ -451,13 +470,13 @@ const parseCharacterInfo = (content: string): ParsedResponse => {
 
   for (const line of lines) {
     const trimmedLine = line.trim();
-    
+
     // キャラクター名の検出
     if (trimmedLine.match(/^【(.+)】/) || trimmedLine.match(/^・(.+)\s*\(/)) {
       if (currentCharacter) {
         characters.push(currentCharacter);
       }
-      
+
       const nameMatch = trimmedLine.match(/^【(.+)】/) || trimmedLine.match(/^・(.+)\s*\(/);
       currentCharacter = {
         id: `char_${Date.now()}_${Math.random()}`,
@@ -514,7 +533,7 @@ const parsePlotInfo = (content: string): ParsedResponse => {
 
   for (const line of lines) {
     const trimmedLine = line.trim();
-    
+
     if (trimmedLine.includes('テーマ') || trimmedLine.includes('テーマ：')) {
       plotData.theme = trimmedLine.replace(/テーマ[：:]\s*/, '').trim();
     } else if (trimmedLine.includes('舞台') || trimmedLine.includes('舞台：')) {
@@ -545,15 +564,15 @@ export const generateErrorMessage = (error: unknown, context: string = ''): stri
   if (typeof error === 'string') {
     return error;
   }
-  
+
   if (error instanceof Error) {
     return `${context}${context ? ': ' : ''}${error.message}`;
   }
-  
+
   if (error && typeof error === 'object' && 'message' in error) {
     return `${context}${context ? ': ' : ''}${(error as Error).message}`;
   }
-  
+
   return `${context}${context ? ': ' : ''}不明なエラーが発生しました`;
 };
 
@@ -564,26 +583,26 @@ export const validateResponse = (response: ParsedResponse): boolean => {
   if (!response.success) {
     return false;
   }
-  
+
   if (!response.data) {
     return false;
   }
-  
+
   // データの型に応じた検証
   const data = response.data as Record<string, unknown>;
-  
+
   if (data.type === 'chapters') {
     return Array.isArray(data.chapters) && data.chapters.length > 0;
   }
-  
+
   if (data.type === 'characters') {
     return Array.isArray(data.characters) && data.characters.length > 0;
   }
-  
+
   if (data.type === 'plot') {
     return !!(data.plot && typeof data.plot === 'object' && data.plot !== null && Object.keys(data.plot as Record<string, unknown>).length > 0);
   }
-  
+
   return true;
 };
 

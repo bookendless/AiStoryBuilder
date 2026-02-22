@@ -3,7 +3,7 @@
  */
 
 export const PLOT_PROMPTS = {
-    supplement: `以下の情報に基づいて、{fieldLabel}の内容を補完・改善してください。
+  supplement: `以下の情報に基づいて、{fieldLabel}の内容を補完・改善してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
@@ -24,7 +24,7 @@ export const PLOT_PROMPTS = {
   "{fieldLabel}": "補完・改善された内容（500文字以内）"
 }}`,
 
-    consistency: `以下のプロット構成の一貫性をチェックしてください。
+  consistency: `以下のプロット構成の一貫性をチェックしてください。
 
 【プロジェクト情報】
 作品タイトル: {title}
@@ -54,7 +54,7 @@ export const PLOT_PROMPTS = {
   "suggestions": ["改善提案1", "改善提案2", ...]
 }}`,
 
-    generateStructure: `以下のプロジェクト情報に基づいて、{structureType}の物語構成を提案してください。ただし、単に作成するのではなく、Tree of Thoughts (ToT) の手法を用いて、3つの異なる展開案を出し、それぞれの「面白さ」「矛盾」「テーマとの整合性」を評価した上で、最良のプロットを統合・決定してください。
+  generateStructure: `以下のプロジェクト情報に基づいて、{structureType}の物語構成を提案してください。ただし、単に作成するのではなく、Tree of Thoughts (ToT) の手法を用いて、3つの異なる展開案を出し、それぞれの「面白さ」「矛盾」「テーマとの整合性」を評価した上で、最良のプロットを統合・決定してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
@@ -74,6 +74,34 @@ export const PLOT_PROMPTS = {
 物語の結末: {ending}
 
 {reversePrompting}
+
+{structureDescription}
+
+以下のJSON形式で出力してください：
+{outputFormat}`,
+
+  applyConsistency: `以下のプロジェクト情報と、プロット構成の一貫性チェックで指摘された改善提案に基づいて、現在のプロット構成を修正してください。
+
+【プロジェクト情報】
+作品タイトル: {title}
+メインジャンル: {mainGenre}
+テーマ: {projectTheme}
+
+【プロット基礎設定】
+メインテーマ: {plotTheme}
+舞台設定: {plotSetting}
+主人公の目標: {protagonistGoal}
+主要な障害: {mainObstacle}
+
+【現在のプロット構成】
+{structureText}
+
+【改善提案】
+{suggestionsText}
+
+【指示】
+上記の改善提案に従って、現在のプロット構成を修正し、より一貫性のある自然な展開にしてください。
+現在の構成から大きく脱線しないようにしつつ、指摘された問題点を的確に解消して全体のバランスを整えてください。
 
 {structureDescription}
 

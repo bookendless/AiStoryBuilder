@@ -37,7 +37,10 @@ export type GenerationAction =
   | 'style'
   | 'shorten'
   | 'improve'
-  | 'selfRefine';
+  | 'selfRefine'
+  | 'critique'
+  | 'fixWeaknesses'
+  | 'fixCharacter';
 
 export type SecondaryTab = 'ai' | 'display' | 'history' | 'project' | 'aiLogs';
 
@@ -51,3 +54,11 @@ export interface SuggestionPromptPayload {
   chapterSummary?: string;
   projectTitle?: string;
 }
+
+export interface WeaknessItem {
+  aspect?: string;
+  problem?: string;
+  score?: number;
+  solutions?: string[];
+}
+

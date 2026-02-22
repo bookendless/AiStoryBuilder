@@ -63,7 +63,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const [modalDraft, setModalDraft] = useState('');
   const [isVerticalWriting, setIsVerticalWriting] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
-  const [isModalChapterInfoCollapsed, setIsModalChapterInfoCollapsed] = useState(false);
   const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
   const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
   const [selectedHistoryEntryId, setSelectedHistoryEntryId] = useState<string | null>(null);
@@ -1450,7 +1449,7 @@ ${'='.repeat(80)}`;
       />
 
       {/* タイトルセクション */}
-      <div className="mb-6 sm:mb-8 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <div className="mb-6 sm:mb-8 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
@@ -1489,7 +1488,7 @@ ${'='.repeat(80)}`;
       />
 
       {/* メインコンテンツ */}
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <div className="overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-start gap-6">
           {/* メインエディタエリア - サイドバー削除により最大化 */}
           <div className="flex-1 min-w-0 space-y-6">
@@ -1676,14 +1675,8 @@ ${'='.repeat(80)}`;
             {selectedChapter && !isZenMode && (
               <ForeshadowingPanel
                 currentChapterId={selectedChapter}
-                onInsertText={(text) => {
-                  if (mainEditorRef.current) {
-                    mainEditorRef.current.insertText(text);
-                  }
-                }}
                 isCollapsed={isForeshadowingPanelCollapsed}
                 onToggleCollapse={() => setIsForeshadowingPanelCollapsed(prev => !prev)}
-                currentDraft={draft}
               />
             )}
           </div>
@@ -1714,191 +1707,73 @@ ${'='.repeat(80)}`;
         defaultDescription="草案作業時のバックアップ"
       />
 
-      {/* プレビュー／編集モーダル */}
+      {/* フルスクリーンプレビュー */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-center justify-center p-4">
-            {/* オーバーレイ */}
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-              onClick={handleCloseModal}
-            />
-
-            {/* モーダルコンテンツ */}
-            <div className="relative w-full max-w-7xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
-              {/* モーダルヘッダー */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 gap-3">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 w-8 h-8 rounded-full flex items-center justify-center">
-                    <PenTool className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                      {currentChapter ? `${currentChapter.title} の草案プレビュー` : '草案プレビュー'}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      {modalDraft.length.toLocaleString()} 文字
-                      {currentChapter && (
-                        <span className="ml-2 text-blue-600 dark:text-blue-400">
-                          ({currentChapter.title})
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setIsVerticalWriting(!isVerticalWriting)}
-                    className="flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors font-['Noto_Sans_JP'] text-sm"
-                  >
-                    {isVerticalWriting ? (
-                      <>
-                        <AlignLeft className="h-4 w-4" />
-                        <span>横書き</span>
-                      </>
-                    ) : (
-                      <>
-                        <AlignJustify className="h-4 w-4" />
-                        <span>縦書き</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleCloseModal}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  >
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+        <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
+          {/* ヘッダー */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gradient-to-br from-green-500 to-emerald-600 w-8 h-8 rounded-full flex items-center justify-center">
+                <PenTool className="h-4 w-4 text-white" />
               </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  {currentChapter ? `${currentChapter.title} のプレビュー` : '草案プレビュー'}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                  {modalDraft.length.toLocaleString()} 文字
+                </p>
+              </div>
+            </div>
 
-              {/* モーダルボディ */}
-              <div className="p-4">
-                {/* 章内容表示 */}
-                {currentChapter && (
-                  <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
-                    {/* アコーディオンヘッダー */}
-                    <button
-                      onClick={() => setIsModalChapterInfoCollapsed(!isModalChapterInfoCollapsed)}
-                      className="w-full p-4 flex items-start space-x-3 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                    >
-                      <div className="bg-blue-500 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                        <BookOpen className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-center justify-between">
-                          <h4 className={`font-semibold text-blue-900 dark:text-blue-100 font-['Noto_Sans_JP'] ${!isModalChapterInfoCollapsed ? 'mb-2' : ''}`}>
-                            {currentChapter.title}
-                          </h4>
-                          {isModalChapterInfoCollapsed ? (
-                            <ChevronDown className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
-                          ) : (
-                            <ChevronUp className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
-                          )}
-                        </div>
-                        {!isModalChapterInfoCollapsed && (
-                          <>
-                            <p className="text-blue-800 dark:text-blue-200 text-sm font-['Noto_Sans_JP'] leading-relaxed mb-3">
-                              {(() => {
-                                // 章の説明内のキャラクターIDをキャラクター名に変換
-                                if (!currentChapter.summary || !currentProject) {
-                                  return currentChapter.summary || '';
-                                }
-                                let summary = currentChapter.summary;
-                                // プロジェクト内のすべてのキャラクターIDをキャラクター名に置換
-                                currentProject.characters.forEach(character => {
-                                  // キャラクターIDがテキスト内に含まれている場合、キャラクター名に置換
-                                  // 単語境界を考慮して置換（IDが単独で出現する場合のみ）
-                                  const regex = new RegExp(`\\b${character.id}\\b`, 'g');
-                                  summary = summary.replace(regex, character.name);
-                                });
-                                return summary;
-                              })()}
-                            </p>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setIsVerticalWriting(!isVerticalWriting)}
+                className="flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors font-['Noto_Sans_JP'] text-sm"
+              >
+                {isVerticalWriting ? (
+                  <>
+                    <AlignLeft className="h-4 w-4" />
+                    <span>横書き</span>
+                  </>
+                ) : (
+                  <>
+                    <AlignJustify className="h-4 w-4" />
+                    <span>縦書き</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleCloseModal}
+                className="flex items-center space-x-2 px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-['Noto_Sans_JP'] text-sm"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>閉じる</span>
+              </button>
+            </div>
+          </div>
 
-                            {/* 章詳細情報 */}
-                            {(() => {
-                              const chapterDetails = getChapterDetails(currentChapter);
-                              const hasDetails = Object.values(chapterDetails).some(value => value !== '未設定');
-
-                              if (!hasDetails) return null;
-
-                              return (
-                                <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                    {chapterDetails.characters !== '未設定' && (
-                                      <div>
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">登場キャラクター:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.characters}</span>
-                                      </div>
-                                    )}
-                                    {chapterDetails.setting !== '未設定' && (
-                                      <div>
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">設定・場所:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.setting}</span>
-                                      </div>
-                                    )}
-                                    {chapterDetails.mood !== '未設定' && (
-                                      <div>
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">雰囲気:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.mood}</span>
-                                      </div>
-                                    )}
-                                    {chapterDetails.keyEvents !== '未設定' && (
-                                      <div className="sm:col-span-2">
-                                        <span className="font-medium text-blue-700 dark:text-blue-300">重要な出来事:</span>
-                                        <span className="ml-1 text-blue-600 dark:text-blue-400">{chapterDetails.keyEvents}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </>
-                        )}
-                      </div>
-                    </button>
+          {/* テキストプレビュー領域（フルスクリーン） */}
+          <div className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
+            <div className="h-full w-full border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 overflow-hidden">
+              <div
+                ref={verticalPreviewRef}
+                className={`h-full w-full p-6 sm:p-8 lg:p-12 ${isVerticalWriting ? 'font-serif-jp' : "font-['Noto_Sans_JP']"} text-gray-900 dark:text-white leading-relaxed overflow-auto whitespace-pre-wrap`}
+                style={{
+                  lineHeight: isVerticalWriting ? '2.2' : '2.0',
+                  letterSpacing: isVerticalWriting ? '0.05em' : '0.02em',
+                  fontSize: isVerticalWriting ? '1.125rem' : '1rem',
+                  writingMode: isVerticalWriting ? 'vertical-rl' : 'horizontal-tb',
+                  textOrientation: isVerticalWriting ? 'upright' : 'mixed',
+                }}
+              >
+                {modalDraft || (
+                  <div className="text-gray-400 dark:text-gray-500 italic text-center mt-20">
+                    草案がまだ作成されていません。メインエディタで執筆を開始してください。
                   </div>
                 )}
-
-                {/* テキストエリア（読み取り専用） */}
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
-                  <div
-                    ref={verticalPreviewRef}
-                    className={`${isVerticalWriting ? 'h-[600px] font-serif-jp' : 'h-[400px] font-[\'Noto_Sans_JP\']'} w-full p-4 border-0 rounded-lg bg-transparent text-gray-900 dark:text-white leading-relaxed overflow-auto whitespace-pre-wrap`}
-                    style={{
-                      lineHeight: isVerticalWriting ? '2.0' : '1.8',
-                      letterSpacing: isVerticalWriting ? '0.05em' : 'normal',
-                      writingMode: isVerticalWriting ? 'vertical-rl' : 'horizontal-tb',
-                      textOrientation: isVerticalWriting ? 'upright' : 'mixed',
-                    }}
-                  >
-                    {modalDraft || (
-                      <div className="text-gray-400 dark:text-gray-500 italic">
-                        草案がまだ作成されていません。メインエディタで執筆を開始してください。
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* モーダルフッター */}
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    文字数: {modalDraft.length.toLocaleString()}
-                  </div>
-
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={handleCloseModal}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-['Noto_Sans_JP']"
-                    >
-                      閉じる
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

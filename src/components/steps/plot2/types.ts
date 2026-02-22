@@ -49,22 +49,15 @@ export interface PlotFormData {
   ms7: string; // エピローグ
 }
 
-export interface HistoryState {
-  formData: PlotFormData;
-  plotStructure: PlotStructureType;
-  timestamp: number;
-}
 
 export interface ConsistencyCheck {
   hasIssues: boolean;
   issues: string[];
+  suggestions: string[];
 }
 
-export interface SidebarSection {
-  id: string;
-  title: string;
-  collapsed: boolean;
-}
+
+
 
 export interface StructureField {
   key: keyof PlotFormData;

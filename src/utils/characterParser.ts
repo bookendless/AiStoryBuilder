@@ -112,6 +112,27 @@ const parseTextCharacters = (content: string, maxCharacters: number = 5): ParseR
     warnings: [],
   };
 
+  // 解説部分をスキップ: 最初の【キャラクター または名前: が見つかるまでの文字列を除去
+  // AIが前置きや自己評価プロセスを出力した場合に対応
+  const dataStartPatterns = [
+    /【キャラクター\d+[：:]?】/,           // 【キャラクター1】形式
+    /【キャラクター\d+[：:]?[^】]*】/,     // 【キャラクター1：光の守護者】形式
+    /^名前[：:]\s*/m,                      // 名前: から始まる形式
+  ];
+
+  let dataStartIndex = content.length;
+  for (const pattern of dataStartPatterns) {
+    const match = content.match(pattern);
+    if (match && match.index !== undefined && match.index < dataStartIndex) {
+      dataStartIndex = match.index;
+    }
+  }
+
+  // データ開始位置が見つかった場合、前の解説部分をスキップ
+  const cleanedContent = dataStartIndex < content.length
+    ? content.substring(dataStartIndex)
+    : content;
+
   // 複数のキャラクター開始パターン
   const characterStartPatterns = [
     /【キャラクター(\d+)】/g,           // 【キャラクター1】
@@ -126,14 +147,14 @@ const parseTextCharacters = (content: string, maxCharacters: number = 5): ParseR
   const sections: Array<{ index: number; content: string }> = [];
 
   for (const pattern of characterStartPatterns) {
-    const matches = [...content.matchAll(pattern)];
+    const matches = [...cleanedContent.matchAll(pattern)];
     if (matches.length > 0) {
       for (let i = 0; i < matches.length; i++) {
         const match = matches[i];
         const startPos = match.index || 0;
         const nextMatch = matches[i + 1];
-        const endPos = nextMatch ? (nextMatch.index || content.length) : content.length;
-        const sectionContent = content.substring(startPos, endPos);
+        const endPos = nextMatch ? (nextMatch.index || cleanedContent.length) : cleanedContent.length;
+        const sectionContent = cleanedContent.substring(startPos, endPos);
         const index = parseInt(match[1] || '1');
 
         sections.push({ index, content: sectionContent });
@@ -144,7 +165,7 @@ const parseTextCharacters = (content: string, maxCharacters: number = 5): ParseR
 
   // パターンマッチが見つからない場合、改行で分割して試行
   if (sections.length === 0) {
-    const lines = content.split('\n');
+    const lines = cleanedContent.split('\n');
     let currentSection: string[] = [];
     let currentIndex = 1;
 

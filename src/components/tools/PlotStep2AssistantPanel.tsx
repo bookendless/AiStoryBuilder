@@ -3,6 +3,7 @@ import { Sparkles, AlertCircle, Loader2, CheckCircle, FileText } from 'lucide-re
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
@@ -11,14 +12,20 @@ import type { PlotStructureType, PlotFormData, ConsistencyCheck } from '../steps
 import { PLOT_STRUCTURE_CONFIGS, AI_LOG_TYPE_LABELS } from '../steps/plot2/constants';
 import { getProjectContext, getStructureFields, formatCharactersInfo } from '../steps/plot2/utils';
 import { exportFile } from '../../utils/mobileExportUtils';
+import { Modal } from '../common/Modal';
 
 export const PlotStep2AssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
-    const { showError, showSuccess } = useToast();
+    const { showSuccess, showError } = useToast();
+    const { handleAPIError } = useErrorHandler();
     const [isGenerating, setIsGenerating] = useState<string | null>(null);
-    const { aiLogs, addLog } = useAILog();
+    const { aiLogs, addLog } = useAILog({
+        projectId: currentProject?.id,
+        autoLoad: true,
+    });
     const [consistencyCheck, setConsistencyCheck] = useState<ConsistencyCheck | null>(null);
+    const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
     const structureAbortControllerRef = useRef<AbortController | null>(null);
     const consistencyAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -99,9 +106,14 @@ export const PlotStep2AssistantPanel: React.FC = () => {
         if (isGenerating) return;
 
         if (!isConfigured) {
-            showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
-                title: 'AI設定が必要',
-            });
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                'プロット構成生成',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
             return;
         }
 
@@ -119,9 +131,14 @@ export const PlotStep2AssistantPanel: React.FC = () => {
         try {
             const context = getProjectContext(currentProject);
             if (!context) {
-                showError('プロジェクト情報が見つかりません。', 5000, {
-                    title: 'プロジェクトエラー',
-                });
+                handleAPIError(
+                    new Error('プロジェクト情報が見つかりません'),
+                    'プロット構成生成',
+                    {
+                        title: 'プロジェクトエラー',
+                        duration: 5000,
+                    }
+                );
                 return;
             }
 
@@ -275,9 +292,16 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             });
 
             if (response.error) {
-                showError(`AI生成エラー: ${response.error}`, 7000, {
-                    title: 'AI生成エラー',
-                });
+                handleAPIError(
+                    new Error(response.error),
+                    'プロット構成生成',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleStructureAIGenerate(),
+                    }
+                );
                 return;
             }
 
@@ -378,14 +402,28 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                     showSuccess(`${PLOT_STRUCTURE_CONFIGS[plotStructure].label}の内容を生成しました`);
                 } catch (error) {
                     console.error('JSON解析エラー:', error);
-                    showError('AI出力の解析に失敗しました。', 7000, {
-                        title: '解析エラー',
-                    });
+                    handleAPIError(
+                        error,
+                        'プロット構成生成',
+                        {
+                            title: '解析エラー',
+                            duration: 7000,
+                            showDetails: true,
+                            onRetry: () => handleStructureAIGenerate(),
+                        }
+                    );
                 }
             } else {
-                showError('AI出力の形式が正しくありません。', 7000, {
-                    title: '形式エラー',
-                });
+                handleAPIError(
+                    new Error('AI出力の形式が正しくありません'),
+                    'プロット構成生成',
+                    {
+                        title: '形式エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleStructureAIGenerate(),
+                    }
+                );
             }
         } catch (error) {
             // キャンセルされた場合はエラーを表示しない
@@ -393,9 +431,16 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 return;
             }
             console.error('AI生成エラー:', error);
-            showError('AI生成中にエラーが発生しました。', 7000, {
-                title: 'AI生成エラー',
-            });
+            handleAPIError(
+                error,
+                'プロット構成生成',
+                {
+                    title: 'AI生成中にエラーが発生しました',
+                    duration: 7000,
+                    showDetails: true,
+                    onRetry: () => handleStructureAIGenerate(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGenerating(null);
@@ -409,9 +454,14 @@ export const PlotStep2AssistantPanel: React.FC = () => {
         if (isGenerating) return;
 
         if (!isConfigured) {
-            showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
-                title: 'AI設定が必要',
-            });
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                '一貫性チェック',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
             return;
         }
 
@@ -429,9 +479,14 @@ export const PlotStep2AssistantPanel: React.FC = () => {
         try {
             const context = getProjectContext(currentProject);
             if (!context) {
-                showError('プロジェクト情報が見つかりません。', 5000, {
-                    title: 'プロジェクトエラー',
-                });
+                handleAPIError(
+                    new Error('プロジェクト情報が見つかりません'),
+                    '一貫性チェック',
+                    {
+                        title: 'プロジェクトエラー',
+                        duration: 5000,
+                    }
+                );
                 return;
             }
 
@@ -469,9 +524,16 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             });
 
             if (response.error) {
-                showError(`AI生成エラー: ${response.error}`, 7000, {
-                    title: 'AI生成エラー',
-                });
+                handleAPIError(
+                    new Error(response.error),
+                    'プロット構成生成',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleStructureAIGenerate(),
+                    }
+                );
                 return;
             }
 
@@ -495,10 +557,15 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                     const issues = Array.isArray(parsed.issues)
                         ? parsed.issues.filter((issue: unknown) => typeof issue === 'string')
                         : [];
+                    const suggestions = Array.isArray(parsed.suggestions)
+                        ? parsed.suggestions.filter((suggestion: unknown) => typeof suggestion === 'string')
+                        : [];
                     setConsistencyCheck({
                         hasIssues: typeof parsed.hasIssues === 'boolean' ? parsed.hasIssues : false,
                         issues: issues,
+                        suggestions: suggestions,
                     });
+                    setIsConsistencyModalOpen(true);
                     showSuccess('一貫性チェックが完了しました');
                 } catch (error) {
                     console.error('JSON解析エラー:', error);
@@ -513,16 +580,359 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 return;
             }
             console.error('一貫性チェックエラー:', error);
-            showError('一貫性チェック中にエラーが発生しました。', 7000, {
-                title: '一貫性チェックエラー',
-            });
+            handleAPIError(
+                error,
+                '一貫性チェック',
+                {
+                    title: '一貫性チェック中にエラーが発生しました',
+                    duration: 7000,
+                    showDetails: true,
+                    onRetry: () => checkConsistency(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGenerating(null);
             }
             consistencyAbortControllerRef.current = null;
         }
-    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, showError, showSuccess, isGenerating]);
+    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, handleAPIError, showSuccess, isGenerating]);
+
+    // 一貫性チェックから自動修正を適用
+    const handleApplyConsistency = useCallback(async () => {
+        if (!consistencyCheck || !consistencyCheck.hasIssues || !consistencyCheck.suggestions.length) return;
+
+        if (isGenerating) return;
+
+        if (!isConfigured) {
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                'プロット自動修正',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
+            return;
+        }
+
+        if (consistencyAbortControllerRef.current) {
+            consistencyAbortControllerRef.current.abort();
+        }
+
+        const abortController = new AbortController();
+        consistencyAbortControllerRef.current = abortController;
+
+        setIsGenerating('applyConsistency');
+
+        try {
+            const context = getProjectContext(currentProject);
+            if (!context) {
+                handleAPIError(
+                    new Error('プロジェクト情報が見つかりません'),
+                    'プロット自動修正',
+                    {
+                        title: 'プロジェクトエラー',
+                        duration: 5000,
+                    }
+                );
+                return;
+            }
+
+            const structureFields = getStructureFields(plotStructure, formData);
+            const structureText = structureFields.map(f => `${f.label}: ${f.value}`).join('\n\n');
+            const suggestionsText = consistencyCheck.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n');
+
+            let structureType = '';
+            let structureDescription = '';
+            let outputFormat = '';
+
+            if (plotStructure === 'kishotenketsu') {
+                structureType = '起承転結';
+                structureDescription = `起承転結の構成について：
+- 起：物語の始まり、登場人物の紹介、日常の描写、事件の発端
+- 承：事件の発展、状況の変化、新たな登場人物、問題の詳細化
+- 転：大きな転換点、予想外の展開、クライマックス、物語の核心
+- 結：問題の解決、物語の終結、キャラクターの成長、新たな始まり`;
+                outputFormat = `{
+  "起（導入）": "修正後の内容を記述",
+  "承（展開）": "修正後の内容を記述",
+  "転（転換）": "修正後の内容を記述",
+  "結（結末）": "修正後の内容を記述"
+}`;
+            } else if (plotStructure === 'three-act') {
+                structureType = '三幕構成';
+                structureDescription = `三幕構成について：
+- 第1幕：導入、設定、事件の発端、登場人物の紹介、世界観の設定
+- 第2幕：展開、対立の激化、主人公の試練、クライマックスへの準備、物語の核心部分
+- 第3幕：クライマックス、問題の解決、物語の結末、キャラクターの成長、最終的な解決`;
+                outputFormat = `{
+  "第1幕（導入）": "修正後の内容を記述",
+  "第2幕（展開）": "修正後の内容を記述",
+  "第3幕（結末）": "修正後の内容を記述"
+}`;
+            } else if (plotStructure === 'four-act') {
+                structureType = '四幕構成';
+                structureDescription = `四幕構成（ダン・ハーモンの秩序と混沌の対比）について：
+- 第1幕（秩序）：日常の確立、キャラクター紹介、世界観の設定、平穏な状態
+- 第2幕（混沌）：問題の発生、状況の悪化、困難の増大、秩序の崩壊
+- 第3幕（秩序）：解決への取り組み、希望の光、状況の改善、秩序の回復への努力
+- 第4幕（混沌）：最終的な試練、真の解決、物語の結末、新しい秩序の確立`;
+                outputFormat = `{
+  "第1幕（秩序）": "修正後の内容を記述",
+  "第2幕（混沌）": "修正後の内容を記述",
+  "第3幕（秩序）": "修正後の内容を記述",
+  "第4幕（混沌）": "修正後の内容を記述"
+}`;
+            } else if (plotStructure === 'heroes-journey') {
+                structureType = 'ヒーローズ・ジャーニー';
+                structureDescription = `ヒーローズ・ジャーニー（神話の法則）について：
+- 日常の世界：主人公の現状、平穏な日常
+- 冒険への誘い：事件の始まり、冒険への呼びかけ
+- 境界越え：非日常への旅立ち、新しい世界への入り口
+- 試練と仲間：最初の試練、仲間との出会い、敵との遭遇
+- 最大の試練：物語の底、敗北や死の危険、絶望の瞬間
+- 報酬：剣（力）の獲得、勝利の報酬、重要な発見
+- 帰路：追跡される帰路、最後の試練、脱出
+- 復活と帰還：成長した主人公の帰還、新しい日常、変化の完成`;
+                outputFormat = `{
+  "日常の世界": "修正後の内容を記述",
+  "冒険への誘い": "修正後の内容を記述",
+  "境界越え": "修正後の内容を記述",
+  "試練と仲間": "修正後の内容を記述",
+  "最大の試練": "修正後の内容を記述",
+  "報酬": "修正後の内容を記述",
+  "帰路": "修正後の内容を記述",
+  "復活と帰還": "修正後の内容を記述"
+}`;
+            } else if (plotStructure === 'beat-sheet') {
+                structureType = 'ビートシート';
+                structureDescription = `ビートシート（Save the Cat! 風）について：
+- 導入 (Setup)：日常、テーマの提示、きっかけ（事件発生）
+- 決断 (Break into Two)：葛藤の末の決断、新しい世界への旅立ち
+- 試練 (Fun and Games)：新しい世界での試行錯誤、サブプロットの展開
+- 転換点 (Midpoint)：物語の中間点、状況の一変（偽の勝利または敗北）
+- 危機 (All Is Lost)：迫り来る敵、絶望、魂の暗夜
+- クライマックス (Finale)：再起、解決への最後の戦い
+- 結末 (Final Image)：変化した世界、新たな日常`;
+                outputFormat = `{
+  "導入 (Setup)": "修正後の内容を記述",
+  "決断 (Break into Two)": "修正後の内容を記述",
+  "試練 (Fun and Games)": "修正後の内容を記述",
+  "転換点 (Midpoint)": "修正後の内容を記述",
+  "危機 (All Is Lost)": "修正後の内容を記述",
+  "クライマックス (Finale)": "修正後の内容を記述",
+  "結末 (Final Image)": "修正後の内容を記述"
+}`;
+            } else if (plotStructure === 'mystery-suspense') {
+                structureType = 'ミステリー・サスペンス構成';
+                structureDescription = `ミステリー・サスペンス構成について：
+- 発端（事件発生）：不可解な事件の提示、謎の始まり
+- 捜査（初期）：状況確認、関係者への聴取、初期の手がかり
+- 仮説とミスリード：誤った推理、ミスリード、謎が深まる
+- 第二の事件/急展開：捜査の行き詰まり、新たな事件、急展開
+- 手がかりの統合：手がかりの統合、真相への気づき、重要な発見
+- 解決（真相解明）：犯人の指摘、トリックの暴き、真相の解明
+- エピローグ：事件後の余韻、影響、物語の結末`;
+                outputFormat = `{
+  "発端（事件発生）": "修正後の内容を記述",
+  "捜査（初期）": "修正後の内容を記述",
+  "仮説とミスリード": "修正後の内容を記述",
+  "第二の事件/急展開": "修正後の内容を記述",
+  "手がかりの統合": "修正後の内容を記述",
+  "解決（真相解明）": "修正後の内容を記述",
+  "エピローグ": "修正後の内容を記述"
+}`;
+            }
+
+            const prompt = aiService.buildPrompt('plot', 'applyConsistency', {
+                title: context.title,
+                mainGenre: context.mainGenre || context.genre,
+                projectTheme: context.projectTheme,
+                plotTheme: currentProject?.plot?.theme || '未設定',
+                plotSetting: currentProject?.plot?.setting || '未設定',
+                protagonistGoal: currentProject?.plot?.protagonistGoal || '未設定',
+                mainObstacle: currentProject?.plot?.mainObstacle || '未設定',
+                structureText: structureText,
+                suggestionsText: suggestionsText,
+                structureDescription: structureDescription,
+                outputFormat: outputFormat,
+            });
+
+            const response = await aiService.generateContent({
+                prompt,
+                type: 'plot',
+                settings,
+                signal: abortController.signal,
+            });
+
+            if (abortController.signal.aborted) {
+                return;
+            }
+
+            // applyConsistency logging is recorded with empty type in AILogTypeLabels, but type is preserved
+            addLog({
+                type: 'applyConsistency',
+                prompt,
+                response: response.content || '',
+                error: response.error,
+                structureType: structureType,
+            });
+
+            if (response.error) {
+                handleAPIError(
+                    new Error(response.error),
+                    'プロット自動修正',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleApplyConsistency(),
+                    }
+                );
+                return;
+            }
+
+            const content = response.content;
+            let normalizedContent = content.trim();
+            if (normalizedContent.startsWith('{{') && normalizedContent.endsWith('}}')) {
+                normalizedContent = normalizedContent.slice(1, -1);
+            }
+
+            const jsonMatch = normalizedContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    let jsonString = jsonMatch[0];
+                    if (jsonString.startsWith('{{')) {
+                        jsonString = jsonString.slice(1);
+                    }
+                    if (jsonString.endsWith('}}')) {
+                        jsonString = jsonString.slice(0, -1);
+                    }
+                    const parsed = JSON.parse(jsonString);
+
+                    const getStringValue = (key: string, defaultValue: string): string => {
+                        const value = parsed[key];
+                        return typeof value === 'string' ? value : defaultValue;
+                    };
+
+                    let plotUpdates: Record<string, string> = {};
+
+                    if (plotStructure === 'kishotenketsu') {
+                        plotUpdates = {
+                            ki: getStringValue('起（導入）', formData.ki),
+                            sho: getStringValue('承（展開）', formData.sho),
+                            ten: getStringValue('転（転換）', formData.ten),
+                            ketsu: getStringValue('結（結末）', formData.ketsu),
+                        };
+                    } else if (plotStructure === 'three-act') {
+                        plotUpdates = {
+                            act1: getStringValue('第1幕（導入）', formData.act1),
+                            act2: getStringValue('第2幕（展開）', formData.act2),
+                            act3: getStringValue('第3幕（結末）', formData.act3),
+                        };
+                    } else if (plotStructure === 'four-act') {
+                        plotUpdates = {
+                            fourAct1: getStringValue('第1幕（秩序）', formData.fourAct1),
+                            fourAct2: getStringValue('第2幕（混沌）', formData.fourAct2),
+                            fourAct3: getStringValue('第3幕（秩序）', formData.fourAct3),
+                            fourAct4: getStringValue('第4幕（混沌）', formData.fourAct4),
+                        };
+                    } else if (plotStructure === 'heroes-journey') {
+                        plotUpdates = {
+                            hj1: getStringValue('日常の世界', formData.hj1),
+                            hj2: getStringValue('冒険への誘い', formData.hj2),
+                            hj3: getStringValue('境界越え', formData.hj3),
+                            hj4: getStringValue('試練と仲間', formData.hj4),
+                            hj5: getStringValue('最大の試練', formData.hj5),
+                            hj6: getStringValue('報酬', formData.hj6),
+                            hj7: getStringValue('帰路', formData.hj7),
+                            hj8: getStringValue('復活と帰還', formData.hj8),
+                        };
+                    } else if (plotStructure === 'beat-sheet') {
+                        plotUpdates = {
+                            bs1: getStringValue('導入 (Setup)', formData.bs1),
+                            bs2: getStringValue('決断 (Break into Two)', formData.bs2),
+                            bs3: getStringValue('試練 (Fun and Games)', formData.bs3),
+                            bs4: getStringValue('転換点 (Midpoint)', formData.bs4),
+                            bs5: getStringValue('危機 (All Is Lost)', formData.bs5),
+                            bs6: getStringValue('クライマックス (Finale)', formData.bs6),
+                            bs7: getStringValue('結末 (Final Image)', formData.bs7),
+                        };
+                    } else if (plotStructure === 'mystery-suspense') {
+                        plotUpdates = {
+                            ms1: getStringValue('発端（事件発生）', formData.ms1),
+                            ms2: getStringValue('捜査（初期）', formData.ms2),
+                            ms3: getStringValue('仮説とミスリード', formData.ms3),
+                            ms4: getStringValue('第二の事件/急展開', formData.ms4),
+                            ms5: getStringValue('手がかりの統合', formData.ms5),
+                            ms6: getStringValue('解決（真相解明）', formData.ms6),
+                            ms7: getStringValue('エピローグ', formData.ms7),
+                        };
+                    }
+
+                    const currentPlot = currentProject?.plot;
+                    await updateProject({
+                        plot: {
+                            theme: currentPlot?.theme || '',
+                            setting: currentPlot?.setting || '',
+                            hook: currentPlot?.hook || '',
+                            protagonistGoal: currentPlot?.protagonistGoal || '',
+                            mainObstacle: currentPlot?.mainObstacle || '',
+                            ...currentPlot,
+                            ...plotUpdates,
+                        }
+                    }, true);
+
+                    showSuccess('提案に従ってプロットを修正しました');
+                    setIsConsistencyModalOpen(false);
+                } catch (error) {
+                    console.error('JSON解析エラー:', error);
+                    handleAPIError(
+                        error,
+                        'プロット自動修正',
+                        {
+                            title: '解析エラー',
+                            duration: 7000,
+                            showDetails: true,
+                            onRetry: () => handleApplyConsistency(),
+                        }
+                    );
+                }
+            } else {
+                handleAPIError(
+                    new Error('AI出力の形式が正しくありません'),
+                    'プロット自動修正',
+                    {
+                        title: '形式エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleApplyConsistency(),
+                    }
+                );
+            }
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
+            console.error('自動修正エラー:', error);
+            handleAPIError(
+                error,
+                'プロット自動修正',
+                {
+                    title: '自動修正中にエラーが発生しました',
+                    duration: 7000,
+                    showDetails: true,
+                    onRetry: () => handleApplyConsistency(),
+                }
+            );
+        } finally {
+            if (!abortController.signal.aborted) {
+                setIsGenerating(null);
+            }
+            consistencyAbortControllerRef.current = null;
+        }
+    }, [isConfigured, formData, plotStructure, currentProject, consistencyCheck, settings, addLog, updateProject, handleAPIError, showSuccess, isGenerating]);
 
     // 進捗状況を計算
     const progress = useMemo(() => {
@@ -559,9 +969,14 @@ ${log.error}` : ''}`;
             showSuccess('ログをクリップボードにコピーしました');
         } catch (error) {
             console.error('クリップボードへのコピーに失敗しました:', error);
-            showError('ログのコピーに失敗しました。', 5000, {
-                title: 'コピーエラー',
-            });
+            handleAPIError(
+                error,
+                'ログのコピー',
+                {
+                    title: 'コピーエラー',
+                    duration: 5000,
+                }
+            );
         }
     }, [showSuccess, showError]);
 
@@ -598,15 +1013,25 @@ ${'='.repeat(80)}`;
             if (result.success) {
                 showSuccess('ログをダウンロードしました');
             } else if (result.method === 'error') {
-                showError(result.error || 'ログのダウンロードに失敗しました。', 5000, {
-                    title: 'ダウンロードエラー',
-                });
+                handleAPIError(
+                    new Error(result.error || 'ログのダウンロードに失敗しました'),
+                    'ログのダウンロード',
+                    {
+                        title: 'ダウンロードエラー',
+                        duration: 5000,
+                    }
+                );
             }
         } catch (error) {
             console.error('ログのダウンロードに失敗しました:', error);
-            showError('ログのダウンロードに失敗しました。', 5000, {
-                title: 'ダウンロードエラー',
-            });
+            handleAPIError(
+                error,
+                'ログのダウンロード',
+                {
+                    title: 'ダウンロードエラー',
+                    duration: 5000,
+                }
+            );
         }
     }, [aiLogs, showSuccess, showError]);
 
@@ -699,13 +1124,13 @@ ${'='.repeat(80)}`;
                     </button>
                 </div>
 
-                {/* 一貫性チェック結果表示 */}
+                {/* 一貫性チェック結果（サマリー表示） */}
                 {consistencyCheck && (
-                    <div className={`mt-3 p-3 rounded-lg border text-sm font-['Noto_Sans_JP'] ${consistencyCheck.hasIssues
+                    <div className={`mt-3 p-3 rounded-lg border flex items-center justify-between text-sm font-['Noto_Sans_JP'] ${consistencyCheck.hasIssues
                         ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
                         : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                         }`}>
-                        <div className="flex items-center space-x-2 mb-2">
+                        <div className="flex items-center space-x-2">
                             <AlertCircle className={`h-4 w-4 ${consistencyCheck.hasIssues
                                 ? 'text-amber-600 dark:text-amber-400'
                                 : 'text-green-600 dark:text-green-400'
@@ -717,12 +1142,13 @@ ${'='.repeat(80)}`;
                                 {consistencyCheck.hasIssues ? '一貫性の問題が見つかりました' : '一貫性チェック完了：問題なし'}
                             </span>
                         </div>
-                        {consistencyCheck.hasIssues && consistencyCheck.issues.length > 0 && (
-                            <ul className="list-disc list-inside space-y-1 text-xs text-amber-700 dark:text-amber-300">
-                                {consistencyCheck.issues.map((issue, index) => (
-                                    <li key={index}>{issue}</li>
-                                ))}
-                            </ul>
+                        {consistencyCheck.hasIssues && (
+                            <button
+                                onClick={() => setIsConsistencyModalOpen(true)}
+                                className="px-3 py-1 bg-amber-100 hover:bg-amber-200 dark:bg-amber-800 dark:hover:bg-amber-700 text-amber-700 dark:text-amber-200 rounded text-xs font-semibold transition-colors focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            >
+                                詳細を確認
+                            </button>
                         )}
                     </div>
                 )}
@@ -783,11 +1209,90 @@ ${'='.repeat(80)}`;
                             supplement: '補完',
                             consistency: '一貫性チェック',
                             generateStructure: '構造生成',
+                            applyConsistency: 'プロット自動修正', // adding label here inside AILogPanel props
                         }}
                         maxHeight="max-h-96"
                     />
                 </div>
             </div>
+
+            {/* 一貫性チェック結果表示用モーダル */}
+            <Modal
+                isOpen={isConsistencyModalOpen}
+                onClose={() => setIsConsistencyModalOpen(false)}
+                title="プロットの一貫性チェック結果"
+                size="lg"
+            >
+                <div className="space-y-6 font-['Noto_Sans_JP']">
+                    {consistencyCheck && consistencyCheck.hasIssues ? (
+                        <>
+                            <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
+                                <h4 className="font-semibold text-amber-800 dark:text-amber-200 mb-3 flex items-center">
+                                    <AlertCircle className="w-5 h-5 mr-2" />
+                                    指摘された問題点
+                                </h4>
+                                <ul className="list-disc list-inside space-y-2 text-sm text-amber-700 dark:text-amber-300">
+                                    {consistencyCheck.issues.map((issue, index) => (
+                                        <li key={index} className="leading-relaxed">{issue}</li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {consistencyCheck.suggestions && consistencyCheck.suggestions.length > 0 && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                                    <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center">
+                                        <Sparkles className="w-5 h-5 mr-2" />
+                                        改善提案
+                                    </h4>
+                                    <ul className="list-disc list-inside space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                                        {consistencyCheck.suggestions.map((suggestion, index) => (
+                                            <li key={index} className="leading-relaxed">{suggestion}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end pt-4 space-x-3 border-t border-gray-200 dark:border-gray-700 mt-6">
+                                <button
+                                    onClick={() => setIsConsistencyModalOpen(false)}
+                                    className="px-4 py-2 text-sm justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                                >
+                                    閉じる
+                                </button>
+                                <button
+                                    onClick={handleApplyConsistency}
+                                    disabled={isGenerating === 'applyConsistency'}
+                                    className="px-4 py-2 text-sm justify-center rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold transition-all shadow shadow-blue-500/30 flex items-center disabled:opacity-50"
+                                >
+                                    {isGenerating === 'applyConsistency' ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            修正中...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            提案に従って修正を実施
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="py-8 text-center text-green-600 dark:text-green-400">
+                            <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-80" />
+                            <p className="font-semibold text-lg">一貫性チェック完了：問題なし</p>
+                            <p className="text-sm mt-2 opacity-80">現在の構成に大きな問題は見つかりませんでした。</p>
+                            <button
+                                onClick={() => setIsConsistencyModalOpen(false)}
+                                className="mt-6 px-6 py-2 bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:hover:bg-green-800 text-green-800 dark:text-green-200 rounded-lg transition-colors font-semibold"
+                            >
+                                閉じる
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 };

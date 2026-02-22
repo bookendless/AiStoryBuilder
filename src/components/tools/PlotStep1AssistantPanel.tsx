@@ -3,6 +3,7 @@ import { Sparkles, Loader, FileText, CheckCircle } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
@@ -26,9 +27,13 @@ const FIELD_MAX_LENGTHS = {
 export const PlotStep1AssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
-    const { showError, showSuccess, showWarning } = useToast();
+    const { showSuccess, showWarning } = useToast();
+    const { handleAPIError } = useErrorHandler();
     const [isGenerating, setIsGenerating] = useState(false);
-    const { aiLogs, addLog } = useAILog({ projectId: currentProject?.id });
+    const { aiLogs, addLog } = useAILog({
+        projectId: currentProject?.id,
+        autoLoad: true,
+    });
     const abortControllerRef = useRef<AbortController | null>(null);
 
     // 現在のプロット設定を取得
@@ -185,7 +190,14 @@ export const PlotStep1AssistantPanel: React.FC = () => {
             // プロジェクトの詳細情報を取得
             const context = getProjectContext();
             if (!context) {
-                showError('プロジェクト情報が見つかりません。', 5000);
+                handleAPIError(
+                    new Error('プロジェクト情報が見つかりません'),
+                    'プロット基本設定生成',
+                    {
+                        title: 'プロジェクト情報が見つかりません',
+                        duration: 5000,
+                    }
+                );
                 return;
             }
 
@@ -276,7 +288,16 @@ ${synopsisInfo}
             });
 
             if (response.error) {
-                showError(`AI生成エラー: ${response.error}`, 7000);
+                handleAPIError(
+                    new Error(response.error),
+                    'プロット基本設定生成',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleBasicAIGenerate(),
+                    }
+                );
                 return;
             }
 
@@ -387,7 +408,16 @@ ${synopsisInfo}
                     parsedData: parsedData,
                     extractedFields: { theme, setting, hook, protagonistGoal, mainObstacle, ending }
                 });
-                showError('基本設定の解析に失敗しました。AIがテンプレートを逸脱した出力をしています。もう一度お試しください。', 7000);
+                handleAPIError(
+                    new Error('基本設定の解析に失敗しました。AIがテンプレートを逸脱した出力をしています。'),
+                    'プロット基本設定生成',
+                    {
+                        title: '解析に失敗しました',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleBasicAIGenerate(),
+                    }
+                );
                 return;
             } else if (extractedCount < 6) {
                 console.warn(`基本設定の一部項目のみ解析成功: ${extractedCount}/6項目`, {
@@ -418,15 +448,23 @@ ${synopsisInfo}
                 return;
             }
             console.error('Basic AI生成エラー:', error);
-            const errorMessage = error instanceof Error ? error.message : '基本設定のAI生成中にエラーが発生しました';
-            showError(errorMessage, 5000);
+            handleAPIError(
+                error,
+                'プロット基本設定生成',
+                {
+                    title: '基本設定のAI生成中にエラーが発生しました',
+                    duration: 7000,
+                    showDetails: true,
+                    onRetry: () => handleBasicAIGenerate(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGenerating(false);
             }
             abortControllerRef.current = null;
         }
-    }, [isConfigured, getProjectContext, settings, showError, showSuccess, showWarning, addLog, formatContentToFit, plotData, updateProject, currentProject]);
+    }, [isConfigured, getProjectContext, settings, showSuccess, showWarning, addLog, formatContentToFit, plotData, updateProject, currentProject, handleAPIError]);
 
     // 基本設定完成度を計算
     const progress = useMemo(() => {
@@ -499,9 +537,16 @@ ${'='.repeat(80)}`;
         if (result.success) {
             showSuccess('ログをダウンロードしました');
         } else if (result.method === 'error') {
-            showError(result.error || 'ログのダウンロードに失敗しました');
+            handleAPIError(
+                new Error(result.error || 'ログのダウンロードに失敗しました'),
+                'ログのダウンロード',
+                {
+                    title: 'ログのダウンロードに失敗しました',
+                    duration: 5000,
+                }
+            );
         }
-    }, [aiLogs, showSuccess, showError]);
+    }, [aiLogs, showSuccess, handleAPIError]);
 
     if (!currentProject) return null;
 

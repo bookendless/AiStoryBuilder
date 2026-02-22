@@ -14,4 +14,5 @@ export interface Chapter {
     mood?: string; // 雰囲気・ムード
     keyEvents?: string[]; // 重要な出来事
     draft?: string; // 章単位の草案
+    foreshadowingRefs?: string[]; // 関連伏線IDのリスト
 }

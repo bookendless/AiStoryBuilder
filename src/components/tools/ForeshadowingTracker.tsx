@@ -26,7 +26,7 @@ import {
   BarChart3,
   ArrowRight
 } from 'lucide-react';
-import { useProject, Foreshadowing, ForeshadowingPoint } from '../../contexts/ProjectContext';
+import { useProject, Chapter, Foreshadowing, ForeshadowingPoint } from '../../contexts/ProjectContext';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { useToast } from '../Toast';
 import { Modal } from '../common/Modal';
@@ -339,6 +339,77 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
   if (!isOpen || !currentProject) return null;
 
+  // 伏線ポイントのタイプに応じたプレフィックスを返す
+  const getForeshadowingEventPrefix = (type: ForeshadowingPoint['type']): string => {
+    switch (type) {
+      case 'plant': return '【伏線：設置】';
+      case 'hint': return '【伏線：ヒント】';
+      case 'payoff': return '【伏線：回収】';
+    }
+  };
+
+  // 伏線のポイント情報を元に、対象チャプターの keyEvents と foreshadowingRefs を更新する
+  const syncForeshadowingToChapters = (
+    foreshadowingTitle: string,
+    foreshadowingId: string,
+    points: { chapterId: string; type: ForeshadowingPoint['type']; description: string }[],
+    existingChapters: Chapter[],
+    additionalChapterUpdates?: { chapterId: string; eventText: string }[]
+  ): Chapter[] => {
+    // 章ごとの更新内容をマッピング
+    const chapterUpdates = new Map<string, { events: string[]; refId: string }>();
+
+    // ポイントからイベントを生成
+    for (const point of points) {
+      const prefix = getForeshadowingEventPrefix(point.type);
+      const eventText = `${prefix}${foreshadowingTitle} - ${point.description}`;
+      const existing = chapterUpdates.get(point.chapterId);
+      if (existing) {
+        existing.events.push(eventText);
+      } else {
+        chapterUpdates.set(point.chapterId, { events: [eventText], refId: foreshadowingId });
+      }
+    }
+
+    // 追加のチャプター更新（回収予定章への計画イベントなど）
+    if (additionalChapterUpdates) {
+      for (const update of additionalChapterUpdates) {
+        const existing = chapterUpdates.get(update.chapterId);
+        if (existing) {
+          existing.events.push(update.eventText);
+        } else {
+          chapterUpdates.set(update.chapterId, { events: [update.eventText], refId: foreshadowingId });
+        }
+      }
+    }
+
+    // 章を更新
+    return existingChapters.map(chapter => {
+      const update = chapterUpdates.get(chapter.id);
+      if (!update) return chapter;
+
+      const currentKeyEvents = chapter.keyEvents || [];
+      const currentRefs = chapter.foreshadowingRefs || [];
+
+      // 重複チェック: 同じイベントテキストが既に存在しないか確認
+      const newEvents = update.events.filter(evt => !currentKeyEvents.includes(evt));
+      // foreshadowingRefs の重複チェック
+      const newRefs = currentRefs.includes(update.refId)
+        ? currentRefs
+        : [...currentRefs, update.refId];
+
+      if (newEvents.length === 0 && newRefs.length === currentRefs.length) {
+        return chapter;
+      }
+
+      return {
+        ...chapter,
+        keyEvents: [...currentKeyEvents, ...newEvents],
+        foreshadowingRefs: newRefs,
+      };
+    });
+  };
+
   // 伏線の追加
   const handleAddForeshadowing = () => {
     if (!formData.title || !formData.description) {
@@ -354,7 +425,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     const initialPoints: ForeshadowingPoint[] = [];
     if (plantChapterId) {
       initialPoints.push({
-        id: `${Date.now()}-plant`,
+        id: `${Date.now()} -plant`,
         chapterId: plantChapterId,
         type: 'plant',
         description: '伏線の設置',
@@ -379,8 +450,32 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       updatedAt: now,
     };
 
+    // 回収予定章への計画イベント
+    const additionalUpdates: { chapterId: string; eventText: string }[] = [];
+    if (newForeshadowing.plannedPayoffChapterId && newForeshadowing.plannedPayoffDescription) {
+      additionalUpdates.push({
+        chapterId: newForeshadowing.plannedPayoffChapterId,
+        eventText: `【伏線：回収予定】${newForeshadowing.title} - ${newForeshadowing.plannedPayoffDescription} `,
+      });
+    } else if (newForeshadowing.plannedPayoffChapterId) {
+      additionalUpdates.push({
+        chapterId: newForeshadowing.plannedPayoffChapterId,
+        eventText: `【伏線：回収予定】${newForeshadowing.title} - 回収予定`,
+      });
+    }
+
+    // 伏線のポイント情報をチャプターに同期
+    const updatedChapters = syncForeshadowingToChapters(
+      newForeshadowing.title,
+      newForeshadowing.id,
+      newForeshadowing.points.map(p => ({ chapterId: p.chapterId, type: p.type, description: p.description })),
+      chapters,
+      additionalUpdates
+    );
+
     updateProject({
       foreshadowings: [...foreshadowings, newForeshadowing],
+      chapters: updatedChapters,
     });
 
     resetForm();
@@ -432,7 +527,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         }
         // 新しい設置ポイントを追加
         updatedPoints.unshift({
-          id: `${Date.now()}-plant`,
+          id: `${Date.now()} -plant`,
           chapterId: plantChapterId,
           type: 'plant',
           description: existingPlantPoint?.description || '伏線の設置',
@@ -475,8 +570,40 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
   const handleConfirmDeleteForeshadowing = () => {
     if (!deletingForeshadowingId) return;
+
+    // 削除対象の伏線を取得
+    const deletingForeshadowing = foreshadowings.find(f => f.id === deletingForeshadowingId);
+
+    // チャプターから伏線関連のイベントとrefを削除
+    const updatedChapters = chapters.map(chapter => {
+      const currentKeyEvents = chapter.keyEvents || [];
+      const currentRefs = chapter.foreshadowingRefs || [];
+
+      // この伏線に関連するkeyEventsを除去（伏線タイトルを含むイベント）
+      const filteredEvents = deletingForeshadowing
+        ? currentKeyEvents.filter(evt => {
+          if (!evt.startsWith('【伏線：')) return true;
+          return !evt.includes(deletingForeshadowing.title);
+        })
+        : currentKeyEvents;
+
+      // foreshadowingRefsから削除
+      const filteredRefs = currentRefs.filter(ref => ref !== deletingForeshadowingId);
+
+      if (filteredEvents.length === currentKeyEvents.length && filteredRefs.length === currentRefs.length) {
+        return chapter;
+      }
+
+      return {
+        ...chapter,
+        keyEvents: filteredEvents,
+        foreshadowingRefs: filteredRefs,
+      };
+    });
+
     updateProject({
       foreshadowings: foreshadowings.filter(f => f.id !== deletingForeshadowingId),
+      chapters: updatedChapters,
     });
     setDeletingForeshadowingId(null);
   };
@@ -519,7 +646,16 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       return f;
     });
 
-    updateProject({ foreshadowings: updatedForeshadowings });
+    // 新しいポイントの情報をチャプターに同期
+    const targetForeshadowing = foreshadowings.find(f => f.id === foreshadowingId);
+    const syncedChapters = syncForeshadowingToChapters(
+      targetForeshadowing?.title || '',
+      foreshadowingId,
+      [{ chapterId: newPoint.chapterId, type: newPoint.type, description: newPoint.description }],
+      chapters
+    );
+
+    updateProject({ foreshadowings: updatedForeshadowings, chapters: syncedChapters });
 
     setPointFormData({
       chapterId: '',
@@ -537,6 +673,10 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
   const handleConfirmDeletePoint = () => {
     if (!deletingPointInfo) return;
+
+    // 削除対象のポイント情報を取得
+    const targetForeshadowing = foreshadowings.find(f => f.id === deletingPointInfo.foreshadowingId);
+    const deletingPoint = targetForeshadowing?.points.find(p => p.id === deletingPointInfo.pointId);
 
     const updatedForeshadowings = foreshadowings.map(f => {
       if (f.id === deletingPointInfo.foreshadowingId) {
@@ -560,7 +700,37 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       return f;
     });
 
-    updateProject({ foreshadowings: updatedForeshadowings });
+    // 削除されたポイントに対応するkeyEventをチャプターから除去
+    let updatedChapters = chapters;
+    if (deletingPoint && targetForeshadowing) {
+      const prefix = getForeshadowingEventPrefix(deletingPoint.type);
+      const eventText = `${prefix}${targetForeshadowing.title} - ${deletingPoint.description} `;
+
+      updatedChapters = chapters.map(chapter => {
+        if (chapter.id !== deletingPoint.chapterId) return chapter;
+
+        const currentKeyEvents = chapter.keyEvents || [];
+        const filteredEvents = currentKeyEvents.filter(evt => evt !== eventText);
+
+        if (filteredEvents.length === currentKeyEvents.length) return chapter;
+
+        // この伏線の他のポイントがこの章に残っているか確認
+        const remainingPointsInChapter = targetForeshadowing.points
+          .filter(p => p.id !== deletingPointInfo.pointId && p.chapterId === chapter.id);
+        const hasRemainingForeshadowingEvents = filteredEvents.some(evt => evt.startsWith('【伏線：') && evt.includes(targetForeshadowing.title));
+
+        return {
+          ...chapter,
+          keyEvents: filteredEvents,
+          // この章に関連するポイントもイベントも残っていなければrefも除去
+          foreshadowingRefs: (remainingPointsInChapter.length === 0 && !hasRemainingForeshadowingEvents)
+            ? (chapter.foreshadowingRefs || []).filter(ref => ref !== targetForeshadowing.id)
+            : chapter.foreshadowingRefs,
+        };
+      });
+    }
+
+    updateProject({ foreshadowings: updatedForeshadowings, chapters: updatedChapters });
     setDeletingPointInfo(null);
   };
 
@@ -672,23 +842,23 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
     };
 
     const structureInfo = currentProject.plot.structure === 'kishotenketsu'
-      ? `起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`
+      ? `起: ${currentProject.plot.ki || '未設定'} \n承: ${currentProject.plot.sho || '未設定'} \n転: ${currentProject.plot.ten || '未設定'} \n結: ${currentProject.plot.ketsu || '未設定'} `
       : currentProject.plot.structure === 'three-act'
-        ? `第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`
-        : `第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`;
+        ? `第1幕: ${currentProject.plot.act1 || '未設定'} \n第2幕: ${currentProject.plot.act2 || '未設定'} \n第3幕: ${currentProject.plot.act3 || '未設定'} `
+        : `第1幕: ${currentProject.plot.fourAct1 || '未設定'} \n第2幕: ${currentProject.plot.fourAct2 || '未設定'} \n第3幕: ${currentProject.plot.fourAct3 || '未設定'} \n第4幕: ${currentProject.plot.fourAct4 || '未設定'} `;
 
     const charactersInfo = characters.map(c =>
-      `- ${c.name}（${c.role}）: ${c.personality || '性格未設定'}`
+      `- ${c.name}（${c.role}）: ${c.personality || '性格未設定'} `
     ).join('\n') || '未設定';
 
     const chaptersInfo = chapters.map((c, idx) =>
-      `第${idx + 1}章: ${c.title}${c.summary ? ` - ${c.summary}` : ''}`
+      `第${idx + 1} 章: ${c.title}${c.summary ? ` - ${c.summary}` : ''} `
     ).join('\n') || '未設定';
 
     const existingForeshadowingsInfo = foreshadowings.map(f => {
       const categoryInfo = categoryConfig[f.category] || categoryConfig.other;
       const statusInfo = statusConfig[f.status] || statusConfig.planted;
-      return `- ${f.title}（${categoryInfo.label}）[${statusInfo.label}]: ${f.description}`;
+      return `- ${f.title}（${categoryInfo.label}）[${statusInfo.label}]: ${f.description} `;
     }).join('\n') || 'なし';
 
     return {
@@ -881,7 +1051,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       const projectInfo = buildProjectInfo();
       const relatedChars = foreshadowing.relatedCharacterIds?.map(id => {
         const char = characters.find(c => c.id === id);
-        return char ? `${char.name}（${char.role}）: ${char.personality || '性格未設定'}` : '';
+        return char ? `${char.name}（${char.role}）: ${char.personality || '性格未設定'} ` : '';
       }).filter(Boolean).join('\n') || 'なし';
       const currentPoints = foreshadowing.points.map(p =>
         `${pointTypeConfig[p.type].label}: ${p.description} (${getChapterTitle(p.chapterId)})`
@@ -956,7 +1126,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
 
     // 設置ポイントを自動作成
     const initialPoints: ForeshadowingPoint[] = plantChapterId ? [{
-      id: `${Date.now()}-plant`,
+      id: `${Date.now()} -plant`,
       chapterId: plantChapterId,
       type: 'plant',
       description: suggestion.plantDescription,
@@ -975,13 +1145,32 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       plannedPayoffChapterId: payoffChapterId,
       plannedPayoffDescription: suggestion.payoffDescription,
       tags: [],
-      notes: `AI提案から作成\n設置推奨: ${suggestion.plantChapter} - ${suggestion.plantDescription}\n期待効果: ${suggestion.effect}`,
+      notes: `AI提案から作成\n設置推奨: ${suggestion.plantChapter} - ${suggestion.plantDescription} \n期待効果: ${suggestion.effect} `,
       createdAt: now,
       updatedAt: now,
     };
 
+    // AI提案の伏線ポイントをチャプターに同期
+    const additionalUpdates: { chapterId: string; eventText: string }[] = [];
+    // 回収予定章にも計画イベントを追加
+    if (payoffChapterId && suggestion.payoffDescription) {
+      additionalUpdates.push({
+        chapterId: payoffChapterId,
+        eventText: `【伏線：回収予定】${suggestion.title} - ${suggestion.payoffDescription} `,
+      });
+    }
+
+    const updatedChapters = syncForeshadowingToChapters(
+      newForeshadowing.title,
+      newForeshadowing.id,
+      newForeshadowing.points.map(p => ({ chapterId: p.chapterId, type: p.type, description: p.description })),
+      chapters,
+      additionalUpdates
+    );
+
     updateProject({
       foreshadowings: [...foreshadowings, newForeshadowing],
+      chapters: updatedChapters,
     });
 
     // 提案リストから削除
@@ -1020,7 +1209,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'list'
                   ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                  } `}
               >
                 <List className="h-4 w-4" />
                 <span>リスト</span>
@@ -1030,7 +1219,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'timeline'
                   ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                  } `}
               >
                 <Calendar className="h-4 w-4" />
                 <span>タイムライン</span>
@@ -1040,7 +1229,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                 className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors font-['Noto_Sans_JP'] ${currentView === 'stats'
                   ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                  } `}
               >
                 <BarChart3 className="h-4 w-4" />
                 <span>統計</span>
@@ -1064,7 +1253,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                       className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${selectedStatus === 'all'
                         ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                        }`}
+                        } `}
                     >
                       全て ({statusCounts.all || 0})
                     </button>
@@ -1075,7 +1264,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                         className={`px-3 py-1.5 text-sm rounded-md transition-colors font-['Noto_Sans_JP'] ${selectedStatus === key
                           ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                           : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                          }`}
+                          } `}
                       >
                         {config.label} ({statusCounts[key] || 0})
                       </button>
@@ -1180,12 +1369,12 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] break-words">
                                     {foreshadowing.title}
                                   </h3>
-                                  <span className={`text-sm flex-shrink-0 ${importanceInfo.color}`}>
+                                  <span className={`text - sm flex - shrink - 0 ${importanceInfo.color} `}>
                                     {importanceInfo.stars}
                                   </span>
                                 </div>
                                 <div className="flex items-center space-x-2 mb-2">
-                                  <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryInfo.color}`}>
+                                  <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryInfo.color} `}>
                                     {categoryInfo.label}
                                   </span>
                                   <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -1207,7 +1396,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                           className="flex items-center"
                                         >
                                           <span
-                                            className={`flex items-center space-x-1 ${pointTypeInfo.color}`}
+                                            className={`flex items-center space-x-1 ${pointTypeInfo.color} `}
                                           >
                                             <span>{pointTypeInfo.icon}</span>
                                             <span className="font-['Noto_Sans_JP']">
@@ -1318,7 +1507,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                           <span className="text-lg">{pointTypeInfo.icon}</span>
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center space-x-2 mb-1">
-                                              <span className={`text-sm font-medium ${pointTypeInfo.color}`}>
+                                              <span className={`text - sm font - medium ${pointTypeInfo.color} `}>
                                                 {pointTypeInfo.label}
                                               </span>
                                               <span className="text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -1556,9 +1745,9 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                           <div className={`flex items-center space-x-4 p-3 rounded-lg ${hasContent
                             ? 'bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 border border-rose-200 dark:border-rose-800'
                             : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-                            }`}>
+                            } `}>
                             <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${hasContent ? 'bg-rose-500 text-white' : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
-                              }`}>
+                              } `}>
                               <span className="font-bold text-sm">{idx + 1}</span>
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1596,7 +1785,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                               <span className={`px-2 py-1 text-xs rounded-full ${chapterData.points.length > 5 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
                                 chapterData.points.length > 2 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
                                   'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                                }`}>
+                                } `}>
                                 密度: {chapterData.points.length}
                               </span>
                             </div>
@@ -1620,7 +1809,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                         <span className="font-medium text-blue-700 dark:text-blue-300 text-sm font-['Noto_Sans_JP']">
                                           {foreshadowing.title}
                                         </span>
-                                        <span className={`text-xs ${importanceInfo.color}`}>
+                                        <span className={`text - xs ${importanceInfo.color} `}>
                                           {importanceInfo.stars}
                                         </span>
                                       </div>
@@ -1679,7 +1868,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                               {/* 回収予定 */}
                               {chapterData.plannedPayoffs.map(f => (
                                 <div
-                                  key={`planned-${f.id}`}
+                                  key={`planned - ${f.id} `}
                                   className="flex items-start space-x-3 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border-l-4 border-dashed border-amber-400"
                                 >
                                   <span className="text-lg opacity-50">🎯</span>
@@ -1742,7 +1931,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                         <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded ${point.type === 'plant' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
                                           point.type === 'hint' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
                                             'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                          }`}>
+                                          } `}>
                                           {pointTypeInfo.icon} {chapters.findIndex(c => c.id === point.chapterId) + 1}章
                                         </span>
                                         {idx < flow.points.length - 1 && (
@@ -1817,12 +2006,12 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                     { key: 'abandoned', label: '破棄', count: statsData.abandoned, color: 'bg-gray-500' },
                   ].map(item => (
                     <div key={item.key} className="flex items-center space-x-3">
-                      <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                      <div className={`w-3 h-3 rounded-full ${item.color} `} />
                       <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] w-24">{item.label}</span>
                       <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
                         <div
                           className={`h-full ${item.color} transition-all duration-500`}
-                          style={{ width: statsData.total > 0 ? `${(item.count / statsData.total) * 100}%` : '0%' }}
+                          style={{ width: statsData.total > 0 ? `${(item.count / statsData.total) * 100}% ` : '0%' }}
                         />
                       </div>
                       <span className="text-sm font-medium text-gray-900 dark:text-white w-12 text-right">
@@ -1901,8 +2090,8 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                             <div
                               className={`h-full transition-all duration-500 ${chapter.density > 5 ? 'bg-red-500' :
                                 chapter.density > 2 ? 'bg-amber-500' : 'bg-rose-500'
-                                }`}
-                              style={{ width: `${(chapter.density / maxDensity) * 100}%` }}
+                                } `}
+                              style={{ width: `${(chapter.density / maxDensity) * 100}% ` }}
                             />
                           </div>
                           <span className="text-xs font-medium text-gray-700 dark:text-gray-300 w-6 text-right">
@@ -2189,7 +2378,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
             <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl">
               <div className={`text-5xl font-bold ${consistencyResult.overallScore >= 80 ? 'text-green-600' :
                 consistencyResult.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'
-                }`}>
+                } `}>
                 {consistencyResult.overallScore}
               </div>
               <p className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">整合性スコア</p>
@@ -2236,7 +2425,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                         </span>
                         <span className={`px-2 py-0.5 text-xs rounded-full ${issue.severity === 'high' ? 'bg-red-100 text-red-700' :
                           issue.severity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'
-                          }`}>
+                          } `}>
                           {issue.severity === 'high' ? '高' : issue.severity === 'medium' ? '中' : '低'}
                         </span>
                       </div>
@@ -2593,7 +2782,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                   className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'suggest'
                     ? 'bg-indigo-600 text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                    } `}
                 >
                   <Lightbulb className="h-5 w-5 mx-auto mb-1" />
                   <div className="text-sm font-medium">伏線提案</div>
@@ -2608,7 +2797,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                   className={`px-4 py-3 rounded-lg transition-colors font-['Noto_Sans_JP'] ${aiMode === 'check'
                     ? 'bg-indigo-600 text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                    } `}
                 >
                   <Shield className="h-5 w-5 mx-auto mb-1" />
                   <div className="text-sm font-medium">整合性チェック</div>
@@ -2661,10 +2850,10 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
                                   <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                                     {suggestion.title}
                                   </span>
-                                  <span className={`px-2 py-0.5 text-xs text-white rounded-full ${categoryConfig[suggestion.category]?.color || 'bg-gray-500'}`}>
+                                  <span className={`px - 2 py - 0.5 text - xs text - white rounded - full ${categoryConfig[suggestion.category]?.color || 'bg-gray-500'} `}>
                                     {categoryConfig[suggestion.category]?.label || suggestion.category}
                                   </span>
-                                  <span className={`text-xs ${importanceConfig[suggestion.importance]?.color || 'text-gray-500'}`}>
+                                  <span className={`text - xs ${importanceConfig[suggestion.importance]?.color || 'text-gray-500'} `}>
                                     {importanceConfig[suggestion.importance]?.stars || ''}
                                   </span>
                                 </div>

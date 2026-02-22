@@ -1398,7 +1398,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 overflow-y-auto">
+    <div className="space-y-8 overflow-y-auto">
       <StepNavigation
         currentStep="export"
         onPrevious={() => onNavigateToStep?.('review')}

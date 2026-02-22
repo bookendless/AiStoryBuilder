@@ -271,173 +271,153 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
 
-              {/* データ管理（ホーム画面の時だけ常時表示） */}
-              {currentStep === 'home' && (
-                <button
-                  onClick={() => setShowDataManager(true)}
-                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-mizu-100 dark:bg-mizu-900/30 hover:bg-mizu-200 dark:hover:bg-mizu-900/50 text-mizu-700 dark:text-mizu-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-mizu-500 focus:ring-offset-2"
-                  aria-label="データ管理を開く"
-                  title="データ管理"
-                >
-                  <div className="relative">
-                    <Database className="h-4 w-4 sm:h-5 sm:w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
-                  </div>
+              {/* AI設定（常時表示、ホーム以外はアイコンのみ） */}
+              <button
+                onClick={() => setShowAISettings(true)}
+                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                aria-label="AI設定を開く"
+                title="AI設定"
+              >
+                <div className="relative">
+                  <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                  {!isConfigured && (
+                    <span
+                      className="absolute -top-1 -right-1 w-2 h-2 bg-sakura-500 rounded-full"
+                      aria-label="設定が必要"
+                    />
+                  )}
+                </div>
+                {/* テキストはホーム画面かつデスクトップのみ表示 */}
+                {currentStep === 'home' && (
+                  <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
+                    AI設定
+                  </span>
+                )}
+              </button>
+
+              {/* データ管理（常時表示、ホーム以外はアイコンのみ） */}
+              <button
+                onClick={() => setShowDataManager(true)}
+                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-mizu-100 dark:bg-mizu-900/30 hover:bg-mizu-200 dark:hover:bg-mizu-900/50 text-mizu-700 dark:text-mizu-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-mizu-500 focus:ring-offset-2"
+                aria-label="データ管理を開く"
+                title="データ管理"
+              >
+                <div className="relative">
+                  <Database className="h-4 w-4 sm:h-5 sm:w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
+                </div>
+                {/* テキストはホーム画面かつデスクトップのみ表示 */}
+                {currentStep === 'home' && (
                   <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
                     データ管理
+                  </span>
+                )}
+              </button>
+
+              {/* ヘルプ（ホーム画面かつデスクトップのみ表示） */}
+              {currentStep === 'home' && (
+                <button
+                  onClick={() => setShowContextHelp(true)}
+                  className="hidden lg:flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                  aria-label="ヘルプを表示"
+                  title="ヘルプ"
+                >
+                  <HelpCircle className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                  <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
+                    ヘルプ
                   </span>
                 </button>
               )}
 
-              {/* ヘルプ（デスクトップのみ表示、モバイルは三点リーダー内） */}
-              <button
-                onClick={() => setShowContextHelp(true)}
-                className="hidden lg:flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
-                aria-label="ヘルプを表示"
-                title="ヘルプ"
-              >
-                <HelpCircle className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
-                <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
-                  ヘルプ
-                </span>
-              </button>
-
-              {/* AI設定（ホーム画面の時だけ常時表示） */}
-              {currentStep === 'home' && (
+              {/* ガイド（ホーム画面かつデスクトップのみ表示） */}
+              {currentStep === 'home' && onShowOnboarding && (
                 <button
-                  onClick={() => setShowAISettings(true)}
-                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
-                  aria-label="AI設定を開く"
-                  title="AI設定"
+                  onClick={() => onShowOnboarding('quick')}
+                  className="hidden lg:flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                  aria-label="ガイドを表示"
+                  title="ガイド"
                 >
-                  <div className="relative">
-                    <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
-                    {!isConfigured && (
-                      <span
-                        className="absolute -top-1 -right-1 w-2 h-2 bg-sakura-500 rounded-full"
-                        aria-label="設定が必要"
-                      />
-                    )}
-                  </div>
+                  <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400" aria-hidden="true" />
                   <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
-                    AI設定
+                    ガイド
                   </span>
                 </button>
               )}
 
               {/* 三点リーダーメニュー */}
-              <div className="relative" ref={moreMenuRef}>
-                <button
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="p-2 rounded-lg bg-usuzumi-100 dark:bg-usuzumi-800 hover:bg-usuzumi-200 dark:hover:bg-usuzumi-700 text-sumi-700 dark:text-usuzumi-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
-                  aria-label="その他のメニュー"
-                  aria-expanded={showMoreMenu}
-                  aria-haspopup="true"
-                >
-                  <MoreVertical className="h-5 w-5" aria-hidden="true" />
-                </button>
+              {(currentStep !== 'home' || breakpoint !== 'desktop') && (
+                <div className="relative" ref={moreMenuRef}>
+                  <button
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                    className="p-2 rounded-lg bg-usuzumi-100 dark:bg-usuzumi-800 hover:bg-usuzumi-200 dark:hover:bg-usuzumi-700 text-sumi-700 dark:text-usuzumi-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                    aria-label="その他のメニュー"
+                    aria-expanded={showMoreMenu}
+                    aria-haspopup="true"
+                  >
+                    <MoreVertical className="h-5 w-5" aria-hidden="true" />
+                  </button>
 
-                {/* ドロップダウンメニュー */}
-                {showMoreMenu && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-unohana-50 dark:bg-sumi-800 rounded-lg shadow-xl border border-usuzumi-200 dark:border-usuzumi-700 py-2 z-50">
-                    {/* AI設定（ホーム画面以外の時だけ表示） */}
-                    {currentStep !== 'home' && (
-                      <button
-                        onClick={() => {
-                          setShowAISettings(true);
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
-                        aria-label="AI設定を開く"
-                      >
-                        <div className="relative">
-                          <Settings className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
-                          {!isConfigured && (
-                            <span
-                              className="absolute -top-1 -right-1 w-2 h-2 bg-sakura-500 rounded-full"
-                              aria-label="設定が必要"
-                            />
+                  {/* ドロップダウンメニュー */}
+                  {showMoreMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-unohana-50 dark:bg-sumi-800 rounded-lg shadow-xl border border-usuzumi-200 dark:border-usuzumi-700 py-2 z-50">
+
+                      {/* ガイド（ホーム画面以外、またはモバイル） */}
+                      {(currentStep !== 'home' || breakpoint !== 'desktop') && onShowOnboarding && (
+                        <button
+                          onClick={() => {
+                            onShowOnboarding('quick');
+                            setShowMoreMenu(false);
+                          }}
+                          className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-inset"
+                          aria-label="ガイドを表示"
+                        >
+                          <GraduationCap className="h-5 w-5 text-purple-600 dark:text-purple-400" aria-hidden="true" />
+                          <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
+                            ガイド
+                          </span>
+                        </button>
+                      )}
+
+                      {/* ヘルプ（ホーム画面以外、またはモバイル） */}
+                      {(currentStep !== 'home' || breakpoint !== 'desktop') && (
+                        <button
+                          onClick={() => {
+                            setShowContextHelp(true);
+                            setShowMoreMenu(false);
+                          }}
+                          className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
+                          aria-label="ヘルプを表示"
+                        >
+                          <HelpCircle className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                          <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
+                            ヘルプ
+                          </span>
+                        </button>
+                      )}
+
+                      {/* ダークモード切替（モバイル/タブレット用、または三点リーダーがある場合はそこに含めるのが一般的だが、デスクトップでは外に出ているのでモバイルのみ表示） */}
+                      {breakpoint !== 'desktop' && (
+                        <button
+                          onClick={() => {
+                            onToggleTheme();
+                            setShowMoreMenu(false);
+                          }}
+                          className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-yamabuki-500 focus:ring-inset"
+                          aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
+                        >
+                          {isDarkMode ? (
+                            <Sun className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
+                          ) : (
+                            <Moon className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
                           )}
-                        </div>
-                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
-                          AI設定
-                        </span>
-                      </button>
-                    )}
-
-                    {/* データ管理（ホーム画面以外の時だけ表示） */}
-                    {currentStep !== 'home' && (
-                      <button
-                        onClick={() => {
-                          setShowDataManager(true);
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-mizu-500 focus:ring-inset"
-                        aria-label="データ管理を開く"
-                      >
-                        <Database className="h-5 w-5 text-mizu-600 dark:text-mizu-400" aria-hidden="true" />
-                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
-                          データ管理
-                        </span>
-                      </button>
-                    )}
-
-                    {/* ガイド */}
-                    {onShowOnboarding && (
-                      <button
-                        onClick={() => {
-                          onShowOnboarding('quick');
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-inset"
-                        aria-label="ガイドを表示"
-                      >
-                        <GraduationCap className="h-5 w-5 text-purple-600 dark:text-purple-400" aria-hidden="true" />
-                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
-                          ガイド
-                        </span>
-                      </button>
-                    )}
-
-                    {/* ヘルプ（モバイル/タブレット用） */}
-                    {breakpoint !== 'desktop' && (
-                      <button
-                        onClick={() => {
-                          setShowContextHelp(true);
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
-                        aria-label="ヘルプを表示"
-                      >
-                        <HelpCircle className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
-                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
-                          ヘルプ
-                        </span>
-                      </button>
-                    )}
-
-                    {/* ダークモード切替（モバイル/タブレット用） */}
-                    {breakpoint !== 'desktop' && (
-                      <button
-                        onClick={() => {
-                          onToggleTheme();
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-yamabuki-500 focus:ring-inset"
-                        aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
-                      >
-                        {isDarkMode ? (
-                          <Sun className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
-                        ) : (
-                          <Moon className="h-5 w-5 text-yamabuki-600 dark:text-yamabuki-400" aria-hidden="true" />
-                        )}
-                        <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
-                          {isDarkMode ? 'ライトモード' : 'ダークモード'}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+                          <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
+                            {isDarkMode ? 'ライトモード' : 'ダークモード'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ダークモードボタン（デスクトップのみ表示、モバイルは三点リーダー内） */}
               <button

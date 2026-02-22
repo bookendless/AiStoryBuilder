@@ -145,7 +145,7 @@ export const StoryProposalModal: React.FC<StoryProposalModalProps> = ({
       proposal.synopsis || '' // あらすじ
     );
     showSuccess('プロジェクトを作成しました！', 3000);
-    onNavigateToStep('character');
+    onNavigateToStep('plot1');
     onClose();
   };
 

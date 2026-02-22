@@ -130,11 +130,17 @@ export function usePlotForm({
   // プロジェクトIDを追跡するref
   const previousProjectIdRef = useRef<string | undefined>(undefined);
 
+  // plotStructureの最新値を追跡するref（関数型更新に対応するため）
+  const plotStructureRef = useRef<PlotStructureType>(plotStructure);
+  useEffect(() => {
+    plotStructureRef.current = plotStructure;
+  }, [plotStructure]);
+
   // 構成変更の保護タイマー（ユーザーがドロップダウンで変更した後、一定時間は外部からの上書きを防ぐ）
   const structureChangeProtectionRef = useRef<boolean>(false);
   const structureChangeTimeoutRef = useRef<number | null>(null);
 
-  // 構成が変更されたときに保護を開始
+  // 構成が変更されたときに保護を開始し、即座にcurrentProjectに反映
   const handleSetPlotStructure: React.Dispatch<React.SetStateAction<PlotStructureType>> = useCallback((action) => {
     // 既存のタイムアウトをクリア
     if (structureChangeTimeoutRef.current) {
@@ -150,9 +156,26 @@ export function usePlotForm({
       structureChangeTimeoutRef.current = null;
     }, 3000) as unknown as number;
 
+    // 新しい構成タイプを算出
+    const newStructure = typeof action === 'function'
+      ? (action as (prev: PlotStructureType) => PlotStructureType)(plotStructureRef.current)
+      : action;
+
     // 実際の状態更新
-    setPlotStructure(action);
-  }, []);
+    setPlotStructure(newStructure);
+
+    // 構成タイプの変更を即座にcurrentProjectに反映
+    // AssistantPanelがcurrentProject?.plot?.structureを参照するため、
+    // デバウンスを待たずに即時保存してタイムラグを解消する
+    if (currentProject) {
+      updateProject({
+        plot: {
+          ...currentProject.plot,
+          structure: newStructure,
+        }
+      }, true);
+    }
+  }, [currentProject, updateProject]);
 
   // プロジェクトが変更されたときにformDataを更新
   // formDataの内容フィールドは常に同期するが、構成は保護期間中は上書きしない

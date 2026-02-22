@@ -23,7 +23,7 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "connect-src": "'self' ipc://localhost http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* ws://192.168.0.*:* http://192.168.0.*:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com",
+        "connect-src": "'self' ipc://localhost http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* http://10.0.2.2:* http://10.*:* http://192.168.*:* ws://192.168.*:* http://172.16.*:* http://172.17.*:* http://172.18.*:* http://172.19.*:* http://172.20.*:* http://172.21.*:* http://172.22.*:* http://172.23.*:* http://172.24.*:* http://172.25.*:* http://172.26.*:* http://172.27.*:* http://172.28.*:* http://172.29.*:* http://172.30.*:* http://172.31.*:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.x.ai",
         "script-src": "'self' 'unsafe-inline'",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob:",

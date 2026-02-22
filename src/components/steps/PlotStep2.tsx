@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, Target, RotateCcw, Layers, ChevronDown, ChevronUp, AlertCircle, Undo2, Redo2, Clock, GripVertical } from 'lucide-react';
+import { Check, RotateCcw, Layers, ChevronDown, ChevronUp, AlertCircle, Clock, BookOpen, Info } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -8,14 +8,14 @@ import { useAILog } from '../common/hooks/useAILog';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 
 // 新しい型定義とユーティリティのインポート
-import type { PlotStep2Props, PlotStructureType, PlotFormData, HistoryState } from './plot2/types';
-import { PLOT_STRUCTURE_CONFIGS, HISTORY_SAVE_DELAY } from './plot2/constants';
+import type { PlotStep2Props, PlotStructureType, PlotFormData } from './plot2/types';
+import { PLOT_STRUCTURE_CONFIGS } from './plot2/constants';
 import { getProjectContext, hasAnyOverLimit, getLastSavedText } from './plot2/utils';
 import { usePlotForm } from './plot2/hooks/usePlotForm';
-import { usePlotHistory } from './plot2/hooks/usePlotHistory';
-import { useSidebarState } from './plot2/hooks/useSidebarState';
+
 import { PlotStructureSection } from './plot2/components/PlotStructureSection';
 import { StepNavigation } from '../common/StepNavigation';
+
 
 export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
@@ -55,142 +55,21 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
     lastSaved,
   } = usePlotForm({ currentProject, updateProject });
 
-  // 履歴管理フック
-  const {
-    saveToHistory,
-    handleUndo,
-    handleRedo,
-    canUndo,
-    canRedo,
-    initializeHistory,
-  } = usePlotHistory({
-    formData,
-    plotStructure,
-    projectId: currentProject?.id,
-  });
+
 
   // 自動保存はusePlotFormフック内で処理されます
 
   // 折りたたみ状態管理
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  // サイドバー管理（新しいフックを使用）
-  const {
-    sidebarSections,
-    draggedSectionId,
-    dragOverSectionId,
-    toggleSidebarSection,
-    handleDragStart,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handleDragEnd,
-  } = useSidebarState(() => {
-    showSuccess('サイドバー項目の並び順を変更しました');
-  });
+  // 構成スタイルガイドの展開状態
+  const [isGuideExpanded, setIsGuideExpanded] = useState(false);
+
+  // プロット基礎設定の展開状態
+  const [isBasicSettingsExpanded, setIsBasicSettingsExpanded] = useState(false);
 
 
-  // プロジェクトID変更を追跡するref
-  const previousProjectIdRef = useRef<string | undefined>(currentProject?.id);
-  // plotStructure変更を追跡するref
-  const previousPlotStructureRef = useRef<PlotStructureType>(plotStructure);
-  // 履歴初期化フラグ（初期化直後は保存をスキップ）
-  const isInitializingHistoryRef = useRef(false);
 
-  // 履歴の初期化
-  useEffect(() => {
-    if (currentProject) {
-      // プロジェクトIDが変更された場合のみ履歴を初期化
-      if (previousProjectIdRef.current !== currentProject.id) {
-        previousProjectIdRef.current = currentProject.id;
-        isInitializingHistoryRef.current = true;
-        
-        const initialState: HistoryState = {
-          formData: {
-            ki: currentProject.plot?.ki || '',
-            sho: currentProject.plot?.sho || '',
-            ten: currentProject.plot?.ten || '',
-            ketsu: currentProject.plot?.ketsu || '',
-            act1: currentProject.plot?.act1 || '',
-            act2: currentProject.plot?.act2 || '',
-            act3: currentProject.plot?.act3 || '',
-            fourAct1: currentProject.plot?.fourAct1 || '',
-            fourAct2: currentProject.plot?.fourAct2 || '',
-            fourAct3: currentProject.plot?.fourAct3 || '',
-            fourAct4: currentProject.plot?.fourAct4 || '',
-            // ヒーローズ・ジャーニー
-            hj1: currentProject.plot?.hj1 || '',
-            hj2: currentProject.plot?.hj2 || '',
-            hj3: currentProject.plot?.hj3 || '',
-            hj4: currentProject.plot?.hj4 || '',
-            hj5: currentProject.plot?.hj5 || '',
-            hj6: currentProject.plot?.hj6 || '',
-            hj7: currentProject.plot?.hj7 || '',
-            hj8: currentProject.plot?.hj8 || '',
-            // ビートシート
-            bs1: currentProject.plot?.bs1 || '',
-            bs2: currentProject.plot?.bs2 || '',
-            bs3: currentProject.plot?.bs3 || '',
-            bs4: currentProject.plot?.bs4 || '',
-            bs5: currentProject.plot?.bs5 || '',
-            bs6: currentProject.plot?.bs6 || '',
-            bs7: currentProject.plot?.bs7 || '',
-            // ミステリー・サスペンス
-            ms1: currentProject.plot?.ms1 || '',
-            ms2: currentProject.plot?.ms2 || '',
-            ms3: currentProject.plot?.ms3 || '',
-            ms4: currentProject.plot?.ms4 || '',
-            ms5: currentProject.plot?.ms5 || '',
-            ms6: currentProject.plot?.ms6 || '',
-            ms7: currentProject.plot?.ms7 || '',
-          },
-          plotStructure: (currentProject.plot?.structure || 'kishotenketsu') as PlotStructureType,
-          timestamp: Date.now(),
-        };
-        initializeHistory(initialState);
-        // 初期化完了後、フラグをリセット
-        setTimeout(() => {
-          isInitializingHistoryRef.current = false;
-        }, 0);
-      }
-    }
-  }, [currentProject?.id, initializeHistory, currentProject]);
-
-  // plotStructureが変更されたときに履歴をリセット
-  useEffect(() => {
-    if (previousPlotStructureRef.current !== plotStructure) {
-      previousPlotStructureRef.current = plotStructure;
-      isInitializingHistoryRef.current = true;
-      // 構造が変更されたときは、現在の状態を履歴の初期状態として設定
-      const newInitialState: HistoryState = {
-        formData: { ...formData },
-        plotStructure: plotStructure,
-        timestamp: Date.now(),
-      };
-      initializeHistory(newInitialState);
-      // 初期化完了後、フラグをリセット
-      setTimeout(() => {
-        isInitializingHistoryRef.current = false;
-      }, 0);
-    }
-  }, [plotStructure, initializeHistory, formData]);
-
-  // formData変更時に履歴に保存（デバウンス付き）
-  useEffect(() => {
-    // 初期化中は履歴に保存しない
-    if (isInitializingHistoryRef.current) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      // 再度チェック（非同期処理中に初期化が開始された場合）
-      if (!isInitializingHistoryRef.current) {
-        saveToHistory(formData, plotStructure);
-      }
-    }, HISTORY_SAVE_DELAY);
-
-    return () => clearTimeout(timeoutId);
-  }, [formData, plotStructure, saveToHistory]);
 
   // 折りたたみ機能
   const toggleSection = useCallback((sectionId: string) => {
@@ -327,7 +206,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
       if (normalizedContent.startsWith('{{') && normalizedContent.endsWith('}}')) {
         normalizedContent = normalizedContent.slice(1, -1);
       }
-      
+
       const jsonMatch = normalizedContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
@@ -341,8 +220,8 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
           }
           const parsed = JSON.parse(jsonString);
           // 型安全性の向上：文字列型であることを確認
-          const improvedText = typeof parsed[fieldLabel] === 'string' 
-            ? parsed[fieldLabel] 
+          const improvedText = typeof parsed[fieldLabel] === 'string'
+            ? parsed[fieldLabel]
             : currentText;
           setFormData(prev => ({ ...prev, [fieldKey]: improvedText }));
         } catch (error) {
@@ -611,15 +490,15 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
 
   const handleConfirmResetStructure = useCallback(() => {
     if (!confirmDialogState.plotStructure) return;
-    
+
     // 現在の構成スタイルのすべてのフィールドをクリア
     const structureConfig = PLOT_STRUCTURE_CONFIGS[confirmDialogState.plotStructure];
     const clearedFormData = { ...formData };
-    
+
     structureConfig.fields.forEach(field => {
       clearedFormData[field.key as keyof PlotFormData] = '';
     });
-    
+
     setFormData(clearedFormData);
     showSuccess('プロット構成をリセットしました');
   }, [confirmDialogState.plotStructure, formData, setFormData, showSuccess]);
@@ -664,352 +543,213 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-9 space-y-6">
-          {/* プロット構成の詳細セクション */}
-          <div className="space-y-6">
-            {/* ヘッダー部分 */}
-            <div className="space-y-4">
-              {/* 1段目: タイトルと自動保存表示 */}
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                  プロット構成の詳細
-                </h2>
-                <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                  <Clock className="h-4 w-4" />
-                  <span className="font-['Noto_Sans_JP']">{getLastSavedText(lastSaved)}</span>
-                </div>
-              </div>
-
-              {/* 2段目: 構成スタイル切り替え（ドロップダウン） */}
-              <div className="relative">
-                <select
-                  value={plotStructure}
-                  onChange={(e) => setPlotStructure(e.target.value as PlotStructureType)}
-                  className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none cursor-pointer"
-                >
-                  {Object.entries(PLOT_STRUCTURE_CONFIGS).map(([key, config]) => (
-                    <option key={key} value={key}>
-                      {config.label} - {config.description}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                </div>
-              </div>
-
-              {/* 3段目: 履歴管理ボタン */}
-              <div className="flex items-center justify-end space-x-3">
-                {/* 履歴管理ボタン */}
-                <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                  <button
-                    onClick={() => {
-                      const state = handleUndo();
-                      if (state) {
-                        setFormData(state.formData);
-                        setPlotStructure(state.plotStructure);
-                      }
-                    }}
-                    disabled={!canUndo()}
-                    className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="元に戻す (Ctrl+Z)"
-                  >
-                    <Undo2 className="h-4 w-4 text-gray-700 dark:text-gray-300" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      const state = handleRedo();
-                      if (state) {
-                        setFormData(state.formData);
-                        setPlotStructure(state.plotStructure);
-                      }
-                    }}
-                    disabled={!canRedo()}
-                    className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="やり直す (Ctrl+Y)"
-                  >
-                    <Redo2 className="h-4 w-4 text-gray-700 dark:text-gray-300" />
-                  </button>
-                </div>
+      <div className="space-y-6">
+        {/* プロット構成の詳細セクション */}
+        <div className="space-y-6">
+          {/* ヘッダー部分 */}
+          <div className="space-y-4">
+            {/* 1段目: タイトルと自動保存表示 */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                プロット構成の詳細
+              </h2>
+              <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                <Clock className="h-4 w-4" />
+                <span className="font-['Noto_Sans_JP']">{getLastSavedText(lastSaved)}</span>
               </div>
             </div>
 
-            {/* プロット構成の表示 */}
-            <PlotStructureSection
-              structure={plotStructure}
-              formData={formData}
-              collapsedSections={collapsedSections}
-              isGenerating={isGenerating}
-              onFieldChange={(fieldKey, value) => setFormData(prev => ({ ...prev, [fieldKey]: value }))}
-              onToggleCollapse={toggleSection}
-              onAISupplement={handleAISupplement}
-              onCopy={handleCopy}
-              onClear={handleClear}
-            />
+            {/* 2段目: 構成スタイル切り替え（ドロップダウン） */}
+            <div className="relative">
+              <select
+                value={plotStructure}
+                onChange={(e) => setPlotStructure(e.target.value as PlotStructureType)}
+                className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none cursor-pointer"
+              >
+                {Object.entries(PLOT_STRUCTURE_CONFIGS).map(([key, config]) => (
+                  <option key={key} value={key}>
+                    {config.label} - {config.description}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <ChevronDown className="h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+
+            {/* 構成スタイルガイド（ドロップダウン直下にインライン表示） */}
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 overflow-hidden">
+              <button
+                onClick={() => setIsGuideExpanded(!isGuideExpanded)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 transition-colors"
+              >
+                <div className="flex items-center space-x-2">
+                  <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 font-['Noto_Sans_JP']">
+                    {PLOT_STRUCTURE_CONFIGS[plotStructure].label}
+                  </span>
+                  <span className="text-xs text-indigo-600 dark:text-indigo-400 font-['Noto_Sans_JP']">
+                    — {PLOT_STRUCTURE_CONFIGS[plotStructure].description}
+                  </span>
+                </div>
+                {isGuideExpanded ? (
+                  <ChevronUp className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                )}
+              </button>
+              {isGuideExpanded && (
+                <div className="px-4 pb-3 border-t border-indigo-200/50 dark:border-indigo-700/50">
+                  <ul className="mt-3 space-y-1.5">
+                    {PLOT_STRUCTURE_CONFIGS[plotStructure].fields.map((field) => (
+                      <li key={field.key} className="flex items-start space-x-2 text-xs font-['Noto_Sans_JP']">
+                        <span
+                          className={`inline-block w-2 h-2 rounded-full mt-1 flex-shrink-0 ${field.color.icon}`}
+                        />
+                        <span className="text-gray-800 dark:text-gray-200">
+                          <span className="font-medium">{field.label}</span>
+                          <span className="text-gray-500 dark:text-gray-400">：{field.description}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+
           </div>
 
-          {/* リセットボタンと保存ボタン */}
-          <div className="flex justify-between items-center">
-            <button
-              onClick={handleResetPlotStructure}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center space-x-2 font-['Noto_Sans_JP']"
-              title="入力内容をすべてリセット"
-            >
-              <RotateCcw className="h-4 w-4" />
-              <span>入力内容をリセット</span>
-            </button>
+          {/* プロット構成の表示 */}
+          <PlotStructureSection
+            structure={plotStructure}
+            formData={formData}
+            collapsedSections={collapsedSections}
+            isGenerating={isGenerating}
+            onFieldChange={(fieldKey, value) => setFormData(prev => ({ ...prev, [fieldKey]: value }))}
+            onToggleCollapse={toggleSection}
+            onAISupplement={handleAISupplement}
+            onCopy={handleCopy}
+            onClear={handleClear}
+          />
+        </div>
 
-            <div className="flex items-center space-x-4">
-              {saveStatus === 'saved' && (
-                <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
-                  <Check className="h-4 w-4" />
-                  <span className="text-sm font-['Noto_Sans_JP']">保存完了</span>
-                </div>
-              )}
-              {saveStatus === 'error' && (
-                <div className="flex items-center space-x-2 text-red-600 dark:text-red-400">
-                  <span className="text-sm font-['Noto_Sans_JP']">保存エラー</span>
-                </div>
-              )}
-              <button
-                onClick={() => {
-                  if (hasAnyOverLimit(plotStructure, formData)) {
-                    setConfirmDialogState({
-                      isOpen: true,
-                      type: 'save-over-limit',
-                    });
-                  } else {
-                    handleManualSave();
-                  }
-                }}
-                disabled={isSaving}
-                className={`px-6 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] ${isSaving
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : hasAnyOverLimit(plotStructure, formData)
-                    ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:scale-105'
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-105'
-                  } text-white flex items-center space-x-2`}
-              >
-                {hasAnyOverLimit(plotStructure, formData) && !isSaving && <AlertCircle className="h-5 w-5" />}
-                <span>{isSaving ? '保存中...' : '保存する'}</span>
-              </button>
-            </div>
+        {/* リセットボタンと保存ボタン */}
+        <div className="flex justify-between items-center">
+          <button
+            onClick={handleResetPlotStructure}
+            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center space-x-2 font-['Noto_Sans_JP']"
+            title="入力内容をすべてリセット"
+          >
+            <RotateCcw className="h-4 w-4" />
+            <span>入力内容をリセット</span>
+          </button>
+
+          <div className="flex items-center space-x-4">
+            {saveStatus === 'saved' && (
+              <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
+                <Check className="h-4 w-4" />
+                <span className="text-sm font-['Noto_Sans_JP']">保存完了</span>
+              </div>
+            )}
+            {saveStatus === 'error' && (
+              <div className="flex items-center space-x-2 text-red-600 dark:text-red-400">
+                <span className="text-sm font-['Noto_Sans_JP']">保存エラー</span>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                if (hasAnyOverLimit(plotStructure, formData)) {
+                  setConfirmDialogState({
+                    isOpen: true,
+                    type: 'save-over-limit',
+                  });
+                } else {
+                  handleManualSave();
+                }
+              }}
+              disabled={isSaving}
+              className={`px-6 py-3 rounded-lg transition-all duration-200 shadow-lg font-['Noto_Sans_JP'] ${isSaving
+                ? 'bg-gray-400 cursor-not-allowed'
+                : hasAnyOverLimit(plotStructure, formData)
+                  ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:scale-105'
+                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-105'
+                } text-white flex items-center space-x-2`}
+            >
+              {hasAnyOverLimit(plotStructure, formData) && !isSaving && <AlertCircle className="h-5 w-5" />}
+              <span>{isSaving ? '保存中...' : '保存する'}</span>
+            </button>
           </div>
         </div>
 
-        {/* AI Assistant Panel */}
-        <div className="lg:col-span-3 space-y-6">
-          {sidebarSections.map((section) => {
-            const isCollapsed = section.collapsed;
-            const isDragging = draggedSectionId === section.id;
-            const isDragOver = dragOverSectionId === section.id;
-
-            // 構成スタイルガイド
-            if (section.id === 'guide') {
-              return (
-                <div
-                  key={section.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, section.id)}
-                  onDragOver={(e) => handleDragOver(e, section.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, section.id)}
-                  onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl border transition-all duration-200 ${isDragging
-                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                    : isDragOver
-                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                      : 'border-indigo-200 dark:border-indigo-800 cursor-move hover:shadow-xl'
-                    }`}
-                >
+        {/* プロット基礎設定（リセット/保存ボタンの下に配置） */}
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl border border-amber-200 dark:border-amber-800 overflow-hidden">
+          <button
+            onClick={() => setIsBasicSettingsExpanded(!isBasicSettingsExpanded)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+          >
+            <div className="flex items-center space-x-2">
+              <BookOpen className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <span className="text-sm font-semibold text-amber-800 dark:text-amber-200 font-['Noto_Sans_JP']">
+                プロット基礎設定
+              </span>
+              {/* 未完了の場合は警告バッジ表示 */}
+              {!(currentProject?.plot?.theme && currentProject?.plot?.setting && currentProject?.plot?.hook && currentProject?.plot?.protagonistGoal && currentProject?.plot?.mainObstacle) && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 font-['Noto_Sans_JP']">
+                  未完了
+                </span>
+              )}
+            </div>
+            {isBasicSettingsExpanded ? (
+              <ChevronUp className="h-4 w-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
+            )}
+          </button>
+          {isBasicSettingsExpanded && (
+            <div className="px-4 pb-4 border-t border-amber-200/50 dark:border-amber-700/50">
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { label: 'メインテーマ', value: currentProject?.plot?.theme },
+                  { label: '舞台設定', value: currentProject?.plot?.setting },
+                  { label: 'フック要素', value: currentProject?.plot?.hook },
+                  { label: '主人公の目標', value: currentProject?.plot?.protagonistGoal },
+                  { label: '主要な障害', value: currentProject?.plot?.mainObstacle },
+                  { label: '物語の結末', value: currentProject?.plot?.ending },
+                ].map((item) => (
                   <div
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 rounded-t-2xl transition-colors"
-                    onClick={() => toggleSidebarSection(section.id)}
+                    key={item.label}
+                    className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-amber-200 dark:border-amber-700"
                   >
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-gradient-to-br from-indigo-500 to-blue-600 w-10 h-10 rounded-full flex items-center justify-center">
-                        <Target className="h-5 w-5 text-white" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        {section.title}
-                      </h3>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <GripVertical className="h-5 w-5" />
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSidebarSection(section.id);
-                        }}
-                        className="p-1 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors"
-                        aria-label={isCollapsed ? 'セクションを展開' : 'セクションを折りたたむ'}
-                      >
-                        {isCollapsed ? (
-                          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                        ) : (
-                          <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                        )}
-                      </button>
-                    </div>
+                    <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1 font-['Noto_Sans_JP']">
+                      {item.label}
+                    </h4>
+                    <p className={`text-sm font-['Noto_Sans_JP'] ${item.value
+                      ? 'text-gray-700 dark:text-gray-300'
+                      : 'text-gray-400 dark:text-gray-500 italic'
+                      }`}>
+                      {item.value || '未設定'}
+                    </p>
                   </div>
-                  {!isCollapsed && (
-                    <div className="p-6 pt-0">
-                      <div className="space-y-4">
-                          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700">
-                            <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2 font-['Noto_Sans_JP']">
-                            {PLOT_STRUCTURE_CONFIGS[plotStructure].label}
-                            </h4>
-                            <p className="text-xs text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-2">
-                            {PLOT_STRUCTURE_CONFIGS[plotStructure].description}
-                            </p>
-                            <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
-                            {PLOT_STRUCTURE_CONFIGS[plotStructure].fields.map((field) => (
-                              <li key={field.key}>• {field.label}：{field.description}</li>
-                            ))}
-                            </ul>
-                          </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            // プロット基礎設定
-            if (section.id === 'settings') {
-              return (
-                <div
-                  key={section.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, section.id)}
-                  onDragOver={(e) => handleDragOver(e, section.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, section.id)}
-                  onDragEnd={handleDragEnd}
-                  className={`bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl border transition-all duration-200 ${isDragging
-                    ? 'opacity-50 scale-95 shadow-2xl border-indigo-400 dark:border-indigo-500 cursor-grabbing'
-                    : isDragOver
-                      ? 'border-indigo-400 dark:border-indigo-500 border-2 shadow-xl scale-[1.02] bg-indigo-50 dark:bg-indigo-900/20'
-                      : 'border-amber-200 dark:border-amber-800 cursor-move hover:shadow-xl'
-                    }`}
-                >
-                  <div
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/30 rounded-t-2xl transition-colors"
-                    onClick={() => toggleSidebarSection(section.id)}
-                  >
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="bg-gradient-to-br from-amber-500 to-orange-600 w-10 h-10 rounded-full flex items-center justify-center">
-                        <Target className="h-5 w-5 text-white" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        {section.title}
-                      </h3>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <GripVertical className="h-5 w-5" />
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSidebarSection(section.id);
-                        }}
-                        className="p-1 rounded hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
-                        aria-label={isCollapsed ? 'セクションを展開' : 'セクションを折りたたむ'}
-                      >
-                        {isCollapsed ? (
-                          <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                        ) : (
-                          <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  {!isCollapsed && (
-                    <div className="p-6 pt-0">
-                      <div className="space-y-4">
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
-                          <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
-                            メインテーマ
-                          </h4>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                            {currentProject?.plot?.theme || '未設定'}
-                          </p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
-                          <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
-                            舞台設定
-                          </h4>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                            {currentProject?.plot?.setting || '未設定'}
-                          </p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
-                          <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
-                            フック要素
-                          </h4>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                            {currentProject?.plot?.hook || '未設定'}
-                          </p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
-                          <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
-                            主人公の目標
-                          </h4>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                            {currentProject?.plot?.protagonistGoal || '未設定'}
-                          </p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
-                          <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
-                            主要な障害
-                          </h4>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                            {currentProject?.plot?.mainObstacle || '未設定'}
-                          </p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
-                          <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 font-['Noto_Sans_JP']">
-                            物語の結末
-                          </h4>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                            {currentProject?.plot?.ending || '未設定'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
-                        {currentProject?.plot?.theme && currentProject?.plot?.setting && currentProject?.plot?.hook && currentProject?.plot?.protagonistGoal && currentProject?.plot?.mainObstacle ? (
-                          <p className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
-                            💡 これらの基礎設定を参考に、一貫性のあるプロット構成を作成しましょう
-                            {currentProject?.plot?.ending && (
-                              <span className="block mt-1">✨ 結末が設定されているため、逆算プロンプティング機能が利用可能です</span>
-                            )}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 font-['Noto_Sans_JP']">
-                            ⚠️ プロット基礎設定が未完了です。より良いプロット作成のため、PlotStep1で基礎設定を完了することをお勧めします。
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return null;
-          })}
+                ))}
+              </div>
+              {/* ヒントメッセージ */}
+              <div className="mt-3 p-2.5 bg-amber-100/50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
+                {currentProject?.plot?.theme && currentProject?.plot?.setting && currentProject?.plot?.hook && currentProject?.plot?.protagonistGoal && currentProject?.plot?.mainObstacle ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
+                    💡 これらの基礎設定を参考に、一貫性のあるプロット構成を作成しましょう
+                    {currentProject?.plot?.ending && (
+                      <span className="block mt-1">✨ 結末が設定されているため、逆算プロンプティング機能が利用可能です</span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-['Noto_Sans_JP']">
+                    ⚠️ プロット基礎設定が未完了です。より良いプロット作成のため、プロット基礎設定で設定を完了することをお勧めします。
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1031,7 +771,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
           confirmDialogState.type === 'clear-section'
             ? 'このセクションの内容をクリアしますか？'
             : confirmDialogState.type === 'reset-structure'
-            ? (() => {
+              ? (() => {
                 const structureNames = {
                   'kishotenketsu': '起承転結',
                   'three-act': '三幕構成',
@@ -1042,9 +782,9 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
                 };
                 return `${structureNames[confirmDialogState.plotStructure!]}の内容をすべてリセットしますか？`;
               })()
-            : confirmDialogState.type === 'save-over-limit'
-            ? '⚠️ 文字数上限超過'
-            : ''
+              : confirmDialogState.type === 'save-over-limit'
+                ? '⚠️ 文字数上限超過'
+                : ''
         }
         message={
           confirmDialogState.type === 'save-over-limit'
@@ -1056,10 +796,10 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
           confirmDialogState.type === 'clear-section'
             ? 'クリア'
             : confirmDialogState.type === 'reset-structure'
-            ? 'リセット'
-            : confirmDialogState.type === 'save-over-limit'
-            ? '保存'
-            : '確認'
+              ? 'リセット'
+              : confirmDialogState.type === 'save-over-limit'
+                ? '保存'
+                : '確認'
         }
       />
     </div>

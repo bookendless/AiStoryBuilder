@@ -107,7 +107,7 @@ export const AILoadingIndicator: React.FC<AILoadingIndicatorProps> = ({
   };
 
   const content = (
-    <div className={`relative flex flex-col items-center justify-center space-y-4 ${className}`}>
+    <div className={`motion-essential relative flex flex-col items-center justify-center space-y-4 ${className}`}>
       {/* キャンセルボタン */}
       {cancellable && onCancel && (
         <button

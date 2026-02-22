@@ -381,7 +381,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
         : writingStyle;
 
       createNewProject(title.trim(), description.trim(), finalMainGenre, finalSubGenre, coverImage, finalTargetReader, finalTheme, finalWritingStyle);
-      onNavigateToStep('character');
+      onNavigateToStep('plot1');
       onClose();
       setTitle('');
       setDescription('');

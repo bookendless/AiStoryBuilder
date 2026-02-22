@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Bookmark,
   ChevronDown,
@@ -11,16 +11,13 @@ import {
   EyeOff,
   Copy,
   X,
-  ArrowDownToLine,
 } from 'lucide-react';
 import { useProject, Foreshadowing, ForeshadowingPoint } from '../../../contexts/ProjectContext';
 
 interface ForeshadowingPanelProps {
   currentChapterId: string | null;
-  onInsertText: (text: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  currentDraft?: string;
 }
 
 // ステータス設定
@@ -50,10 +47,8 @@ const pointTypeConfig: Record<ForeshadowingPoint['type'], { label: string; icon:
 
 export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
   currentChapterId,
-  onInsertText,
   isCollapsed,
   onToggleCollapse,
-  currentDraft = '',
 }) => {
   const { currentProject, updateProject } = useProject();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -65,6 +60,8 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
     type: 'plant' as ForeshadowingPoint['type'],
     description: '',
   });
+  // ステータス変更用のドロップダウン表示管理
+  const [statusDropdownId, setStatusDropdownId] = useState<string | null>(null);
 
   const foreshadowings = currentProject?.foreshadowings || [];
   const chapters = currentProject?.chapters || [];
@@ -90,10 +87,10 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
     if (!currentChapterId) return [];
 
     const currentChapterIdx = chapters.findIndex(c => c.id === currentChapterId);
-    
+
     return foreshadowings.filter(f => {
       if (f.status === 'resolved' || f.status === 'abandoned') return false;
-      
+
       // 設置済みでまだこの章以前に設置されているもの
       const hasPlantBeforeOrAtChapter = f.points.some(p => {
         const pointChapterIdx = chapters.findIndex(c => c.id === p.chapterId);
@@ -103,28 +100,6 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
       return hasPlantBeforeOrAtChapter;
     });
   }, [foreshadowings, currentChapterId, chapters]);
-
-  // 草案内の引用チェック
-  const checkQuoteInDraft = useCallback((lineReference: string) => {
-    if (!currentDraft || !lineReference) return false;
-    // 完全一致または部分一致をチェック（改行や空白を除去して比較）
-    const normalizedDraft = currentDraft.replace(/\s+/g, '');
-    const normalizedRef = lineReference.replace(/\s+/g, '');
-    return normalizedDraft.includes(normalizedRef);
-  }, [currentDraft]);
-
-  // 草案内の伏線引用ステータス
-  const quotesInDraft = useMemo(() => {
-    const result: Record<string, boolean> = {};
-    foreshadowings.forEach(f => {
-      f.points.forEach(p => {
-        if (p.lineReference) {
-          result[p.id] = checkQuoteInDraft(p.lineReference);
-        }
-      });
-    });
-    return result;
-  }, [foreshadowings, checkQuoteInDraft]);
 
   // 表示する伏線リスト
   const displayForeshadowings = showAllForeshadowings ? foreshadowings : relatedForeshadowings;
@@ -140,6 +115,17 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
     setExpandedIds(newExpanded);
   };
 
+  // ステータス変更ハンドラー
+  const handleStatusChange = (foreshadowingId: string, newStatus: Foreshadowing['status']) => {
+    const updatedForeshadowings = foreshadowings.map(f =>
+      f.id === foreshadowingId
+        ? { ...f, status: newStatus, updatedAt: new Date() }
+        : f
+    );
+    updateProject({ foreshadowings: updatedForeshadowings });
+    setStatusDropdownId(null);
+  };
+
   // テキストをコピー
   const handleCopyText = async (text: string, id: string) => {
     try {
@@ -149,18 +135,6 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
     } catch (err) {
       console.error('コピーに失敗しました', err);
     }
-  };
-
-  // 伏線の説明を挿入
-  const handleInsertDescription = (foreshadowing: Foreshadowing) => {
-    const insertText = `【伏線: ${foreshadowing.title}】\n${foreshadowing.description}`;
-    onInsertText(insertText);
-  };
-
-  // ポイントの説明を挿入
-  const handleInsertPoint = (point: ForeshadowingPoint) => {
-    const insertText = point.lineReference || point.description;
-    onInsertText(insertText);
   };
 
   // クイック追加フォームのハンドラー
@@ -399,10 +373,47 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
                             <span className={`px-1.5 py-0.5 text-xs rounded-full ${categoryInfo.color} text-white`}>
                               {categoryInfo.label}
                             </span>
-                            <span className={`flex items-center space-x-1 px-1.5 py-0.5 text-xs rounded-full ${statusInfo.color} text-white`}>
-                              <StatusIcon className="h-3 w-3" />
-                              <span>{statusInfo.label}</span>
-                            </span>
+                            {/* ステータス変更ドロップダウン */}
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStatusDropdownId(statusDropdownId === foreshadowing.id ? null : foreshadowing.id);
+                                }}
+                                className={`flex items-center space-x-1 px-1.5 py-0.5 text-xs rounded-full ${statusInfo.color} text-white cursor-pointer hover:opacity-80 transition-opacity`}
+                                title="クリックでステータスを変更"
+                              >
+                                <StatusIcon className="h-3 w-3" />
+                                <span>{statusInfo.label}</span>
+                                <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                              </button>
+                              {statusDropdownId === foreshadowing.id && (
+                                <div className="absolute z-50 mt-1 left-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 min-w-[120px]">
+                                  {(Object.entries(statusConfig) as [Foreshadowing['status'], typeof statusInfo][]).map(([key, config]) => {
+                                    const OptionIcon = config.icon;
+                                    return (
+                                      <button
+                                        key={key}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleStatusChange(foreshadowing.id, key);
+                                        }}
+                                        className={`w-full flex items-center space-x-2 px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${foreshadowing.status === key ? 'font-bold' : ''
+                                          }`}
+                                      >
+                                        <span className={`flex items-center justify-center w-5 h-5 rounded-full ${config.color}`}>
+                                          <OptionIcon className="h-3 w-3 text-white" />
+                                        </span>
+                                        <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{config.label}</span>
+                                        {foreshadowing.status === key && (
+                                          <CheckCircle className="h-3 w-3 text-green-500 ml-auto" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 font-['Noto_Sans_JP']">
                             {foreshadowing.description}
@@ -414,11 +425,10 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
                               {pointsInChapter.map(point => (
                                 <span
                                   key={point.id}
-                                  className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${
-                                    point.type === 'plant' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                                  className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${point.type === 'plant' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
                                     point.type === 'hint' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                  }`}
+                                      'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                    }`}
                                 >
                                   {pointTypeConfig[point.type].icon} この章で{pointTypeConfig[point.type].label}
                                 </span>
@@ -435,26 +445,17 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => handleInsertDescription(foreshadowing)}
-                            className="p-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
-                            title="説明を挿入"
-                          >
-                            <ArrowDownToLine className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleCopyText(foreshadowing.description, foreshadowing.id)}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            title="説明をコピー"
-                          >
-                            {copiedId === foreshadowing.id ? (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleCopyText(foreshadowing.description, foreshadowing.id)}
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="説明をコピー"
+                        >
+                          {copiedId === foreshadowing.id ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </button>
                       </div>
 
                       {/* 展開コンテンツ */}
@@ -469,11 +470,10 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
                               {foreshadowing.points.map(point => (
                                 <div
                                   key={point.id}
-                                  className={`flex items-start space-x-2 p-2 rounded-lg text-xs ${
-                                    point.chapterId === currentChapterId
-                                      ? 'bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800'
-                                      : 'bg-gray-50 dark:bg-gray-700/50'
-                                  }`}
+                                  className={`flex items-start space-x-2 p-2 rounded-lg text-xs ${point.chapterId === currentChapterId
+                                    ? 'bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800'
+                                    : 'bg-gray-50 dark:bg-gray-700/50'
+                                    }`}
                                 >
                                   <span>{pointTypeConfig[point.type].icon}</span>
                                   <div className="flex-1 min-w-0">
@@ -484,39 +484,11 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
                                       {point.description}
                                     </p>
                                     {point.lineReference && (
-                                      <div className="mt-1 flex items-center space-x-1">
-                                        <p className={`italic font-['Noto_Sans_JP'] ${
-                                          quotesInDraft[point.id]
-                                            ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-1.5 py-0.5 rounded'
-                                            : 'text-gray-500 dark:text-gray-400'
-                                        }`}>
-                                          「{point.lineReference}」
-                                        </p>
-                                        {quotesInDraft[point.id] ? (
-                                          <span title="草案に記載済み">
-                                            <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
-                                          </span>
-                                        ) : (
-                                          <span title="草案に未記載">
-                                            <AlertCircle className="h-3 w-3 text-amber-500 flex-shrink-0" />
-                                          </span>
-                                        )}
-                                      </div>
+                                      <p className="mt-1 italic text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                        「{point.lineReference}」
+                                      </p>
                                     )}
                                   </div>
-                                  {point.lineReference && (
-                                    <button
-                                      onClick={() => handleInsertPoint(point)}
-                                      className={`p-1 rounded transition-colors flex-shrink-0 ${
-                                        quotesInDraft[point.id]
-                                          ? 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                          : 'text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/30'
-                                      }`}
-                                      title={quotesInDraft[point.id] ? '草案に記載済み' : '引用を挿入'}
-                                    >
-                                      <ArrowDownToLine className="h-3 w-3" />
-                                    </button>
-                                  )}
                                 </div>
                               ))}
                             </div>

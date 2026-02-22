@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { List, Plus, Search, X } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
+import { useProject, Chapter } from '../../contexts/ProjectContext';
 import { useToast } from '../Toast';
 import { ChapterFormModal } from './chapter/ChapterFormModal';
 import { ChapterHistoryModal } from './chapter/ChapterHistoryModal';
 import { ChapterList } from './chapter/ChapterList';
+import { ChapterEnhanceModal } from './chapter/ChapterEnhanceModal';
+import { ChapterSplitPreview } from './chapter/ChapterSplitPreview';
 import { ChapterHistory, ChapterFormData } from './chapter/types';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import {
+  saveChapterSnapshot,
+  getChapterSnapshots,
+  ChapterHistorySource,
+} from '../../services/chapterHistoryService';
 
 interface ChapterStepProps {
   onNavigateToStep?: (step: Step) => void;
@@ -48,8 +55,7 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
   // ジャンプ機能用のref
   const chapterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // 履歴管理の状態
-  const [chapterHistories, setChapterHistories] = useState<{ [chapterId: string]: ChapterHistory[] }>({});
+  // 履歴管理の状態（サービスから取得、ローカルは表示用stateのみ）
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
 
@@ -62,6 +68,28 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     isOpen: false,
     chapterId: null,
     chapterTitle: '',
+  });
+
+  // AI強化モーダルの状態
+  const [enhanceModalState, setEnhanceModalState] = useState<{
+    isOpen: boolean;
+    chapter: Chapter | null;
+    chapterIndex: number;
+  }>({
+    isOpen: false,
+    chapter: null,
+    chapterIndex: -1,
+  });
+
+  // 分割プレビューモーダルの状態
+  const [splitPreviewState, setSplitPreviewState] = useState<{
+    isOpen: boolean;
+    chapter: Chapter | null;
+    chapterIndex: number;
+  }>({
+    isOpen: false,
+    chapter: null,
+    chapterIndex: -1,
   });
 
   // ユーティリティ関数
@@ -384,41 +412,20 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
   }, [currentProject, searchQuery]);
 
 
-  // 章の履歴を保存する関数
-  const saveChapterHistory = useCallback((chapter: { id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
-    const history: ChapterHistory = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      chapterId: chapter.id,
-      timestamp: new Date(),
-      data: {
-        title: chapter.title,
-        summary: chapter.summary,
-        characters: chapter.characters || [],
-        setting: chapter.setting || '',
-        mood: chapter.mood || '',
-        keyEvents: chapter.keyEvents || [],
-      },
-    };
-
-    setChapterHistories(prev => {
-      const chapterHistory = prev[chapter.id] || [];
-      // 最新50件まで保持
-      const newHistory = [history, ...chapterHistory].slice(0, 50);
-      return {
-        ...prev,
-        [chapter.id]: newHistory,
-      };
-    });
-  }, []);
+  // 章の履歴を保存する関数（セッションベースのサービスを利用）
+  const saveChapterHistory = useCallback((chapter: { id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }, source: ChapterHistorySource = 'manual') => {
+    if (!currentProject) return;
+    saveChapterSnapshot(currentProject.id, chapter, source);
+  }, [currentProject]);
 
   // 履歴から章を復元する関数
   const restoreChapterFromHistory = (history: ChapterHistory) => {
     if (!currentProject) return;
 
-    // 復元前に現在の状態を履歴に保存（タイミング問題の修正）
+    // 復元前に現在の状態を履歴に保存（復元ソース）
     const currentChapter = currentProject.chapters.find(c => c.id === history.chapterId);
     if (currentChapter) {
-      saveChapterHistory(currentChapter);
+      saveChapterHistory(currentChapter, 'restore');
     }
 
     // 復元処理
@@ -446,6 +453,110 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
   const openHistoryModal = (chapterId: string) => {
     setSelectedChapterId(chapterId);
     setShowHistoryModal(true);
+  };
+
+  // 現在選択中の章の履歴をサービスから取得
+  const selectedChapterHistories = useMemo(() => {
+    if (!currentProject || !selectedChapterId) return [];
+    return getChapterSnapshots(currentProject.id, selectedChapterId);
+  }, [currentProject, selectedChapterId, showHistoryModal]);
+
+  // AI強化モーダルを開く
+  const handleOpenEnhanceModal = (chapter: Chapter, index: number) => {
+    setEnhanceModalState({
+      isOpen: true,
+      chapter,
+      chapterIndex: index,
+    });
+  };
+
+  // AI強化結果を適用
+  const handleApplyEnhancement = (updates: Partial<Chapter>) => {
+    if (!currentProject || !enhanceModalState.chapter) return;
+
+    // 更新前の状態を履歴に保存（AI強化ソース）
+    const currentChapter = currentProject.chapters.find(
+      c => c.id === enhanceModalState.chapter!.id
+    );
+    if (currentChapter) {
+      saveChapterHistory(currentChapter, 'ai-enhance');
+    }
+
+    updateProject({
+      chapters: currentProject.chapters.map(c =>
+        c.id === enhanceModalState.chapter!.id
+          ? { ...c, ...updates }
+          : c
+      ),
+    });
+
+    showSuccess('章の内容を更新しました');
+  };
+
+  // 分割プレビューモーダルを開く
+  const handleRequestSplit = (chapter: Chapter) => {
+    const index = currentProject?.chapters.findIndex(c => c.id === chapter.id) ?? -1;
+    setSplitPreviewState({
+      isOpen: true,
+      chapter,
+      chapterIndex: index,
+    });
+  };
+
+  // 分割を適用
+  const handleApplySplit = (newChapters: Chapter[]) => {
+    if (!currentProject || !splitPreviewState.chapter) return;
+
+    const chapterIndex = currentProject.chapters.findIndex(
+      c => c.id === splitPreviewState.chapter!.id
+    );
+
+    if (chapterIndex === -1) return;
+
+    // 元の章を削除し、新しい章を挿入
+    const updatedChapters = [...currentProject.chapters];
+    updatedChapters.splice(chapterIndex, 1, ...newChapters);
+
+    updateProject({
+      chapters: updatedChapters,
+    });
+
+    showSuccess(`章を${newChapters.length}つに分割しました`);
+  };
+
+  // AI深掘りで生成された新しい章を挿入
+  const handleInsertChapter = (chapterData: Partial<Chapter>) => {
+    if (!currentProject || !enhanceModalState.chapter) return;
+
+    const newChapter = {
+      id: Date.now().toString(),
+      title: chapterData.title || '新しい章',
+      summary: chapterData.summary || '',
+      characters: chapterData.characters || [],
+      setting: chapterData.setting || '',
+      mood: chapterData.mood || '',
+      keyEvents: chapterData.keyEvents || [],
+      ...chapterData,
+    };
+
+    const chapterIndex = currentProject.chapters.findIndex(
+      c => c.id === enhanceModalState.chapter!.id
+    );
+
+    if (chapterIndex === -1) return;
+
+    const updatedChapters = [...currentProject.chapters];
+    // 現在の章の後ろに追加
+    updatedChapters.splice(chapterIndex + 1, 0, newChapter);
+
+    updateProject({
+      chapters: updatedChapters,
+    });
+
+    // 新規作成時も履歴を保存
+    saveChapterHistory(newChapter);
+
+    showSuccess('新しい章を追加しました');
   };
 
 
@@ -576,6 +687,7 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
               onDragEnd={handleDragEnd}
               onDrop={handleDrop}
               onAddChapter={() => setShowAddForm(true)}
+              onEnhance={handleOpenEnhanceModal}
             />
           </div>
         </div>
@@ -614,7 +726,7 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
       <ChapterHistoryModal
         isOpen={showHistoryModal}
         selectedChapterId={selectedChapterId}
-        histories={selectedChapterId ? (chapterHistories[selectedChapterId] || []) : []}
+        histories={selectedChapterHistories}
         onClose={() => {
           setShowHistoryModal(false);
           setSelectedChapterId(null);
@@ -637,6 +749,30 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
         confirmLabel="削除"
         cancelLabel="キャンセル"
       />
+
+      {/* AI強化モーダル */}
+      {enhanceModalState.chapter && (
+        <ChapterEnhanceModal
+          isOpen={enhanceModalState.isOpen}
+          chapter={enhanceModalState.chapter}
+          chapterIndex={enhanceModalState.chapterIndex}
+          onClose={() => setEnhanceModalState({ isOpen: false, chapter: null, chapterIndex: -1 })}
+          onApply={handleApplyEnhancement}
+          onRequestSplit={handleRequestSplit}
+          onInsertChapter={handleInsertChapter}
+        />
+      )}
+
+      {/* 分割プレビューモーダル */}
+      {splitPreviewState.chapter && (
+        <ChapterSplitPreview
+          isOpen={splitPreviewState.isOpen}
+          chapter={splitPreviewState.chapter}
+          chapterIndex={splitPreviewState.chapterIndex}
+          onClose={() => setSplitPreviewState({ isOpen: false, chapter: null, chapterIndex: -1 })}
+          onApplySplit={handleApplySplit}
+        />
+      )}
     </div>
   );
 };

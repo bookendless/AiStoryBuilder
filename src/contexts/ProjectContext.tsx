@@ -7,6 +7,7 @@ import {
   setupBeforeUnloadHandler,
   saveRecoveryData,
 } from '../services/crashRecoveryService';
+import { getUserFriendlyError } from '../utils/errorHandler';
 
 // 型定義をtypes/からインポート
 import { Step } from '../types/common';
@@ -40,6 +41,16 @@ export type {
   ProjectProgress,
 };
 
+// エラー通知用のコールバック型
+export interface ProjectErrorNotifier {
+  notifyError: (error: unknown, context: string, options?: {
+    title?: string;
+    duration?: number;
+    showDetails?: boolean;
+    onRetry?: () => void;
+  }) => void;
+}
+
 interface ProjectContextType {
   currentProject: Project | null;
   setCurrentProject: (project: Project | null) => void;
@@ -70,7 +81,7 @@ export const useProject = () => {
   return context;
 };
 
-export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: ProjectErrorNotifier }> = ({ children, errorNotifier }) => {
   const [currentProject, setCurrentProjectState] = useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -93,6 +104,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       // データベースにも保存（非同期だがエラーは無視）
       databaseService.saveProject(updatedProject).catch(err => {
         console.error('lastAccessed更新エラー:', err);
+        // エラー通知（オプショナル）
+        if (errorNotifier) {
+          const errorInfo = getUserFriendlyError(err);
+          errorNotifier.notifyError(err, '最終アクセス時刻の更新', {
+            title: errorInfo.title,
+            duration: 5000,
+          });
+        }
       });
     } else {
       setCurrentProjectState(null);
@@ -107,12 +126,21 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       } catch (err) {
         console.error('プロジェクト初期化エラー:', err);
         console.error('プロジェクトの読み込みに失敗しました');
+        // エラー通知（オプショナル）
+        if (errorNotifier) {
+          const errorInfo = getUserFriendlyError(err);
+          errorNotifier.notifyError(err, 'プロジェクト一覧の読み込み', {
+            title: errorInfo.title || 'プロジェクトの読み込みに失敗しました',
+            duration: 7000,
+            showDetails: true,
+          });
+        }
         // エラーが発生してもアプリケーションは動作し続ける
       }
     };
 
     initializeProjects();
-  }, []);
+  }, [errorNotifier]);
 
   // 現在のプロジェクトが変更されたら自動保存を開始
   // useRefを使用して、コールバック関数内から最新のcurrentProjectを参照する
@@ -133,11 +161,28 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 setLastSaved(new Date());
               } else if (error) {
                 console.error('自動保存エラー:', error);
+                // エラー通知（オプショナル）
+                if (errorNotifier) {
+                  const errorInfo = getUserFriendlyError(error);
+                  errorNotifier.notifyError(error, '自動保存', {
+                    title: errorInfo.title || '自動保存に失敗しました',
+                    duration: 7000,
+                    showDetails: true,
+                  });
+                }
               }
             }
           );
         } catch (err) {
           console.error('自動保存開始エラー:', err);
+          // エラー通知（オプショナル）
+          if (errorNotifier) {
+            const errorInfo = getUserFriendlyError(err);
+            errorNotifier.notifyError(err, '自動保存の開始', {
+              title: errorInfo.title || '自動保存の開始に失敗しました',
+              duration: 5000,
+            });
+          }
         }
       };
       initAutoSave();
@@ -155,6 +200,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           cleanupBeforeUnload();
         } catch (err) {
           console.error('自動保存停止エラー:', err);
+          // 停止エラーは通常ユーザーに通知しない（重要度が低い）
         }
       };
     } else {
@@ -196,6 +242,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         console.log('プロジェクトを即座に保存しました');
       } catch (error) {
         console.error('即座保存エラー:', error);
+        // エラー通知（オプショナル）
+        if (errorNotifier) {
+          const errorInfo = getUserFriendlyError(error);
+          errorNotifier.notifyError(error, 'プロジェクトの保存', {
+            title: errorInfo.title || 'プロジェクトの保存に失敗しました',
+            duration: 7000,
+            showDetails: true,
+            onRetry: errorInfo.retryable ? () => updateProject(updates, true) : undefined,
+          });
+        }
       }
     } else {
       // デバウンス付きで保存（自動保存時）
@@ -213,6 +269,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         } catch (error) {
           console.error('プロジェクト保存エラー:', error);
           setIsLoading(false);
+          // エラー通知（オプショナル）
+          if (errorNotifier) {
+            const errorInfo = getUserFriendlyError(error);
+            errorNotifier.notifyError(error, 'プロジェクトの自動保存', {
+              title: errorInfo.title || 'プロジェクトの自動保存に失敗しました',
+              duration: 7000,
+              showDetails: true,
+            });
+          }
         }
       }, 500);
     }
@@ -314,9 +379,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } catch (error) {
       console.error('プロジェクト保存エラー:', error);
       setIsLoading(false);
+      // エラー通知（オプショナル）
+      if (errorNotifier) {
+        const errorInfo = getUserFriendlyError(error);
+        errorNotifier.notifyError(error, 'プロジェクトの保存', {
+          title: errorInfo.title || 'プロジェクトの保存に失敗しました',
+          duration: 7000,
+          showDetails: true,
+          onRetry: errorInfo.retryable ? () => saveProject() : undefined,
+        });
+      }
       throw error; // エラーを呼び出し側に伝播
     }
-  }, [currentProject, setLastSaved]);
+  }, [currentProject, setLastSaved, errorNotifier]);
 
   const createManualBackup = useCallback(async (description: string = '手動バックアップ'): Promise<void> => {
     if (!currentProject) return;
@@ -329,9 +404,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } catch (error) {
       console.error('手動バックアップ作成エラー:', error);
       setIsLoading(false);
+      // エラー通知（オプショナル）
+      if (errorNotifier) {
+        const errorInfo = getUserFriendlyError(error);
+        errorNotifier.notifyError(error, 'バックアップの作成', {
+          title: errorInfo.title || 'バックアップの作成に失敗しました',
+          duration: 7000,
+          showDetails: true,
+          onRetry: errorInfo.retryable ? () => createManualBackup(description) : undefined,
+        });
+      }
       throw error; // エラーを呼び出し側に伝播
     }
-  }, [currentProject]);
+  }, [currentProject, errorNotifier]);
 
   const loadProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);
@@ -370,9 +455,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } catch (error) {
       console.error('プロジェクト読み込みエラー:', error);
       setIsLoading(false);
+      // エラー通知（オプショナル）
+      if (errorNotifier) {
+        const errorInfo = getUserFriendlyError(error);
+        errorNotifier.notifyError(error, 'プロジェクトの読み込み', {
+          title: errorInfo.title || 'プロジェクトの読み込みに失敗しました',
+          duration: 7000,
+          showDetails: true,
+          onRetry: errorInfo.retryable ? () => loadProject(id) : undefined,
+        });
+      }
       throw error; // エラーを呼び出し側に伝播
     }
-  }, [setCurrentProject]);
+  }, [setCurrentProject, errorNotifier]);
 
   const deleteProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);
@@ -387,9 +482,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } catch (error) {
       console.error('プロジェクト削除エラー:', error);
       setIsLoading(false);
+      // エラー通知（オプショナル）
+      if (errorNotifier) {
+        const errorInfo = getUserFriendlyError(error);
+        errorNotifier.notifyError(error, 'プロジェクトの削除', {
+          title: errorInfo.title || 'プロジェクトの削除に失敗しました',
+          duration: 7000,
+          showDetails: true,
+        });
+      }
       throw error; // エラーを呼び出し側に伝播
     }
-  }, [currentProject, setCurrentProject]);
+  }, [currentProject, setCurrentProject, errorNotifier]);
 
   const duplicateProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);
@@ -402,9 +506,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } catch (error) {
       console.error('プロジェクト複製エラー:', error);
       setIsLoading(false);
+      // エラー通知（オプショナル）
+      if (errorNotifier) {
+        const errorInfo = getUserFriendlyError(error);
+        errorNotifier.notifyError(error, 'プロジェクトの複製', {
+          title: errorInfo.title || 'プロジェクトの複製に失敗しました',
+          duration: 7000,
+          showDetails: true,
+          onRetry: errorInfo.retryable ? () => duplicateProject(id) : undefined,
+        });
+      }
       throw error; // エラーを呼び出し側に伝播
     }
-  }, [setProjects]);
+  }, [setProjects, errorNotifier]);
 
   const loadAllProjects = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -429,10 +543,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setProjects(normalizedProjects);
     } catch (error) {
       console.error('プロジェクト一覧読み込みエラー:', error);
+      // エラー通知（オプショナル）
+      if (errorNotifier) {
+        const errorInfo = getUserFriendlyError(error);
+        errorNotifier.notifyError(error, 'プロジェクト一覧の読み込み', {
+          title: errorInfo.title || 'プロジェクト一覧の読み込みに失敗しました',
+          duration: 7000,
+          showDetails: true,
+          onRetry: errorInfo.retryable ? () => loadAllProjects() : undefined,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [errorNotifier]);
 
   // 章削除関数（草案データも含めて削除）
   const deleteChapter = useCallback((chapterId: string): void => {

@@ -3,7 +3,7 @@
  */
 
 export const FORESHADOWING_PROMPTS = {
-    suggest: `あなたは物語構成のプロフェッショナルです。以下のプロジェクト情報を分析し、効果的な伏線を提案してください。
+  suggest: `あなたは物語構成のプロフェッショナルです。以下のプロジェクト情報を分析し、効果的な伏線を提案してください。
 
 【プロジェクト基本情報】
 タイトル: {title}
@@ -50,8 +50,8 @@ export const FORESHADOWING_PROMPTS = {
     {{
       "title": "伏線のタイトル",
       "description": "伏線の説明と意図（100文字程度）",
-      "category": "character" | "plot" | "world" | "mystery" | "relationship" | "other",
-      "importance": "high" | "medium" | "low",
+      "category": "以下から選択: character, plot, world, mystery, relationship, other",
+      "importance": "以下から選択: high, medium, low",
       "plantChapter": "設置推奨章（例：第1章）",
       "plantDescription": "設置時の具体的な描写案（50文字程度）",
       "payoffChapter": "回収推奨章（例：第5章）",
@@ -62,7 +62,7 @@ export const FORESHADOWING_PROMPTS = {
   ]
 }}`,
 
-    checkConsistency: `あなたは厳格な編集者として、以下の伏線の整合性をチェックしてください。
+  checkConsistency: `あなたは厳格な編集者として、以下の伏線の整合性をチェックしてください。
 
 【プロジェクト基本情報】
 タイトル: {title}
@@ -101,7 +101,7 @@ export const FORESHADOWING_PROMPTS = {
     {{
       "foreshadowingTitle": "伏線タイトル",
       "issue": "問題の内容",
-      "severity": "high" | "medium" | "low",
+      "severity": "以下から選択: high, medium, low",
       "suggestion": "改善提案"
     }}
   ],
@@ -121,7 +121,7 @@ export const FORESHADOWING_PROMPTS = {
   "strengths": ["良い点1", "良い点2"]
 }}`,
 
-    suggestPayoff: `あなたは物語構成のエキスパートです。以下の伏線について、最適な回収タイミングと方法を提案してください。
+  suggestPayoff: `あなたは物語構成のエキスパートです。以下の伏線について、最適な回収タイミングと方法を提案してください。
 
 【プロジェクト基本情報】
 タイトル: {title}
@@ -170,7 +170,7 @@ export const FORESHADOWING_PROMPTS = {
   "avoidTiming": ["避けるべきタイミングとその理由"]
 }}`,
 
-    enhance: `あなたは物語構成のプロフェッショナルです。以下の伏線をより効果的にするための改善案を提案してください。
+  enhance: `あなたは物語構成のプロフェッショナルです。以下の伏線をより効果的にするための改善案を提案してください。
 
 【プロジェクト基本情報】
 タイトル: {title}

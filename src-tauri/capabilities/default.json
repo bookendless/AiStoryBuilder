@@ -1,17 +1,89 @@
 {
   "identifier": "default",
   "description": "Default capabilities for AI Story Builder",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "http://localhost:*" },
-        { "url": "http://127.0.0.1:*" },
-        { "url": "https://api.openai.com" },
-        { "url": "https://api.anthropic.com" },
-        { "url": "https://generativelanguage.googleapis.com" }
+        {
+          "url": "http://localhost:*"
+        },
+        {
+          "url": "http://127.0.0.1:*"
+        },
+        {
+          "url": "http://10.0.2.2:*"
+        },
+        {
+          "url": "http://10.*:*"
+        },
+        {
+          "url": "http://192.168.*:*"
+        },
+        {
+          "url": "http://172.16.*:*"
+        },
+        {
+          "url": "http://172.17.*:*"
+        },
+        {
+          "url": "http://172.18.*:*"
+        },
+        {
+          "url": "http://172.19.*:*"
+        },
+        {
+          "url": "http://172.20.*:*"
+        },
+        {
+          "url": "http://172.21.*:*"
+        },
+        {
+          "url": "http://172.22.*:*"
+        },
+        {
+          "url": "http://172.23.*:*"
+        },
+        {
+          "url": "http://172.24.*:*"
+        },
+        {
+          "url": "http://172.25.*:*"
+        },
+        {
+          "url": "http://172.26.*:*"
+        },
+        {
+          "url": "http://172.27.*:*"
+        },
+        {
+          "url": "http://172.28.*:*"
+        },
+        {
+          "url": "http://172.29.*:*"
+        },
+        {
+          "url": "http://172.30.*:*"
+        },
+        {
+          "url": "http://172.31.*:*"
+        },
+        {
+          "url": "https://api.openai.com"
+        },
+        {
+          "url": "https://api.anthropic.com"
+        },
+        {
+          "url": "https://generativelanguage.googleapis.com"
+        },
+        {
+          "url": "https://api.x.ai"
+        }
       ],
       "deny": []
     },
@@ -19,20 +91,36 @@
     {
       "identifier": "fs:allow-write-text-file",
       "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$DOCUMENT/**" }
+        {
+          "path": "$HOME/**"
+        },
+        {
+          "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$DESKTOP/**"
+        },
+        {
+          "path": "$DOCUMENT/**"
+        }
       ],
       "deny": []
     },
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$DOCUMENT/**" }
+        {
+          "path": "$HOME/**"
+        },
+        {
+          "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$DESKTOP/**"
+        },
+        {
+          "path": "$DOCUMENT/**"
+        }
       ],
       "deny": []
     },

@@ -1,3 +1,5 @@
+import { ChapterHistorySource } from '../../../services/chapterHistoryService';
+
 export interface StructureProgress {
   introduction: boolean;
   development: boolean;
@@ -9,6 +11,8 @@ export interface ChapterHistory {
   id: string;
   chapterId: string;
   timestamp: Date;
+  /** 変更のソース種別（手動編集、AI生成、AI強化、復元） */
+  source?: ChapterHistorySource;
   data: {
     title: string;
     summary: string;
@@ -29,8 +33,6 @@ export interface ChapterFormData {
   mood: string;
   keyEvents: string[];
 }
-
-
 
 
 

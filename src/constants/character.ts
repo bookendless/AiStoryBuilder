@@ -24,10 +24,9 @@ export const TEXT_LIMITS = {
   SPEECH_STYLE_WARNING: 100,
 } as const;
 
-// キャラクター生成関連
+// キャラクター生成関連（AI応答のテキスト解析で受け付ける最大人数）
 export const CHARACTER_GENERATION = {
-  RECOMMENDED_MIN: 3,
-  RECOMMENDED_MAX: 5,
+  PARSING_MAX: 30,
 } as const;
 
 

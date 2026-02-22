@@ -1,6 +1,7 @@
-import React from 'react';
-import { FileText, Copy, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileText, Copy, Download, Eye } from 'lucide-react';
 import { AILogEntry } from './types';
+import { AILogViewerModal } from './AILogViewerModal';
 
 interface AILogPanelProps {
   logs: AILogEntry[];
@@ -11,6 +12,7 @@ interface AILogPanelProps {
   renderLogContent?: (log: AILogEntry) => React.ReactNode;
   showWhenEmpty?: boolean;
   compact?: boolean;
+  enableDetailView?: boolean;
 }
 
 export const AILogPanel: React.FC<AILogPanelProps> = ({
@@ -22,7 +24,10 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
   renderLogContent,
   showWhenEmpty = true,
   compact = false,
+  enableDetailView = true,
 }) => {
+  const [viewingLog, setViewingLog] = useState<AILogEntry | null>(null);
+  const [currentLogIndex, setCurrentLogIndex] = useState<number | null>(null);
   const defaultTypeLabels: Record<string, string> = {
     'generate': '生成',
     'readable': '読みやすく',
@@ -53,6 +58,24 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
     return badgeClasses[type] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
   };
 
+  const handleViewDetail = (log: AILogEntry) => {
+    const index = logs.findIndex(l => l.id === log.id);
+    setCurrentLogIndex(index >= 0 ? index : null);
+    setViewingLog(log);
+  };
+
+  const handleCloseModal = () => {
+    setViewingLog(null);
+    setCurrentLogIndex(null);
+  };
+
+  const handleNavigate = (index: number) => {
+    if (index >= 0 && index < logs.length) {
+      setCurrentLogIndex(index);
+      setViewingLog(logs[index]);
+    }
+  };
+
   if (logs.length === 0) {
     if (!showWhenEmpty) {
       return null;
@@ -71,7 +94,8 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <>
+      <div className="space-y-3">
       {onDownloadLogs && (
         <div className="flex items-center justify-end space-x-2">
           <button
@@ -129,6 +153,16 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
                     minute: '2-digit',
                   })}
                 </span>
+                {enableDetailView && (
+                  <button
+                    onClick={() => handleViewDetail(log)}
+                    className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    title="詳細を見る"
+                    aria-label="詳細を見る"
+                  >
+                    <Eye className="h-3 w-3" />
+                  </button>
+                )}
                 {onCopyLog && (
                   <button
                     onClick={() => onCopyLog(log)}
@@ -161,12 +195,35 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
                     {log.response.substring(0, 300)}...
                   </div>
                 </div>
+                {enableDetailView && (
+                  <button
+                    onClick={() => handleViewDetail(log)}
+                    className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors font-['Noto_Sans_JP']"
+                  >
+                    詳細を見る →
+                  </button>
+                )}
               </div>
             )}
           </div>
         ))}
       </div>
-    </div>
+      </div>
+
+      {/* AIログ詳細モーダル */}
+      {enableDetailView && (
+        <AILogViewerModal
+          isOpen={viewingLog !== null}
+          onClose={handleCloseModal}
+          log={viewingLog}
+          logs={logs}
+          currentIndex={currentLogIndex ?? undefined}
+          onNavigate={handleNavigate}
+          onCopyLog={onCopyLog}
+          typeLabels={typeLabels}
+        />
+      )}
+    </>
   );
 };
 

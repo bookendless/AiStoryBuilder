@@ -16,7 +16,7 @@ export const MODAL_DEFAULT_LINE_HEIGHT = 1.6;
 
 export const HISTORY_STORAGE_PREFIX = 'chapterHistory';
 export const HISTORY_MAX_ENTRIES = 30;
-export const HISTORY_AUTO_SAVE_DELAY = 20000;
+export const HISTORY_AUTO_SAVE_DELAY = 300000; // 5分
 
 export const HISTORY_TYPE_LABELS: Record<HistoryEntryType, string> = {
   auto: '自動保存',

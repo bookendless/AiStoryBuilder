@@ -100,6 +100,13 @@ export async function exportFile(options: ExportFileOptions): Promise<ExportResu
                     await writeTextFile(filePath, content);
                 } else {
                     // Blobの場合はArrayBufferに変換
+                    // 大きなファイル（10MB以上）の場合は、モバイル環境ではShare APIにフォールバック
+                    const blobSize = blob.size;
+                    if (isMobile && blobSize > 10 * 1024 * 1024) {
+                        console.warn(`大きなファイル（${(blobSize / 1024 / 1024).toFixed(2)}MB）のため、Share APIにフォールバックします`);
+                        throw new Error('FILE_TOO_LARGE_FOR_MOBILE');
+                    }
+                    
                     const arrayBuffer = await blob.arrayBuffer();
                     await writeFile(filePath, new Uint8Array(arrayBuffer));
                 }
@@ -110,9 +117,10 @@ export async function exportFile(options: ExportFileOptions): Promise<ExportResu
             return { success: false, method: 'cancelled' };
         } catch (error) {
             console.warn('Tauriエクスポートに失敗:', error);
-            // デスクトップの場合はブラウザダウンロードにフォールバック
-            // モバイルの場合はShare APIを試行
-            if (!isMobile) {
+            // 大きなファイルの場合は、モバイル環境ではShare APIに直接フォールバック
+            if (isMobile && error instanceof Error && error.message === 'FILE_TOO_LARGE_FOR_MOBILE') {
+                // モバイル: Share APIを試行（次の処理に進む）
+            } else if (!isMobile) {
                 // デスクトップ: ブラウザダウンロードに直接フォールバック
                 return browserDownload(blob, filename);
             }

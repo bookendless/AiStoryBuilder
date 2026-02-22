@@ -885,7 +885,7 @@ export const setSecurityHeaders = (): void => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://10.0.2.2:* ws://10.0.2.2:* http://192.168.*:* ws://192.168.*:* http://172.*.*.*:* ws://172.*.*.*:*",
+    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://10.0.2.2:* ws://10.0.2.2:*",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ') : [

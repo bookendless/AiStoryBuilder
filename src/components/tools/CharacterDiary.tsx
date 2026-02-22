@@ -149,6 +149,10 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
 
       const fullSummary = `【概要】\n${chapterSummary}\n\n【登場キャラクター】\n${chapterDetails}\n\n【設定・場所】\n${chapterSetting}\n\n【雰囲気】\n${chapterMood}\n\n【重要な出来事】\n${chapterEvents}`;
 
+      const chapterContent = chapter.draft
+        ? `【章の本文（草案）】\n${chapter.draft.substring(0, 10000)}`
+        : '';
+
       const prompt = aiService.buildPrompt('character', 'diary', {
         characterName: character.name,
         characterRole: character.role || '未設定',
@@ -159,6 +163,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
         projectTitle: currentProject.title || '未設定',
         projectTheme: currentProject.theme || currentProject.projectTheme || '未設定',
         chapterSummary: fullSummary,
+        chapterContent: chapterContent,
       });
 
       const response = await aiService.generateContent({

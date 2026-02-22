@@ -81,12 +81,16 @@ class AIService {
         return false;
       }
 
-      // ホスト名の検証（localhost、127.0.0.1、::1のみ許可）
+      // ホスト名の検証（localhost、ループバック、プライベートネットワークIP、Androidエミュレータを許可）
       const hostname = url.hostname.toLowerCase();
-      const allowedHosts = ['localhost', '127.0.0.1', '::1', '[::1]'];
+      const allowedHosts = ['localhost', '127.0.0.1', '::1', '[::1]', '10.0.2.2'];
 
       if (!allowedHosts.includes(hostname)) {
-        return false;
+        // プライベートネットワークIP（192.168.x.x、10.x.x.x、172.16-31.x.x）を許可
+        const privateIpPattern = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|0\.0\.0\.0)/;
+        if (!privateIpPattern.test(hostname)) {
+          return false;
+        }
       }
 
       // ポート番号の検証（1-65535）
@@ -1087,6 +1091,15 @@ class AIService {
 
       if (!endpoint) {
         throw new APIError('ローカルエンドポイントが設定されていません', 'invalid_request', 'LOCAL_ENDPOINT_MISSING');
+      }
+
+      // Androidエミュレータ対応: API呼び出し時のみlocalhost/127.0.0.1を10.0.2.2に動的変換
+      // 注意: tauri.localhostはPC版ビルドでも使用されるため、Android判定には使用しない
+      const isAndroid = typeof window !== 'undefined' && (
+        (window as any).__TAURI_PLATFORM__ === 'android'
+      );
+      if (isAndroid) {
+        endpoint = endpoint.replace(/localhost|127\.0\.0\.1/, '10.0.2.2');
       }
 
       // エンドポイントの検証（セキュリティ強化）

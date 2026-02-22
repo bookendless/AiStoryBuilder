@@ -60,7 +60,7 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
   const nextHoverColor = nextStep ? STEP_HOVER_COLORS[nextStep] : '';
 
   return (
-    <div className={`flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700 mb-6 ${className}`}>
+    <div className={`relative flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700 mb-6 ${className}`}>
       <button
         onClick={onPrevious}
         disabled={!previousStep}
@@ -78,8 +78,8 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
       </button>
 
       {showStepNumbers && (
-        <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
-          <span>ステップ {currentIndex + 1} / {STEP_ORDER.length}</span>
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] whitespace-nowrap">
+          <span>{currentIndex + 1} / {STEP_ORDER.length}</span>
         </div>
       )}
 

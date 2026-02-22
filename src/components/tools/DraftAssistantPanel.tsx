@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Sparkles, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
@@ -10,22 +11,26 @@ import { useAIGeneration } from '../steps/draft/hooks/useAIGeneration';
 import { useAllChaptersGeneration } from '../steps/draft/hooks/useAllChaptersGeneration';
 // テキスト選択機能は削除
 import { CustomPromptModal } from '../steps/draft/CustomPromptModal';
+import { CritiqueSelectionModal } from '../steps/draft/CritiqueSelectionModal';
 import { ImprovementLogModal } from '../steps/draft/ImprovementLogModal';
 import { formatTimestamp } from '../steps/draft/utils';
-import type { ImprovementLog, ChapterHistoryEntry, HistoryEntryType } from '../steps/draft/types';
+import type { ImprovementLog, ChapterHistoryEntry, HistoryEntryType, WeaknessItem } from '../steps/draft/types';
 import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
 import { sanitizeInputForPrompt } from '../../utils/securityUtils';
 import { HISTORY_AUTO_SAVE_DELAY, HISTORY_MAX_ENTRIES, HISTORY_TYPE_LABELS, HISTORY_BADGE_CLASSES } from '../steps/draft/constants';
 import { diffLines, type Change } from 'diff';
-import { Save, RotateCcw, Trash2 } from 'lucide-react';
+import { Save, RotateCcw, Trash2, Eye } from 'lucide-react';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { exportFile } from '../../utils/mobileExportUtils';
+import { HistoryViewerModal } from '../steps/draft/HistoryViewerModal';
+import { WritingStyleSettings } from '../steps/draft/WritingStyleSettings';
 
 export const DraftAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
-    const { showError, showSuccess, showWarning } = useToast();
+    const { showSuccess, showWarning, showError } = useToast();
+    const { handleError } = useErrorHandler();
 
     // 章選択状態（パネル内で管理）
     // sessionStorageから初期値を読み込む
@@ -51,9 +56,17 @@ export const DraftAssistantPanel: React.FC = () => {
     const [selectedImprovementLogId, setSelectedImprovementLogId] = useState<string | null>(null);
     const [improvementLogs, setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
 
+    // 弱点特定モーダル状態
+    const [showCritiqueModal, setShowCritiqueModal] = useState(false);
+    const [critiqueWeaknesses, setCritiqueWeaknesses] = useState<WeaknessItem[]>([]);
+    const [critiqueSummary, setCritiqueSummary] = useState('');
+    const [rawCritique, setRawCritique] = useState('');
+
     // 履歴管理状態
     const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
     const [selectedHistoryEntryId, setSelectedHistoryEntryId] = useState<string | null>(null);
+    const [viewingHistoryEntry, setViewingHistoryEntry] = useState<ChapterHistoryEntry | null>(null);
+    const [viewingHistoryIndex, setViewingHistoryIndex] = useState<number | null>(null);
     const lastSnapshotContentRef = useRef<string>('');
     const historyLoadedChaptersRef = useRef<Set<string>>(new Set());
 
@@ -152,6 +165,34 @@ export const DraftAssistantPanel: React.FC = () => {
 第2幕: ${plot.fourAct2?.substring(0, 50) || '未設定'}...
 第3幕: ${plot.fourAct3?.substring(0, 50) || '未設定'}...
 第4幕: ${plot.fourAct4?.substring(0, 50) || '未設定'}...`;
+        } else if (plot.structure === 'heroes-journey') {
+            plotInfo = `全体構造: ヒーローズ・ジャーニー
+日常の世界: ${plot.hj1?.substring(0, 50) || '未設定'}...
+冒険への誘い: ${plot.hj2?.substring(0, 50) || '未設定'}...
+境界越え: ${plot.hj3?.substring(0, 50) || '未設定'}...
+試練と仲間: ${plot.hj4?.substring(0, 50) || '未設定'}...
+最大の試練: ${plot.hj5?.substring(0, 50) || '未設定'}...
+報酬: ${plot.hj6?.substring(0, 50) || '未設定'}...
+帰路: ${plot.hj7?.substring(0, 50) || '未設定'}...
+復活と帰還: ${plot.hj8?.substring(0, 50) || '未設定'}...`;
+        } else if (plot.structure === 'beat-sheet') {
+            plotInfo = `全体構造: ビートシート
+導入: ${plot.bs1?.substring(0, 50) || '未設定'}...
+決断: ${plot.bs2?.substring(0, 50) || '未設定'}...
+試練: ${plot.bs3?.substring(0, 50) || '未設定'}...
+転換点: ${plot.bs4?.substring(0, 50) || '未設定'}...
+危機: ${plot.bs5?.substring(0, 50) || '未設定'}...
+クライマックス: ${plot.bs6?.substring(0, 50) || '未設定'}...
+結末: ${plot.bs7?.substring(0, 50) || '未設定'}...`;
+        } else if (plot.structure === 'mystery-suspense') {
+            plotInfo = `全体構造: ミステリー・サスペンス
+発端: ${plot.ms1?.substring(0, 50) || '未設定'}...
+捜査（初期）: ${plot.ms2?.substring(0, 50) || '未設定'}...
+仮説とミスリード: ${plot.ms3?.substring(0, 50) || '未設定'}...
+第二の事件/急展開: ${plot.ms4?.substring(0, 50) || '未設定'}...
+手がかりの統合: ${plot.ms5?.substring(0, 50) || '未設定'}...
+解決: ${plot.ms6?.substring(0, 50) || '未設定'}...
+エピローグ: ${plot.ms7?.substring(0, 50) || '未設定'}...`;
         }
 
         return {
@@ -203,6 +244,12 @@ export const DraftAssistantPanel: React.FC = () => {
             plotStructure = `三幕構成\n第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`;
         } else if (currentProject?.plot?.structure === 'four-act') {
             plotStructure = `四幕構成\n第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`;
+        } else if (currentProject?.plot?.structure === 'heroes-journey') {
+            plotStructure = `ヒーローズ・ジャーニー\n日常の世界: ${currentProject.plot.hj1 || '未設定'}\n冒険への誘い: ${currentProject.plot.hj2 || '未設定'}\n境界越え: ${currentProject.plot.hj3 || '未設定'}\n試練と仲間: ${currentProject.plot.hj4 || '未設定'}\n最大の試練: ${currentProject.plot.hj5 || '未設定'}\n報酬: ${currentProject.plot.hj6 || '未設定'}\n帰路: ${currentProject.plot.hj7 || '未設定'}\n復活と帰還: ${currentProject.plot.hj8 || '未設定'}`;
+        } else if (currentProject?.plot?.structure === 'beat-sheet') {
+            plotStructure = `ビートシート\n導入 (Setup): ${currentProject.plot.bs1 || '未設定'}\n決断 (Break into Two): ${currentProject.plot.bs2 || '未設定'}\n試練 (Fun and Games): ${currentProject.plot.bs3 || '未設定'}\n転換点 (Midpoint): ${currentProject.plot.bs4 || '未設定'}\n危機 (All Is Lost): ${currentProject.plot.bs5 || '未設定'}\nクライマックス (Finale): ${currentProject.plot.bs6 || '未設定'}\n結末 (Final Image): ${currentProject.plot.bs7 || '未設定'}`;
+        } else if (currentProject?.plot?.structure === 'mystery-suspense') {
+            plotStructure = `ミステリー・サスペンス構成\n発端（事件発生）: ${currentProject.plot.ms1 || '未設定'}\n捜査（初期）: ${currentProject.plot.ms2 || '未設定'}\n仮説とミスリード: ${currentProject.plot.ms3 || '未設定'}\n第二の事件/急展開: ${currentProject.plot.ms4 || '未設定'}\n手がかりの統合: ${currentProject.plot.ms5 || '未設定'}\n解決（真相解明）: ${currentProject.plot.ms6 || '未設定'}\nエピローグ: ${currentProject.plot.ms7 || '未設定'}`;
         } else {
             plotStructure = contextInfo.plotInfo || '未設定';
         }
@@ -298,7 +345,9 @@ export const DraftAssistantPanel: React.FC = () => {
         handleStyleAdjustment,
         handleShortenText,
         handleChapterImprovement,
-        handleSelfRefineImprovement,
+        analyzeWeaknesses,
+        applyWeaknessFixes,
+        handleFixCharacterInconsistencies,
         handleCancelGeneration,
     } = useAIGeneration({
         currentProject,
@@ -320,6 +369,23 @@ export const DraftAssistantPanel: React.FC = () => {
         buildCustomPrompt,
         setImprovementLogs,
     });
+
+    // 弱点特定ハンドラ
+    const handleAnalyzeWeaknesses = useCallback(async () => {
+        const result = await analyzeWeaknesses();
+        if (result) {
+            setCritiqueWeaknesses(result.weaknesses);
+            setCritiqueSummary(result.critiqueSummary);
+            setRawCritique(result.rawCritique);
+            setShowCritiqueModal(true);
+        }
+    }, [analyzeWeaknesses]);
+
+    // 弱点修正ハンドラ
+    const handleApplyFixes = useCallback(async (selectedWeaknesses: WeaknessItem[]) => {
+        await applyWeaknessFixes(selectedWeaknesses, rawCritique);
+        setShowCritiqueModal(false);
+    }, [applyWeaknessFixes, rawCritique]);
 
     // 全章一括生成用のAIログ管理（章未選択時用）
     const { aiLogs: allChaptersLogs, addLog: addAllChaptersLog, loadLogs: loadAllChaptersLogs } = useAILog({
@@ -621,9 +687,16 @@ export const DraftAssistantPanel: React.FC = () => {
             showSuccess('履歴を削除しました');
         } catch (error) {
             console.error('履歴の削除エラー:', error);
-            showError('履歴の削除に失敗しました');
+            handleError(
+                error,
+                '履歴の削除',
+                {
+                    title: '履歴の削除に失敗しました',
+                    duration: 5000,
+                }
+            );
         }
-    }, [currentProject, selectedChapterId, selectedHistoryEntryId, showSuccess, showError]);
+    }, [currentProject, selectedChapterId, selectedHistoryEntryId, showSuccess, handleError]);
 
     // 履歴差分の計算
     const historyEntries = useMemo(
@@ -653,6 +726,31 @@ export const DraftAssistantPanel: React.FC = () => {
         showSuccess('履歴を保存しました');
     }, [createHistorySnapshot, showSuccess]);
 
+    // 履歴詳細表示
+    const handleViewHistoryDetail = useCallback((entry: ChapterHistoryEntry) => {
+        const index = historyEntries.findIndex(e => e.id === entry.id);
+        setViewingHistoryIndex(index >= 0 ? index : null);
+        setViewingHistoryEntry(entry);
+    }, [historyEntries]);
+
+    const handleCloseHistoryModal = useCallback(() => {
+        setViewingHistoryEntry(null);
+        setViewingHistoryIndex(null);
+    }, []);
+
+    const handleNavigateHistory = useCallback((index: number) => {
+        if (index >= 0 && index < historyEntries.length) {
+            setViewingHistoryIndex(index);
+            setViewingHistoryEntry(historyEntries[index]);
+        }
+    }, [historyEntries]);
+
+    // モーダル表示中の履歴エントリの差分を計算
+    const viewingHistoryDiffSegments = useMemo<Change[]>(() => {
+        if (!viewingHistoryEntry || !draft) return [];
+        return diffLines(viewingHistoryEntry.content ?? '', draft ?? '');
+    }, [viewingHistoryEntry, draft]);
+
     // 折りたたみセクションのトグル
     const toggleSection = useCallback((sectionId: string) => {
         setExpandedSections(prev => {
@@ -675,7 +773,10 @@ export const DraftAssistantPanel: React.FC = () => {
     const isStyleGenerating = isGenerating && currentGenerationAction === 'style';
     const isShortenGenerating = isGenerating && currentGenerationAction === 'shorten';
     const isImproving = isGenerating && currentGenerationAction === 'improve';
-    const isSelfRefining = isGenerating && currentGenerationAction === 'selfRefine';
+    // const isSelfRefining = isGenerating && currentGenerationAction === 'selfRefine'; // 廃止
+    const isAnalyzing = isGenerating && currentGenerationAction === 'critique';
+    const isFixingWeaknesses = isGenerating && currentGenerationAction === 'fixWeaknesses';
+    const isFixingCharacter = isGenerating && currentGenerationAction === 'fixCharacter';
     const chapterLogs = selectedChapterId ? improvementLogs[selectedChapterId] || [] : [];
 
     // 生成中のメッセージを取得
@@ -686,7 +787,9 @@ export const DraftAssistantPanel: React.FC = () => {
         if (isStyleGenerating) return '文体を調整中';
         if (isShortenGenerating) return '文章を短縮中';
         if (isImproving) return '章全体を改善中';
-        if (isSelfRefining) return '弱点を特定して修正中';
+        if (isAnalyzing) return '弱点を特定中';
+        if (isFixingWeaknesses) return '選択した弱点を修正中';
+        if (isFixingCharacter) return 'キャラクター情報のブレを修正中';
         return 'AI生成中';
     };
 
@@ -737,6 +840,28 @@ export const DraftAssistantPanel: React.FC = () => {
 
             {selectedChapterId && currentChapter ? (
                 <>
+
+                    {/* 文体設定セクション */}
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
+                        <button
+                            onClick={() => toggleSection('style')}
+                            className="w-full flex items-center justify-between mb-3"
+                        >
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] flex items-center">
+                                <Edit3 className="h-4 w-4 mr-2 text-indigo-500" />
+                                文体設定
+                            </h3>
+                            {expandedSections.has('style') ? (
+                                <ChevronUp className="h-4 w-4 text-gray-500" />
+                            ) : (
+                                <ChevronDown className="h-4 w-4 text-gray-500" />
+                            )}
+                        </button>
+
+                        {expandedSections.has('style') && (
+                            <WritingStyleSettings />
+                        )}
+                    </div>
 
                     {/* 章全体の生成セクション */}
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
@@ -827,7 +952,7 @@ export const DraftAssistantPanel: React.FC = () => {
 
                                 <button
                                     type="button"
-                                    onClick={handleSelfRefineImprovement}
+                                    onClick={handleAnalyzeWeaknesses}
                                     disabled={isGenerating || !hasDraft}
                                     className="w-full p-3 text-left bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -837,10 +962,10 @@ export const DraftAssistantPanel: React.FC = () => {
                                                 弱点特定と修正ループ
                                             </div>
                                             <div className="text-[11px] text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP'] mt-0.5">
-                                                {isSelfRefining ? 'AIが弱点を特定し、改善しています…' : '批評→改訂の2段階で改善'}
+                                                {isAnalyzing ? '弱点を特定中...' : isFixingWeaknesses ? '選択した弱点を修正中...' : '批評→選択→改訂のプロセスで改善'}
                                             </div>
                                         </div>
-                                        <Sparkles className={`h-3 w-3 ${isSelfRefining ? 'text-amber-500 animate-spin' : 'text-amber-500/70'}`} />
+                                        <Sparkles className={`h-3 w-3 ${isAnalyzing || isFixingWeaknesses ? 'text-amber-500 animate-spin' : 'text-amber-500/70'}`} />
                                     </div>
                                 </button>
 
@@ -914,6 +1039,13 @@ export const DraftAssistantPanel: React.FC = () => {
                                     disabled={isGenerating || !hasDraft}
                                     onClick={handleShortenText}
                                 />
+                                <ActionButton
+                                    title="キャラ整合性修正"
+                                    description={isFixingCharacter ? 'AIがキャラクター情報の矛盾を修正しています…' : 'キャラ設定の不一致を修正'}
+                                    isBusy={isFixingCharacter}
+                                    disabled={isGenerating || !hasDraft}
+                                    onClick={handleFixCharacterInconsistencies}
+                                />
                             </div>
                         )}
                     </div>
@@ -975,7 +1107,7 @@ export const DraftAssistantPanel: React.FC = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => setSelectedHistoryEntryId(entry.id)}
-                                                        className="w-full text-left"
+                                                        className="w-full text-left pr-8"
                                                     >
                                                         <div className="flex items-center justify-between text-xs mb-1">
                                                             <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${HISTORY_BADGE_CLASSES[entry.type]}`}>
@@ -985,17 +1117,31 @@ export const DraftAssistantPanel: React.FC = () => {
                                                         </div>
                                                         <div className="text-[11px] text-gray-500 dark:text-gray-400">{preview}</div>
                                                     </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setDeletingHistoryEntryId(entry.id);
-                                                        }}
-                                                        className="absolute top-2 right-2 p-1.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 dark:hover:bg-red-900/50"
-                                                        title="履歴を削除"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </button>
+                                                    <div className="absolute top-2 right-2 flex items-center space-x-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleViewHistoryDetail(entry);
+                                                            }}
+                                                            className="p-1.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                                                            title="詳細を見る"
+                                                            aria-label="詳細を見る"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setDeletingHistoryEntryId(entry.id);
+                                                            }}
+                                                            className="p-1.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 dark:hover:bg-red-900/50"
+                                                            title="履歴を削除"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             );
                                         })
@@ -1201,9 +1347,14 @@ ${'='.repeat(80)}`;
                                     type="button"
                                     onClick={() => {
                                         if (!isConfigured) {
-                                            showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
-                                                title: 'AI設定が必要',
-                                            });
+                                            handleError(
+                                                new Error('AI設定が必要です'),
+                                                'AI設定',
+                                                {
+                                                    title: 'AI設定が必要',
+                                                    duration: 7000,
+                                                }
+                                            );
                                             return;
                                         }
                                         if (!currentProject || currentProject.chapters.length === 0) {
@@ -1216,8 +1367,8 @@ ${'='.repeat(80)}`;
                                     }}
                                     disabled={isGeneratingAllChapters || !isConfigured}
                                     className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold font-['Noto_Sans_JP'] transition-all ${isGeneratingAllChapters
-                                            ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                                            : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02]'
+                                        ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02]'
                                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     {isGeneratingAllChapters ? (
@@ -1369,6 +1520,18 @@ ${'='.repeat(80)}`;
                 confirmLabel="削除"
             />
 
+            {/* 履歴詳細モーダル */}
+            <HistoryViewerModal
+                isOpen={viewingHistoryEntry !== null}
+                onClose={handleCloseHistoryModal}
+                entry={viewingHistoryEntry}
+                entries={historyEntries}
+                currentIndex={viewingHistoryIndex ?? undefined}
+                onNavigate={handleNavigateHistory}
+                diffSegments={viewingHistoryDiffSegments.length > 0 ? viewingHistoryDiffSegments : undefined}
+                currentDraft={draft}
+            />
+
             {/* 確認ダイアログ - 全章生成 */}
             <ConfirmDialog
                 isOpen={showGenerateAllChaptersConfirm}
@@ -1389,6 +1552,15 @@ ${'='.repeat(80)}`;
                 }
                 type={settings.provider === 'local' ? 'warning' : 'info'}
                 confirmLabel="実行"
+            />
+            {/* 弱点選択モーダル */}
+            <CritiqueSelectionModal
+                isOpen={showCritiqueModal}
+                onClose={() => setShowCritiqueModal(false)}
+                onConfirm={handleApplyFixes}
+                weaknesses={critiqueWeaknesses}
+                critiqueSummary={critiqueSummary}
+                isFixing={isFixingWeaknesses}
             />
         </div>
     );

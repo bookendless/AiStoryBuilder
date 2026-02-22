@@ -222,6 +222,14 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
         ? `「${character.speechStyle}」という口調を完全に再現してください`
         : '標準的な話し方で話してください';
 
+      // 章の本文を取得
+      const chapter = selectedChapterId
+        ? currentProject.chapters.find(c => c.id === selectedChapterId)
+        : null;
+      const chapterContent = chapter?.draft
+        ? `【章の本文（草案）】\n${chapter.draft.substring(0, 10000)}` // コンテキスト長制限を考慮して制限
+        : '';
+
       const prompt = aiService.buildPrompt('character', 'possession', {
         characterName: character.name,
         characterRole: character.role || '未設定',
@@ -238,6 +246,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
         conversationHistory: conversationHistory,
         speechStyleInstruction: speechStyleInstruction,
         chapterInfo: chapterInfo,
+        chapterContent: chapterContent,
         userMessage: userMessage.content,
       });
 

@@ -48,6 +48,7 @@
     "tauri:dev:android": "tauri android dev",
     "tauri:build:android": "tauri android build",
     "tauri:build:android:release": "tauri android build --release",
+    "tauri:build:android:windows": "node scripts/android-build-windows.js",
     "tauri:android:init": "tauri android init",
     "android:create-keystore": "node scripts/create-android-keystore.js"
   },

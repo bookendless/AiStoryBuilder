@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight, HelpCircle, Wrench } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight, HelpCircle, Wrench, Settings } from 'lucide-react';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
 import { useOverlayBackHandler } from '../contexts/BackButtonContext';
@@ -74,6 +74,18 @@ const quickOnboardingSteps: OnboardingStep[] = [
       'AIチャット相談 - 創作に関する質問に回答',
     ],
   },
+  {
+    id: 'ai-settings',
+    title: 'AI設定を完了させよう',
+    description: 'このアプリの能力を最大限に引き出すために、まずはAI設定を行いましょう。設定画面からAPIキーの登録やローカルLLMとの接続設定が可能です。',
+    icon: <Settings className="h-12 w-12 text-blue-600 dark:text-blue-400" />,
+    features: [
+      'APIキーの設定 - Gemini, OpenAI, AnthropicなどのAPIキーを登録',
+      'ローカルLLM接続 - Ollamaなどと連携してオフラインで利用',
+      'モデルの選択 - 用途に合わせて使用するAIモデルを切り替え',
+      'プロンプトのカスタマイズ - AIの振る舞いを細かく調整',
+    ],
+  },
 ];
 
 // フルオンボーディング用の詳細なステップ
@@ -146,6 +158,18 @@ const fullOnboardingSteps: OnboardingStep[] = [
       'Ctrl+/ / Cmd+/: ショートカット一覧表示',
       'Ctrl+B / Cmd+B: サイドバーの折りたたみ',
       'Esc: モーダルを閉じる',
+    ],
+  },
+  {
+    id: 'ai-settings',
+    title: 'AI設定を完了させよう',
+    description: 'このアプリの能力を最大限に引き出すために、まずはAI設定を行いましょう。設定画面からAPIキーの登録やローカルLLMとの接続設定が可能です。',
+    icon: <Settings className="h-12 w-12 text-blue-600 dark:text-blue-400" />,
+    features: [
+      'APIキーの設定 - Gemini, OpenAI, AnthropicなどのAPIキーを登録',
+      'ローカルLLM接続 - Ollamaなどと連携してオフラインで利用',
+      'モデルの選択 - 用途に合わせて使用するAIモデルを切り替え',
+      'プロンプトのカスタマイズ - AIの振る舞いを細かく調整',
     ],
   },
 ];

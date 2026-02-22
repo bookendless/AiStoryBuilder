@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { FileText, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Save, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { useProject, Project } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -8,6 +8,7 @@ import { getUserFriendlyError } from '../../utils/errorHandler';
 import { useAutoSave } from '../common/hooks/useAutoSave';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { StepNavigation } from '../common/StepNavigation';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Step } from '../../App';
 
 // 定数定義
@@ -23,6 +24,7 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
   const { showError, showErrorWithDetails } = useToast();
   const [synopsis, setSynopsis] = useState(currentProject?.synopsis || '');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
   // setTimeoutのクリーンアップ用のref
   const saveTimeoutRef = useRef<number | null>(null);
@@ -274,6 +276,20 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
     }
   };
 
+  const handleClearContent = () => {
+    if (synopsis.trim()) {
+      setIsClearConfirmOpen(true);
+    }
+  };
+
+  const handleConfirmClearContent = () => {
+    setSynopsis('');
+    if (currentProject) {
+      updateProject({ synopsis: '' }, false);
+    }
+    setIsClearConfirmOpen(false);
+  };
+
   return (
     <div>
       {/* ステップナビゲーション */}
@@ -324,6 +340,16 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
                 </div>
 
                 <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleClearContent}
+                    disabled={!synopsis.trim()}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-['Noto_Sans_JP'] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
+                    title="内容をクリア"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>内容をクリア</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -415,6 +441,17 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
           </div>
         </div>
       </div>
+
+      {/* 内容をクリアの確認モーダル */}
+      <ConfirmDialog
+        isOpen={isClearConfirmOpen}
+        onClose={() => setIsClearConfirmOpen(false)}
+        onConfirm={handleConfirmClearContent}
+        title="あらすじの内容をクリアしますか？"
+        message=""
+        type="warning"
+        confirmLabel="クリア"
+      />
     </div>
   );
 };

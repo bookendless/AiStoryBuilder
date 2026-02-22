@@ -3,6 +3,24 @@ import { AIProvider } from '../../types/ai';
 // Claudeモデル定義
 const CLAUDE_MODELS = [
   {
+    id: 'claude-opus-4-6',
+    name: 'Claude Opus 4.6',
+    description: '2026年2月登場。推論とエージェント機能が強化された最新フラグシップ',
+    maxTokens: 1000000,
+    capabilities: ['テキスト', 'ビジョン', '高度推論', 'エージェント'],
+    recommendedUse: '複雑な分析、長期的なエージェントタスク、高度な専門領域',
+    latencyClass: 'standard' as const,
+  },
+  {
+    id: 'claude-sonnet-4-6',
+    name: 'Claude Sonnet 4.6',
+    description: '2026年2月登場。全方位に強化された最新Sonnet',
+    maxTokens: 1000000,
+    capabilities: ['テキスト', 'ビジョン', '長文推論', 'エージェント'],
+    recommendedUse: '計画立案、知識作業、デザイン、長文脈での推論',
+    latencyClass: 'standard' as const,
+  },
+  {
     id: 'claude-opus-4-5-20251101',
     name: 'Claude Opus 4.5',
     description: '2025年11月登場。Anthropic史上最も賢いモデル',

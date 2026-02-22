@@ -195,7 +195,10 @@ export const ChapterFormModal: React.FC<ChapterFormModalProps> = ({
                                   >
                                     <span>{character.name}</span>
                                     <button
-                                      onClick={() => onCharacterToggle(character.id)}
+                                      onClick={() => onFormDataChange({
+                                        ...formData,
+                                        characters: formData.characters.filter(c => c !== charIdOrName)
+                                      })}
                                       className="ml-1 text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-200"
                                     >
                                       ×

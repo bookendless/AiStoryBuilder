@@ -3,6 +3,7 @@ import { Sparkles, FileText, CheckCircle, BookOpen, Loader } from 'lucide-react'
 import { useProject, Project } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { aiService } from '../../services/aiService';
 import { getUserFriendlyError } from '../../utils/errorHandler';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
@@ -17,6 +18,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
     const { showSuccess, showError, showErrorWithDetails } = useToast();
+    const { handleAPIError } = useErrorHandler();
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGeneratingStyle, setIsGeneratingStyle] = useState(false);
@@ -87,6 +89,48 @@ export const SynopsisAssistantPanel: React.FC = () => {
                     `第1幕（導入）: ${plot.act1 || '未設定'}`,
                     `第2幕（展開）: ${plot.act2 || '未設定'}`,
                     `第3幕（結末）: ${plot.act3 || '未設定'}`
+                ].join('\n');
+            case 'four-act':
+                return [
+                    `【四幕構成】`,
+                    `第1幕（秩序）: ${plot.fourAct1 || '未設定'}`,
+                    `第2幕（混沌）: ${plot.fourAct2 || '未設定'}`,
+                    `第3幕（秩序）: ${plot.fourAct3 || '未設定'}`,
+                    `第4幕（混沌）: ${plot.fourAct4 || '未設定'}`
+                ].join('\n');
+            case 'heroes-journey':
+                return [
+                    `【ヒーローズ・ジャーニー】`,
+                    `日常の世界: ${plot.hj1 || '未設定'}`,
+                    `冒険への誘い: ${plot.hj2 || '未設定'}`,
+                    `境界越え: ${plot.hj3 || '未設定'}`,
+                    `試練と仲間: ${plot.hj4 || '未設定'}`,
+                    `最大の試練: ${plot.hj5 || '未設定'}`,
+                    `報酬: ${plot.hj6 || '未設定'}`,
+                    `帰路: ${plot.hj7 || '未設定'}`,
+                    `復活と帰還: ${plot.hj8 || '未設定'}`
+                ].join('\n');
+            case 'beat-sheet':
+                return [
+                    `【ビートシート】`,
+                    `導入 (Setup): ${plot.bs1 || '未設定'}`,
+                    `決断 (Break into Two): ${plot.bs2 || '未設定'}`,
+                    `試練 (Fun and Games): ${plot.bs3 || '未設定'}`,
+                    `転換点 (Midpoint): ${plot.bs4 || '未設定'}`,
+                    `危機 (All Is Lost): ${plot.bs5 || '未設定'}`,
+                    `クライマックス (Finale): ${plot.bs6 || '未設定'}`,
+                    `結末 (Final Image): ${plot.bs7 || '未設定'}`
+                ].join('\n');
+            case 'mystery-suspense':
+                return [
+                    `【ミステリー・サスペンス構成】`,
+                    `発端（事件発生）: ${plot.ms1 || '未設定'}`,
+                    `捜査（初期）: ${plot.ms2 || '未設定'}`,
+                    `仮説とミスリード: ${plot.ms3 || '未設定'}`,
+                    `第二の事件/急展開: ${plot.ms4 || '未設定'}`,
+                    `手がかりの統合: ${plot.ms5 || '未設定'}`,
+                    `解決（真相解明）: ${plot.ms6 || '未設定'}`,
+                    `エピローグ: ${plot.ms7 || '未設定'}`
                 ].join('\n');
             default:
                 return '物語構造の詳細が設定されていません';
@@ -201,12 +245,26 @@ export const SynopsisAssistantPanel: React.FC = () => {
 
     const handleAIGenerate = async () => {
         if (!isConfigured) {
-            showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                'あらすじ生成',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
             return;
         }
 
         if (!promptVariables) {
-            showError('プロジェクト情報が不足しています。');
+            handleAPIError(
+                new Error('プロジェクト情報が不足しています'),
+                'あらすじ生成',
+                {
+                    title: 'プロジェクト情報が不足しています',
+                    duration: 5000,
+                }
+            );
             return;
         }
 
@@ -245,8 +303,16 @@ export const SynopsisAssistantPanel: React.FC = () => {
                     error: response.error,
                 });
 
-                const errorInfo = getUserFriendlyError(response.error);
-                showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
+                handleAPIError(
+                    new Error(response.error),
+                    '全体あらすじ生成',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleGenerateFullSynopsis(),
+                    }
+                );
                 return;
             }
 
@@ -275,7 +341,16 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 error: errorMessage,
             });
 
-            showError('AI生成中にエラーが発生しました');
+            handleAPIError(
+                error,
+                'あらすじ生成',
+                {
+                    title: 'AI生成中にエラーが発生しました',
+                    duration: 7000,
+                    showDetails: true,
+                    onRetry: () => handleAIGenerate(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGenerating(false);
@@ -287,12 +362,26 @@ export const SynopsisAssistantPanel: React.FC = () => {
     // 文体調整AI機能
     const handleStyleAdjustment = async (styleType: string) => {
         if (!isConfigured) {
-            showError('AI設定が必要です。');
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                '文体調整',
+                {
+                    title: 'AI設定が必要',
+                    duration: 5000,
+                }
+            );
             return;
         }
 
         if (!synopsis.trim()) {
-            showError('あらすじが入力されていません。先にあらすじを入力してください。');
+            handleAPIError(
+                new Error('あらすじが入力されていません'),
+                '文体調整',
+                {
+                    title: 'あらすじが入力されていません',
+                    duration: 5000,
+                }
+            );
             return;
         }
 
@@ -340,8 +429,16 @@ export const SynopsisAssistantPanel: React.FC = () => {
                     error: response.error,
                 });
 
-                const errorInfo = getUserFriendlyError(response.error);
-                showErrorWithDetails(errorInfo.title, errorInfo.message, errorInfo.details);
+                handleAPIError(
+                    new Error(response.error),
+                    '文体調整',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleStyleAdjustment(styleType),
+                    }
+                );
                 return;
             }
 
@@ -383,17 +480,38 @@ export const SynopsisAssistantPanel: React.FC = () => {
     // 全体あらすじ生成機能
     const handleGenerateFullSynopsis = async () => {
         if (!isConfigured) {
-            showError('AI設定が必要です。');
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                '全体あらすじ生成',
+                {
+                    title: 'AI設定が必要',
+                    duration: 5000,
+                }
+            );
             return;
         }
 
         if (!currentProject?.chapters || currentProject.chapters.length === 0) {
-            showError('章立てが必要です。まず章立てを作成してください。');
+            handleAPIError(
+                new Error('章立てが必要です'),
+                '全体あらすじ生成',
+                {
+                    title: '章立てが必要です',
+                    duration: 5000,
+                }
+            );
             return;
         }
 
         if (!fullSynopsisVariables) {
-            showError('プロジェクト情報が不足しています。');
+            handleAPIError(
+                new Error('プロジェクト情報が不足しています'),
+                '全体あらすじ生成',
+                {
+                    title: 'プロジェクト情報が不足しています',
+                    duration: 5000,
+                }
+            );
             return;
         }
 
@@ -462,7 +580,16 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 error: errorMessage,
             });
 
-            showError('全体あらすじ生成中にエラーが発生しました');
+            handleAPIError(
+                error,
+                '全体あらすじ生成',
+                {
+                    title: '全体あらすじ生成中にエラーが発生しました',
+                    duration: 7000,
+                    showDetails: true,
+                    onRetry: () => handleGenerateFullSynopsis(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGeneratingFullSynopsis(false);

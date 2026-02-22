@@ -17,4 +17,5 @@ export type {
   AIStatusTone,
   AILogType,
   SuggestionPromptPayload,
+  WeaknessItem,
 } from '../../../types/draft';

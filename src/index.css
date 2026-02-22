@@ -406,9 +406,9 @@ body {
   }
 }
 
-/* モーション軽減設定 */
+/* モーション軽減設定（ローディング等の状態表示は除外） */
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *:not(.motion-essential):not(.motion-essential *) {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

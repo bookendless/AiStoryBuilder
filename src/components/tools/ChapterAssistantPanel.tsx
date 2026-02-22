@@ -3,6 +3,7 @@ import { Sparkles, Loader, CheckCircle, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
@@ -13,10 +14,14 @@ import { exportFile } from '../../utils/mobileExportUtils';
 export const ChapterAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
-    const { showError, showSuccess, showWarning, showInfo } = useToast();
+    const { showSuccess, showWarning, showInfo, showError } = useToast();
+    const { handleAPIError } = useErrorHandler();
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
-    const { aiLogs, addLog } = useAILog();
+    const { aiLogs, addLog } = useAILog({
+        projectId: currentProject?.id,
+        autoLoad: true,
+    });
     const basicAbortControllerRef = useRef<AbortController | null>(null);
     const structureAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -132,6 +137,19 @@ export const ChapterAssistantPanel: React.FC = () => {
             // 基本情報
             title: currentProject.title || '無題',
             description: currentProject.description || '一般小説',
+            mainGenre: currentProject.mainGenre || '',
+            subGenre: currentProject.subGenre || currentProject.customSubGenre || '',
+            targetReader: currentProject.targetReader || currentProject.customTargetReader || '',
+            projectTheme: currentProject.projectTheme || currentProject.theme || currentProject.customTheme || '',
+            writingStyle: (() => {
+                const ws = currentProject.writingStyle;
+                if (!ws) return '';
+                const parts = [];
+                if (ws.style || ws.customStyle) parts.push(`文体: ${ws.customStyle || ws.style}`);
+                if (ws.perspective || ws.customPerspective) parts.push(`人称: ${ws.customPerspective || ws.perspective}`);
+                if (ws.tone || ws.customTone) parts.push(`トーン: ${ws.customTone || ws.tone}`);
+                return parts.join(', ');
+            })(),
 
             // プロット情報
             plot: {
@@ -192,7 +210,11 @@ export const ChapterAssistantPanel: React.FC = () => {
 
             return aiService.buildPrompt('chapter', 'generateStructure', {
                 title: projectContext.title,
-                mainGenre: currentProject?.mainGenre || '未設定',
+                mainGenre: projectContext.mainGenre || '未設定',
+                subGenre: projectContext.subGenre || '未設定',
+                targetReader: projectContext.targetReader || '未設定',
+                projectTheme: projectContext.projectTheme || '未設定',
+                writingStyle: projectContext.writingStyle || '未設定',
                 structureDetails: projectContext.plot?.structureDetails || '構成詳細が設定されていません',
                 characters: characters,
                 existingChapters: existingChapters,
@@ -202,13 +224,17 @@ export const ChapterAssistantPanel: React.FC = () => {
             // 基本AI生成用のプロンプト
             return aiService.buildPrompt('chapter', 'generateBasic', {
                 title: projectContext.title,
-                mainGenre: currentProject?.mainGenre || '未設定',
+                mainGenre: projectContext.mainGenre || '未設定',
+                subGenre: projectContext.subGenre || '未設定',
+                targetReader: projectContext.targetReader || '未設定',
+                projectTheme: projectContext.projectTheme || '未設定',
+                writingStyle: projectContext.writingStyle || '未設定',
                 structureDetails: projectContext.plot?.structureDetails || '構成詳細が設定されていません',
                 characters: characters,
                 existingChapters: existingChapters,
             });
         }
-    }, [projectContext, currentProject, structureProgress]);
+    }, [projectContext, structureProgress]);
 
     // AI応答を解析
     const parseAIResponse = useCallback((content: string) => {
@@ -390,9 +416,14 @@ export const ChapterAssistantPanel: React.FC = () => {
     // 基本章立て生成
     const handleAIGenerate = async () => {
         if (!isConfigured) {
-            showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
-                title: 'AI設定が必要',
-            });
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                '章立て生成',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
             return;
         }
 
@@ -432,10 +463,16 @@ export const ChapterAssistantPanel: React.FC = () => {
                     error: response.error,
                     parsedChapters: []
                 });
-                showError(`AI生成エラー: ${response.error}`, 10000, {
-                    title: 'AI生成エラー',
-                    details: 'ログを確認するにはAIログセクションを確認してください。',
-                });
+                handleAPIError(
+                    new Error(response.error),
+                    '章立て生成',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 10000,
+                        showDetails: true,
+                        onRetry: () => handleAIGenerate(),
+                    }
+                );
                 return;
             }
 
@@ -477,10 +514,16 @@ export const ChapterAssistantPanel: React.FC = () => {
                     showSuccess(`AI構成提案で${newChapters.length}章を追加しました。`);
                 }
             } else {
-                showError('章立ての解析に失敗しました。', 10000, {
-                    title: '解析エラー',
-                    details: '考えられる原因:\n1. AI出力の形式が期待と異なる\n2. 章の開始パターンが見つからない\n3. 必要な情報が不足している\n\nAIの応答内容を確認するにはAIログセクションを確認してください。',
-                });
+                handleAPIError(
+                    new Error('章立ての解析に失敗しました'),
+                    '章立て生成',
+                    {
+                        title: '解析エラー',
+                        duration: 10000,
+                        showDetails: true,
+                        onRetry: () => handleAIGenerate(),
+                    }
+                );
             }
 
         } catch (error) {
@@ -495,10 +538,16 @@ export const ChapterAssistantPanel: React.FC = () => {
                 response: '',
                 error: errorMessage
             });
-            showError(`AI生成中にエラーが発生しました: ${errorMessage}`, 10000, {
-                title: 'AI生成エラー',
-                details: 'ログを確認するにはAIログセクションを確認してください。',
-            });
+            handleAPIError(
+                error,
+                '章立て生成',
+                {
+                    title: 'AI生成中にエラーが発生しました',
+                    duration: 10000,
+                    showDetails: true,
+                    onRetry: () => handleAIGenerate(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGenerating(false);
@@ -510,9 +559,14 @@ export const ChapterAssistantPanel: React.FC = () => {
     // 構成バランス分析に基づく章立て生成
     const handleStructureBasedAIGenerate = async () => {
         if (!isConfigured || !currentProject) {
-            showError('AI設定が完了していません。設定画面でAPIキーを入力してください。', 7000, {
-                title: 'AI設定が必要',
-            });
+            handleAPIError(
+                new Error('AI設定が完了していません'),
+                '構成バランス章立て生成',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
             return;
         }
 
@@ -598,10 +652,16 @@ export const ChapterAssistantPanel: React.FC = () => {
                     });
                 }
             } else {
-                showError(`AI生成に失敗しました: ${response.error || '不明なエラー'}`, 10000, {
-                    title: 'AI生成エラー',
-                    details: 'ログを確認するにはAIログセクションを確認してください。',
-                });
+                handleAPIError(
+                    new Error(response.error || '不明なエラー'),
+                    '構成バランス章立て生成',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 10000,
+                        showDetails: true,
+                        onRetry: () => handleStructureBasedAIGenerate(),
+                    }
+                );
             }
         } catch (error) {
             // キャンセルされた場合はエラーを表示しない
@@ -616,10 +676,16 @@ export const ChapterAssistantPanel: React.FC = () => {
                 error: errorMessage
             });
             console.error('Structure-based AI generation error:', error);
-            showError(`AI生成中にエラーが発生しました: ${errorMessage}`, 10000, {
-                title: 'AI生成エラー',
-                details: 'ログを確認するにはAIログセクションを確認してください。',
-            });
+            handleAPIError(
+                error,
+                '章立て生成',
+                {
+                    title: 'AI生成中にエラーが発生しました',
+                    duration: 10000,
+                    showDetails: true,
+                    onRetry: () => handleAIGenerate(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGeneratingStructure(false);
@@ -713,9 +779,16 @@ ${'='.repeat(80)}`;
         if (result.success) {
             showSuccess('ログをダウンロードしました');
         } else if (result.method === 'error') {
-            showError(result.error || 'ログのダウンロードに失敗しました');
+            handleAPIError(
+                new Error(result.error || 'ログのダウンロードに失敗しました'),
+                'ログのダウンロード',
+                {
+                    title: 'ログのダウンロードに失敗しました',
+                    duration: 5000,
+                }
+            );
         }
-    }, [aiLogs, showSuccess, showError]);
+    }, [aiLogs, showSuccess, handleAPIError]);
 
     if (!currentProject) return null;
 

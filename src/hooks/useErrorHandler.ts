@@ -87,6 +87,7 @@ export const useErrorHandler = () => {
     options?: {
       title?: string;
       duration?: number;
+      showDetails?: boolean;
       onRetry?: () => void;
     }
   ) => {

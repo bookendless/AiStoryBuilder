@@ -60,7 +60,7 @@ export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
  */
 export const useBreakpoint = (): Breakpoint => {
     const isMobile = useMediaQuery('(max-width: 767px)');
-    const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1279px)');
+    const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1023px)');
 
     if (isMobile) return 'mobile';
     if (isTablet) return 'tablet';

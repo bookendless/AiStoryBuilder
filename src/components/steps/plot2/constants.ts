@@ -1,8 +1,6 @@
-import { PlotStructureType, SidebarSection } from './types';
+import { PlotStructureType } from './types';
 
 export const CHARACTER_LIMIT = 500;
-export const MAX_HISTORY_SIZE = 50;
-export const HISTORY_SAVE_DELAY = 1000; // 1秒
 
 export const PLOT_STRUCTURE_CONFIGS: Record<
   PlotStructureType,
@@ -457,14 +455,9 @@ export const PLOT_STRUCTURE_CONFIGS: Record<
   },
 };
 
-export const DEFAULT_SIDEBAR_SECTIONS: SidebarSection[] = [
-  { id: 'guide', title: '構成スタイルガイド', collapsed: false },
-  { id: 'settings', title: 'プロット基礎設定', collapsed: false },
-];
-
 export const AI_LOG_TYPE_LABELS: Record<string, string> = {
   supplement: '補完',
   consistency: '一貫性チェック',
   generateStructure: '構造生成',
+  applyConsistency: 'プロット自動修正',
 };
-

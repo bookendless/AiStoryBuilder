@@ -3,7 +3,7 @@
  */
 
 export const EVALUATION_PROMPTS = {
-    structure: `以下の物語の構成とプロットを分析し、評価してください。
+  structure: `以下の物語の構成とプロットを分析し、評価してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
@@ -29,7 +29,7 @@ export const EVALUATION_PROMPTS = {
   "detailedAnalysis": "Markdown形式の詳細な分析レポート"
 }`,
 
-    character: `以下の物語におけるキャラクター描写を分析し、評価してください。
+  character: `以下の物語におけるキャラクター描写を分析し、評価してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
@@ -56,7 +56,7 @@ export const EVALUATION_PROMPTS = {
   "detailedAnalysis": "Markdown形式の詳細な分析レポート"
 }`,
 
-    style: `以下の物語の文章表現（文体）を分析し、評価してください。
+  style: `以下の物語の文章表現（文体）を分析し、評価してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
@@ -82,7 +82,7 @@ export const EVALUATION_PROMPTS = {
   "detailedAnalysis": "Markdown形式の詳細な分析レポート"
 }`,
 
-    persona: `あなたは「{targetAudience}」を代表する読者です。
+  persona: `あなたは「{targetAudience}」を代表する読者です。
 この作品を読んで、ターゲット読者層として率直な感想と評価を行ってください。
 
 【評価の視点】
@@ -92,7 +92,6 @@ export const EVALUATION_PROMPTS = {
 4. **推奨度**: 友人に勧めたくなるか
 
 以下のJSON形式で出力してください：
-\`\`\`json
 {
   "score": 1-5の整数,
   "summary": "読者としての全体的な感想（200文字程度）",
@@ -102,7 +101,6 @@ export const EVALUATION_PROMPTS = {
   "detailedAnalysis": "各視点に基づいた詳細なレビュー（Markdown形式）",
   "persona": "シミュレートしたペルソナの詳細（年齢、性別、職業、趣味、好みのジャンルなど具体的に）"
 }
-\`\`\`
 
 作品情報:
 タイトル: {title}

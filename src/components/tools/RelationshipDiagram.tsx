@@ -274,6 +274,262 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   };
 
 
+  // AIレスポンスからJSON配列を安全に抽出するヘルパー関数
+  const extractJsonArray = (text: string): string | null => {
+    // 1. コードブロック内のJSON配列を探す (```json または ```)
+    const codeBlockMatch = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+    if (codeBlockMatch) {
+      try {
+        JSON.parse(codeBlockMatch[1].trim());
+        return codeBlockMatch[1].trim();
+      } catch {
+        // 無効なJSON、次の方法を試す
+      }
+    }
+
+    // 2. マークダウン形式のチェック（誤マッチを防ぐ）
+    // マークダウンリストマーカーやヘッダーが含まれている場合は、純粋なJSONではない可能性が高い
+    const hasMarkdownMarkers = /^[\s]*[-*]\s+\*\*|^[\s]*###?\s+/m.test(text);
+
+    // 3. 純粋なJSON配列を探す（最初の [ から最後の ] まで）
+    const firstBracket = text.indexOf('[');
+    const lastBracket = text.lastIndexOf(']');
+
+    if (firstBracket !== -1 && lastBracket > firstBracket) {
+      const potential = text.substring(firstBracket, lastBracket + 1);
+
+      // マークダウンマーカーが含まれている場合、より慎重に検証
+      if (hasMarkdownMarkers) {
+        // JSON配列の開始直後に改行+ハイフンがある場合はマークダウンリストの可能性が高い
+        if (/^\[\s*\n\s*-\s+\*\*/.test(potential)) {
+          return null; // マークダウン形式と判断
+        }
+      }
+
+      try {
+        const parsed = JSON.parse(potential);
+        if (Array.isArray(parsed)) {
+          return potential;
+        }
+      } catch {
+        // 不完全なJSON、NULLを返す
+      }
+    }
+
+    // 4. 空配列の特殊ケース
+    if (text.includes('[]')) {
+      return '[]';
+    }
+
+    return null;
+  };
+
+  // マークダウン形式から関係性情報をパースするフォールバック関数
+  const parseRelationshipsFromMarkdown = (text: string): Array<{
+    fromName: string;
+    toName: string;
+    type: CharacterRelationship['type'];
+    strength: number;
+    description?: string;
+    notes?: string;
+  }> | null => {
+    const relationships: Array<{
+      fromName: string;
+      toName: string;
+      type: CharacterRelationship['type'];
+      strength: number;
+      description?: string;
+      notes?: string;
+    }> = [];
+
+    // 関係性タイプのマッピング
+    const typeMapping: Record<string, CharacterRelationship['type']> = {
+      'friend': 'friend',
+      '友人': 'friend',
+      '友情': 'friend',
+      'enemy': 'enemy',
+      '敵対': 'enemy',
+      '敵': 'enemy',
+      'family': 'family',
+      '家族': 'family',
+      'romantic': 'romantic',
+      '恋愛': 'romantic',
+      'mentor': 'mentor',
+      '師弟': 'mentor',
+      'rival': 'rival',
+      'ライバル': 'rival',
+      '好敵手': 'rival',
+      'other': 'other',
+      'その他': 'other',
+    };
+
+    // ブロック単位で処理
+    const lines = text.split('\n');
+    let currentRelationship: {
+      fromName: string;
+      toName: string;
+      type: CharacterRelationship['type'];
+      strength: number;
+      description?: string;
+      notes?: string;
+    } | null = null;
+    let collectingDescription = false;
+    let collectingNotes = false;
+    let descriptionLines: string[] = [];
+    let notesLines: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // 新しい提案ブロックの検出パターン（複数形式に対応）
+      // 形式1: #### 1. キャラA ⇔ キャラB
+      // 形式2: **1. キャラA → キャラB**
+      // 形式3: **キャラA → キャラB**
+      let headerMatch = line.match(/^####?\s*(?:\d+\.\s*)?(.+?)\s*[⇔→←]\s*(.+?)$/);
+      if (!headerMatch) {
+        headerMatch = line.match(/^\*\*(?:\d+\.\s*)?(.+?)\s*[⇔→←]\s*(.+?)\*\*$/);
+      }
+      if (!headerMatch) {
+        // 形式4: **提案1: キャラA ⇔ キャラB**
+        headerMatch = line.match(/^\*\*提案\d+[：:]\s*(.+?)\s*[⇔→←]\s*(.+?)\*\*$/);
+      }
+
+      if (headerMatch) {
+        // 前の関係性を保存
+        if (currentRelationship) {
+          if (descriptionLines.length > 0) {
+            currentRelationship.description = descriptionLines.join(' ').trim();
+          }
+          if (notesLines.length > 0) {
+            currentRelationship.notes = notesLines.join(' ').trim();
+          }
+          relationships.push(currentRelationship);
+        }
+
+        currentRelationship = {
+          fromName: headerMatch[1].trim(),
+          toName: headerMatch[2].trim(),
+          type: 'other',
+          strength: 3,
+        };
+        collectingDescription = false;
+        collectingNotes = false;
+        descriptionLines = [];
+        notesLines = [];
+        continue;
+      }
+
+      // キャラクターペアの検出（別形式：**キャラクター**: キャラA ⇔ キャラB）
+      const charMatch = line.match(/^-?\s*\*\*キャラクター[：:]*\*\*\s*[:：]?\s*(.+?)\s*[⇔→←]\s*(.+?)$/);
+      if (charMatch) {
+        if (currentRelationship) {
+          if (descriptionLines.length > 0) {
+            currentRelationship.description = descriptionLines.join(' ').trim();
+          }
+          if (notesLines.length > 0) {
+            currentRelationship.notes = notesLines.join(' ').trim();
+          }
+          relationships.push(currentRelationship);
+        }
+
+        currentRelationship = {
+          fromName: charMatch[1].trim(),
+          toName: charMatch[2].trim(),
+          type: 'other',
+          strength: 3,
+        };
+        collectingDescription = false;
+        collectingNotes = false;
+        descriptionLines = [];
+        notesLines = [];
+        continue;
+      }
+
+      if (!currentRelationship) continue;
+
+      // 関係性タイプの検出（複数形式に対応）
+      // 形式1: **関係性の種類**: friend
+      // 形式2: - **関係性の種類**: friend
+      const typeMatch = line.match(/^-?\s*\*\*関係性の種類[：:]*\*\*\s*[:：]?\s*(\w+)/);
+      if (typeMatch) {
+        const typeKey = typeMatch[1].toLowerCase();
+        for (const [key, value] of Object.entries(typeMapping)) {
+          if (typeKey.includes(key.toLowerCase()) || key.toLowerCase().includes(typeKey)) {
+            currentRelationship.type = value;
+            break;
+          }
+        }
+        collectingDescription = false;
+        collectingNotes = false;
+        continue;
+      }
+
+      // 関係強度の検出（複数形式に対応）
+      // 形式1: **関係の強度**: 4/5
+      // 形式2: - **強度**: 4
+      // 形式3: - **関係の強度**: 4/5
+      let strengthMatch = line.match(/^-?\s*\*\*(?:関係の)?強度[：:]*\*\*\s*[:：]?\s*(\d)(?:\/5)?/);
+      if (strengthMatch) {
+        currentRelationship.strength = parseInt(strengthMatch[1]);
+        collectingDescription = false;
+        collectingNotes = false;
+        continue;
+      }
+
+      // 説明の開始検出（複数形式に対応）
+      // 形式1: **説明**:
+      // 形式2: - **説明**:
+      if (line.match(/^-?\s*\*\*説明[：:]*\*\*/)) {
+        collectingDescription = true;
+        collectingNotes = false;
+        // 同じ行に説明がある場合
+        const inlineDesc = line.replace(/^-?\s*\*\*説明[：:]*\*\*\s*[:：]?\s*/, '').trim();
+        if (inlineDesc) {
+          descriptionLines.push(inlineDesc);
+        }
+        continue;
+      }
+
+      // 備考の開始検出（複数形式に対応）
+      if (line.match(/^-?\s*\*\*備考[：:]*\*\*/)) {
+        collectingDescription = false;
+        collectingNotes = true;
+        // 同じ行に備考がある場合
+        const inlineNotes = line.replace(/^-?\s*\*\*備考[：:]*\*\*\s*[:：]?\s*/, '').trim();
+        if (inlineNotes) {
+          notesLines.push(inlineNotes);
+        }
+        continue;
+      }
+
+      // 新しいフィールドが始まったら収集を停止
+      if (line.match(/^-?\s*\*\*.+\*\*/)) {
+        collectingDescription = false;
+        collectingNotes = false;
+        continue;
+      }
+
+      // 説明または備考の継続行
+      if (collectingDescription && line && !line.startsWith('####') && !line.startsWith('---')) {
+        descriptionLines.push(line);
+      } else if (collectingNotes && line && !line.startsWith('####') && !line.startsWith('---')) {
+        notesLines.push(line);
+      }
+    }
+
+    // 最後の関係性を保存
+    if (currentRelationship) {
+      if (descriptionLines.length > 0) {
+        currentRelationship.description = descriptionLines.join(' ').trim();
+      }
+      if (notesLines.length > 0) {
+        currentRelationship.notes = notesLines.join(' ').trim();
+      }
+      relationships.push(currentRelationship);
+    }
+
+    return relationships.length > 0 ? relationships : null;
+  };
 
   // プロジェクトコンテキストを取得
   const getProjectContext = (): string => {
@@ -459,6 +715,12 @@ ${projectContext}
 - 説明は100文字以上200文字程度で、具体的な根拠を含めてください
 
 【出力形式】
+【重要】以下の指示に必ず従ってください：
+- 挨拶文、説明文、前置き、解説は一切不要です
+- マークダウン記法（見出し、リスト、強調など）は使用しないでください
+- コードブロック（\`\`\`）で囲まないでください
+- 純粋なJSON配列のみを出力してください
+
 JSON配列形式で出力してください。関係性が見つからない場合は空配列[]を返してください：
 [
   {
@@ -489,41 +751,12 @@ JSON配列形式で出力してください。関係性が見つからない場�
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
+          const rawContent = response.content.trim();
 
-          // JSON配列を抽出（複数の方法を試行）
-          let jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (!jsonMatch) {
-            // ```json で囲まれている場合
-            jsonMatch = jsonText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-            if (jsonMatch) {
-              jsonText = jsonMatch[1];
-            } else {
-              // ``` で囲まれている場合
-              jsonMatch = jsonText.match(/```\s*(\[[\s\S]*?\])\s*```/);
-              if (jsonMatch) {
-                jsonText = jsonMatch[1];
-              }
-            }
-          } else {
-            jsonText = jsonMatch[0];
-          }
+          // 堅牢なJSON抽出を使用
+          const jsonText = extractJsonArray(rawContent);
 
-          // JSON解析前に前処理（安全な方法）
-          try {
-            // まずそのまま解析を試行
-            JSON.parse(jsonText);
-          } catch {
-            // 解析に失敗した場合のみ前処理を実行
-            jsonText = jsonText
-              .replace(/,\s*]/g, ']') // 末尾のカンマを削除
-              .replace(/,\s*}/g, '}') // オブジェクト末尾のカンマを削除
-              .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3') // キーのシングルクォートをダブルクォートに変換
-              .replace(/:\s*'([^']+)'/g, ': "$1"') // 値のシングルクォートをダブルクォートに変換
-              .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
-          }
-
-          const inferredRelationships = JSON.parse(jsonText) as Array<{
+          let inferredRelationships: Array<{
             fromName: string;
             toName: string;
             type: CharacterRelationship['type'];
@@ -532,9 +765,44 @@ JSON配列形式で出力してください。関係性が見つからない場�
             notes?: string;
           }>;
 
-          // 配列でない場合は配列に変換
-          if (!Array.isArray(inferredRelationships)) {
-            throw new Error('AIの応答が配列形式ではありません');
+          if (jsonText) {
+            // JSON解析前に前処理（安全な方法）
+            let processedJsonText = jsonText;
+            try {
+              // まずそのまま解析を試行
+              JSON.parse(processedJsonText);
+            } catch {
+              // 解析に失敗した場合のみ前処理を実行
+              processedJsonText = processedJsonText
+                .replace(/,\s*]/g, ']') // 末尾のカンマを削除
+                .replace(/,\s*}/g, '}') // オブジェクト末尾のカンマを削除
+                .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3') // キーのシングルクォートをダブルクォートに変換
+                .replace(/:\s*'([^']+)'/g, ': "$1"') // 値のシングルクォートをダブルクォートに変換
+                .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
+            }
+
+            inferredRelationships = JSON.parse(processedJsonText);
+
+            // 配列でない場合は配列に変換
+            if (!Array.isArray(inferredRelationships)) {
+              throw new Error('AIの応答が配列形式ではありません');
+            }
+          } else {
+            // JSONが抽出できない場合、マークダウン形式からパースを試みる
+            console.log('JSON抽出失敗、マークダウンフォールバックを試行:', rawContent.substring(0, 200));
+            const markdownParsed = parseRelationshipsFromMarkdown(rawContent);
+
+            if (!markdownParsed || markdownParsed.length === 0) {
+              console.error('マークダウンパースも失敗:', rawContent);
+              showError('AIの応答を解析できませんでした。再度お試しください。', 10000, {
+                title: '解析エラー',
+              });
+              setIsAIGenerating(false);
+              return;
+            }
+
+            console.log('マークダウンから関係性を抽出:', markdownParsed.length, '件');
+            inferredRelationships = markdownParsed;
           }
 
           // キャラクター名のマッチング関数（部分一致対応）
@@ -702,6 +970,12 @@ ${projectContext}
 - 備考には、この関係性がどの章や場面で重要になるかを記述してください（任意）
 
 【出力形式】
+【重要】以下の指示に必ず従ってください：
+- 挨拶文、説明文、前置き、解説は一切不要です
+- マークダウン記法（見出し、リスト、強調など）は使用しないでください
+- コードブロック（\`\`\`）で囲まないでください
+- 純粋なJSON配列のみを出力してください
+
 JSON配列形式で出力してください。提案がない場合は空配列[]を返してください：
 [
   {
@@ -732,41 +1006,12 @@ JSON配列形式で出力してください。提案がない場合は空配列[
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
+          const rawContent = response.content.trim();
 
-          // JSON配列を抽出（複数の方法を試行）
-          let jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (!jsonMatch) {
-            // ```json で囲まれている場合
-            jsonMatch = jsonText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-            if (jsonMatch) {
-              jsonText = jsonMatch[1];
-            } else {
-              // ``` で囲まれている場合
-              jsonMatch = jsonText.match(/```\s*(\[[\s\S]*?\])\s*```/);
-              if (jsonMatch) {
-                jsonText = jsonMatch[1];
-              }
-            }
-          } else {
-            jsonText = jsonMatch[0];
-          }
+          // 堅牢なJSON抽出を使用
+          const jsonText = extractJsonArray(rawContent);
 
-          // JSON解析前に前処理（安全な方法）
-          try {
-            // まずそのまま解析を試行
-            JSON.parse(jsonText);
-          } catch {
-            // 解析に失敗した場合のみ前処理を実行
-            jsonText = jsonText
-              .replace(/,\s*]/g, ']') // 末尾のカンマを削除
-              .replace(/,\s*}/g, '}') // オブジェクト末尾のカンマを削除
-              .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3') // キーのシングルクォートをダブルクォートに変換
-              .replace(/:\s*'([^']+)'/g, ': "$1"') // 値のシングルクォートをダブルクォートに変換
-              .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
-          }
-
-          const suggestedRelationships = JSON.parse(jsonText) as Array<{
+          let suggestedRelationships: Array<{
             fromName: string;
             toName: string;
             type: CharacterRelationship['type'];
@@ -775,9 +1020,44 @@ JSON配列形式で出力してください。提案がない場合は空配列[
             notes?: string;
           }>;
 
-          // 配列でない場合は配列に変換
-          if (!Array.isArray(suggestedRelationships)) {
-            throw new Error('AIの応答が配列形式ではありません');
+          if (jsonText) {
+            // JSON解析前に前処理（安全な方法）
+            let processedJsonText = jsonText;
+            try {
+              // まずそのまま解析を試行
+              JSON.parse(processedJsonText);
+            } catch {
+              // 解析に失敗した場合のみ前処理を実行
+              processedJsonText = processedJsonText
+                .replace(/,\s*]/g, ']') // 末尾のカンマを削除
+                .replace(/,\s*}/g, '}') // オブジェクト末尾のカンマを削除
+                .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3') // キーのシングルクォートをダブルクォートに変換
+                .replace(/:\s*'([^']+)'/g, ': "$1"') // 値のシングルクォートをダブルクォートに変換
+                .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
+            }
+
+            suggestedRelationships = JSON.parse(processedJsonText);
+
+            // 配列でない場合は配列に変換
+            if (!Array.isArray(suggestedRelationships)) {
+              throw new Error('AIの応答が配列形式ではありません');
+            }
+          } else {
+            // JSONが抽出できない場合、マークダウン形式からパースを試みる
+            console.log('JSON抽出失敗、マークダウンフォールバックを試行:', rawContent.substring(0, 200));
+            const markdownParsed = parseRelationshipsFromMarkdown(rawContent);
+
+            if (!markdownParsed || markdownParsed.length === 0) {
+              console.error('マークダウンパースも失敗:', rawContent);
+              showError('AIの応答を解析できませんでした。再度お試しください。', 10000, {
+                title: '解析エラー',
+              });
+              setIsAIGenerating(false);
+              return;
+            }
+
+            console.log('マークダウンから関係性を抽出:', markdownParsed.length, '件');
+            suggestedRelationships = markdownParsed;
           }
 
           // キャラクター名のマッチング関数（部分一致対応）

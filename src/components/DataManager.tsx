@@ -66,12 +66,13 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     isOpen: boolean;
     type: 'delete-backup' | 'restore-backup' | 'import-data' |
     'cleanup-localstorage' | 'cleanup-history-date' | 'cleanup-ailog-date' |
-    'delete-project-history' | 'delete-project-ailog' |
+    'delete-project-history' | 'delete-project-ailog' | 'delete-auto-backups' |
     'optimize-database' | 'optimize-database-compact' | 'clear-all-data' | null;
     // バックアップ関連
     backupId?: string;
     backupType?: 'manual' | 'auto';
     backupDescription?: string;
+    targetProjectId?: string; // 一括削除用
     // インポート関連
     importFile?: File;
     // クリーンアップ関連
@@ -358,97 +359,194 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
+  const setConfirmDeleteAutoBackups = () => {
+    if (!currentProject) return;
+    setConfirmDialogState({
+      isOpen: true,
+      type: 'delete-auto-backups',
+      targetProjectId: currentProject.id,
+    });
+  };
+
+  const handleConfirmDeleteAutoBackups = async () => {
+    if (!confirmDialogState.targetProjectId) return;
+    setIsLoading(true);
+    try {
+      const count = await databaseService.deleteAutoBackups(confirmDialogState.targetProjectId);
+      await loadBackups();
+      await loadStats();
+      await loadProjectData();
+      showSuccess(`${count}件の自動バックアップを削除しました`, 3000);
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 5000, {
+        title: errorInfo.title,
+        details: errorInfo.details || errorInfo.solution,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleExportData = async () => {
     setIsLoading(true);
     try {
-      const exportData = await databaseService.exportData();
-      const fileName = `story-builder-backup-${new Date().toISOString().split('T')[0]}.json`;
-
       // Tauri環境かどうかを確認（Tauri 2対応）
       const isTauri = isTauriEnvironment();
-      const _isAndroid = await isAndroidEnvironment();
+      const isAndroid = await isAndroidEnvironment();
 
-      // Tauri環境（デスクトップまたはAndroid/iOS）
+      // Android環境では軽量エクスポート用のファイル名を使用
+      const fileName = isAndroid
+        ? `story-builder-lightweight-${new Date().toISOString().split('T')[0]}.json`
+        : `story-builder-backup-${new Date().toISOString().split('T')[0]}.json`;
+
+      // エクスポートデータを取得
+      let exportContent: string;
+
+      if (isAndroid) {
+        // Android環境では軽量エクスポート（文字列として取得）
+        // 現行プロジェクトのみ、バックアップ・履歴・AIログ・画像データを除外
+        const exportOptions = {
+          useStreaming: false, // 文字列として取得（Tauriダイアログ用）
+          returnBlob: false,
+          excludeBackups: true, // バックアップを除外
+          compress: false, // 圧縮を無効化
+          currentProjectId: currentProject?.id, // 現行プロジェクトのみ
+          excludeHistories: true, // 履歴を除外
+          excludeAILogs: true, // AIログを除外
+          excludeImageData: true, // 画像データを除外（imageBoard.urlを削除）
+        };
+
+        console.log('Android軽量エクスポートオプション:', exportOptions);
+
+        exportContent = await databaseService.exportData(exportOptions) as string;
+
+        const dataSize = new Blob([exportContent]).size;
+        console.log(`エクスポートデータサイズ: ${dataSize} bytes (${(dataSize / 1024).toFixed(2)} KB)`);
+
+        if (dataSize < 100) {
+          throw new Error('エクスポートするデータが空です。データベースにデータが存在するか確認してください。');
+        }
+      } else {
+        // デスクトップ環境では通常の文字列方式（全データ含む）
+        exportContent = await databaseService.exportData({
+          useStreaming: false,
+          excludeBackups: false,
+          excludeHistories: false,
+          excludeAILogs: false,
+          excludeImageData: false,
+        }) as string;
+
+        // エクスポートデータの検証
+        if (!exportContent || typeof exportContent !== 'string' || exportContent.trim().length === 0) {
+          throw new Error('エクスポートするデータが空です。データベースにデータが存在するか確認してください。');
+        }
+
+        // データサイズの確認（デバッグ用）
+        const dataSize = new Blob([exportContent]).size;
+        console.log(`エクスポートデータサイズ: ${dataSize} bytes (${(dataSize / 1024).toFixed(2)} KB)`);
+
+        if (dataSize < 100) {
+          console.warn('エクスポートデータが異常に小さいです。データが正しく取得できていない可能性があります。');
+        }
+      }
+
+      // Tauri環境での保存処理（ExportStepと同じ方法）
+      // Android/デスクトップ両方でsave()ダイアログを使用
       if (isTauri) {
         try {
-          // 動的インポートを使用してプラグインを読み込み
+          console.log('Tauri保存ダイアログを開きます...');
           const { save } = await import('@tauri-apps/plugin-dialog');
           const { writeTextFile } = await import('@tauri-apps/plugin-fs');
 
-          // 保存ダイアログを表示（Androidでも対応している場合はドキュメントピッカーが開く）
           const filePath = await save({
             title: 'バックアップファイルを保存',
             defaultPath: fileName,
-            filters: [
-              {
-                name: 'JSON Files',
-                extensions: ['json']
-              }
-            ]
+            filters: [{
+              name: 'JSON Files',
+              extensions: ['json']
+            }]
           });
 
+          console.log('選択されたファイルパス:', filePath);
+
           if (filePath) {
-            await writeTextFile(filePath, exportData);
-            showSuccess('データを指定の場所に保存しました', 3000);
+            console.log('ファイル書き込みを開始します...');
+            console.log('データサイズ:', exportContent.length, '文字');
+            await writeTextFile(filePath, exportContent);
+            console.log('ファイル書き込み完了');
+            showSuccess('ファイルを指定の場所に保存しました', 3000);
             return;
           }
 
-          // ユーザーがダイアログをキャンセルした場合はここで終了
+          // ユーザーがキャンセルした場合
           if (filePath === null) {
-            setIsLoading(false);
+            console.log('ユーザーがキャンセルしました');
             return;
           }
         } catch (pluginError) {
           console.warn('Tauri plugin error, falling back to share/download:', pluginError);
-          // ダイアログプラグインがAndroidで機能しない、または未セットアップの場合は共有メニューへ
+          // フォールバックに進む
         }
       }
 
-      // Android端末またはWeb環境での共有・ダウンロード
+      // Share APIを試行（Tauriが失敗した場合、またはブラウザ環境）
       let exported = false;
 
-      // Share APIを試行（特にAndroidで有効）
+      console.log('Share APIを試行します...');
+      console.log('navigator.share:', typeof navigator !== 'undefined' && !!navigator.share);
+
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
-          // JSONデータが大きい場合、Fileオブジェクトとして共有
-          const file = new File([exportData], fileName, { type: 'application/json' });
+          const blob = new Blob([exportContent], { type: 'application/json' });
+          const file = new File([blob], fileName, { type: 'application/json' });
 
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          console.log(`ファイルサイズ: ${blob.size} bytes`);
+          console.log('navigator.canShare:', !!navigator.canShare);
+
+          const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+          console.log('canShareFiles:', canShareFiles);
+
+          if (canShareFiles) {
+            console.log('ファイル共有をサポートしています。共有メニューを開きます...');
             await navigator.share({
-              title: 'データバックアップ',
-              text: 'AI Story Builderのデータバックアップ',
+              title: isAndroid ? 'データバックアップ（軽量版）' : 'データバックアップ',
               files: [file]
             });
-            showSuccess('共有メニューを開きました', 3000);
+            console.log('Share API成功');
+            showSuccess('共有メニューを開きました。ファイルを保存する場所を選択してください。', 5000);
             exported = true;
           } else {
-            // ファイル形式が共有不可の場合、テキストとして共有
-            await navigator.share({
-              title: fileName,
-              text: exportData
-            });
-            showSuccess('データをテキストとして共有しました', 3000);
-            exported = true;
+            console.log('ファイル共有はサポートされていません');
           }
         } catch (shareError) {
-          if (shareError instanceof Error && shareError.name !== 'AbortError') {
-            console.warn('Share API failed:', shareError);
+          if (shareError instanceof Error && shareError.name === 'AbortError') {
+            console.log('ユーザーが共有をキャンセルしました');
+            return;
           }
+          console.warn('Share API failed:', shareError);
         }
+      } else {
+        console.log('Share APIはサポートされていません');
       }
 
-      // Share APIも失敗した場合（または非対応）、ブラウザダウンロード
+      // ブラウザダウンロード（最後のフォールバック）
       if (!exported) {
-        const blob = new Blob([exportData], { type: 'application/json' });
+        console.log('ブラウザダウンロードにフォールバックします...');
+        const blob = new Blob([exportContent], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showSuccess('ブラウザ経由でダウンロードを開始しました', 3000);
+
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 200);
+
+        showSuccess('ダウンロードを開始しました（ダウンロードフォルダを確認してください）', 5000);
       }
     } catch (error) {
       console.error('Export error:', error);
@@ -539,6 +637,9 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         break;
       case 'restore-backup':
         await handleConfirmRestoreBackup();
+        break;
+      case 'delete-auto-backups':
+        await handleConfirmDeleteAutoBackups();
         break;
       case 'import-data':
         await handleConfirmImportData();
@@ -676,6 +777,13 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
           confirmLabel: '削除',
         };
       }
+      case 'delete-auto-backups':
+        return {
+          title: '自動バックアップを一括削除しますか？',
+          message: 'このプロジェクトのすべての自動バックアップを削除します。\n手動バックアップは削除されません。\nこの操作は取り消せません。',
+          type: 'danger' as const,
+          confirmLabel: '削除',
+        };
       case 'restore-backup':
         return {
           title: 'バックアップから復元しますか？',
@@ -1014,6 +1122,16 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
                       自動バックアップ (最大10個)
                     </h4>
+                    {autoBackups.length > 0 && (
+                      <button
+                        onClick={setConfirmDeleteAutoBackups}
+                        disabled={isLoading}
+                        className="ml-auto flex items-center space-x-2 px-3 py-1 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>一括削除</span>
+                      </button>
+                    )}
                   </div>
                   {autoBackups.length === 0 ? (
                     <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, Key, Server, Zap } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
-import { AI_PROVIDERS } from '../services/providers';
+import { AI_PROVIDERS, AVAILABLE_PROVIDERS } from '../services/providers';
 import { useToast } from './Toast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
@@ -433,7 +433,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             AIプロバイダー
           </label>
           <div className="grid grid-cols-1 gap-3">
-            {AI_PROVIDERS.map((provider) => (
+            {AVAILABLE_PROVIDERS.map((provider) => (
               <button
                 key={provider.id}
                 onClick={async () => {

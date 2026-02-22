@@ -1,5 +1,5 @@
 import React, { RefObject, useMemo } from 'react';
-import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search } from 'lucide-react';
+import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles } from 'lucide-react';
 import { useProject, Chapter } from '../../../contexts/ProjectContext';
 import { EmptyState } from '../../common/EmptyState';
 
@@ -20,6 +20,7 @@ interface ChapterListProps {
   onDragEnd: () => void;
   onDrop: (e: React.DragEvent, chapterId: string) => void;
   onAddChapter: () => void;
+  onEnhance?: (chapter: Chapter, index: number) => void;
 }
 
 // 個別の章アイテムコンポーネント（メモ化）
@@ -40,6 +41,7 @@ interface ChapterItemProps {
   onDragEnd: () => void;
   onDrop: (e: React.DragEvent, chapterId: string) => void;
   totalChapters: number;
+  onEnhance?: (chapter: Chapter, index: number) => void;
 }
 
 const ChapterItem = React.memo<ChapterItemProps>(({
@@ -59,6 +61,7 @@ const ChapterItem = React.memo<ChapterItemProps>(({
   onDragEnd,
   onDrop,
   totalChapters,
+  onEnhance,
 }) => {
   const { currentProject } = useProject();
 
@@ -179,6 +182,18 @@ const ChapterItem = React.memo<ChapterItemProps>(({
             >
               <History className="h-4 w-4" />
             </button>
+            {onEnhance && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEnhance(chapter, originalIndex);
+                }}
+                className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                title="AI強化"
+              >
+                <Sparkles className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -242,11 +257,67 @@ const ChapterItem = React.memo<ChapterItemProps>(({
                   重要な出来事:
                 </span>
                 <div className="mt-1 space-y-1">
-                  {chapter.keyEvents.map((event: string, eventIndex: number) => (
-                    <div key={eventIndex} className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                      • {event}
-                    </div>
-                  ))}
+                  {chapter.keyEvents.map((event: string, eventIndex: number) => {
+                    // 伏線イベントの判定とスタイリング
+                    const isForeshadowingEvent = event.startsWith('【伏線：');
+                    if (isForeshadowingEvent) {
+                      // 伏線タイプに応じた色設定
+                      let bgColor = 'bg-blue-50 dark:bg-blue-900/20';
+                      let textColor = 'text-blue-700 dark:text-blue-300';
+                      let borderColor = 'border-blue-200 dark:border-blue-700';
+                      let badgeColor = 'bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-300';
+                      let icon = '📍';
+
+                      if (event.startsWith('【伏線：ヒント】')) {
+                        bgColor = 'bg-amber-50 dark:bg-amber-900/20';
+                        textColor = 'text-amber-700 dark:text-amber-300';
+                        borderColor = 'border-amber-200 dark:border-amber-700';
+                        badgeColor = 'bg-amber-100 dark:bg-amber-800 text-amber-600 dark:text-amber-300';
+                        icon = '💡';
+                      } else if (event.startsWith('【伏線：回収予定】')) {
+                        bgColor = 'bg-purple-50 dark:bg-purple-900/20';
+                        textColor = 'text-purple-700 dark:text-purple-300';
+                        borderColor = 'border-purple-200 dark:border-purple-700';
+                        badgeColor = 'bg-purple-100 dark:bg-purple-800 text-purple-600 dark:text-purple-300';
+                        icon = '🎯';
+                      } else if (event.startsWith('【伏線：回収】')) {
+                        bgColor = 'bg-green-50 dark:bg-green-900/20';
+                        textColor = 'text-green-700 dark:text-green-300';
+                        borderColor = 'border-green-200 dark:border-green-700';
+                        badgeColor = 'bg-green-100 dark:bg-green-800 text-green-600 dark:text-green-300';
+                        icon = '🎯';
+                      }
+
+                      // プレフィックスとコンテンツを分離
+                      const prefixMatch = event.match(/^(【伏線：[^】]+】)/);
+                      const prefix = prefixMatch ? prefixMatch[1] : '';
+                      const content = event.replace(/^【伏線：[^】]+】/, '').trim();
+
+                      return (
+                        <div
+                          key={eventIndex}
+                          className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${bgColor} ${borderColor} ${textColor}`}
+                        >
+                          <span className="text-sm flex-shrink-0 mt-0.5">{icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <span className={`inline-block text-xs px-1.5 py-0.5 rounded-full font-medium ${badgeColor} font-['Noto_Sans_JP'] mb-0.5`}>
+                              {prefix.replace(/[【】]/g, '')}
+                            </span>
+                            <p className={`text-sm ${textColor} font-['Noto_Sans_JP'] break-all`}>
+                              {content}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // 通常のイベント
+                    return (
+                      <div key={eventIndex} className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                        • {event}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -312,6 +383,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
   onDragEnd,
   onDrop,
   onAddChapter,
+  onEnhance,
 }) => {
   const { currentProject } = useProject();
 
@@ -386,6 +458,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
             onDragEnd={onDragEnd}
             onDrop={onDrop}
             totalChapters={currentProject.chapters.length}
+            onEnhance={onEnhance}
           />
         );
       })}

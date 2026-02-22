@@ -3,6 +3,7 @@ import { X, History, RotateCcw } from 'lucide-react';
 import { useProject } from '../../../contexts/ProjectContext';
 import { ChapterHistory } from './types';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
+import { CHAPTER_HISTORY_SOURCE_LABELS, ChapterHistorySource } from '../../../services/chapterHistoryService';
 
 interface ChapterHistoryModalProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export const ChapterHistoryModal: React.FC<ChapterHistoryModalProps> = ({
         }
       }}
     >
-      <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
+      <div className="glass-strong glass-shimmer rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col transform transition-all duration-300 ease-out animate-in fade-in zoom-in-95">
         <div className="p-6 border-b border-white/20 dark:border-white/10 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -64,7 +65,7 @@ export const ChapterHistoryModal: React.FC<ChapterHistoryModalProps> = ({
           </div>
         </div>
 
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+        <div className="p-6 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {chapterHistories.length === 0 ? (
             <div className="text-center py-12">
               <History className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
@@ -125,6 +126,16 @@ export const ChapterHistoryModal: React.FC<ChapterHistoryModalProps> = ({
                             minute: '2-digit',
                           })}
                         </span>
+                        {history.source && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-['Noto_Sans_JP'] ${history.source === 'ai-enhance' || history.source === 'ai-generate'
+                              ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                              : history.source === 'restore'
+                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                                : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                            }`}>
+                            {CHAPTER_HISTORY_SOURCE_LABELS[history.source as ChapterHistorySource] || history.source}
+                          </span>
+                        )}
                       </div>
                       <button
                         onClick={() => {

@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Sparkles, Loader, CheckCircle, FileText } from 'lucide-react';
+import { Sparkles, Loader, CheckCircle, FileText, UserPlus } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
 import { AILogPanel } from '../common/AILogPanel';
@@ -10,13 +11,22 @@ import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { extractCharactersFromContent, ParseResult } from '../../utils/characterParser';
 import { CHARACTER_GENERATION } from '../../constants/character';
 import { exportFile } from '../../utils/mobileExportUtils';
+import { SuggestionModal, SuggestedCharacter } from '../steps/character/SuggestionModal';
+import { generateUUID } from '../../utils/securityUtils';
 
 export const CharacterAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
-    const { showError, showSuccess } = useToast();
+    const { showSuccess } = useToast();
+    const { handleAPIError } = useErrorHandler();
     const [isGenerating, setIsGenerating] = useState(false);
-    const { aiLogs, addLog } = useAILog();
+    const [suggestions, setSuggestions] = useState<SuggestedCharacter[]>([]);
+    const [isSuggestionModalOpen, setIsSuggestionModalOpen] = useState(false);
+
+    const { aiLogs, addLog } = useAILog({
+        projectId: currentProject?.id,
+        autoLoad: true,
+    });
     const abortControllerRef = useRef<AbortController | null>(null);
 
     // キャンセルハンドラー
@@ -38,9 +48,194 @@ export const CharacterAssistantPanel: React.FC = () => {
         };
     }, []);
 
+    // AIによるキャラクター提案処理
+    const handleSuggestCharacters = async () => {
+        if (!isConfigured) {
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                'キャラクター提案',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
+            return;
+        }
+
+        if (!currentProject) return;
+
+        // 既存のリクエストをキャンセル
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
+        setIsGenerating(true);
+
+        try {
+            // プロジェクト情報
+            const projectInfo = {
+                title: currentProject.title || '未設定',
+                theme: currentProject.theme || currentProject.projectTheme || '未設定',
+                description: currentProject.description || '未設定',
+            };
+
+            // プロット情報
+            const plotInfo = {
+                theme: currentProject.plot?.theme || '',
+                setting: currentProject.plot?.setting || '',
+                hook: currentProject.plot?.hook || '',
+                protagonistGoal: currentProject.plot?.protagonistGoal || '',
+                mainObstacle: currentProject.plot?.mainObstacle || '',
+            };
+
+            // 既存キャラクターのリスト化
+            const existingChars = currentProject.characters.map((c, i) =>
+                `${i + 1}. ${c.name} (${c.role}): ${c.personality}`
+            ).join('\n') || 'なし';
+
+            // 既存の章情報のリスト化
+            const chapterInfo = currentProject.chapters.map((c, i) =>
+                `第${i + 1}章: ${c.title}\nあらすじ: ${c.summary}`
+            ).join('\n\n') || 'まだ章は作成されていません。';
+
+            const prompt = aiService.buildPrompt('character', 'suggest', {
+                title: projectInfo.title,
+                theme: projectInfo.theme,
+                description: projectInfo.description,
+                plotTheme: plotInfo.theme,
+                plotSetting: plotInfo.setting,
+                plotHook: plotInfo.hook,
+                protagonistGoal: plotInfo.protagonistGoal,
+                mainObstacle: plotInfo.mainObstacle,
+                synopsis: currentProject.synopsis || '',
+                existingCharacters: existingChars,
+                chapterInfo: chapterInfo,
+            });
+
+            const response = await aiService.generateContent({
+                prompt,
+                type: 'character',
+                settings,
+                signal: abortController.signal,
+            });
+
+            if (abortController.signal.aborted) return;
+
+            if (response.error) {
+                addLog({
+                    type: 'enhance', // 'suggest' タイプがあればそちらが良いが一旦enhance
+                    prompt,
+                    response: response.content || '',
+                    error: response.error,
+                });
+                handleAPIError(new Error(response.error), 'キャラクター提案');
+                return;
+            }
+
+            // 解析処理
+            let parsedSuggestions: SuggestedCharacter[] = [];
+            const content = response.content;
+            let parseError: string | null = null;
+            let parseMethod: 'json' | 'text' | 'fallback' = 'text';
+
+            // 1. JSON解析を試行
+            try {
+                let jsonString = content.trim();
+                const codeBlockMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                if (codeBlockMatch) {
+                    jsonString = codeBlockMatch[1].trim();
+                }
+                // 配列を探す
+                const arrayMatch = jsonString.match(/\[[\s\S]*\]/);
+                if (arrayMatch) {
+                    jsonString = arrayMatch[0];
+                }
+
+                const parsed = JSON.parse(jsonString);
+                if (Array.isArray(parsed)) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    parsedSuggestions = parsed.map((item: any) => ({
+                        id: generateUUID(),
+                        name: item.name || item.名前 || '',
+                        role: item.role || item.役割 || '',
+                        appearance: item.appearance || item.外見 || '',
+                        personality: item.personality || item.性格 || '',
+                        background: item.background || item.背景 || '',
+                        reason: item.reason || item.reasonING || item.提案理由 || '',
+                        image: '',
+                    })).filter(c => c.name); // 名前がないものは除外
+                    parseMethod = 'json';
+                }
+            } catch (e) {
+                console.warn('JSON parsing for suggestions failed:', e);
+                parseError = e instanceof Error ? e.message : 'Unknown JSON error';
+            }
+
+            // 2. JSON失敗時は標準パーサーを使用 (reasonは失われる可能性があるがキャラクターは取得する)
+            if (parsedSuggestions.length === 0) {
+                const fallbackResult: ParseResult = extractCharactersFromContent(
+                    content,
+                    5, // 最大5人まで
+                    'text'
+                );
+
+                if (fallbackResult.characters.length > 0) {
+                    parsedSuggestions = fallbackResult.characters.map(c => ({
+                        ...c,
+                        reason: '（テキスト形式のため理由は自動抽出できませんでした）'
+                    }));
+                    parseMethod = 'fallback';
+                }
+            }
+
+            addLog({
+                type: 'enhance',
+                prompt,
+                response: content,
+                parsedCharacters: parsedSuggestions,
+            });
+
+            if (parsedSuggestions.length > 0) {
+                setSuggestions(parsedSuggestions);
+                setIsSuggestionModalOpen(true);
+
+                let msg = `${parsedSuggestions.length}人のキャラクターが提案されました`;
+                if (parseMethod === 'fallback') {
+                    msg += '（JSON解析に失敗したため、テキスト解析を実行しました）';
+                }
+                showSuccess(msg);
+            } else {
+                handleAPIError(
+                    new Error(`キャラクターの抽出に失敗しました。\n解析エラー: ${parseError || '不明'}`),
+                    'キャラクター提案',
+                    { showDetails: true }
+                );
+            }
+
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') return;
+            handleAPIError(error, 'キャラクター提案');
+        } finally {
+            if (!abortController.signal.aborted) {
+                setIsGenerating(false);
+            }
+            abortControllerRef.current = null;
+        }
+    };
+
     const handleAIGenerateCharacters = async () => {
         if (!isConfigured) {
-            showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。');
+            handleAPIError(
+                new Error('AI設定が必要です'),
+                'キャラクター生成',
+                {
+                    title: 'AI設定が必要',
+                    duration: 7000,
+                }
+            );
             return;
         }
 
@@ -114,7 +309,16 @@ export const CharacterAssistantPanel: React.FC = () => {
                     response: response.content || '',
                     error: response.error,
                 });
-                showError(`AI生成エラー: ${response.error}\n詳細はAIログを確認してください。`);
+                handleAPIError(
+                    new Error(response.error),
+                    'キャラクター生成',
+                    {
+                        title: 'AI生成エラー',
+                        duration: 7000,
+                        showDetails: true,
+                        onRetry: () => handleAIGenerateCharacters(),
+                    }
+                );
                 return;
             }
 
@@ -130,7 +334,7 @@ export const CharacterAssistantPanel: React.FC = () => {
             const content = response.content;
             const parseResult: ParseResult = extractCharactersFromContent(
                 content,
-                CHARACTER_GENERATION.RECOMMENDED_MAX,
+                CHARACTER_GENERATION.PARSING_MAX,
                 preferredFormat
             );
 
@@ -201,7 +405,16 @@ export const CharacterAssistantPanel: React.FC = () => {
                 errorMessage += '3. ローカルLLMを使用している場合、クラウドAPI（OpenAI、Claude、Gemini）の使用を検討してください\n';
                 errorMessage += '4. それでも解決しない場合、手動でキャラクターを追加してください';
 
-                showError(errorMessage);
+                handleAPIError(
+                    new Error(errorMessage),
+                    'キャラクター生成',
+                    {
+                        title: 'キャラクターの生成に失敗しました',
+                        duration: 10000,
+                        showDetails: true,
+                        onRetry: () => handleAIGenerateCharacters(),
+                    }
+                );
             }
 
         } catch (error) {
@@ -209,8 +422,16 @@ export const CharacterAssistantPanel: React.FC = () => {
             if (error instanceof Error && error.name === 'AbortError') {
                 return;
             }
-            console.error('AI生成エラー:', error);
-            showError('AI生成中にエラーが発生しました');
+            handleAPIError(
+                error,
+                'キャラクター生成',
+                {
+                    title: 'AI生成中にエラーが発生しました',
+                    duration: 7000,
+                    showDetails: true,
+                    onRetry: () => handleAIGenerateCharacters(),
+                }
+            );
         } finally {
             if (!abortController.signal.aborted) {
                 setIsGenerating(false);
@@ -288,9 +509,16 @@ ${'='.repeat(80)}`;
         if (result.success) {
             showSuccess('ログをダウンロードしました');
         } else if (result.method === 'error') {
-            showError(result.error || 'ログのダウンロードに失敗しました');
+            handleAPIError(
+                new Error(result.error || 'ログのダウンロードに失敗しました'),
+                'ログのダウンロード',
+                {
+                    title: 'ログのダウンロードに失敗しました',
+                    duration: 5000,
+                }
+            );
         }
-    }, [aiLogs, showSuccess, showError]);
+    }, [aiLogs, showSuccess, handleAPIError]);
 
     if (!currentProject) return null;
 
@@ -299,7 +527,7 @@ ${'='.repeat(80)}`;
             {/* AI生成中のローディングインジケーター */}
             {isGenerating && (
                 <AILoadingIndicator
-                    message="キャラクターを生成中"
+                    message="AIが思考中..."
                     estimatedTime={30}
                     variant="inline"
                     cancellable={true}
@@ -311,32 +539,42 @@ ${'='.repeat(80)}`;
             <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] mb-2 flex items-center">
                     <Sparkles className="h-4 w-4 mr-2 text-pink-500" />
-                    AIキャラクター提案
+                    AIキャラクター作成支援
                 </h3>
-                <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 rounded-xl border border-pink-200 dark:border-pink-800 p-4">
-                    <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-3">
-                        プロジェクト設定に基づき、物語に適した3〜5人のキャラクターを自動生成します。
-                    </p>
+                <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 rounded-xl border border-pink-200 dark:border-pink-800 p-4 space-y-4">
 
-                    <button
-                        onClick={handleAIGenerateCharacters}
-                        disabled={!isConfigured || isGenerating}
-                        className="w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-                    >
-                        {isGenerating ? (
-                            <div className="flex items-center justify-center space-x-2">
-                                <Loader className="h-4 w-4 animate-spin" />
-                                <span>生成中...</span>
-                            </div>
-                        ) : !isConfigured ? (
-                            'AI設定が必要'
-                        ) : (
-                            'キャラクターを自動生成'
-                        )}
-                    </button>
+                    {/* Auto Generate */}
+                    <div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-2">
+                            作品情報からキャラクターを自動生成
+                        </p>
+                        <button
+                            onClick={handleAIGenerateCharacters}
+                            disabled={!isConfigured || isGenerating}
+                            className="w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center space-x-2"
+                        >
+                            <Sparkles className="h-4 w-4" />
+                            <span>自動生成（一括作成）</span>
+                        </button>
+                    </div>
+
+                    {/* Suggest Missing */}
+                    <div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP'] mb-2">
+                            不足しているキャラクターをAIが提案
+                        </p>
+                        <button
+                            onClick={handleSuggestCharacters}
+                            disabled={!isConfigured || isGenerating}
+                            className="w-full px-4 py-2 bg-white/50 dark:bg-black/20 hover:bg-white/80 dark:hover:bg-black/30 text-pink-700 dark:text-pink-300 rounded-lg transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed border border-pink-200 dark:border-pink-800 flex items-center justify-center space-x-2"
+                        >
+                            <UserPlus className="h-4 w-4" />
+                            <span>不足キャラクターを提案</span>
+                        </button>
+                    </div>
 
                     {settings.provider === 'local' && (
-                        <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                        <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
                             <p className="text-xs text-yellow-700 dark:text-yellow-300 font-['Noto_Sans_JP']">
                                 ⚠️ ローカルLLMは解析に失敗しやすい傾向があります。
                             </p>
@@ -361,11 +599,11 @@ ${'='.repeat(80)}`;
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                         <div
                             className="bg-gradient-to-r from-mizu-500 to-mizu-600 h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min((currentProject.characters.length / 5) * 100, 100)}%` }}
+                            style={{ width: `${Math.min(100, (currentProject.characters.length / 10) * 100)}%` }}
                         />
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-500 font-['Noto_Sans_JP']">
-                        推奨: 3-5人程度
+                        作品に応じてAIが人数を判断します
                     </p>
                 </div>
             </div>
@@ -393,10 +631,22 @@ ${'='.repeat(80)}`;
                                 </div>
                             </div>
                         )}
-                        compact={true} // New prop suggestion for tighter layout
+                        compact={true}
                     />
                 </div>
             </div>
+
+            <SuggestionModal
+                isOpen={isSuggestionModalOpen}
+                onClose={() => setIsSuggestionModalOpen(false)}
+                suggestions={suggestions}
+                onAddCharacters={(chars) => {
+                    updateProject({
+                        characters: [...currentProject.characters, ...chars]
+                    });
+                    showSuccess(`${chars.length}人のキャラクターを追加しました`);
+                }}
+            />
         </div>
     );
 };

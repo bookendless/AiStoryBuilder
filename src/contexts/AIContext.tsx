@@ -53,17 +53,8 @@ const getDefaultSettings = (): AISettings => {
     apiKeys['grok'] = encryptApiKey(grokKey);
   }
 
-  // Androidエミュレータの場合、localhostを10.0.2.2に自動置換
-  const isAndroid = typeof window !== 'undefined' && (
-    (window as any).__TAURI_PLATFORM__ === 'android' ||
-    /android/i.test(navigator.userAgent) ||
-    window.location.hostname === 'tauri.localhost' // Android Tauriのデフォルトホスト
-  );
-
-  const adjustedLocalEndpoint = (isAndroid && localEndpoint)
-    ? localEndpoint.replace(/localhost|127\.0\.0\.1/, '10.0.2.2')
-    : localEndpoint;
-
+  // localEndpointはユーザーが入力した値をそのまま保持
+  // Androidエミュレータ対応のlocalhost→10.0.2.2変換はAPI呼び出し時に動的に行う（aiService.ts）
   return {
     provider: defaultProvider,
     model: defaultModel,
@@ -71,7 +62,7 @@ const getDefaultSettings = (): AISettings => {
     maxTokens: 3000,
     apiKey: openaiKey || claudeKey || geminiKey || '', // 後方互換性のため、現在のプロバイダーのAPIキー
     apiKeys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined, // プロバイダーごとのAPIキー
-    localEndpoint: adjustedLocalEndpoint,
+    localEndpoint: localEndpoint,
   };
 };
 
@@ -208,17 +199,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   }, [setSettings]);
 
   const updateSettings = useCallback(async (newSettings: Partial<AISettings>) => {
-    // Androidエミュレータ対応: localEndpointが更新された場合、localhostを10.0.2.2に置換
-    if (newSettings.localEndpoint) {
-      const isAndroid = typeof window !== 'undefined' && (
-        (window as any).__TAURI_PLATFORM__ === 'android' ||
-        /android/i.test(navigator.userAgent) ||
-        window.location.hostname === 'tauri.localhost'
-      );
-      if (isAndroid) {
-        newSettings.localEndpoint = newSettings.localEndpoint.replace(/localhost|127\.0\.0\.1/, '10.0.2.2');
-      }
-    }
+    // localEndpointはユーザーが入力した値をそのまま保存
+    // Androidエミュレータ対応のlocalhost→10.0.2.2変換はAPI呼び出し時に動的に行う（aiService.ts）
 
     const updated = { ...settingsRef.current, ...newSettings };
 
