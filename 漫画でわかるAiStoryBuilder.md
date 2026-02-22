@@ -5,11 +5,11 @@ AiStoryBuilderの使い方や魅力を漫画形式でわかりやすく解説し
 ## 第一回
 
 ![1](https://github.com/user-attachments/assets/7f7bcad2-5128-43e8-8da8-3ac729badd6c)
-![2](説明書漫画/第一回/02.jpeg)
-![3](説明書漫画/第一回/03.jpeg)
-![4](説明書漫画/第一回/04.jpeg)
-![5](説明書漫画/第一回/05.jpeg)
-![6](説明書漫画/第一回/06.png)
+![2](https://github.com/user-attachments/assets/5bd15339-ed09-42ad-bb82-b4d3e05e9347)
+![3](https://github.com/user-attachments/assets/9921674b-300f-41e1-afa8-542cfd073132)
+![4](https://github.com/user-attachments/assets/b26f56c0-9b47-4570-ace3-6ea9728ec0d7)
+![5](https://github.com/user-attachments/assets/36f66870-7cc1-441a-8302-62515f5a8f40)
+![6](https://github.com/user-attachments/assets/6593c64f-bc3f-40a6-8260-934df5559c5d)
 
 ## 第二回
 
