@@ -30,9 +30,18 @@ const GEMINI_MODELS = [
     latencyClass: 'fast' as const,
   },
   {
+    id: 'gemini-3.1-flash-lite-preview',
+    name: 'Gemini 3.1 Flash-Lite (Preview)',
+    description: '最も費用対効果の高いマルチモーダル モデル',
+    maxTokens: 2000000,
+    capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', 'コード実行'],
+    recommendedUse: '高速なマルチモーダル処理、リアルタイム応答、大量のデータ分析',
+    latencyClass: 'fast' as const,
+  },
+  {
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
-    description: '2025年中盤のフラッグシップ。安定した性能と長いコンテキストウィンドウ',
+    description: '安定した性能と長いコンテキストウィンドウ',
     maxTokens: 2000000,
     capabilities: ['テキスト', 'ビジョン', 'オーディオ'],
     recommendedUse: '長期プロジェクトの統合管理や分析',
@@ -41,7 +50,7 @@ const GEMINI_MODELS = [
   {
     id: 'gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
-    description: '2.5世代の高速モデル。コストパフォーマンスに優れる',
+    description: '推論を必要とする低レイテンシで大容量のタスクに最適な価格とパフォーマンスのモデル。',
     maxTokens: 1000000,
     capabilities: ['テキスト', 'ビジョン'],
     recommendedUse: '画像分析付きキャラクター補完や大量生成',
