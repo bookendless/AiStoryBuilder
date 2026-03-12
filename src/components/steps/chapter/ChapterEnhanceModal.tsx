@@ -25,7 +25,7 @@ import { aiService } from '../../../services/aiService';
 import { parseAIResponse } from '../../../utils/aiResponseParser';
 
 // 強化タイプの定義
-type EnhanceType = 'comprehensive' | 'deepen';
+type EnhanceType = 'comprehensive' | 'split' | 'deepen';
 
 interface EnhanceTypeOption {
     id: EnhanceType;
@@ -40,6 +40,12 @@ const enhanceTypeOptions: EnhanceTypeOption[] = [
         label: '強化',
         description: '現在の章を豊かにする',
         icon: <Wand2 className="h-5 w-5" />,
+    },
+    {
+        id: 'split',
+        label: '分割',
+        description: '章を分割して構成を整える',
+        icon: <Scissors className="h-5 w-5" />,
     },
     {
         id: 'deepen',
@@ -405,24 +411,47 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
                             強化タイプを選択
                         </label>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-3">
                             {enhanceTypeOptions.map((option) => (
                                 <button
                                     key={option.id}
                                     onClick={() => setSelectedType(option.id)}
                                     className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all ${selectedType === option.id
-                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
-                                        : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                                        ? option.id === 'comprehensive'
+                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                                            : option.id === 'split'
+                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30'
+                                                : 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                                         }`}
                                 >
-                                    <div className={`${selectedType === option.id ? 'text-purple-600 dark:text-purple-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                    <div className={`${selectedType === option.id
+                                        ? option.id === 'comprehensive'
+                                            ? 'text-blue-600 dark:text-blue-400'
+                                            : option.id === 'split'
+                                                ? 'text-amber-600 dark:text-amber-400'
+                                                : 'text-purple-600 dark:text-purple-400'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                        }`}>
                                         {option.icon}
                                     </div>
-                                    <span className={`text-sm font-bold mt-1 font-['Noto_Sans_JP'] ${selectedType === option.id ? 'text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300'
+                                    <span className={`text-sm font-bold mt-1 font-['Noto_Sans_JP'] ${selectedType === option.id
+                                        ? option.id === 'comprehensive'
+                                            ? 'text-blue-700 dark:text-blue-300'
+                                            : option.id === 'split'
+                                                ? 'text-amber-700 dark:text-amber-300'
+                                                : 'text-purple-700 dark:text-purple-300'
+                                        : 'text-gray-700 dark:text-gray-300'
                                         }`}>
                                         {option.label}
                                     </span>
-                                    <span className={`text-xs mt-1 text-center font-['Noto_Sans_JP'] ${selectedType === option.id ? 'text-purple-600/80 dark:text-purple-300/80' : 'text-gray-500 dark:text-gray-400'
+                                    <span className={`text-xs mt-1 text-center font-['Noto_Sans_JP'] ${selectedType === option.id
+                                        ? option.id === 'comprehensive'
+                                            ? 'text-blue-600/80 dark:text-blue-300/80'
+                                            : option.id === 'split'
+                                                ? 'text-amber-600/80 dark:text-amber-300/80'
+                                                : 'text-purple-600/80 dark:text-purple-300/80'
+                                        : 'text-gray-500 dark:text-gray-400'
                                         }`}>
                                         {option.description}
                                     </span>
@@ -450,26 +479,80 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
                         </div>
                     )}
 
-                    {/* 生成ボタン */}
-                    {!result && (
-                        <button
-                            onClick={handleGenerate}
-                            disabled={isGenerating}
-                            className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                            {isGenerating ? (
-                                <>
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                    <span className="font-['Noto_Sans_JP']">生成中...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Sparkles className="h-5 w-5" />
-                                    <span className="font-['Noto_Sans_JP']">AIで強化案を生成</span>
-                                </>
-                            )}
-                        </button>
+                    {/* 生成ボタンエリア */}
+                    {!result && selectedType !== 'split' && (
+                        <div className="space-y-4">
+                            <div className={`p-4 rounded-lg border flex items-start space-x-3 ${
+                                selectedType === 'comprehensive' 
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                                : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+                            }`}>
+                                <AlertCircle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
+                                    selectedType === 'comprehensive' ? 'text-blue-500' : 'text-purple-500'
+                                }`} />
+                                <div className="flex-1">
+                                    <p className={`text-sm font-medium font-['Noto_Sans_JP'] ${
+                                        selectedType === 'comprehensive' ? 'text-blue-800 dark:text-blue-200' : 'text-purple-800 dark:text-purple-200'
+                                    }`}>
+                                        {selectedType === 'comprehensive' ? '章の強化内容' : '物語の深掘り提案'}
+                                    </p>
+                                    <p className={`text-sm mt-1 font-['Noto_Sans_JP'] ${
+                                        selectedType === 'comprehensive' ? 'text-blue-700 dark:text-blue-300' : 'text-purple-700 dark:text-purple-300'
+                                    }`}>
+                                        {selectedType === 'comprehensive' 
+                                            ? '現在の章の内容を分析し、より豊かな描写や具体的な展開案を提案します。概要、設定、ムード、重要な出来事が更新・補強されます。'
+                                            : '現在の状況から続く、物語を次に進めるための展開案を2つ生成します。提案された案を新しい章として挿入し、構成を広げることができます。'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleGenerate}
+                                disabled={isGenerating}
+                                className={`w-full flex items-center justify-center space-x-2 px-6 py-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold ${
+                                    selectedType === 'comprehensive'
+                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/20'
+                                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-lg shadow-purple-500/20'
+                                }`}
+                            >
+                                {isGenerating ? (
+                                    <>
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                        <span className="font-['Noto_Sans_JP']">分析中...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {selectedType === 'comprehensive' ? <Wand2 className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
+                                        <span className="font-['Noto_Sans_JP']">AIで{selectedType === 'deepen' ? '深掘り' : '強化'}案を生成</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
 
+                    {/* 分割実行ボタン */}
+                    {!result && selectedType === 'split' && (
+                        <div className="space-y-4">
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                                <div className="flex items-start space-x-3">
+                                    <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200 font-['Noto_Sans_JP']">
+                                            章の分割分析
+                                        </p>
+                                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1 font-['Noto_Sans_JP']">
+                                            現在の章の内容を分析し、物語のテンポや構成の観点から、より適切な分割ポイントをAIが詳しく提案します。
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleRequestSplit}
+                                className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg hover:from-amber-600 hover:to-orange-700 transition-all font-bold shadow-lg shadow-amber-500/20"
+                            >
+                                <Scissors className="h-5 w-5" />
+                                <span className="font-['Noto_Sans_JP']">章の分割分析を開始</span>
+                            </button>
+                        </div>
                     )}
 
                     {/* 深掘り提案の表示 */}
