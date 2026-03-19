@@ -468,7 +468,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       // 形式1: **関係の強度**: 4/5
       // 形式2: - **強度**: 4
       // 形式3: - **関係の強度**: 4/5
-      let strengthMatch = line.match(/^-?\s*\*\*(?:関係の)?強度[：:]*\*\*\s*[:：]?\s*(\d)(?:\/5)?/);
+      const strengthMatch = line.match(/^-?\s*\*\*(?:関係の)?強度[：:]*\*\*\s*[:：]?\s*(\d)(?:\/5)?/);
       if (strengthMatch) {
         currentRelationship.strength = parseInt(strengthMatch[1]);
         collectingDescription = false;

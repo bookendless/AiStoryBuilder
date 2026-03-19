@@ -16,7 +16,7 @@ export const AI_PROVIDERS: AIProvider[] = [
 
 // Android環境チェック: ローカルLLMはAndroidでは使用不可
 const isAndroidPlatform = typeof window !== 'undefined' &&
-  (window as any).__TAURI_PLATFORM__ === 'android';
+  (window as Window & { __TAURI_PLATFORM__?: string }).__TAURI_PLATFORM__ === 'android';
 
 // Android環境ではローカルLLMプロバイダーを除外したリスト
 export const AVAILABLE_PROVIDERS: AIProvider[] = isAndroidPlatform

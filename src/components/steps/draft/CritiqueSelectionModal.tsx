@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, AlertTriangle, MessageCircle } from 'lucide-react';
+import { X, Check, MessageCircle } from 'lucide-react';
 import { WeaknessItem } from '../../../types/draft';
 
 interface CritiqueSelectionModalProps {

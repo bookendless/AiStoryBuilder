@@ -35,7 +35,7 @@ export const SuggestionModal: React.FC<SuggestionModalProps> = ({
     const handleAdd = () => {
         const charactersToAdd = suggestions.filter(s => selectedIds.has(s.id));
         // reason プロパティを除外して純粋な Character オブジェクトにする
-        const cleanCharacters: Character[] = charactersToAdd.map(({ reason, ...char }) => char);
+        const cleanCharacters: Character[] = charactersToAdd.map(({ reason: _reason, ...char }) => char);
         onAddCharacters(cleanCharacters);
         onClose();
     };

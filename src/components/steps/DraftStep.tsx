@@ -2,10 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save } from 'lucide-react';
-import { diffLines, type Change } from 'diff';
-import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
-import { sanitizeInputForPrompt } from '../../utils/securityUtils';
 import {
   HISTORY_AUTO_SAVE_DELAY,
   HISTORY_MAX_ENTRIES,
@@ -19,18 +16,14 @@ import {
 // ワークスペースサイドバーは削除され、AI機能はToolsSidebarに移行
 import { DisplaySettingsPanel } from './draft/DisplaySettingsPanel';
 import { Toast } from './draft/Toast';
-import { ImprovementLogModal } from './draft/ImprovementLogModal';
-import { CustomPromptModal } from './draft/CustomPromptModal';
 import { BackupDescriptionModal } from './draft/BackupDescriptionModal';
 import { AIStatusBar } from './draft/AIStatusBar';
 import { ChapterTabs } from './draft/ChapterTabs';
 import { MainEditor, type MainEditorHandle } from './draft/MainEditor';
 import { ForeshadowingPanel } from './draft/ForeshadowingPanel';
-import { useAILog } from '../common/hooks/useAILog';
 // AILogPanel is used in ToolsSidebar, reference removed from here
 import { useChapterDraft } from './draft/hooks/useChapterDraft';
 import { useExport } from './draft/hooks/useExport';
-import { ConfirmDialog } from '../common/ConfirmDialog';
 // AI生成機能はToolsSidebarのDraftAssistantPanelに移行
 // テキスト選択機能は削除され、AI機能はToolsSidebarに移行
 import { useAllChaptersGeneration } from './draft/hooks/useAllChaptersGeneration';
@@ -43,7 +36,6 @@ import type {
   AIStatusTone,
   ChapterHistoryEntry,
   HistoryEntryType,
-  ImprovementLog,
 } from './draft/types';
 
 
@@ -63,16 +55,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const [modalDraft, setModalDraft] = useState('');
   const [isVerticalWriting, setIsVerticalWriting] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
-  const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
   const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
-  const [selectedHistoryEntryId, setSelectedHistoryEntryId] = useState<string | null>(null);
-  const [improvementLogs, _setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
-  const [selectedImprovementLogId, setSelectedImprovementLogId] = useState<string | null>(null);
-
-  // カスタムプロンプト用の状態
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [useCustomPrompt, setUseCustomPrompt] = useState(false);
-  const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
 
   // バックアップモーダル用の状態
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -95,14 +78,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   // トースト通知用の状態
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // 確認ダイアログの状態
-  const [confirmDialogState, setConfirmDialogState] = useState<{
-    isOpen: boolean;
-    type: 'generate-all-chapters' | null;
-  }>({
-    isOpen: false,
-    type: null,
-  });
 
   // 章の草案管理フック
   const {
@@ -123,7 +98,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   });
 
   // エクスポート機能
-  const { exportChapter, exportFull } = useExport({
+  const { exportChapter } = useExport({
     currentProject,
     chapterDrafts,
     onSuccess: showSuccess,
@@ -135,12 +110,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     },
   });
 
-  // AIログ管理
-  const { aiLogs } = useAILog({
-    projectId: currentProject?.id,
-    chapterId: selectedChapter || undefined,
-    autoLoad: true,
-  });
 
   // 現在の章を取得（メモ化）
   const currentChapter = useMemo(() => {
@@ -179,254 +148,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     return { characters, setting, mood, keyEvents };
   }, [currentProject]);
 
-  // 設定情報の取得ヘルパー
-  const _getProjectContextInfo = useCallback(() => {
-    if (!currentProject) return { worldSettings: '', glossary: '', relationships: '', plotInfo: '' };
-
-    // 1. 世界観設定・用語集
-    const worldSettingsList = currentProject.worldSettings || [];
-    const glossaryList = currentProject.glossary || [];
-
-    // 重要度が高いものを優先的に抽出（ここでは簡易的に全件、ただし長すぎる場合は制限が必要）
-    // プロンプトサイズ削減のため、タイトルと内容の要約のみを抽出するなどの工夫が可能
-    const worldSettingsText = worldSettingsList.length > 0
-      ? worldSettingsList.map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n')
-      : '特になし';
-
-    const glossaryText = glossaryList.length > 0
-      ? glossaryList.map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n')
-      : '特になし';
-
-    // 2. キャラクター相関図
-    const relationshipsList = currentProject.relationships || [];
-    const relationshipsText = relationshipsList.length > 0
-      ? relationshipsList.map(r => {
-        const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
-        const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
-        return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
-      }).join('\n')
-      : '特になし';
-
-    // 3. 物語構造の進行度
-    // PlotStep2の情報を活用
-    const plot = currentProject.plot;
-    let plotInfo = '構成情報なし';
-
-    if (plot.structure === 'kishotenketsu') {
-      plotInfo = `全体構造: 起承転結
-起: ${plot.ki?.substring(0, 50) || '未設定'}...
-承: ${plot.sho?.substring(0, 50) || '未設定'}...
-転: ${plot.ten?.substring(0, 50) || '未設定'}...
-結: ${plot.ketsu?.substring(0, 50) || '未設定'}...`;
-    } else if (plot.structure === 'three-act') {
-      plotInfo = `全体構造: 三幕構成
-第1幕: ${plot.act1?.substring(0, 50) || '未設定'}...
-第2幕: ${plot.act2?.substring(0, 50) || '未設定'}...
-第3幕: ${plot.act3?.substring(0, 50) || '未設定'}...`;
-    } else if (plot.structure === 'four-act') {
-      plotInfo = `全体構造: 四幕構成
-第1幕: ${plot.fourAct1?.substring(0, 50) || '未設定'}...
-第2幕: ${plot.fourAct2?.substring(0, 50) || '未設定'}...
-第3幕: ${plot.fourAct3?.substring(0, 50) || '未設定'}...
-第4幕: ${plot.fourAct4?.substring(0, 50) || '未設定'}...`;
-    } else if (plot.structure === 'heroes-journey') {
-      plotInfo = `全体構造: ヒーローズ・ジャーニー
-日常の世界: ${plot.hj1?.substring(0, 50) || '未設定'}...
-冒険への誘い: ${plot.hj2?.substring(0, 50) || '未設定'}...
-境界越え: ${plot.hj3?.substring(0, 50) || '未設定'}...
-試練と仲間: ${plot.hj4?.substring(0, 50) || '未設定'}...
-最大の試練: ${plot.hj5?.substring(0, 50) || '未設定'}...
-報酬: ${plot.hj6?.substring(0, 50) || '未設定'}...
-帰路: ${plot.hj7?.substring(0, 50) || '未設定'}...
-復活と帰還: ${plot.hj8?.substring(0, 50) || '未設定'}...`;
-    } else if (plot.structure === 'beat-sheet') {
-      plotInfo = `全体構造: ビートシート
-導入 (Setup): ${plot.bs1?.substring(0, 50) || '未設定'}...
-決断 (Break into Two): ${plot.bs2?.substring(0, 50) || '未設定'}...
-試練 (Fun and Games): ${plot.bs3?.substring(0, 50) || '未設定'}...
-転換点 (Midpoint): ${plot.bs4?.substring(0, 50) || '未設定'}...
-危機 (All Is Lost): ${plot.bs5?.substring(0, 50) || '未設定'}...
-クライマックス (Finale): ${plot.bs6?.substring(0, 50) || '未設定'}...
-結末 (Final Image): ${plot.bs7?.substring(0, 50) || '未設定'}...`;
-    } else if (plot.structure === 'mystery-suspense') {
-      plotInfo = `全体構造: ミステリー・サスペンス構成
-発端（事件発生）: ${plot.ms1?.substring(0, 50) || '未設定'}...
-捜査（初期）: ${plot.ms2?.substring(0, 50) || '未設定'}...
-仮説とミスリード: ${plot.ms3?.substring(0, 50) || '未設定'}...
-第二の事件/急展開: ${plot.ms4?.substring(0, 50) || '未設定'}...
-手がかりの統合: ${plot.ms5?.substring(0, 50) || '未設定'}...
-解決（真相解明）: ${plot.ms6?.substring(0, 50) || '未設定'}...
-エピローグ: ${plot.ms7?.substring(0, 50) || '未設定'}...`;
-    }
-
-    return {
-      worldSettings: worldSettingsText,
-      glossary: glossaryText,
-      relationships: relationshipsText,
-      plotInfo
-    };
-  }, [currentProject]);
-
-  // カスタムプロンプトの構築（メモ化）
-  // フックのインターフェースに合わせて、オブジェクト形式で受け取る
-  const _buildCustomPrompt = useCallback((args: {
-    currentChapter: { title: string; summary: string };
-    chapterDetails: { characters: string; setting: string; mood: string; keyEvents: string };
-    projectCharacters: string;
-    previousStory: string;
-    previousChapterEnd?: string;
-    contextInfo?: { worldSettings: string; glossary: string; relationships: string; plotInfo: string };
-  }) => {
-    const { currentChapter, chapterDetails, projectCharacters, previousStory, previousChapterEnd = '', contextInfo = { worldSettings: '', glossary: '', relationships: '', plotInfo: '' } } = args;
-    // 文体設定の取得（プロジェクト設定から、またはデフォルト値）
-    // カスタム値が存在する場合はカスタム値を使用、それ以外は通常の値を使用
-    const writingStyle = currentProject?.writingStyle || {};
-    const style = writingStyle.customStyle || writingStyle.style || '現代小説風';
-    const perspective = writingStyle.customPerspective || writingStyle.perspective || '';
-    const formality = writingStyle.customFormality || writingStyle.formality || '';
-    const rhythm = writingStyle.customRhythm || writingStyle.rhythm || '';
-    const metaphor = writingStyle.customMetaphor || writingStyle.metaphor || '';
-    const dialogue = writingStyle.customDialogue || writingStyle.dialogue || '';
-    const emotion = writingStyle.customEmotion || writingStyle.emotion || '';
-    const tone = writingStyle.customTone || writingStyle.tone || '';
-
-    // 文体の詳細指示を構築
-    const styleDetailsArray: string[] = [];
-    if (perspective || formality || rhythm || metaphor || dialogue || emotion || tone) {
-      styleDetailsArray.push('【文体の詳細指示】');
-      if (perspective) styleDetailsArray.push(`- **人称**: ${perspective} （一人称（私/僕/俺） / 三人称（彼/彼女） / 神の視点）`);
-      if (formality) styleDetailsArray.push(`- **硬軟**: ${formality} （硬め / 柔らかめ / 口語的 / 文語的）`);
-      if (rhythm) styleDetailsArray.push(`- **リズム**: ${rhythm} （短文中心 / 長短混合 / 流れるような長文）`);
-      if (metaphor) styleDetailsArray.push(`- **比喩表現**: ${metaphor} （多用 / 控えめ / 詩的 / 写実的）`);
-      if (dialogue) styleDetailsArray.push(`- **会話比率**: ${dialogue} （会話多め / 描写重視 / バランス型）`);
-      if (emotion) styleDetailsArray.push(`- **感情描写**: ${emotion} （内面重視 / 行動で示す / 抑制的）`);
-      if (tone) {
-        styleDetailsArray.push('');
-        styleDetailsArray.push(`【参考となるトーン】`);
-        styleDetailsArray.push(`${tone} （緊張感 / 穏やか / 希望 / 切なさ / 謎めいた）`);
-      }
-    }
-    const styleDetails = styleDetailsArray.length > 0 ? styleDetailsArray.join('\n') + '\n' : '';
-
-    // 物語の全体構成を構築
-    let plotStructure = '';
-    if (currentProject?.plot?.structure === 'kishotenketsu') {
-      plotStructure = `起承転結構成\n起: ${currentProject.plot.ki || '未設定'}\n承: ${currentProject.plot.sho || '未設定'}\n転: ${currentProject.plot.ten || '未設定'}\n結: ${currentProject.plot.ketsu || '未設定'}`;
-    } else if (currentProject?.plot?.structure === 'three-act') {
-      plotStructure = `三幕構成\n第1幕: ${currentProject.plot.act1 || '未設定'}\n第2幕: ${currentProject.plot.act2 || '未設定'}\n第3幕: ${currentProject.plot.act3 || '未設定'}`;
-    } else if (currentProject?.plot?.structure === 'four-act') {
-      plotStructure = `四幕構成\n第1幕: ${currentProject.plot.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot.fourAct4 || '未設定'}`;
-    } else if (currentProject?.plot?.structure === 'heroes-journey') {
-      plotStructure = `ヒーローズ・ジャーニー\n日常の世界: ${currentProject.plot.hj1 || '未設定'}\n冒険への誘い: ${currentProject.plot.hj2 || '未設定'}\n境界越え: ${currentProject.plot.hj3 || '未設定'}\n試練と仲間: ${currentProject.plot.hj4 || '未設定'}\n最大の試練: ${currentProject.plot.hj5 || '未設定'}\n報酬: ${currentProject.plot.hj6 || '未設定'}\n帰路: ${currentProject.plot.hj7 || '未設定'}\n復活と帰還: ${currentProject.plot.hj8 || '未設定'}`;
-    } else if (currentProject?.plot?.structure === 'beat-sheet') {
-      plotStructure = `ビートシート\n導入 (Setup): ${currentProject.plot.bs1 || '未設定'}\n決断 (Break into Two): ${currentProject.plot.bs2 || '未設定'}\n試練 (Fun and Games): ${currentProject.plot.bs3 || '未設定'}\n転換点 (Midpoint): ${currentProject.plot.bs4 || '未設定'}\n危機 (All Is Lost): ${currentProject.plot.bs5 || '未設定'}\nクライマックス (Finale): ${currentProject.plot.bs6 || '未設定'}\n結末 (Final Image): ${currentProject.plot.bs7 || '未設定'}`;
-    } else if (currentProject?.plot?.structure === 'mystery-suspense') {
-      plotStructure = `ミステリー・サスペンス構成\n発端（事件発生）: ${currentProject.plot.ms1 || '未設定'}\n捜査（初期）: ${currentProject.plot.ms2 || '未設定'}\n仮説とミスリード: ${currentProject.plot.ms3 || '未設定'}\n第二の事件/急展開: ${currentProject.plot.ms4 || '未設定'}\n手がかりの統合: ${currentProject.plot.ms5 || '未設定'}\n解決（真相解明）: ${currentProject.plot.ms6 || '未設定'}\nエピローグ: ${currentProject.plot.ms7 || '未設定'}`;
-    } else {
-      plotStructure = contextInfo.plotInfo || '未設定';
-    }
-
-    const basePrompt = aiService.buildPrompt('draft', 'generateSingle', {
-      chapterTitle: currentChapter.title,
-      chapterSummary: currentChapter.summary,
-      characters: chapterDetails.characters,
-      setting: chapterDetails.setting,
-      mood: chapterDetails.mood,
-      keyEvents: chapterDetails.keyEvents,
-      projectTitle: currentProject?.title || '未設定',
-      mainGenre: currentProject?.mainGenre || '未設定',
-      subGenre: currentProject?.subGenre || '未設定',
-      targetReader: currentProject?.targetReader || '未設定',
-      previousStory: previousStory || 'これが最初の章です。',
-      previousChapterEnd: previousChapterEnd ? `\n【直前の章のラストシーン（接続用）】\n以下の文章は、直前の章の終わりの部分です。この流れを汲んで、自然に接続するように新しい章を書き始めてください。\n---\n${previousChapterEnd}\n---` : '',
-      projectCharacters: `${projectCharacters}\n\n【キャラクター相関図】\n${contextInfo.relationships}\n\n【設定資料・世界観】\n${contextInfo.worldSettings}\n\n【重要用語集】\n${contextInfo.glossary}`,
-      plotTheme: currentProject?.plot?.theme || '未設定',
-      plotSetting: currentProject?.plot?.setting || '未設定',
-      plotStructure: plotStructure,
-      style: style,
-      styleDetails: styleDetails,
-      customPrompt: useCustomPrompt && customPrompt.trim() ? `\n\n【カスタム執筆指示】\n${customPrompt}` : '',
-    });
-
-    if (useCustomPrompt && customPrompt.trim()) {
-      // カスタムプロンプトをサニタイズして追加
-      const sanitizedCustomPrompt = sanitizeInputForPrompt(customPrompt);
-      return `${basePrompt}${basePrompt.includes('【カスタム執筆指示】') ? '' : '\n\n【カスタム執筆指示】\n'}${sanitizedCustomPrompt}`;
-    }
-
-    return basePrompt;
-  }, [currentProject, useCustomPrompt, customPrompt]);
-
-  // AI生成機能はToolsSidebarのDraftAssistantPanelに移行
-  // AIStatusBar用の簡易状態は全章生成フックの後に定義
-
-  // AIログをコピー（DraftStep特有の形式に対応）
-  const _handleCopyLog = useCallback((log: typeof aiLogs[0]) => {
-    const typeLabels: Record<string, string> = {
-      generateSingle: '章生成',
-      continue: '続き生成',
-      suggestions: '提案生成',
-    };
-    const typeLabel = typeLabels[log.type] || log.type;
-    const logText = `【AIログ - ${typeLabel}】
-時刻: ${log.timestamp.toLocaleString('ja-JP')}
-${log.chapterId ? `章ID: ${log.chapterId}\n` : ''}
-${log.suggestionType ? `提案タイプ: ${log.suggestionType}\n` : ''}
-
-【プロンプト】
-${log.prompt}
-
-【AI応答】
-${log.response}
-
-${log.error ? `【エラー】
-${log.error}` : ''}`;
-
-    navigator.clipboard.writeText(logText);
-    setToastMessage('ログをクリップボードにコピーしました');
-  }, [setToastMessage]);
-
-  // AIログをダウンロード（DraftStep特有の形式に対応）
-  const _handleDownloadLogs = useCallback(() => {
-    const typeLabels: Record<string, string> = {
-      generateSingle: '章生成',
-      continue: '続き生成',
-      suggestions: '提案生成',
-    };
-    const logsText = aiLogs.map(log => {
-      const typeLabel = typeLabels[log.type] || log.type;
-      return `【AIログ - ${typeLabel}】
-時刻: ${log.timestamp.toLocaleString('ja-JP')}
-${log.chapterId ? `章ID: ${log.chapterId}\n` : ''}
-${log.suggestionType ? `提案タイプ: ${log.suggestionType}\n` : ''}
-
-【プロンプト】
-${log.prompt}
-
-【AI応答】
-${log.response}
-
-${log.error ? `【エラー】
-${log.error}` : ''}
-
-${'='.repeat(80)}`;
-    }).join('\n\n');
-
-    const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `draft_ai_logs_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    setToastMessage('ログをダウンロードしました');
-  }, [aiLogs, setToastMessage]);
-
-  // ドロップダウンメニュー用の状態
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const [showCompletionToast, setShowCompletionToast] = useState<string | null>(null);
 
@@ -439,7 +160,6 @@ ${'='.repeat(80)}`;
   useEffect(() => {
     historyLoadedChaptersRef.current.clear();
     setChapterHistories({});
-    setSelectedHistoryEntryId(null);
   }, [currentProject?.id]);
 
   const createHistorySnapshot = useCallback(
@@ -489,9 +209,6 @@ ${'='.repeat(80)}`;
           };
         });
 
-        if (entryWasAdded) {
-          setSelectedHistoryEntryId(entryId);
-        }
       } catch (error) {
         console.error('章履歴の保存に失敗しました:', error);
         return false;
@@ -509,8 +226,6 @@ ${'='.repeat(80)}`;
     isGeneratingAllChapters,
     generationProgress,
     generationStatus,
-    chapterProgressList: _chapterProgressList,
-    handleGenerateAllChapters,
     handleCancelAllChaptersGeneration,
   } = useAllChaptersGeneration({
     currentProject,
@@ -524,40 +239,7 @@ ${'='.repeat(80)}`;
     setShowCompletionToast,
   });
 
-  // AIStatusBar用の簡易状態（全章生成のみを表示）
   const isGenerating = isGeneratingAllChapters;
-  const _currentGenerationAction = null;
-  const _handleCancelGeneration = () => {
-    handleCancelAllChaptersGeneration();
-  };
-
-  const _handleManualHistorySnapshot = useCallback(async () => {
-    await createHistorySnapshot('manual', { force: true, label: '手動保存' });
-  }, [createHistorySnapshot]);
-
-
-  // カスタムプロンプトの保存・読み込み
-  useEffect(() => {
-    if (currentProject) {
-      const savedCustomPrompt = localStorage.getItem(`customPrompt_${currentProject.id}`);
-      const savedUseCustomPrompt = localStorage.getItem(`useCustomPrompt_${currentProject.id}`);
-
-      if (savedCustomPrompt) {
-        setCustomPrompt(savedCustomPrompt);
-      }
-      if (savedUseCustomPrompt === 'true') {
-        setUseCustomPrompt(true);
-      }
-    }
-  }, [currentProject]);
-
-  // カスタムプロンプトの保存
-  useEffect(() => {
-    if (currentProject) {
-      localStorage.setItem(`customPrompt_${currentProject.id}`, customPrompt);
-      localStorage.setItem(`useCustomPrompt_${currentProject.id}`, useCustomPrompt.toString());
-    }
-  }, [customPrompt, useCustomPrompt, currentProject]);
 
   useEffect(() => {
     setIsChapterInfoCollapsed(false);
@@ -702,27 +384,6 @@ ${'='.repeat(80)}`;
     loadHistory();
   }, [currentProject, selectedChapter]);
 
-  useEffect(() => {
-    if (!selectedChapter) {
-      if (selectedHistoryEntryId !== null) {
-        setSelectedHistoryEntryId(null);
-      }
-      return;
-    }
-
-    const entries = chapterHistories[selectedChapter] || [];
-    if (!entries.length) {
-      if (selectedHistoryEntryId !== null) {
-        setSelectedHistoryEntryId(null);
-      }
-      return;
-    }
-
-    const exists = entries.some(entry => entry.id === selectedHistoryEntryId);
-    if (!exists) {
-      setSelectedHistoryEntryId(entries[0].id);
-    }
-  }, [chapterHistories, selectedChapter, selectedHistoryEntryId]);
 
   useEffect(() => {
     if (!selectedChapter) return;
@@ -876,396 +537,23 @@ ${'='.repeat(80)}`;
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handlePrevChapter, handleNextChapter]);
 
-  // ドロップダウンメニューの外側クリックで閉じる処理
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    };
-
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [isMenuOpen]);
 
   const currentChapterIndex = useMemo(() => {
     if (!currentProject || !selectedChapter) return -1;
     return currentProject.chapters.findIndex(chapter => chapter.id === selectedChapter);
   }, [currentProject, selectedChapter]);
 
-  // AI生成状態はDraftAssistantPanelで管理されるため、ここでは全章生成のみ
-
-  // AIStatusBar用の状態（全章生成のみを表示）
-  const _aiStatus = useMemo<{
-    tone: AIStatusTone;
-    title: string;
-    detail?: string;
-  } | null>(() => {
-    if (isGeneratingAllChapters) {
-      const baseDetail =
-        generationStatus ||
-        (generationProgress.total > 0
-          ? `${generationProgress.current} / ${generationProgress.total}章を処理中です`
-          : 'AIが章を順番に執筆しています');
-      return {
-        tone: 'blue',
-        title: '全章を生成しています…',
-        detail: baseDetail,
-      };
-    }
-
-    return null;
-  }, [
-    generationProgress.current,
-    generationProgress.total,
-    generationStatus,
-    isGeneratingAllChapters,
-  ]);
-
-  const _historyEntries = useMemo(
-    () => (selectedChapter ? chapterHistories[selectedChapter] || [] : []),
-    [chapterHistories, selectedChapter]
-  );
-
-  const selectedHistoryEntry = useMemo(() => {
-    if (!selectedChapter || !selectedHistoryEntryId) return null;
-    const entries = chapterHistories[selectedChapter] || [];
-    return entries.find(entry => entry.id === selectedHistoryEntryId) || null;
-  }, [chapterHistories, selectedChapter, selectedHistoryEntryId]);
-
-  const historyDiffSegments = useMemo<Change[]>(() => {
-    if (!selectedHistoryEntry) return [];
-    return diffLines(selectedHistoryEntry.content ?? '', draft ?? '');
-  }, [selectedHistoryEntry, draft]);
-
-  const _hasHistoryDiff = useMemo(
-    () => historyDiffSegments.some(segment => segment.added || segment.removed),
-    [historyDiffSegments]
-  );
-
-
   // 章草案保存ハンドラー（フックから取得した関数をエイリアス）
   const handleSaveChapterDraft = handleSaveChapterDraftFromHook;
-
-  const _handleRestoreHistoryEntry = useCallback(async () => {
-    if (!selectedChapter || !selectedHistoryEntry) return;
-
-    if (selectedHistoryEntry.content === draft) return;
-
-    await createHistorySnapshot('restore', {
-      content: draft,
-      label: '復元前スナップショット',
-      force: true,
-    });
-
-    const nextContent = selectedHistoryEntry.content;
-    setDraft(nextContent);
-    setChapterDrafts(prev => ({
-      ...prev,
-      [selectedChapter]: nextContent,
-    }));
-
-    await handleSaveChapterDraft(selectedChapter, nextContent);
-
-    setTimeout(() => {
-      const textarea = mainEditorRef.current?.getTextareaRef();
-      if (textarea) {
-        textarea.focus();
-        const cursorPosition = nextContent.length;
-        textarea.setSelectionRange(cursorPosition, cursorPosition);
-      }
-    }, 0);
-  }, [createHistorySnapshot, draft, handleSaveChapterDraft, selectedChapter, selectedHistoryEntry]);
-
-  const _handleDeleteHistoryEntry = useCallback(async (entryId: string) => {
-    if (!currentProject || !selectedChapter) return;
-
-    try {
-      // IndexedDBから削除
-      await databaseService.deleteHistoryEntry(entryId);
-
-      // 状態を更新
-      setChapterHistories(prev => {
-        const entries = prev[selectedChapter] || [];
-        const updatedEntries = entries.filter(e => e.id !== entryId);
-
-        // 削除されたエントリが選択されていた場合、選択を解除
-        if (selectedHistoryEntryId === entryId) {
-          setSelectedHistoryEntryId(null);
-        }
-
-        return {
-          ...prev,
-          [selectedChapter]: updatedEntries,
-        };
-      });
-
-      setToastMessage('履歴を削除しました');
-    } catch (error) {
-      handleDatabaseError(error, '履歴削除');
-      setToastMessage('履歴の削除に失敗しました');
-    }
-  }, [currentProject, selectedChapter, selectedHistoryEntryId, setToastMessage]);
-
-
-  // 削除された章の草案データをクリーンアップ（機能停止）
-  // const cleanupDeletedChapterDrafts = (project: typeof currentProject) => {
-  //   if (!project) return;
-  //   
-  //   const existingChapterIds = new Set(project.chapters.map(chapter => chapter.id));
-  //   const cleanedChapterDrafts = Object.keys(chapterDrafts).reduce((acc, chapterId) => {
-  //     // 章が存在する場合のみ保持（空の草案も含む）
-  //     if (existingChapterIds.has(chapterId)) {
-  //       acc[chapterId] = chapterDrafts[chapterId];
-  //     }
-  //     return acc;
-  //   }, {} as Record<string, string>);
-  //   
-  //   setChapterDrafts(cleanedChapterDrafts);
-  // };
 
   // 文字数カウント（メモ化）
   const wordCount = useMemo(() => draft.length, [draft]);
 
-  // 全章生成の確認ダイアログを表示するラッパー
-  const _handleGenerateAllChaptersWithConfirm = () => {
-    if (!isConfigured) {
-      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
-        title: 'AI設定が必要',
-      });
-      return;
-    }
-
-    if (!currentProject || currentProject.chapters.length === 0) {
-      showWarning('章が設定されていません。章立てステップで章を作成してから実行してください。', 7000, {
-        title: '章が設定されていません',
-      });
-      return;
-    }
-
-    // 確認ダイアログを表示
-    setConfirmDialogState({
-      isOpen: true,
-      type: 'generate-all-chapters',
-    });
-  };
-
-  const handleConfirmGenerateAllChapters = () => {
-    handleGenerateAllChapters();
-  };
-
-  /*
-  const handleGenerateAllChapters = async () => {
-    setIsGeneratingAllChapters(true);
-    setGenerationProgress({ current: 0, total: currentProject.chapters.length });
-    setGenerationStatus('準備中...');
-    
-    // 章ごとの進捗リストを初期化
-    const initialChapterProgress = currentProject.chapters.map(chapter => ({
-      chapterId: chapter.id,
-      chapterTitle: chapter.title,
-      status: 'pending' as const,
-    }));
-    setChapterProgressList(initialChapterProgress);
-
-    // キャンセル用のAbortControllerを作成
-    const abortController = new AbortController();
-    generationAbortControllerRef.current = abortController;
-
-    try {
-      // プロジェクト全体の情報を整理
-      const projectInfo = {
-        title: currentProject.title,
-        mainGenre: currentProject.mainGenre || '未設定',
-        subGenre: currentProject.subGenre || '未設定',
-        targetReader: currentProject.targetReader || '未設定',
-        projectTheme: currentProject.projectTheme || '未設定'
-      };
-
-      // キャラクター情報を整理
-      const charactersInfo = currentProject.characters.map((char: { name: string; role: string; appearance: string; personality: string; background: string }) => 
-        `【${char.name}】\n役割: ${char.role}\n外見: ${char.appearance}\n性格: ${char.personality}\n背景: ${char.background}`
-      ).join('\n\n');
-
-      // プロット情報を整理
-      const plotInfo = {
-        theme: currentProject.plot?.theme || '未設定',
-        setting: currentProject.plot?.setting || '未設定',
-        hook: currentProject.plot?.hook || '未設定',
-        protagonistGoal: currentProject.plot?.protagonistGoal || '未設定',
-        mainObstacle: currentProject.plot?.mainObstacle || '未設定',
-        structure: currentProject.plot?.structure || 'kishotenketsu'
-      };
-
-      // 物語構造の詳細を取得
-      let structureDetails = '';
-      if (plotInfo.structure === 'kishotenketsu') {
-        structureDetails = `起承転結構造:\n起: ${currentProject.plot?.ki || '未設定'}\n承: ${currentProject.plot?.sho || '未設定'}\n転: ${currentProject.plot?.ten || '未設定'}\n結: ${currentProject.plot?.ketsu || '未設定'}`;
-      } else if (plotInfo.structure === 'three-act') {
-        structureDetails = `三幕構成:\n第1幕: ${currentProject.plot?.act1 || '未設定'}\n第2幕: ${currentProject.plot?.act2 || '未設定'}\n第3幕: ${currentProject.plot?.act3 || '未設定'}`;
-      } else if (plotInfo.structure === 'four-act') {
-        structureDetails = `四幕構成:\n第1幕: ${currentProject.plot?.fourAct1 || '未設定'}\n第2幕: ${currentProject.plot?.fourAct2 || '未設定'}\n第3幕: ${currentProject.plot?.fourAct3 || '未設定'}\n第4幕: ${currentProject.plot?.fourAct4 || '未設定'}`;
-      }
-
-      // 各章の情報を整理
-      const chaptersInfo = currentProject.chapters.map((chapter, index) => {
-        const chapterDetails = getChapterDetails(chapter);
-        return `【第${index + 1}章: ${chapter.title}】
-概要: ${chapter.summary}
-登場キャラクター: ${chapterDetails.characters}
-設定・場所: ${chapterDetails.setting}
-雰囲気: ${chapterDetails.mood}
-重要な出来事: ${chapterDetails.keyEvents}`;
-      }).join('\n\n');
-
-      // 全章生成用のプロンプトを作成
-      const fullPrompt = aiService.buildPrompt('draft', 'generateFull', {
-        title: projectInfo.title,
-        mainGenre: projectInfo.mainGenre,
-        subGenre: projectInfo.subGenre,
-        targetReader: projectInfo.targetReader,
-        projectTheme: projectInfo.projectTheme,
-        plotTheme: plotInfo.theme,
-        plotSetting: plotInfo.setting,
-        plotHook: plotInfo.hook,
-        protagonistGoal: plotInfo.protagonistGoal,
-        mainObstacle: plotInfo.mainObstacle,
-        structureDetails: structureDetails,
-        charactersInfo: charactersInfo,
-        chaptersInfo: chaptersInfo,
-      });
-
-      setGenerationStatus('AI生成中...（全章の一貫性を保ちながら執筆中）');
-      
-      // 最初の章を生成中に設定
-      if (initialChapterProgress.length > 0) {
-        setChapterProgressList(prev => 
-          prev.map((ch, idx) => idx === 0 ? { ...ch, status: 'generating' } : ch)
-        );
-      }
-      
-      // 全章生成は長時間かかる可能性があるため、タイムアウトを600秒（10分）に設定
-      const response = await aiService.generateContent({
-        prompt: fullPrompt,
-        type: 'draft',
-        settings,
-        signal: abortController.signal,
-        timeout: 600000, // 600秒 = 10分
-      });
-
-      // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
-        return;
-      }
-
-      if (response && response.content) {
-        setGenerationStatus('結果を解析中...');
-        
-        // 生成された内容を解析して各章に分割
-        const content = response.content;
-        const chapterSections = content.split(/=== 第\d+章: .+? ===/);
-        
-        // 最初の要素は空文字列なので削除
-        chapterSections.shift();
-        
-        // 各章の内容を抽出
-        const generatedChapters: Record<string, string> = {};
-        let chapterIndex = 0;
-        
-        for (let i = 0; i < currentProject.chapters.length && i < chapterSections.length; i++) {
-          const chapter = currentProject.chapters[i];
-          const chapterContent = chapterSections[i]?.trim() || '';
-          
-          // 進捗を更新
-          setGenerationProgress({ current: i + 1, total: currentProject.chapters.length });
-          setChapterProgressList(prev => 
-            prev.map((ch, idx) => {
-              if (idx === i) {
-                return { ...ch, status: chapterContent ? 'completed' : 'error' };
-              }
-              if (idx === i + 1 && chapterContent) {
-                return { ...ch, status: 'generating' };
-              }
-              return ch;
-            })
-          );
-          
-          if (chapterContent) {
-            generatedChapters[chapter.id] = chapterContent;
-            chapterIndex++;
-          }
-        }
-
-        // 章草案を更新
-        setChapterDrafts(prev => ({ ...prev, ...generatedChapters }));
-
-        // プロジェクトの章に草案を保存
-        const updatedChapters = currentProject.chapters.map(chapter => {
-          if (generatedChapters[chapter.id]) {
-            return { ...chapter, draft: generatedChapters[chapter.id] };
-          }
-          return chapter;
-        });
-
-        updateProject({ chapters: updatedChapters });
-
-        setGenerationStatus(`完了！${chapterIndex}章の草案を生成しました。各章の内容を確認してください。`);
-        
-        // 成功メッセージ
-        setShowCompletionToast(`全章生成が完了しました（${chapterIndex}/${currentProject.chapters.length}章）`);
-        setTimeout(() => {
-          setShowCompletionToast(null);
-        }, 5000);
-        
-      } else {
-        throw new Error('AI生成に失敗しました');
-      }
-
-    } catch (error) {
-      // キャンセルされた場合
-      if (error instanceof Error && error.name === 'AbortError') {
-        setGenerationStatus('キャンセルされました');
-        setChapterProgressList(prev => 
-          prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'pending' } : ch)
-        );
-        return;
-      }
-      
-      // エラーが発生した章をマーク
-      setChapterProgressList(prev => 
-        prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'error' } : ch)
-      );
-      
-      // 統一されたエラーハンドリングを使用
-      handleAPIError(error, '全章生成', {
-        title: '全章生成エラー',
-        onRetry: () => {
-          // 再試行機能は後で実装可能
-        },
-      });
-      setGenerationStatus('エラーが発生しました');
-    } finally {
-      setIsGeneratingAllChapters(false);
-      setGenerationProgress({ current: 0, total: 0 });
-      setChapterProgressList([]);
-    }
-  };
-  */
-
-  // エクスポート機能
   // エクスポートハンドラー（フックから取得した関数を使用）
   const handleExportChapter = useCallback(async () => {
     if (!currentChapter) return;
     await exportChapter(currentChapter.title, draft);
   }, [currentChapter, draft, exportChapter]);
-
-  const _handleExportFull = useCallback(async () => {
-    await exportFull();
-  }, [exportFull]);
 
   // 自動保存用のタイマー
   const autoSaveTimeoutRef = useRef<number | null>(null);
@@ -1685,19 +973,6 @@ ${'='.repeat(80)}`;
         </div>
       </div>
 
-      {/* カスタムプロンプトモーダル */}
-      <CustomPromptModal
-        isOpen={showCustomPromptModal}
-        customPrompt={customPrompt}
-        useCustomPrompt={useCustomPrompt}
-        onClose={() => setShowCustomPromptModal(false)}
-        onCustomPromptChange={setCustomPrompt}
-        onUseCustomPromptChange={setUseCustomPrompt}
-        onReset={() => {
-          setCustomPrompt('');
-          setUseCustomPrompt(false);
-        }}
-      />
 
       {/* バックアップ説明モーダル */}
       <BackupDescriptionModal
@@ -1780,15 +1055,6 @@ ${'='.repeat(80)}`;
         </div>
       )}
 
-      {/* 改善ログモーダル */}
-      <ImprovementLogModal
-        isOpen={isImprovementLogModalOpen}
-        chapterTitle={currentChapter?.title || null}
-        logs={selectedChapter && improvementLogs[selectedChapter] ? improvementLogs[selectedChapter] : []}
-        selectedLogId={selectedImprovementLogId}
-        onClose={() => setIsImprovementLogModalOpen(false)}
-        onSelectLog={setSelectedImprovementLogId}
-      />
 
       {/* トースト通知 */}
       {toastMessage && (
@@ -1808,33 +1074,6 @@ ${'='.repeat(80)}`;
         />
       )}
 
-      {/* 確認ダイアログ */}
-      <ConfirmDialog
-        isOpen={confirmDialogState.isOpen}
-        onClose={() => setConfirmDialogState({ isOpen: false, type: null })}
-        onConfirm={() => {
-          if (confirmDialogState.type === 'generate-all-chapters') {
-            handleConfirmGenerateAllChapters();
-          }
-          setConfirmDialogState({ isOpen: false, type: null });
-        }}
-        title={
-          confirmDialogState.type === 'generate-all-chapters'
-            ? settings.provider === 'local'
-              ? '非ローカルLLMの使用を推奨します'
-              : '全章生成を実行しますか？'
-            : ''
-        }
-        message={
-          confirmDialogState.type === 'generate-all-chapters'
-            ? settings.provider === 'local'
-              ? '全章生成には非ローカルLLM（OpenAI、Anthropic等）の使用を強く推奨します。\n\n理由：\n• 一貫性のある長文生成\n• キャラクター設定の維持\n• 物語の流れの統一\n• 高品質な文章生成\n\n続行しますか？'
-              : `全${currentProject?.chapters.length || 0}章の草案を一括生成します。\n\n⚠️ 重要な注意事項：\n• 生成には5-15分程度かかる場合があります\n• ネットワーク状況により失敗する可能性があります\n• 既存の章草案は上書きされます\n• 生成中はページを閉じないでください\n\n実行しますか？`
-            : ''
-        }
-        type={confirmDialogState.type === 'generate-all-chapters' && settings.provider === 'local' ? 'warning' : 'info'}
-        confirmLabel="実行"
-      />
     </div>
   );
 };

@@ -1096,7 +1096,7 @@ class AIService {
       // Androidエミュレータ対応: API呼び出し時のみlocalhost/127.0.0.1を10.0.2.2に動的変換
       // 注意: tauri.localhostはPC版ビルドでも使用されるため、Android判定には使用しない
       const isAndroid = typeof window !== 'undefined' && (
-        (window as any).__TAURI_PLATFORM__ === 'android'
+        (window as Window & { __TAURI_PLATFORM__?: string }).__TAURI_PLATFORM__ === 'android'
       );
       if (isAndroid) {
         endpoint = endpoint.replace(/localhost|127\.0\.0\.1/, '10.0.2.2');

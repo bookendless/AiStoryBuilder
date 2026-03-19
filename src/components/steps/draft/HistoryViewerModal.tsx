@@ -25,7 +25,7 @@ export const HistoryViewerModal: React.FC<HistoryViewerModalProps> = ({
   currentIndex,
   onNavigate,
   diffSegments,
-  currentDraft,
+  currentDraft: _currentDraft,
 }) => {
   const [activeTab, setActiveTab] = React.useState<'content' | 'diff'>('content');
 

@@ -32,6 +32,12 @@ interface EnhanceTypeOption {
     label: string;
     description: string;
     icon: React.ReactNode;
+    activeColors: {
+        button: string;
+        icon: string;
+        label: string;
+        desc: string;
+    };
 }
 
 const enhanceTypeOptions: EnhanceTypeOption[] = [
@@ -40,18 +46,36 @@ const enhanceTypeOptions: EnhanceTypeOption[] = [
         label: '強化',
         description: '現在の章を豊かにする',
         icon: <Wand2 className="h-5 w-5" />,
+        activeColors: {
+            button: 'border-blue-500 bg-blue-50 dark:bg-blue-900/30',
+            icon: 'text-blue-600 dark:text-blue-400',
+            label: 'text-blue-700 dark:text-blue-300',
+            desc: 'text-blue-600/80 dark:text-blue-300/80',
+        },
     },
     {
         id: 'split',
         label: '分割',
         description: '章を分割して構成を整える',
         icon: <Scissors className="h-5 w-5" />,
+        activeColors: {
+            button: 'border-amber-500 bg-amber-50 dark:bg-amber-900/30',
+            icon: 'text-amber-600 dark:text-amber-400',
+            label: 'text-amber-700 dark:text-amber-300',
+            desc: 'text-amber-600/80 dark:text-amber-300/80',
+        },
     },
     {
         id: 'deepen',
         label: '深掘り',
         description: '物語を展開させる新章を提案',
         icon: <BookOpen className="h-5 w-5" />,
+        activeColors: {
+            button: 'border-purple-500 bg-purple-50 dark:bg-purple-900/30',
+            icon: 'text-purple-600 dark:text-purple-400',
+            label: 'text-purple-700 dark:text-purple-300',
+            desc: 'text-purple-600/80 dark:text-purple-300/80',
+        },
     },
 ];
 
@@ -366,6 +390,13 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
         onClose();
     };
 
+    const handleTypeChange = (type: EnhanceType) => {
+        setSelectedType(type);
+        setResult(null);
+        setIsApplied(false);
+        setSelectedSuggestionIndex(null);
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -415,42 +446,26 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
                             {enhanceTypeOptions.map((option) => (
                                 <button
                                     key={option.id}
-                                    onClick={() => setSelectedType(option.id)}
+                                    onClick={() => handleTypeChange(option.id)}
                                     className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all ${selectedType === option.id
-                                        ? option.id === 'comprehensive'
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                                            : option.id === 'split'
-                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30'
-                                                : 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                                        ? option.activeColors.button
                                         : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                                         }`}
                                 >
                                     <div className={`${selectedType === option.id
-                                        ? option.id === 'comprehensive'
-                                            ? 'text-blue-600 dark:text-blue-400'
-                                            : option.id === 'split'
-                                                ? 'text-amber-600 dark:text-amber-400'
-                                                : 'text-purple-600 dark:text-purple-400'
+                                        ? option.activeColors.icon
                                         : 'text-gray-500 dark:text-gray-400'
                                         }`}>
                                         {option.icon}
                                     </div>
                                     <span className={`text-sm font-bold mt-1 font-['Noto_Sans_JP'] ${selectedType === option.id
-                                        ? option.id === 'comprehensive'
-                                            ? 'text-blue-700 dark:text-blue-300'
-                                            : option.id === 'split'
-                                                ? 'text-amber-700 dark:text-amber-300'
-                                                : 'text-purple-700 dark:text-purple-300'
+                                        ? option.activeColors.label
                                         : 'text-gray-700 dark:text-gray-300'
                                         }`}>
                                         {option.label}
                                     </span>
                                     <span className={`text-xs mt-1 text-center font-['Noto_Sans_JP'] ${selectedType === option.id
-                                        ? option.id === 'comprehensive'
-                                            ? 'text-blue-600/80 dark:text-blue-300/80'
-                                            : option.id === 'split'
-                                                ? 'text-amber-600/80 dark:text-amber-300/80'
-                                                : 'text-purple-600/80 dark:text-purple-300/80'
+                                        ? option.activeColors.desc
                                         : 'text-gray-500 dark:text-gray-400'
                                         }`}>
                                         {option.description}

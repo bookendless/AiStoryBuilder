@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Sparkles, Loader, CheckCircle, FileText, UserPlus } from 'lucide-react';
+import { Sparkles, CheckCircle, FileText, UserPlus } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Sparkles, Edit3, Trash2, Loader, GripVertical, ZoomIn, ChevronDown, ChevronUp, MessageSquare, BookOpen, X } from 'lucide-react';
+import { User, Sparkles, Edit3, Trash2, Loader, GripVertical, ZoomIn, ChevronDown, ChevronUp, MessageSquare, BookOpen } from 'lucide-react';
 import { Character } from '../../../contexts/ProjectContext';
 import { InlineEditor } from '../../common/InlineEditor';
 
