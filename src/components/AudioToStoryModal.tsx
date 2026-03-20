@@ -23,6 +23,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
   useOverlayBackHandler(isOpen, onClose, 'audio-to-story-modal', 90);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [customPrompt, setCustomPrompt] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,6 +136,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
         // audioToStory.analyzeプロンプトに文字起こしテキストを含める
         prompt = aiService.buildPrompt('audioToStory', 'analyze', {
           transcription: transcriptionText,
+          customPrompt: customPrompt.trim() ? `\n【ユーザーからの追加指示】\n${customPrompt}\n` : ''
         });
 
         // AIサービスにリクエスト（テキストのみ）
@@ -194,7 +196,9 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
         const audioDataUrl = `data:${mimeType};base64,${base64Data}`;
 
         // プロンプトを構築
-        prompt = aiService.buildPrompt('audioToStory', 'analyze', {});
+        prompt = aiService.buildPrompt('audioToStory', 'analyze', {
+          customPrompt: customPrompt.trim() ? `\n【ユーザーからの追加指示】\n${customPrompt}\n` : ''
+        });
 
         // AIサービスにリクエスト
         const response = await aiService.generateContent({
@@ -281,6 +285,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
   React.useEffect(() => {
     if (!isOpen) {
       setSelectedFile(null);
+      setCustomPrompt('');
       setIsAnalyzing(false);
       setAnalysisProgress('');
       if (fileInputRef.current) {
@@ -387,6 +392,20 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
               </div>
             )}
           </div>
+        </div>
+
+        {/* 追加プロンプト入力エリア */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+            追加の指示や要望（オプション）
+          </label>
+          <textarea
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            placeholder="例：主人公は魔法使いの少女にしてください。暗めのファンタジー世界観でお願いします。"
+            disabled={isAnalyzing}
+            className="w-full h-24 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed"
+          />
         </div>
 
         {/* 解析ボタン */}

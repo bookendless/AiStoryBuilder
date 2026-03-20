@@ -13,6 +13,24 @@ const OPENAI_MODELS = [
     latencyClass: 'standard' as const,
   },
   {
+    id: 'gpt-5.4-mini',
+    name: 'GPT-5.4 mini',
+    description: 'GPT-5.4の高速・低コスト版。明確に定義されたタスクにおいて高いコストパフォーマンスを発揮。',
+    maxTokens: 128000,
+    capabilities: ['テキスト', 'ビジョン', 'コード'],
+    recommendedUse: '高速なコード生成、チャットボット、大量データ処理',
+    latencyClass: 'fast' as const,
+  },
+  {
+    id: 'gpt-5.4-nano',
+    name: 'GPT-5.4 nano',
+    description: '最速かつ最も安価なGPT-5.4ファミリーのモデル。',
+    maxTokens: 128000,
+    capabilities: ['テキスト'],
+    recommendedUse: '単純なテキスト生成、高速な応答',
+    latencyClass: 'fast' as const,
+  },
+  {
     id: 'gpt-5.2',
     name: 'GPT-5.2',
     description: '2026年2月時点の最新安定版。高度なコーディング・エージェント能力と推論機能を持つ。',
@@ -30,25 +48,6 @@ const OPENAI_MODELS = [
     recommendedUse: '一般的な執筆、創作、ツール連携',
     latencyClass: 'standard' as const,
   },
-  {
-    id: 'gpt-5-mini',
-    name: 'GPT-5 mini',
-    description: 'GPT-5の高速・低コスト版。明確に定義されたタスクにおいて高いコストパフォーマンスを発揮。',
-    maxTokens: 128000,
-    capabilities: ['テキスト', 'ビジョン', 'コード'],
-    recommendedUse: '高速なコード生成、チャットボット、大量データ処理',
-    latencyClass: 'fast' as const,
-  },
-  {
-    id: 'gpt-5-nano',
-    name: 'GPT-5 nano',
-    description: '最速かつ最も安価なGPT-5ファミリーのモデル。',
-    maxTokens: 128000,
-    capabilities: ['テキスト'],
-    recommendedUse: '単純なテキスト生成、高速な応答',
-    latencyClass: 'fast' as const,
-  },
-
   // --- Previous Models / Other ---
   {
     id: 'gpt-4o',

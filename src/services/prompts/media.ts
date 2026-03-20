@@ -4,7 +4,7 @@
 
 export const IMAGE_TO_STORY_PROMPTS = {
     analyze: `以下の画像を分析し、この画像からインスピレーションを得た物語プロジェクトを提案してください。
-
+{customPrompt}
 【画像分析の観点】
 1. **視覚的な要素**: 画像に写っている人物、風景、物体、色合い、雰囲気
 2. **感情的な印象**: 画像から感じられる感情やムード
@@ -35,7 +35,7 @@ export const AUDIO_TO_STORY_PROMPTS = {
     analyze: `{transcription}
 
 上記の音声の文字起こし結果を分析し、この音声からインスピレーションを得た物語プロジェクトを提案してください。
-
+{customPrompt}
 【音声分析の観点】
 1. **内容の理解**: 音声で語られている内容やテーマ
 2. **感情的な印象**: 音声から感じられる感情やムード
@@ -65,7 +65,7 @@ export const AUDIO_TO_STORY_PROMPTS = {
 
 export const AUDIO_IMAGE_TO_STORY_PROMPTS = {
     analyze: `以下の音声と画像を統合的に分析し、これらからインスピレーションを得た物語プロジェクトを提案してください。
-
+{customPrompt}
 【音声分析の観点】
 1. **内容の理解**: 音声で語られている内容やテーマ
 2. **感情的な印象**: 音声から感じられる感情やムード

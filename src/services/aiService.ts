@@ -5,6 +5,8 @@ import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
 import { decryptApiKeyAsync, sanitizeInputForPrompt } from '../utils/securityUtils';
 import { httpService } from './httpService';
 import { APIError, ErrorCategory } from '../types/errors';
+import { logAPIError, logError } from '../utils/errorLogger';
+import { getUserFriendlyError } from '../utils/errorHandler';
 
 // システムプロンプト（全プロバイダー共通）
 export const SYSTEM_PROMPT = `あなたは日本語の小説創作を専門とするプロフェッショナルな
@@ -221,7 +223,6 @@ class AIService {
       return transcription.trim();
     } catch (error) {
       // エラーログを記録
-      const { logAPIError, logError } = await import('../utils/errorLogger');
       if (error instanceof APIError) {
         logAPIError(error, {
           endpoint: apiUrl,
@@ -436,7 +437,6 @@ class AIService {
       };
     } catch (error) {
       // エラーログを記録
-      const { logAPIError, logError } = await import('../utils/errorLogger');
       if (error instanceof APIError) {
         logAPIError(error, {
           endpoint: apiUrl,
@@ -452,8 +452,6 @@ class AIService {
         context: { endpoint: apiUrl, method: 'POST' },
       });
 
-      // getUserFriendlyErrorを使用してエラーメッセージを生成
-      const { getUserFriendlyError } = await import('../utils/errorHandler');
       const errorInfo = getUserFriendlyError(error);
 
       return {
@@ -651,7 +649,9 @@ class AIService {
 
       const data = response.data as ClaudeResponse;
 
-      console.log('Claude API Response:', data);
+      if (import.meta.env.DEV) {
+        console.log('Claude API Response:', data);
+      }
 
       if (!data.content || !data.content[0] || !data.content[0].text) {
         console.error('Invalid Claude response structure:', data);
@@ -668,7 +668,6 @@ class AIService {
       };
     } catch (error) {
       // エラーログを記録
-      const { logAPIError, logError } = await import('../utils/errorLogger');
       if (error instanceof APIError) {
         logAPIError(error, {
           endpoint: apiUrl,
@@ -684,8 +683,6 @@ class AIService {
         context: { endpoint: apiUrl, method: 'POST' },
       });
 
-      // getUserFriendlyErrorを使用してエラーメッセージを生成
-      const { getUserFriendlyError } = await import('../utils/errorHandler');
       const errorInfo = getUserFriendlyError(error);
 
       return {
@@ -957,19 +954,10 @@ class AIService {
         throw new APIError(detailedMessage, category, `GEMINI_${response.status}`, errorData);
       }
 
-      // 200番台の応答でも、candidatesが空の場合は安全フィルターなどでブロックされた可能性がある
       const data = response.data as GeminiResponse;
-      if (data && data.candidates && Array.isArray(data.candidates) && data.candidates.length === 0) {
-        console.warn('Gemini API response has empty candidates array - possibly blocked by safety filters');
-        throw new APIError('Gemini API の応答が安全フィルターによってブロックされた可能性があります。プロンプトの内容を確認してください。', 'invalid_request', 'SAFETY_FILTER_BLOCKED');
-      }
 
-      console.log('Gemini API Response:', JSON.stringify(data, null, 2));
-
-      // 応答構造の検証とエラーハンドリング
-      if (!data) {
-        console.error('Gemini API response is null or undefined');
-        throw new APIError('Gemini API からの応答が空です', 'invalid_request', 'EMPTY_RESPONSE');
+      if (import.meta.env.DEV) {
+        console.log('Gemini API Response:', JSON.stringify(data, null, 2));
       }
 
       // candidatesが存在しない場合、promptFeedbackを確認（安全フィルターによるブロック）
@@ -1088,10 +1076,6 @@ class AIService {
   private async callLocal(request: AIRequest): Promise<AIResponse> {
     try {
       let endpoint = request.settings.localEndpoint || 'http://localhost:1234/v1/chat/completions';
-
-      if (!endpoint) {
-        throw new APIError('ローカルエンドポイントが設定されていません', 'invalid_request', 'LOCAL_ENDPOINT_MISSING');
-      }
 
       // Androidエミュレータ対応: API呼び出し時のみlocalhost/127.0.0.1を10.0.2.2に動的変換
       // 注意: tauri.localhostはPC版ビルドでも使用されるため、Android判定には使用しない
@@ -1327,7 +1311,9 @@ class AIService {
 
       const data = response.data as LocalLLMResponse;
 
-      console.log('Local LLM Response:', data);
+      if (import.meta.env.DEV) {
+        console.log('Local LLM Response:', data);
+      }
 
       // エラーレスポンスの処理
       if (data.error) {
@@ -1355,7 +1341,6 @@ class AIService {
       }
     } catch (error) {
       // エラーログを記録
-      const { logAPIError, logError } = await import('../utils/errorLogger');
       if (error instanceof APIError) {
         logAPIError(error, {
           endpoint: request.settings.localEndpoint,
@@ -1374,8 +1359,6 @@ class AIService {
         },
       });
 
-      // getUserFriendlyErrorを使用してエラーメッセージを生成
-      const { getUserFriendlyError } = await import('../utils/errorHandler');
       const errorInfo = getUserFriendlyError(error);
 
       // ローカルLLM特有のエラーメッセージを追加
@@ -1583,7 +1566,6 @@ class AIService {
       };
     } catch (error) {
       // エラーログを記録
-      const { logAPIError, logError } = await import('../utils/errorLogger');
       if (error instanceof APIError) {
         logAPIError(error, {
           endpoint: apiUrl,
@@ -1599,8 +1581,6 @@ class AIService {
         context: { endpoint: apiUrl, method: 'POST' },
       });
 
-      // getUserFriendlyErrorを使用してエラーメッセージを生成
-      const { getUserFriendlyError } = await import('../utils/errorHandler');
       const errorInfo = getUserFriendlyError(error);
 
       return {
@@ -1721,28 +1701,9 @@ class AIService {
       }
 
       // 応答の解析と検証
-      // draftタイプの応答は、JSON形式を期待するが、parseAIResponseは章立て解析などを試みるため
-      // draftタイプの場合は解析をスキップして生の応答を返す
+      // draftタイプはDraftStep.tsxで独自に解析するため、生の応答をそのまま返す
       if (response.content) {
-        // draftタイプの場合は、JSON解析を試みるが、失敗しても生の応答を返す
         if (request.type === 'draft') {
-          // draftタイプの場合は、JSON解析を試行するが、失敗しても問題ない
-          try {
-            const parsedResponse = parseAIResponse(response.content, 'json');
-            if (parsedResponse.success && parsedResponse.data) {
-              // JSON解析が成功した場合でも、draftタイプの場合は生の応答を返す
-              // （DraftStep.tsxで独自に解析するため）
-              return {
-                content: response.content,
-                error: response.error
-              };
-            }
-          } catch (_e) {
-            // JSON解析に失敗しても、draftタイプの場合は生の応答を返す
-            console.debug('Draft type response: JSON parsing skipped, returning raw content');
-          }
-
-          // draftタイプの場合は、生の応答を返す
           return {
             content: response.content,
             error: response.error

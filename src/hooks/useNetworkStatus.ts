@@ -73,18 +73,14 @@ function getConnectionQuality(
             return 'slow';
         }
 
-        // ダウンリンク速度による判定（1Mbps未満は低速）
-        if (downlink !== undefined && downlink < 1) {
+        // ダウンリンク速度による判定（0.5Mbps以下は低速）
+        if (downlink !== undefined && downlink <= 0.5) {
             return 'slow';
         }
 
-        // RTTによる判定（500ms以上は低速）
-        if (rtt !== undefined && rtt > 500) {
+        // RTTによる判定（750ms以上は低速）
+        if (rtt !== undefined && rtt >= 750) {
             return 'slow';
-        }
-
-        if (effectiveType === '4g' || (downlink !== undefined && downlink >= 5)) {
-            return 'good';
         }
 
         return 'good';

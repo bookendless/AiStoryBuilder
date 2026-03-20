@@ -3,6 +3,10 @@ import { useToast } from './Toast';
 import { useNetworkStatus, useOfflineQueueSize } from '../hooks/useNetworkStatus';
 import { getOfflineQueueManager } from '../utils/networkRetryUtils';
 
+// 低速ネットワーク警告の設定
+const SLOW_WARNING_COOLDOWN_MS = 5 * 60 * 1000; // 5分
+const SLOW_DETECTION_DELAY_MS = 3000;           // 3秒
+
 /**
  * オフライン状態を検知して通知し、キュー状態を表示するコンポーネント
  */
@@ -12,6 +16,7 @@ export const OfflineNotifier: React.FC = () => {
   const queueSize = useOfflineQueueSize();
   const prevOnlineRef = useRef(isOnline);
   const prevQueueSizeRef = useRef(0);
+  const lastSlowWarningTimeRef = useRef<number>(0);
 
   // オンライン/オフライン状態の変化を検知
   useEffect(() => {
@@ -53,12 +58,26 @@ export const OfflineNotifier: React.FC = () => {
 
   // 低速ネットワークの警告
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
     if (isOnline && quality === 'slow') {
-      showInfo(
-        '低速なネットワーク接続を検出しました',
-        5000
-      );
+      const now = Date.now();
+      // クールダウン期間内に既に警告を表示している場合は無視
+      if (now - lastSlowWarningTimeRef.current < SLOW_WARNING_COOLDOWN_MS) {
+        return;
+      }
+
+      // 値のぶれを防ぐため、一定時間持続した場合のみ表示
+      timeoutId = setTimeout(() => {
+        lastSlowWarningTimeRef.current = Date.now();
+        showInfo(
+          '低速なネットワーク接続を検出しました',
+          5000
+        );
+      }, SLOW_DETECTION_DELAY_MS);
     }
+
+    return () => clearTimeout(timeoutId);
   }, [quality, isOnline, showInfo]);
 
   // キューサイズの変化を通知

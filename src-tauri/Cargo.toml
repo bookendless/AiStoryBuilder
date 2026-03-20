@@ -1,6 +1,6 @@
 [package]
 name = "ai-story-builder"
-version = "2.0.2"
+version = "2.0.3"
 description = "AIを活用した小説創作支援アプリケーション"
 authors = ["AI Story Builder Team"]
 license = "MIT"

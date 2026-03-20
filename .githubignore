@@ -67,6 +67,7 @@ desktop.ini
 .vscode/launch.json
 .vscode/extensions.json
 .idea/
+.claude/
 *.iml
 *.ipr
 *.iws
