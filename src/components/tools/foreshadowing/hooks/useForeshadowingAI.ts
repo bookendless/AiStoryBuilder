@@ -5,6 +5,7 @@ import { useToast } from '../../../Toast';
 import { aiService } from '../../../../services/aiService';
 import { parseAIResponse } from '../../../../utils/aiResponseParser';
 import { statusConfig, categoryConfig, importanceConfig, pointTypeConfig } from '../config';
+import { syncForeshadowingToChapters } from './useForeshadowingCRUD';
 import type { AISuggestion, ConsistencyResult, EnhanceResult, PayoffResult } from '../types';
 
 export const useForeshadowingAI = () => {
@@ -22,13 +23,10 @@ export const useForeshadowingAI = () => {
   const [aiMode, setAiMode] = useState<'suggest' | 'check'>('suggest');
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [consistencyResult, setConsistencyResult] = useState<ConsistencyResult | null>(null);
-  const [showConsistencyModal, setShowConsistencyModal] = useState(false);
   const [selectedForEnhance, setSelectedForEnhance] = useState<Foreshadowing | null>(null);
   const [enhanceResult, setEnhanceResult] = useState<EnhanceResult | null>(null);
-  const [showEnhanceModal, setShowEnhanceModal] = useState(false);
   const [selectedForPayoff, setSelectedForPayoff] = useState<Foreshadowing | null>(null);
   const [payoffResult, setPayoffResult] = useState<PayoffResult | null>(null);
-  const [showPayoffModal, setShowPayoffModal] = useState(false);
 
   // AIレスポンスからJSONを安全にパース
   const parseAIJsonResponse = (content: string): unknown => {
@@ -45,6 +43,26 @@ export const useForeshadowingAI = () => {
       throw new Error('JSONデータが見つかりませんでした');
     }
     return parsed.data;
+  };
+
+  // AI操作の共通ラッパー（ローディング管理・エラー処理）
+  const executeAIOperation = async <T>(
+    errorMessage: string,
+    operation: () => Promise<T>
+  ): Promise<T | undefined> => {
+    setIsAILoading(true);
+    setAiError(null);
+    try {
+      return await operation();
+    } catch (error) {
+      console.error(errorMessage, error);
+      const msg = error instanceof Error ? error.message : errorMessage;
+      setAiError(msg);
+      showError(msg);
+      return undefined;
+    } finally {
+      setIsAILoading(false);
+    }
   };
 
   // プロジェクト情報をプロンプト用にフォーマット
@@ -106,80 +124,51 @@ export const useForeshadowingAI = () => {
     return chapter?.title || '不明な章';
   };
 
+  // AI応答の共通処理：生成してJSONパース
+  const fetchAndParseAI = async <T>(prompt: string): Promise<T> => {
+    const response = await aiService.generateContent({ prompt, type: 'foreshadowing', settings: aiSettings });
+    if (response.error) throw new Error(response.error);
+    if (!response.content) throw new Error('AIからの応答が空です');
+    const parsed = parseAIJsonResponse(response.content) as T;
+    if (!parsed || typeof parsed !== 'object') throw new Error('AI応答の形式が正しくありません');
+    return parsed;
+  };
+
   // AI伏線提案
   const handleAISuggest = async () => {
     if (!currentProject) return;
-    setIsAILoading(true);
-    setAiError(null);
     setAiSuggestions([]);
-
-    try {
+    await executeAIOperation('AI suggest error:', async () => {
       const projectInfo = buildProjectInfo();
       const prompt = aiService.buildPrompt('foreshadowing', 'suggest', projectInfo);
-      const response = await aiService.generateContent({ prompt, type: 'foreshadowing', settings: aiSettings });
-
-      if (response.error) throw new Error(response.error);
-      if (!response.content) throw new Error('AIからの応答が空です');
-
-      const parsed = parseAIJsonResponse(response.content) as { suggestions?: AISuggestion[] };
-      if (!parsed || typeof parsed !== 'object') throw new Error('AI応答の形式が正しくありません');
-
+      const parsed = await fetchAndParseAI<{ suggestions?: AISuggestion[] }>(prompt);
       setAiSuggestions(parsed.suggestions || []);
-    } catch (error) {
-      console.error('AI suggest error:', error);
-      const errorMessage = error instanceof Error ? error.message : '伏線提案の生成に失敗しました';
-      setAiError(errorMessage);
-      showError(errorMessage);
-    } finally {
-      setIsAILoading(false);
-    }
+    });
   };
 
   // AI整合性チェック
   const handleConsistencyCheck = async () => {
     if (!currentProject || foreshadowings.length === 0) return;
-    setIsAILoading(true);
-    setAiError(null);
     setConsistencyResult(null);
-
-    try {
+    await executeAIOperation('AI consistency check error:', async () => {
       const projectInfo = buildProjectInfo();
       const prompt = aiService.buildPrompt('foreshadowing', 'checkConsistency', projectInfo);
-      const response = await aiService.generateContent({ prompt, type: 'foreshadowing', settings: aiSettings });
-
-      if (response.error) throw new Error(response.error);
-      if (!response.content) throw new Error('AIからの応答が空です');
-
-      const parsed = parseAIJsonResponse(response.content) as ConsistencyResult;
-      if (!parsed || typeof parsed !== 'object') throw new Error('AI応答の形式が正しくありません');
-
+      const parsed = await fetchAndParseAI<ConsistencyResult>(prompt);
       setConsistencyResult(parsed);
-      setShowConsistencyModal(true);
-    } catch (error) {
-      console.error('AI consistency check error:', error);
-      const errorMessage = error instanceof Error ? error.message : '整合性チェックに失敗しました';
-      setAiError(errorMessage);
-      showError(errorMessage);
-    } finally {
-      setIsAILoading(false);
-    }
+    });
   };
 
   // AI伏線強化提案
   const handleEnhanceForeshadowing = async (foreshadowing: Foreshadowing) => {
     if (!currentProject) return;
-    setIsAILoading(true);
-    setAiError(null);
     setEnhanceResult(null);
     setSelectedForEnhance(foreshadowing);
-
-    try {
+    await executeAIOperation('AI enhance error:', async () => {
       const projectInfo = buildProjectInfo();
       const relatedChars = foreshadowing.relatedCharacterIds?.map(id => getCharacterName(id)).join(', ') || 'なし';
       const currentPoints = foreshadowing.points.map(p =>
         `${pointTypeConfig[p.type].label}: ${p.description} (${getChapterTitle(p.chapterId)})`
       ).join('\n') || 'なし';
-
       const categoryInfo = categoryConfig[foreshadowing.category] || categoryConfig.other;
       const importanceInfo = importanceConfig[foreshadowing.importance] || importanceConfig.medium;
       const statusInfo = statusConfig[foreshadowing.status] || statusConfig.planted;
@@ -195,35 +184,17 @@ export const useForeshadowingAI = () => {
         relatedCharacters: relatedChars,
         themeConnection: `この伏線はプロジェクトのテーマ「${projectInfo.theme}」と関連している可能性があります。`,
       });
-
-      const response = await aiService.generateContent({ prompt, type: 'foreshadowing', settings: aiSettings });
-      if (response.error) throw new Error(response.error);
-      if (!response.content) throw new Error('AIからの応答が空です');
-
-      const parsed = parseAIJsonResponse(response.content) as EnhanceResult;
-      if (!parsed || typeof parsed !== 'object') throw new Error('AI応答の形式が正しくありません');
-
+      const parsed = await fetchAndParseAI<EnhanceResult>(prompt);
       setEnhanceResult(parsed);
-      setShowEnhanceModal(true);
-    } catch (error) {
-      console.error('AI enhance error:', error);
-      const errorMessage = error instanceof Error ? error.message : '伏線強化提案の生成に失敗しました';
-      setAiError(errorMessage);
-      showError(errorMessage);
-    } finally {
-      setIsAILoading(false);
-    }
+    });
   };
 
   // AI回収タイミング提案
   const handleSuggestPayoff = async (foreshadowing: Foreshadowing) => {
     if (!currentProject) return;
-    setIsAILoading(true);
-    setAiError(null);
     setPayoffResult(null);
     setSelectedForPayoff(foreshadowing);
-
-    try {
+    await executeAIOperation('AI payoff suggest error:', async () => {
       const projectInfo = buildProjectInfo();
       const relatedChars = foreshadowing.relatedCharacterIds?.map(id => {
         const char = characters.find(c => c.id === id);
@@ -234,12 +205,8 @@ export const useForeshadowingAI = () => {
       ).join('\n') || 'なし';
       const otherForeshadowings = foreshadowings
         .filter(f => f.id !== foreshadowing.id)
-        .map(f => {
-          const statusInfo = statusConfig[f.status] || statusConfig.planted;
-          return `- ${f.title}（${statusInfo.label}）`;
-        })
+        .map(f => `- ${f.title}（${(statusConfig[f.status] || statusConfig.planted).label}）`)
         .join('\n') || 'なし';
-
       const prompt = aiService.buildPrompt('foreshadowing', 'suggestPayoff', {
         ...projectInfo,
         foreshadowingTitle: foreshadowing.title,
@@ -250,24 +217,9 @@ export const useForeshadowingAI = () => {
         relatedCharacters: relatedChars,
         otherForeshadowings,
       });
-
-      const response = await aiService.generateContent({ prompt, type: 'foreshadowing', settings: aiSettings });
-      if (response.error) throw new Error(response.error);
-      if (!response.content) throw new Error('AIからの応答が空です');
-
-      const parsed = parseAIJsonResponse(response.content) as PayoffResult;
-      if (!parsed || typeof parsed !== 'object') throw new Error('AI応答の形式が正しくありません');
-
+      const parsed = await fetchAndParseAI<PayoffResult>(prompt);
       setPayoffResult(parsed);
-      setShowPayoffModal(true);
-    } catch (error) {
-      console.error('AI payoff suggest error:', error);
-      const errorMessage = error instanceof Error ? error.message : '回収タイミング提案の生成に失敗しました';
-      setAiError(errorMessage);
-      showError(errorMessage);
-    } finally {
-      setIsAILoading(false);
-    }
+    });
   };
 
   // AI提案から伏線を追加
@@ -315,31 +267,14 @@ export const useForeshadowingAI = () => {
       });
     }
 
-    // 章への同期
-    const chapterUpdates = new Map<string, { events: string[]; refId: string }>();
-    for (const point of newForeshadowing.points) {
-      const eventText = `【伏線：設置】${newForeshadowing.title} - ${point.description}`;
-      chapterUpdates.set(point.chapterId, { events: [eventText], refId: newForeshadowing.id });
-    }
-    for (const update of additionalUpdates) {
-      const existing = chapterUpdates.get(update.chapterId);
-      if (existing) {
-        existing.events.push(update.eventText);
-      } else {
-        chapterUpdates.set(update.chapterId, { events: [update.eventText], refId: newForeshadowing.id });
-      }
-    }
-
-    const updatedChapters = chapters.map(chapter => {
-      const update = chapterUpdates.get(chapter.id);
-      if (!update) return chapter;
-      const currentKeyEvents = chapter.keyEvents || [];
-      const currentRefs = chapter.foreshadowingRefs || [];
-      const newEvents = update.events.filter(evt => !currentKeyEvents.includes(evt));
-      const newRefs = currentRefs.includes(update.refId) ? currentRefs : [...currentRefs, update.refId];
-      if (newEvents.length === 0 && newRefs.length === currentRefs.length) return chapter;
-      return { ...chapter, keyEvents: [...currentKeyEvents, ...newEvents], foreshadowingRefs: newRefs };
-    });
+    // 章への同期（共通ユーティリティを使用）
+    const updatedChapters = syncForeshadowingToChapters(
+      newForeshadowing.title,
+      newForeshadowing.id,
+      newForeshadowing.points.map(p => ({ chapterId: p.chapterId, type: p.type, description: p.description })),
+      chapters,
+      additionalUpdates
+    );
 
     updateProject({
       foreshadowings: [...foreshadowings, newForeshadowing],
@@ -361,20 +296,18 @@ export const useForeshadowingAI = () => {
     aiSuggestions,
     setAiSuggestions,
     consistencyResult,
-    showConsistencyModal,
-    setShowConsistencyModal,
+    setConsistencyResult,
+    showConsistencyModal: consistencyResult !== null,
     selectedForEnhance,
     setSelectedForEnhance,
     enhanceResult,
     setEnhanceResult,
-    showEnhanceModal,
-    setShowEnhanceModal,
+    showEnhanceModal: enhanceResult !== null,
     selectedForPayoff,
     setSelectedForPayoff,
     payoffResult,
     setPayoffResult,
-    showPayoffModal,
-    setShowPayoffModal,
+    showPayoffModal: payoffResult !== null,
     handleAISuggest,
     handleConsistencyCheck,
     handleEnhanceForeshadowing,

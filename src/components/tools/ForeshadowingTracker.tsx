@@ -302,7 +302,7 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
       <ConsistencyResultModal
         isOpen={ai.showConsistencyModal}
         consistencyResult={ai.consistencyResult}
-        onClose={() => ai.setShowConsistencyModal(false)}
+        onClose={() => ai.setConsistencyResult(null)}
       />
 
       {/* 伏線強化提案モーダル */}
@@ -311,7 +311,6 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         enhanceResult={ai.enhanceResult}
         selectedForEnhance={ai.selectedForEnhance}
         onClose={() => {
-          ai.setShowEnhanceModal(false);
           ai.setSelectedForEnhance(null);
           ai.setEnhanceResult(null);
         }}
@@ -323,7 +322,6 @@ export const ForeshadowingTracker: React.FC<ForeshadowingTrackerProps> = ({ isOp
         payoffResult={ai.payoffResult}
         selectedForPayoff={ai.selectedForPayoff}
         onClose={() => {
-          ai.setShowPayoffModal(false);
           ai.setSelectedForPayoff(null);
           ai.setPayoffResult(null);
         }}

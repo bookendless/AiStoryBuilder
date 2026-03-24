@@ -478,10 +478,12 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
         onClose={() => setShowWorldSettings(false)}
       />
 
-      <ForeshadowingTracker
-        isOpen={showForeshadowings}
-        onClose={() => setShowForeshadowings(false)}
-      />
+      {showForeshadowings && (
+        <ForeshadowingTracker
+          isOpen={showForeshadowings}
+          onClose={() => setShowForeshadowings(false)}
+        />
+      )}
 
       <EmotionMapVisualizer
         isOpen={showEmotionMap}

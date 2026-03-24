@@ -13,7 +13,7 @@ const getForeshadowingEventPrefix = (type: ForeshadowingPoint['type']): string =
 };
 
 // 伏線のポイント情報を元に、対象チャプターの keyEvents と foreshadowingRefs を更新する
-const syncForeshadowingToChapters = (
+export const syncForeshadowingToChapters = (
   foreshadowingTitle: string,
   foreshadowingId: string,
   points: { chapterId: string; type: ForeshadowingPoint['type']; description: string }[],

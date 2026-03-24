@@ -92,21 +92,28 @@ export const useForeshadowingFilters = ({
     return Array.from(chapterMap.values()).sort((a, b) => a.chapterIndex - b.chapterIndex);
   }, [chapters, foreshadowings]);
 
+  // 章IDからインデックスへのルックアップMap
+  const chapterIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    chapters.forEach((c, idx) => map.set(c.id, idx));
+    return map;
+  }, [chapters]);
+
   // 伏線の流れ（設置から回収まで）を計算
   const foreshadowingFlows = useMemo(() => {
     return foreshadowings.map(f => {
       const sortedPoints = [...f.points].sort((a, b) => {
-        const idxA = chapters.findIndex(c => c.id === a.chapterId);
-        const idxB = chapters.findIndex(c => c.id === b.chapterId);
+        const idxA = chapterIndexMap.get(a.chapterId) ?? -1;
+        const idxB = chapterIndexMap.get(b.chapterId) ?? -1;
         return idxA - idxB;
       });
 
       const firstPoint = sortedPoints[0];
       const lastPoint = sortedPoints[sortedPoints.length - 1];
-      const startChapterIdx = firstPoint ? chapters.findIndex(c => c.id === firstPoint.chapterId) : -1;
-      const endChapterIdx = lastPoint ? chapters.findIndex(c => c.id === lastPoint.chapterId) : -1;
+      const startChapterIdx = firstPoint ? (chapterIndexMap.get(firstPoint.chapterId) ?? -1) : -1;
+      const endChapterIdx = lastPoint ? (chapterIndexMap.get(lastPoint.chapterId) ?? -1) : -1;
       const plannedPayoffIdx = f.plannedPayoffChapterId
-        ? chapters.findIndex(c => c.id === f.plannedPayoffChapterId)
+        ? (chapterIndexMap.get(f.plannedPayoffChapterId) ?? -1)
         : -1;
 
       return {
@@ -118,48 +125,56 @@ export const useForeshadowingFilters = ({
         hasPayoff: sortedPoints.some(p => p.type === 'payoff'),
       };
     }).filter(flow => flow.startChapterIdx >= 0);
-  }, [foreshadowings, chapters]);
+  }, [foreshadowings, chapterIndexMap]);
 
-  // 統計データ
+  // 統計データ（1パスで集計）
   const statsData = useMemo(() => {
     const total = foreshadowings.length;
-    const resolved = foreshadowings.filter(f => f.status === 'resolved').length;
-    const planted = foreshadowings.filter(f => f.status === 'planted').length;
-    const hinted = foreshadowings.filter(f => f.status === 'hinted').length;
-    const abandoned = foreshadowings.filter(f => f.status === 'abandoned').length;
+    const statusCnts = { resolved: 0, planted: 0, hinted: 0, abandoned: 0 };
+    const categoryCnts: Record<string, number> = {};
+    const importanceCnts = { high: 0, medium: 0, low: 0 };
+    let unresolvedHighImportance = 0;
+    const chapterDensityCnts = new Map<string, number>();
+
+    for (const f of foreshadowings) {
+      // ステータス集計
+      if (f.status in statusCnts) statusCnts[f.status as keyof typeof statusCnts]++;
+
+      // カテゴリ集計
+      categoryCnts[f.category] = (categoryCnts[f.category] || 0) + 1;
+
+      // 重要度集計
+      if (f.importance in importanceCnts) importanceCnts[f.importance as keyof typeof importanceCnts]++;
+
+      // 未回収の高重要度
+      if (f.importance === 'high' && (f.status === 'planted' || f.status === 'hinted')) {
+        unresolvedHighImportance++;
+      }
+
+      // 章ごとのポイント密度
+      for (const p of f.points) {
+        chapterDensityCnts.set(p.chapterId, (chapterDensityCnts.get(p.chapterId) || 0) + 1);
+      }
+    }
 
     const byCategory = Object.keys(categoryConfig).map(key => ({
       category: key as Foreshadowing['category'],
-      count: foreshadowings.filter(f => f.category === key).length,
+      count: categoryCnts[key] || 0,
     }));
 
-    const byImportance = {
-      high: foreshadowings.filter(f => f.importance === 'high').length,
-      medium: foreshadowings.filter(f => f.importance === 'medium').length,
-      low: foreshadowings.filter(f => f.importance === 'low').length,
-    };
+    const chapterDensity = chapters.map((chapter, idx) => ({
+      chapterIndex: idx,
+      title: chapter.title,
+      density: chapterDensityCnts.get(chapter.id) || 0,
+    }));
 
-    const unresolvedHighImportance = foreshadowings.filter(
-      f => f.importance === 'high' && (f.status === 'planted' || f.status === 'hinted')
-    ).length;
-
-    const chapterDensity = chapters.map((chapter, idx) => {
-      const pointsInChapter = foreshadowings.reduce((acc, f) => {
-        return acc + f.points.filter(p => p.chapterId === chapter.id).length;
-      }, 0);
-      return { chapterIndex: idx, title: chapter.title, density: pointsInChapter };
-    });
-
-    const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+    const resolutionRate = total > 0 ? Math.round((statusCnts.resolved / total) * 100) : 0;
 
     return {
       total,
-      resolved,
-      planted,
-      hinted,
-      abandoned,
+      ...statusCnts,
       byCategory,
-      byImportance,
+      byImportance: importanceCnts,
       unresolvedHighImportance,
       chapterDensity,
       resolutionRate,

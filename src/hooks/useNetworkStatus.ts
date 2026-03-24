@@ -140,7 +140,24 @@ export function useNetworkStatus(
         const quality = getConnectionQuality(isOnline, connection);
 
         setStatus(prev => {
-            const newStatus: NetworkStatus = {
+            // 状態が変化していない場合は同じ参照を返す（不要な再レンダリングを防止）
+            if (
+                prev.isOnline === isOnline &&
+                prev.quality === quality &&
+                prev.effectiveType === connection?.effectiveType &&
+                prev.downlink === connection?.downlink &&
+                prev.rtt === connection?.rtt &&
+                prev.saveData === connection?.saveData
+            ) {
+                return prev;
+            }
+
+            // 品質変化コールバック
+            if (prev.quality !== quality) {
+                onQualityChangeRef.current?.(quality);
+            }
+
+            return {
                 isOnline,
                 quality,
                 effectiveType: connection?.effectiveType,
@@ -150,13 +167,6 @@ export function useNetworkStatus(
                 lastOfflineAt: !isOnline && prev.isOnline ? new Date() : prev.lastOfflineAt,
                 lastOnlineAt: isOnline && !prev.isOnline ? new Date() : prev.lastOnlineAt,
             };
-
-            // 品質変化コールバック
-            if (prev.quality !== quality) {
-                onQualityChangeRef.current?.(quality);
-            }
-
-            return newStatus;
         });
     }, []);
 
