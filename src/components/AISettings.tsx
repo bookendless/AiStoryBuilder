@@ -212,16 +212,12 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           : 'https://api.anthropic.com/v1/messages';
 
 
-        // ブラウザ環境でプロキシ経由の場合は、anthropic-dangerous-direct-browser-accessヘッダーが必要
+        // Claude APIはWebView/Tauri環境でもこのヘッダーが必要になるケースがあるため常時付与
         const headers: Record<string, string> = {
           'x-api-key': formData.apiKey,
           'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
         };
-
-        // ブラウザ環境でプロキシ経由の場合のみ、このヘッダーを追加
-        if (!isTauriEnv && import.meta.env.DEV) {
-          headers['anthropic-dangerous-direct-browser-access'] = 'true';
-        }
 
         const response = await httpService.post(apiUrl, {
           model: formData.model,

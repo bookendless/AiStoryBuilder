@@ -87,6 +87,7 @@ Windowsのデスクトップ環境に加え、Androidでも動作するクロス
   - LLaVAやGemma 3などの画像解析対応モデルを使用すれば、オフラインでの「画像から物語作成」も可能です。
 
 > 各モデルのAPIキー設定やモデル選択は、アプリ内の「設定」アイコンからいつでも変更可能です。
+> Anthropic (Claude) をブラウザ/Tauri(WebView) から直接利用する場合、内部的に `anthropic-dangerous-direct-browser-access: true` ヘッダーを付与して接続しています。
 
 ## 🚀 インストールと起動
 

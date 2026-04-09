@@ -542,16 +542,12 @@ class AIService {
       // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒（Claudeのデフォルト、高度なモデルの思考時間を考慮）
       const timeout = request.timeout ?? 180000;
 
-      // ブラウザ環境でプロキシ経由の場合は、anthropic-dangerous-direct-browser-accessヘッダーが必要
+      // Claude APIはWebView/Tauri環境でもこのヘッダーが必要になるケースがあるため常時付与
       const headers: Record<string, string> = {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
       };
-
-      // ブラウザ環境でプロキシ経由の場合のみ、このヘッダーを追加
-      if (!isTauriEnv && import.meta.env.DEV) {
-        headers['anthropic-dangerous-direct-browser-access'] = 'true';
-      }
 
       // ストリーミング処理
       if (request.onStream) {
