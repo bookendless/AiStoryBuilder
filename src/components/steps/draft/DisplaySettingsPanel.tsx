@@ -105,46 +105,43 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
         </div>
 
         <div className="space-y-3">
-          {/* フォントサイズと行間を横並び */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
-                フォントサイズ
-              </span>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {MODAL_FONT_SIZE_OPTIONS.map((size) => (
-                  <button
-                    key={`display-font-${size}`}
-                    type="button"
-                    onClick={() => setMainFontSize(size)}
-                    className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainFontSize === size ? mainControlButtonActive : ''
-                      }`}
-                    aria-pressed={mainFontSize === size}
-                  >
-                    {size}px
-                  </button>
-                ))}
-              </div>
+          {/* 行間 */}
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
+              行間
+            </span>
+            <div className="mt-2 flex items-center gap-2">
+              {MODAL_LINE_HEIGHT_OPTIONS.map((value) => (
+                <button
+                  key={`display-line-height-${value}`}
+                  type="button"
+                  onClick={() => setMainLineHeight(value)}
+                  className={`${mainControlButtonBase} flex-1 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainLineHeight === value ? mainControlButtonActive : ''}`}
+                  aria-pressed={mainLineHeight === value}
+                >
+                  {value === MODAL_DEFAULT_LINE_HEIGHT ? '標準' : value.toFixed(1)}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
-                行間
-              </span>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {MODAL_LINE_HEIGHT_OPTIONS.map((value) => (
-                  <button
-                    key={`display-line-height-${value}`}
-                    type="button"
-                    onClick={() => setMainLineHeight(value)}
-                    className={`${mainControlButtonBase} px-3 py-1.5 text-xs font-['Noto_Sans_JP'] ${mainLineHeight === value ? mainControlButtonActive : ''
-                      }`}
-                    aria-pressed={mainLineHeight === value}
-                  >
-                    {value === MODAL_DEFAULT_LINE_HEIGHT ? '標準' : value.toFixed(1)}
-                  </button>
-                ))}
-              </div>
+          {/* フォントサイズ */}
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 font-['Noto_Sans_JP']">
+              フォントサイズ
+            </span>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {MODAL_FONT_SIZE_OPTIONS.map((size) => (
+                <button
+                  key={`display-font-${size}`}
+                  type="button"
+                  onClick={() => setMainFontSize(size)}
+                  className={`${mainControlButtonBase} py-1.5 text-xs font-['Noto_Sans_JP'] ${mainFontSize === size ? mainControlButtonActive : ''}`}
+                  aria-pressed={mainFontSize === size}
+                >
+                  {size}px
+                </button>
+              ))}
             </div>
           </div>
 

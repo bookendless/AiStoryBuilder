@@ -169,6 +169,8 @@ pids/
 # 依存関係（ユーザーが自分でインストールするため）
 node_modules/
 jspm_packages/
+.omc/
+.claude/
 
 # ビルド成果物（ユーザーが自分でビルドするため）
 dist/

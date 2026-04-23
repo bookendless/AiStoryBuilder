@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3 } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3, SlidersHorizontal } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
@@ -14,7 +14,7 @@ import { CustomPromptModal } from '../steps/draft/CustomPromptModal';
 import { CritiqueSelectionModal } from '../steps/draft/CritiqueSelectionModal';
 import { ImprovementLogModal } from '../steps/draft/ImprovementLogModal';
 import { formatTimestamp } from '../steps/draft/utils';
-import type { ImprovementLog, ChapterHistoryEntry, HistoryEntryType, WeaknessItem } from '../steps/draft/types';
+import type { ImprovementLog, ChapterHistoryEntry, HistoryEntryType, WeaknessItem, ContextSettings } from '../steps/draft/types';
 import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
 import { sanitizeInputForPrompt } from '../../utils/securityUtils';
@@ -25,6 +25,9 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { exportFile } from '../../utils/mobileExportUtils';
 import { HistoryViewerModal } from '../steps/draft/HistoryViewerModal';
 import { WritingStyleSettings } from '../steps/draft/WritingStyleSettings';
+import { ContextSettingsModal } from '../steps/draft/ContextSettingsModal';
+
+const DEFAULT_CONTEXT_SETTINGS: ContextSettings = { glossary: true, relationships: true, worldSettings: true, timeline: false };
 
 export const DraftAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -55,6 +58,10 @@ export const DraftAssistantPanel: React.FC = () => {
     const [isImprovementLogModalOpen, setIsImprovementLogModalOpen] = useState(false);
     const [selectedImprovementLogId, setSelectedImprovementLogId] = useState<string | null>(null);
     const [improvementLogs, setImprovementLogs] = useState<Record<string, ImprovementLog[]>>({});
+
+    // コンテキスト設定状態
+    const [contextSettings, setContextSettings] = useState<ContextSettings>(DEFAULT_CONTEXT_SETTINGS);
+    const [showContextSettingsModal, setShowContextSettingsModal] = useState(false);
 
     // 弱点特定モーダル状態
     const [showCritiqueModal, setShowCritiqueModal] = useState(false);
@@ -121,30 +128,50 @@ export const DraftAssistantPanel: React.FC = () => {
         return { characters, setting, mood, keyEvents };
     }, [currentProject]);
 
-    // プロジェクトコンテキスト情報を取得
+    // プロジェクトコンテキスト情報を取得（contextSettingsでフィルタリング）
     const getProjectContextInfo = useCallback(() => {
-        if (!currentProject) return { worldSettings: '', glossary: '', relationships: '', plotInfo: '' };
+        if (!currentProject) return { worldSettings: '', glossary: '', relationships: '', plotInfo: '', timeline: '' };
 
-        const worldSettingsList = currentProject.worldSettings || [];
-        const glossaryList = currentProject.glossary || [];
+        // 世界観設定
+        const worldSettingsText = contextSettings.worldSettings
+            ? (currentProject.worldSettings || []).length > 0
+                ? (currentProject.worldSettings || []).map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n')
+                : '特になし'
+            : '';
 
-        const worldSettingsText = worldSettingsList.length > 0
-            ? worldSettingsList.map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n')
-            : '特になし';
+        // 用語集
+        const glossaryText = contextSettings.glossary
+            ? (currentProject.glossary || []).length > 0
+                ? (currentProject.glossary || []).map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n')
+                : '特になし'
+            : '';
 
-        const glossaryText = glossaryList.length > 0
-            ? glossaryList.map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n')
-            : '特になし';
+        // キャラクター相関図
+        const relationshipsText = contextSettings.relationships
+            ? (currentProject.relationships || []).length > 0
+                ? (currentProject.relationships || []).map(r => {
+                    const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
+                    const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
+                    return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
+                }).join('\n')
+                : '特になし'
+            : '';
 
-        const relationshipsList = currentProject.relationships || [];
-        const relationshipsText = relationshipsList.length > 0
-            ? relationshipsList.map(r => {
-                const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
-                const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
-                return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
-            }).join('\n')
-            : '特になし';
+        // タイムライン
+        const timelineText = contextSettings.timeline
+            ? (currentProject.timeline || []).length > 0
+                ? [...(currentProject.timeline || [])]
+                    .sort((a, b) => a.order - b.order)
+                    .map(t => {
+                        let entry = `・${t.title}`;
+                        if (t.date) entry += ` (${t.date})`;
+                        if (t.description) entry += `: ${t.description.substring(0, 100)}...`;
+                        return entry;
+                    }).join('\n')
+                : '特になし'
+            : '';
 
+        // プロット情報（常に含める）
         const plot = currentProject.plot;
         let plotInfo = '構成情報なし';
 
@@ -199,7 +226,36 @@ export const DraftAssistantPanel: React.FC = () => {
             worldSettings: worldSettingsText,
             glossary: glossaryText,
             relationships: relationshipsText,
-            plotInfo
+            plotInfo,
+            timeline: timelineText,
+        };
+    }, [currentProject, contextSettings]);
+
+    // コンテキスト文字数計算（モーダル表示用、設定に関係なく全セクションの文字数を返す）
+    const getContextCharCounts = useCallback(() => {
+        if (!currentProject) return { glossary: 0, relationships: 0, worldSettings: 0, timeline: 0 };
+
+        const glossaryText = (currentProject.glossary || []).map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n');
+        const relationshipsText = (currentProject.relationships || []).map(r => {
+            const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
+            const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
+            return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
+        }).join('\n');
+        const worldSettingsText = (currentProject.worldSettings || []).map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n');
+        const timelineText = [...(currentProject.timeline || [])]
+            .sort((a, b) => a.order - b.order)
+            .map(t => {
+                let entry = `・${t.title}`;
+                if (t.date) entry += ` (${t.date})`;
+                if (t.description) entry += `: ${t.description.substring(0, 100)}...`;
+                return entry;
+            }).join('\n');
+
+        return {
+            glossary: glossaryText.length,
+            relationships: relationshipsText.length,
+            worldSettings: worldSettingsText.length,
+            timeline: timelineText.length,
         };
     }, [currentProject]);
 
@@ -210,9 +266,9 @@ export const DraftAssistantPanel: React.FC = () => {
         projectCharacters: string;
         previousStory: string;
         previousChapterEnd?: string;
-        contextInfo?: { worldSettings: string; glossary: string; relationships: string; plotInfo: string };
+        contextInfo?: { worldSettings: string; glossary: string; relationships: string; plotInfo: string; timeline: string };
     }) => {
-        const { currentChapter, chapterDetails, projectCharacters, previousStory, previousChapterEnd = '', contextInfo = { worldSettings: '', glossary: '', relationships: '', plotInfo: '' } } = args;
+        const { currentChapter, chapterDetails, projectCharacters, previousStory, previousChapterEnd = '', contextInfo = { worldSettings: '', glossary: '', relationships: '', plotInfo: '', timeline: '' } } = args;
 
         const writingStyle = currentProject?.writingStyle || {};
         const style = writingStyle.style || '現代小説風';
@@ -267,7 +323,7 @@ export const DraftAssistantPanel: React.FC = () => {
             targetReader: currentProject?.targetReader || '未設定',
             previousStory: previousStory || 'これが最初の章です。',
             previousChapterEnd: previousChapterEnd ? `\n【直前の章のラストシーン（接続用）】\n以下の文章は、直前の章の終わりの部分です。この流れを汲んで、自然に接続するように新しい章を書き始めてください。\n---\n${previousChapterEnd}\n---` : '',
-            projectCharacters: `${projectCharacters}\n\n【キャラクター相関図】\n${contextInfo.relationships}\n\n【設定資料・世界観】\n${contextInfo.worldSettings}\n\n【重要用語集】\n${contextInfo.glossary}`,
+            projectCharacters: `${projectCharacters}${contextInfo.relationships ? `\n\n【キャラクター相関図】\n${contextInfo.relationships}` : ''}${contextInfo.worldSettings ? `\n\n【設定資料・世界観】\n${contextInfo.worldSettings}` : ''}${contextInfo.glossary ? `\n\n【重要用語集】\n${contextInfo.glossary}` : ''}${contextInfo.timeline ? `\n\n【タイムライン】\n${contextInfo.timeline}` : ''}`,
             plotTheme: currentProject?.plot?.theme || '未設定',
             plotSetting: currentProject?.plot?.setting || '未設定',
             plotStructure: plotStructure,
@@ -438,6 +494,38 @@ export const DraftAssistantPanel: React.FC = () => {
             return () => clearTimeout(timeout);
         }
     }, [isGeneratingAllChapters, currentProject, selectedChapterId, loadAllChaptersLogs]);
+
+    // コンテキスト設定の保存・読み込み
+    // refでプロジェクトIDを追跡し、プロジェクト切替時のrace conditionを防ぐ
+    const contextSettingsProjectIdRef = useRef<string | null>(null);
+    const prevContextProjectIdRef = useRef<string | undefined>(undefined);
+
+    useEffect(() => {
+        if (!currentProject) return;
+        // プロジェクトIDが変わった場合のみ読み込み処理を実行
+        if (prevContextProjectIdRef.current === currentProject.id) return;
+        prevContextProjectIdRef.current = currentProject.id;
+        contextSettingsProjectIdRef.current = currentProject.id;
+
+        const saved = localStorage.getItem(`contextSettings_${currentProject.id}`);
+        if (saved) {
+            try {
+                setContextSettings({ ...DEFAULT_CONTEXT_SETTINGS, ...JSON.parse(saved) });
+            } catch {
+                setContextSettings(DEFAULT_CONTEXT_SETTINGS);
+            }
+        } else {
+            // 保存データなし → デフォルト値にリセット（プロジェクト切替時の設定引き継ぎを防ぐ）
+            setContextSettings(DEFAULT_CONTEXT_SETTINGS);
+        }
+    }, [currentProject]);
+
+    useEffect(() => {
+        // contextSettingsの変化時のみ保存（currentProjectの変化時は発火しない）
+        if (contextSettingsProjectIdRef.current) {
+            localStorage.setItem(`contextSettings_${contextSettingsProjectIdRef.current}`, JSON.stringify(contextSettings));
+        }
+    }, [contextSettings]);
 
     // カスタムプロンプトの保存・読み込み
     useEffect(() => {
@@ -892,6 +980,15 @@ export const DraftAssistantPanel: React.FC = () => {
                                         className="px-3 py-1.5 rounded-lg border border-purple-300 text-sm text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/40 font-['Noto_Sans_JP'] transition-colors"
                                     >
                                         カスタムプロンプト
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowContextSettingsModal(true)}
+                                        className="p-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                                        title="コンテキスト設定"
+                                        aria-label="コンテキスト設定"
+                                    >
+                                        <SlidersHorizontal className="h-4 w-4" />
                                     </button>
                                 </div>
                                 <button
@@ -1492,6 +1589,16 @@ ${'='.repeat(80)}`;
                     setCustomPrompt('');
                     setUseCustomPrompt(false);
                 }}
+            />
+
+            {/* コンテキスト設定モーダル */}
+            <ContextSettingsModal
+                isOpen={showContextSettingsModal}
+                contextSettings={contextSettings}
+                charCounts={getContextCharCounts()}
+                onClose={() => setShowContextSettingsModal(false)}
+                onSettingsChange={setContextSettings}
+                onReset={() => setContextSettings(DEFAULT_CONTEXT_SETTINGS)}
             />
 
             {/* 改善ログモーダル */}

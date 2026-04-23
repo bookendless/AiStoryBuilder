@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save } from 'lucide-react';
@@ -59,7 +60,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
 
   // バックアップモーダル用の状態
   const [showBackupModal, setShowBackupModal] = useState(false);
-  const [isChapterInfoCollapsed, setIsChapterInfoCollapsed] = useState(false);
+  const [isChapterInfoCollapsed, setIsChapterInfoCollapsed] = useState(true);
   const [mainTextareaHeight, setMainTextareaHeight] = useState(() => {
     if (typeof window !== 'undefined') {
       // 画面の高さに応じて適切な初期値を設定（モバイル: 300px, デスクトップ: 420px）
@@ -73,7 +74,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   // ワークスペースサイドバーは削除され、AI機能はToolsSidebarに移行
 
   // 伏線パネル用の状態
-  const [isForeshadowingPanelCollapsed, setIsForeshadowingPanelCollapsed] = useState(false);
+  const [isForeshadowingPanelCollapsed, setIsForeshadowingPanelCollapsed] = useState(true);
+
+  // 表示設定ポップオーバー用の状態
+  const [isDisplaySettingsOpen, setIsDisplaySettingsOpen] = useState(false);
 
   // トースト通知用の状態
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -156,6 +160,23 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const lastSnapshotContentRef = useRef<string>('');
   const historyLoadedChaptersRef = useRef<Set<string>>(new Set());
   const verticalPreviewRef = useRef<HTMLDivElement | null>(null);
+  const displaySettingsRef = useRef<HTMLDivElement | null>(null);
+  const settingsBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        displaySettingsRef.current && !displaySettingsRef.current.contains(event.target as Node) &&
+        settingsBtnRef.current && !settingsBtnRef.current.contains(event.target as Node)
+      ) {
+        setIsDisplaySettingsOpen(false);
+      }
+    };
+    if (isDisplaySettingsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDisplaySettingsOpen]);
 
   useEffect(() => {
     historyLoadedChaptersRef.current.clear();
@@ -796,30 +817,43 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
             {/* 章情報と表示設定を統合したアコーディオンパネル */}
             {currentChapter && (
               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsChapterInfoCollapsed(prev => !prev)}
-                  className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Settings className="h-5 w-5 text-white" />
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsChapterInfoCollapsed(prev => !prev)}
+                    className="flex-1 p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                          章情報
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] mt-0.5">
+                          {currentChapter.title}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <h4 className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-                        章情報と表示設定
-                      </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] mt-0.5">
-                        {currentChapter.title}
-                      </p>
-                    </div>
+                    {isChapterInfoCollapsed ? (
+                      <ChevronDown className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    ) : (
+                      <ChevronUp className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    )}
+                  </button>
+                  <div className="pr-3">
+                    <button
+                      ref={settingsBtnRef}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setIsDisplaySettingsOpen(prev => !prev); }}
+                      className={`p-2 rounded-lg transition-colors ${isDisplaySettingsOpen ? 'bg-ai-100 dark:bg-ai-900/30 text-ai-600 dark:text-ai-400' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                      title="表示設定"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </button>
                   </div>
-                  {isChapterInfoCollapsed ? (
-                    <ChevronDown className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                  ) : (
-                    <ChevronUp className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                  )}
-                </button>
+                </div>
 
                 {!isChapterInfoCollapsed && (
                   <div className="px-4 pb-4 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -881,29 +915,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
                       })()}
                     </div>
 
-                    {/* 表示設定セクション */}
-                    <div>
-                      <DisplaySettingsPanel
-                        mainFontSize={mainFontSize}
-                        setMainFontSize={setMainFontSize}
-                        mainLineHeight={mainLineHeight}
-                        setMainLineHeight={setMainLineHeight}
-                        mainTextareaHeight={mainTextareaHeight}
-                        adjustMainTextareaHeight={adjustMainTextareaHeight}
-                        setMainTextareaHeight={setMainTextareaHeight}
-                        handleResetDisplaySettings={() => {
-                          setMainFontSize(MODAL_DEFAULT_FONT_SIZE);
-                          setMainLineHeight(MODAL_DEFAULT_LINE_HEIGHT);
-                          setMainTextareaHeight(MODAL_TEXTAREA_DEFAULT_HEIGHT);
-                        }}
-                        mainControlButtonBase={mainControlButtonBase}
-                        mainControlButtonActive={mainControlButtonActive}
-                        isVerticalWriting={isVerticalWriting}
-                        setIsVerticalWriting={setIsVerticalWriting}
-                        isZenMode={isZenMode}
-                        setIsZenMode={setIsZenMode}
-                      />
-                    </div>
                   </div>
                 )}
               </div>
@@ -1074,6 +1085,39 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
         />
       )}
 
+      {/* 表示設定ポップオーバー（portal: overflow-hidden を回避） */}
+      {isDisplaySettingsOpen && settingsBtnRef.current && ReactDOM.createPortal(
+        <div
+          ref={displaySettingsRef}
+          className="fixed z-[200] w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4"
+          style={{
+            top: settingsBtnRef.current.getBoundingClientRect().bottom + 4,
+            right: window.innerWidth - settingsBtnRef.current.getBoundingClientRect().right,
+          }}
+        >
+          <DisplaySettingsPanel
+            mainFontSize={mainFontSize}
+            setMainFontSize={setMainFontSize}
+            mainLineHeight={mainLineHeight}
+            setMainLineHeight={setMainLineHeight}
+            mainTextareaHeight={mainTextareaHeight}
+            adjustMainTextareaHeight={adjustMainTextareaHeight}
+            setMainTextareaHeight={setMainTextareaHeight}
+            handleResetDisplaySettings={() => {
+              setMainFontSize(MODAL_DEFAULT_FONT_SIZE);
+              setMainLineHeight(MODAL_DEFAULT_LINE_HEIGHT);
+              setMainTextareaHeight(MODAL_TEXTAREA_DEFAULT_HEIGHT);
+            }}
+            mainControlButtonBase={mainControlButtonBase}
+            mainControlButtonActive={mainControlButtonActive}
+            isVerticalWriting={isVerticalWriting}
+            setIsVerticalWriting={setIsVerticalWriting}
+            isZenMode={isZenMode}
+            setIsZenMode={setIsZenMode}
+          />
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

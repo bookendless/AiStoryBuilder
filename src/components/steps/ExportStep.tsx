@@ -125,9 +125,10 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
   const scrollTimeoutRef = useRef<number | null>(null);
 
   // セクション名と検索文字列のマッピング
-  const sectionSearchMap: Record<string, string> = {
+  const sectionSearchMap: Record<string, string | string[]> = {
     title: currentProject?.title || '',
-    basicInfo: '基本情報',
+    // '基本情報' はジャンル等が設定済みの場合のみ出力。'概要' にフォールバック
+    basicInfo: ['基本情報', '概要'],
     characters: 'キャラクター一覧',
     plot: 'プロット',
     synopsis: 'あらすじ',
@@ -151,35 +152,65 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
   const scrollToSection = (sectionId: string) => {
     setSelectedSection(sectionId);
 
-    // 既存のタイマーをクリア
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
 
     if (!previewRef.current || !previewContentRef.current) return;
 
-    const searchText = sectionSearchMap[sectionId];
-    if (!searchText) return;
+    const candidateEntry = sectionSearchMap[sectionId];
+    if (!candidateEntry) return;
 
-    // 少し遅延を入れて、コンテンツがレンダリングされた後にスクロール
+    const candidates = Array.isArray(candidateEntry) ? candidateEntry : [candidateEntry];
+
     scrollTimeoutRef.current = window.setTimeout(() => {
       if (!previewContentRef.current || !previewRef.current) return;
 
-      const content = previewContentRef.current.textContent || '';
-      const escapedSearchText = escapeRegex(searchText);
-      const regex = new RegExp(escapedSearchText, 'i');
-      const match = content.match(regex);
+      const contentEl = previewContentRef.current;
+      const container = previewRef.current;
+      let scrolled = false;
 
-      if (match && match.index !== undefined) {
-        const container = previewRef.current;
-        if (container) {
-          const scrollPosition = (match.index / content.length) * container.scrollHeight;
-          container.scrollTo({
-            top: Math.max(0, scrollPosition - 20), // 少し上に余白を持たせる
-            behavior: 'smooth'
-          });
+      for (const searchText of candidates) {
+        if (!searchText || scrolled) break;
+
+        // Range API でテキストノードの実際のピクセル位置を取得
+        const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+        let node: Text | null;
+        let found = false;
+
+        while ((node = walker.nextNode() as Text | null) && !found) {
+          const nodeText = node.textContent || '';
+          const idx = nodeText.indexOf(searchText);
+          if (idx !== -1) {
+            const range = document.createRange();
+            range.setStart(node, idx);
+            range.setEnd(node, idx + searchText.length);
+
+            const rangeRect = range.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            const scrollTop = container.scrollTop + rangeRect.top - containerRect.top - 20;
+            container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+            found = true;
+            scrolled = true;
+          }
+        }
+
+        // フォールバック: previewSearch でテキストノードが分断された場合のみ使用
+        if (!found) {
+          const fullText = contentEl.textContent || '';
+          const matchIdx = fullText.indexOf(searchText);
+          if (matchIdx !== -1) {
+            const scrollPosition = (matchIdx / fullText.length) * container.scrollHeight;
+            container.scrollTo({
+              top: Math.max(0, scrollPosition - 20),
+              behavior: 'smooth',
+            });
+            scrolled = true;
+          }
         }
       }
+
       scrollTimeoutRef.current = null;
     }, 100);
   };
@@ -387,6 +418,15 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
   };
 
 
+  const STRUCTURE_LABELS: Record<string, string> = {
+    'kishotenketsu': '起承転結',
+    'three-act': '三幕構成',
+    'four-act': '四幕構成',
+    'heroes-journey': 'ヒーローズ・ジャーニー',
+    'beat-sheet': 'ビートシート',
+    'mystery-suspense': 'ミステリー・サスペンス',
+  };
+
   const generateTxtContent = useCallback(() => {
     if (!currentProject) return '';
 
@@ -422,7 +462,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
       });
     }
 
-    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
+    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.hook || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle || currentProject.plot.ending)) {
       content += 'プロット\n';
       content += '-'.repeat(20) + '\n';
       if (currentProject.plot.theme) content += `テーマ: ${currentProject.plot.theme}\n\n`;
@@ -430,8 +470,13 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
       if (currentProject.plot.hook) content += `フック: ${currentProject.plot.hook}\n\n`;
       if (currentProject.plot.protagonistGoal) content += `主人公の目標: ${currentProject.plot.protagonistGoal}\n\n`;
       if (currentProject.plot.mainObstacle) content += `主要な障害: ${currentProject.plot.mainObstacle}\n\n`;
+      if (currentProject.plot.ending) content += `物語の結末: ${currentProject.plot.ending}\n\n`;
 
       // 構成詳細の追加
+      if (currentProject.plot.structure) {
+        const structureLabel = STRUCTURE_LABELS[currentProject.plot.structure] || currentProject.plot.structure;
+        content += `プロット構成形式: ${structureLabel}\n\n`;
+      }
       if (currentProject.plot.structure === 'kishotenketsu') {
         if (currentProject.plot.ki) content += `起（導入）: ${currentProject.plot.ki}\n\n`;
         if (currentProject.plot.sho) content += `承（展開）: ${currentProject.plot.sho}\n\n`;
@@ -446,6 +491,31 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         if (currentProject.plot.fourAct2) content += `第2幕（混沌）: ${currentProject.plot.fourAct2}\n\n`;
         if (currentProject.plot.fourAct3) content += `第3幕（秩序）: ${currentProject.plot.fourAct3}\n\n`;
         if (currentProject.plot.fourAct4) content += `第4幕（混沌）: ${currentProject.plot.fourAct4}\n\n`;
+      } else if (currentProject.plot.structure === 'heroes-journey') {
+        if (currentProject.plot.hj1) content += `日常の世界: ${currentProject.plot.hj1}\n\n`;
+        if (currentProject.plot.hj2) content += `冒険への誘い: ${currentProject.plot.hj2}\n\n`;
+        if (currentProject.plot.hj3) content += `境界越え: ${currentProject.plot.hj3}\n\n`;
+        if (currentProject.plot.hj4) content += `試練と仲間: ${currentProject.plot.hj4}\n\n`;
+        if (currentProject.plot.hj5) content += `最大の試練: ${currentProject.plot.hj5}\n\n`;
+        if (currentProject.plot.hj6) content += `報酬: ${currentProject.plot.hj6}\n\n`;
+        if (currentProject.plot.hj7) content += `帰路: ${currentProject.plot.hj7}\n\n`;
+        if (currentProject.plot.hj8) content += `復活と帰還: ${currentProject.plot.hj8}\n\n`;
+      } else if (currentProject.plot.structure === 'beat-sheet') {
+        if (currentProject.plot.bs1) content += `導入 (Setup): ${currentProject.plot.bs1}\n\n`;
+        if (currentProject.plot.bs2) content += `決断 (Break into Two): ${currentProject.plot.bs2}\n\n`;
+        if (currentProject.plot.bs3) content += `試練 (Fun and Games): ${currentProject.plot.bs3}\n\n`;
+        if (currentProject.plot.bs4) content += `転換点 (Midpoint): ${currentProject.plot.bs4}\n\n`;
+        if (currentProject.plot.bs5) content += `危機 (All Is Lost): ${currentProject.plot.bs5}\n\n`;
+        if (currentProject.plot.bs6) content += `クライマックス (Finale): ${currentProject.plot.bs6}\n\n`;
+        if (currentProject.plot.bs7) content += `結末 (Final Image): ${currentProject.plot.bs7}\n\n`;
+      } else if (currentProject.plot.structure === 'mystery-suspense') {
+        if (currentProject.plot.ms1) content += `発端（事件発生）: ${currentProject.plot.ms1}\n\n`;
+        if (currentProject.plot.ms2) content += `捜査（初期）: ${currentProject.plot.ms2}\n\n`;
+        if (currentProject.plot.ms3) content += `仮説とミスリード: ${currentProject.plot.ms3}\n\n`;
+        if (currentProject.plot.ms4) content += `第二の事件/急展開: ${currentProject.plot.ms4}\n\n`;
+        if (currentProject.plot.ms5) content += `手がかりの統合: ${currentProject.plot.ms5}\n\n`;
+        if (currentProject.plot.ms6) content += `解決（真相解明）: ${currentProject.plot.ms6}\n\n`;
+        if (currentProject.plot.ms7) content += `エピローグ: ${currentProject.plot.ms7}\n\n`;
       }
     }
 
@@ -460,8 +530,15 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
       content += '-'.repeat(20) + '\n';
       currentProject.chapters.forEach((chapter, index) => {
         content += `第${index + 1}章: ${chapter.title}\n`;
-        if (chapter.summary) content += `${chapter.summary}\n`;
-
+        if (chapter.summary) content += `あらすじ: ${chapter.summary}\n`;
+        if (chapter.setting) content += `設定・場所: ${chapter.setting}\n`;
+        if (chapter.mood) content += `雰囲気・ムード: ${chapter.mood}\n`;
+        if (chapter.keyEvents && chapter.keyEvents.length > 0) {
+          content += `重要な出来事:\n`;
+          chapter.keyEvents.forEach(event => {
+            content += `  - ${event}\n`;
+          });
+        }
         content += '\n';
       });
     }
@@ -680,15 +757,20 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
       });
     }
 
-    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
+    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.hook || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle || currentProject.plot.ending)) {
       content += '## プロット\n\n';
       if (currentProject.plot.theme) content += `**テーマ**: ${currentProject.plot.theme}\n\n`;
       if (currentProject.plot.setting) content += `**舞台**: ${currentProject.plot.setting}\n\n`;
       if (currentProject.plot.hook) content += `**フック**: ${currentProject.plot.hook}\n\n`;
       if (currentProject.plot.protagonistGoal) content += `**主人公の目標**: ${currentProject.plot.protagonistGoal}\n\n`;
       if (currentProject.plot.mainObstacle) content += `**主要な障害**: ${currentProject.plot.mainObstacle}\n\n`;
+      if (currentProject.plot.ending) content += `**物語の結末**: ${currentProject.plot.ending}\n\n`;
 
       // 構成詳細の追加
+      if (currentProject.plot.structure) {
+        const structureLabel = STRUCTURE_LABELS[currentProject.plot.structure] || currentProject.plot.structure;
+        content += `**プロット構成形式**: ${structureLabel}\n\n`;
+      }
       if (currentProject.plot.structure === 'kishotenketsu') {
         if (currentProject.plot.ki) content += `**起（導入）**: ${currentProject.plot.ki}\n\n`;
         if (currentProject.plot.sho) content += `**承（展開）**: ${currentProject.plot.sho}\n\n`;
@@ -703,6 +785,31 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         if (currentProject.plot.fourAct2) content += `**第2幕（混沌）**: ${currentProject.plot.fourAct2}\n\n`;
         if (currentProject.plot.fourAct3) content += `**第3幕（秩序）**: ${currentProject.plot.fourAct3}\n\n`;
         if (currentProject.plot.fourAct4) content += `**第4幕（混沌）**: ${currentProject.plot.fourAct4}\n\n`;
+      } else if (currentProject.plot.structure === 'heroes-journey') {
+        if (currentProject.plot.hj1) content += `**日常の世界**: ${currentProject.plot.hj1}\n\n`;
+        if (currentProject.plot.hj2) content += `**冒険への誘い**: ${currentProject.plot.hj2}\n\n`;
+        if (currentProject.plot.hj3) content += `**境界越え**: ${currentProject.plot.hj3}\n\n`;
+        if (currentProject.plot.hj4) content += `**試練と仲間**: ${currentProject.plot.hj4}\n\n`;
+        if (currentProject.plot.hj5) content += `**最大の試練**: ${currentProject.plot.hj5}\n\n`;
+        if (currentProject.plot.hj6) content += `**報酬**: ${currentProject.plot.hj6}\n\n`;
+        if (currentProject.plot.hj7) content += `**帰路**: ${currentProject.plot.hj7}\n\n`;
+        if (currentProject.plot.hj8) content += `**復活と帰還**: ${currentProject.plot.hj8}\n\n`;
+      } else if (currentProject.plot.structure === 'beat-sheet') {
+        if (currentProject.plot.bs1) content += `**導入 (Setup)**: ${currentProject.plot.bs1}\n\n`;
+        if (currentProject.plot.bs2) content += `**決断 (Break into Two)**: ${currentProject.plot.bs2}\n\n`;
+        if (currentProject.plot.bs3) content += `**試練 (Fun and Games)**: ${currentProject.plot.bs3}\n\n`;
+        if (currentProject.plot.bs4) content += `**転換点 (Midpoint)**: ${currentProject.plot.bs4}\n\n`;
+        if (currentProject.plot.bs5) content += `**危機 (All Is Lost)**: ${currentProject.plot.bs5}\n\n`;
+        if (currentProject.plot.bs6) content += `**クライマックス (Finale)**: ${currentProject.plot.bs6}\n\n`;
+        if (currentProject.plot.bs7) content += `**結末 (Final Image)**: ${currentProject.plot.bs7}\n\n`;
+      } else if (currentProject.plot.structure === 'mystery-suspense') {
+        if (currentProject.plot.ms1) content += `**発端（事件発生）**: ${currentProject.plot.ms1}\n\n`;
+        if (currentProject.plot.ms2) content += `**捜査（初期）**: ${currentProject.plot.ms2}\n\n`;
+        if (currentProject.plot.ms3) content += `**仮説とミスリード**: ${currentProject.plot.ms3}\n\n`;
+        if (currentProject.plot.ms4) content += `**第二の事件/急展開**: ${currentProject.plot.ms4}\n\n`;
+        if (currentProject.plot.ms5) content += `**手がかりの統合**: ${currentProject.plot.ms5}\n\n`;
+        if (currentProject.plot.ms6) content += `**解決（真相解明）**: ${currentProject.plot.ms6}\n\n`;
+        if (currentProject.plot.ms7) content += `**エピローグ**: ${currentProject.plot.ms7}\n\n`;
       }
     }
 
@@ -715,8 +822,16 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
       content += '## 章立て\n\n';
       currentProject.chapters.forEach((chapter, index) => {
         content += `### 第${index + 1}章: ${chapter.title}\n\n`;
-        if (chapter.summary) content += `${chapter.summary}\n\n`;
-
+        if (chapter.summary) content += `**あらすじ:** ${chapter.summary}\n\n`;
+        if (chapter.setting) content += `**設定・場所:** ${chapter.setting}\n\n`;
+        if (chapter.mood) content += `**雰囲気・ムード:** ${chapter.mood}\n\n`;
+        if (chapter.keyEvents && chapter.keyEvents.length > 0) {
+          content += `**重要な出来事:**\n\n`;
+          chapter.keyEvents.forEach(event => {
+            content += `- ${event}\n`;
+          });
+          content += '\n';
+        }
       });
     }
 
@@ -1018,7 +1133,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
       });
     }
 
-    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle)) {
+    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.hook || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle || currentProject.plot.ending)) {
       content += `
     <h2>プロット</h2>`;
       if (currentProject.plot.theme) content += `
@@ -1041,8 +1156,19 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
     <div class="plot-item">
         <strong>主要な障害:</strong> ${escapeHtml(currentProject.plot.mainObstacle)}
     </div>`;
+      if (currentProject.plot.ending) content += `
+    <div class="plot-item">
+        <strong>物語の結末:</strong> ${escapeHtml(currentProject.plot.ending)}
+    </div>`;
 
       // 構成詳細の追加
+      if (currentProject.plot.structure) {
+        const structureLabel = STRUCTURE_LABELS[currentProject.plot.structure] || currentProject.plot.structure;
+        content += `
+    <div class="plot-item">
+        <strong>プロット構成形式:</strong> ${escapeHtml(structureLabel)}
+    </div>`;
+      }
       if (currentProject.plot.structure === 'kishotenketsu') {
         if (currentProject.plot.ki) content += `
     <div class="plot-item">
@@ -1090,6 +1216,97 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
     <div class="plot-item">
         <strong>第4幕（混沌）:</strong> ${escapeHtml(currentProject.plot.fourAct4)}
     </div>`;
+      } else if (currentProject.plot.structure === 'heroes-journey') {
+        if (currentProject.plot.hj1) content += `
+    <div class="plot-item">
+        <strong>日常の世界:</strong> ${escapeHtml(currentProject.plot.hj1)}
+    </div>`;
+        if (currentProject.plot.hj2) content += `
+    <div class="plot-item">
+        <strong>冒険への誘い:</strong> ${escapeHtml(currentProject.plot.hj2)}
+    </div>`;
+        if (currentProject.plot.hj3) content += `
+    <div class="plot-item">
+        <strong>境界越え:</strong> ${escapeHtml(currentProject.plot.hj3)}
+    </div>`;
+        if (currentProject.plot.hj4) content += `
+    <div class="plot-item">
+        <strong>試練と仲間:</strong> ${escapeHtml(currentProject.plot.hj4)}
+    </div>`;
+        if (currentProject.plot.hj5) content += `
+    <div class="plot-item">
+        <strong>最大の試練:</strong> ${escapeHtml(currentProject.plot.hj5)}
+    </div>`;
+        if (currentProject.plot.hj6) content += `
+    <div class="plot-item">
+        <strong>報酬:</strong> ${escapeHtml(currentProject.plot.hj6)}
+    </div>`;
+        if (currentProject.plot.hj7) content += `
+    <div class="plot-item">
+        <strong>帰路:</strong> ${escapeHtml(currentProject.plot.hj7)}
+    </div>`;
+        if (currentProject.plot.hj8) content += `
+    <div class="plot-item">
+        <strong>復活と帰還:</strong> ${escapeHtml(currentProject.plot.hj8)}
+    </div>`;
+      } else if (currentProject.plot.structure === 'beat-sheet') {
+        if (currentProject.plot.bs1) content += `
+    <div class="plot-item">
+        <strong>導入 (Setup):</strong> ${escapeHtml(currentProject.plot.bs1)}
+    </div>`;
+        if (currentProject.plot.bs2) content += `
+    <div class="plot-item">
+        <strong>決断 (Break into Two):</strong> ${escapeHtml(currentProject.plot.bs2)}
+    </div>`;
+        if (currentProject.plot.bs3) content += `
+    <div class="plot-item">
+        <strong>試練 (Fun and Games):</strong> ${escapeHtml(currentProject.plot.bs3)}
+    </div>`;
+        if (currentProject.plot.bs4) content += `
+    <div class="plot-item">
+        <strong>転換点 (Midpoint):</strong> ${escapeHtml(currentProject.plot.bs4)}
+    </div>`;
+        if (currentProject.plot.bs5) content += `
+    <div class="plot-item">
+        <strong>危機 (All Is Lost):</strong> ${escapeHtml(currentProject.plot.bs5)}
+    </div>`;
+        if (currentProject.plot.bs6) content += `
+    <div class="plot-item">
+        <strong>クライマックス (Finale):</strong> ${escapeHtml(currentProject.plot.bs6)}
+    </div>`;
+        if (currentProject.plot.bs7) content += `
+    <div class="plot-item">
+        <strong>結末 (Final Image):</strong> ${escapeHtml(currentProject.plot.bs7)}
+    </div>`;
+      } else if (currentProject.plot.structure === 'mystery-suspense') {
+        if (currentProject.plot.ms1) content += `
+    <div class="plot-item">
+        <strong>発端（事件発生）:</strong> ${escapeHtml(currentProject.plot.ms1)}
+    </div>`;
+        if (currentProject.plot.ms2) content += `
+    <div class="plot-item">
+        <strong>捜査（初期）:</strong> ${escapeHtml(currentProject.plot.ms2)}
+    </div>`;
+        if (currentProject.plot.ms3) content += `
+    <div class="plot-item">
+        <strong>仮説とミスリード:</strong> ${escapeHtml(currentProject.plot.ms3)}
+    </div>`;
+        if (currentProject.plot.ms4) content += `
+    <div class="plot-item">
+        <strong>第二の事件/急展開:</strong> ${escapeHtml(currentProject.plot.ms4)}
+    </div>`;
+        if (currentProject.plot.ms5) content += `
+    <div class="plot-item">
+        <strong>手がかりの統合:</strong> ${escapeHtml(currentProject.plot.ms5)}
+    </div>`;
+        if (currentProject.plot.ms6) content += `
+    <div class="plot-item">
+        <strong>解決（真相解明）:</strong> ${escapeHtml(currentProject.plot.ms6)}
+    </div>`;
+        if (currentProject.plot.ms7) content += `
+    <div class="plot-item">
+        <strong>エピローグ:</strong> ${escapeHtml(currentProject.plot.ms7)}
+    </div>`;
       }
     }
 
@@ -1107,8 +1324,22 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
     <div class="chapter-item">
         <h3>第${index + 1}章: ${escapeHtml(chapter.title)}</h3>`;
         if (chapter.summary) content += `
-        <p class="summary">${escapeHtml(chapter.summary)}</p>`;
-
+        <p class="summary"><strong>あらすじ:</strong> ${escapeHtml(chapter.summary)}</p>`;
+        if (chapter.setting) content += `
+        <p><strong>設定・場所:</strong> ${escapeHtml(chapter.setting)}</p>`;
+        if (chapter.mood) content += `
+        <p><strong>雰囲気・ムード:</strong> ${escapeHtml(chapter.mood)}</p>`;
+        if (chapter.keyEvents && chapter.keyEvents.length > 0) {
+          content += `
+        <p><strong>重要な出来事:</strong></p>
+        <ul>`;
+          chapter.keyEvents.forEach(event => {
+            content += `
+            <li>${escapeHtml(event)}</li>`;
+          });
+          content += `
+        </ul>`;
+        }
         content += `
     </div>`;
       });
@@ -1418,9 +1649,9 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* Export Options */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6 lg:w-[340px] lg:flex-shrink-0">
           <div className="mb-4 lg:mb-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
               エクスポート形式
@@ -1539,86 +1770,12 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
             </div>
           </div>
 
-          <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2">
-            <button
-              onClick={handleExport}
-              disabled={isExporting}
-              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-semibold disabled:opacity-50 font-['Noto_Sans_JP']"
-            >
-              <Download className="h-5 w-5" />
-              <span>{isExporting ? 'エクスポート中...' : 'エクスポート開始'}</span>
-            </button>
-            <button
-              onClick={handleCopyToClipboard}
-              className="w-full flex items-center justify-center space-x-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200 font-semibold font-['Noto_Sans_JP']"
-            >
-              <Copy className="h-5 w-5" />
-              <span>クリップボードにコピー</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Project Summary */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 lg:mb-6 font-['Noto_Sans_JP']">
-            プロジェクト概要
-          </h3>
-
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
-                {currentProject.title}
-              </h4>
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP']">
-                {currentProject.description || '説明なし'}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-pink-600 dark:text-pink-400">
-                  {currentProject.characters.length}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  キャラクター
-                </div>
-              </div>
-
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {currentProject.chapters.length}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  章数
-                </div>
-              </div>
-
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                  {currentProject.synopsis.length}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  あらすじ文字数
-                </div>
-              </div>
-
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {draftTotalLength}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  草案文字数
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* エクスポートする内容の選択 */}
-          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
               エクスポートする内容
             </h4>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
               {[
                 { key: 'basicInfo', label: '基本情報' },
                 { key: 'characters', label: 'キャラクター' },
@@ -1643,7 +1800,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
                         ...exportOptions,
                         [option.key]: e.target.checked,
                       });
-                      setSelectedPreset(null); // カスタム設定に変更されたらプリセット選択を解除
+                      setSelectedPreset(null);
                     }}
                     className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
                   />
@@ -1655,17 +1812,67 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 font-['Noto_Sans_JP']">
-              <div>作成日: {currentProject.createdAt instanceof Date ? currentProject.createdAt.toLocaleDateString('ja-JP') : new Date(currentProject.createdAt).toLocaleDateString('ja-JP')}</div>
-              <div>更新日: {currentProject.updatedAt instanceof Date ? currentProject.updatedAt.toLocaleDateString('ja-JP') : new Date(currentProject.updatedAt).toLocaleDateString('ja-JP')}</div>
+          <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-ai-500 to-ai-700 text-white px-6 py-3 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-semibold disabled:opacity-50 font-['Noto_Sans_JP']"
+            >
+              <Download className="h-5 w-5" />
+              <span>{isExporting ? 'エクスポート中...' : 'エクスポート開始'}</span>
+            </button>
+            <button
+              onClick={handleCopyToClipboard}
+              className="w-full flex items-center justify-center space-x-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200 font-semibold font-['Noto_Sans_JP']"
+            >
+              <Copy className="h-5 w-5" />
+              <span>クリップボードにコピー</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 右カラム: プロジェクト概要 + プレビュー */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4">
+        {/* Project Summary */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 lg:mb-6 font-['Noto_Sans_JP']">
+            プロジェクト概要
+          </h3>
+
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
+                {currentProject.title}
+              </h4>
+              <p className="text-gray-600 dark:text-gray-400 text-sm font-['Noto_Sans_JP']">
+                {currentProject.description || '説明なし'}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full text-xs font-medium font-['Noto_Sans_JP']">
+                キャラ <strong>{currentProject.characters.length}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium font-['Noto_Sans_JP']">
+                章 <strong>{currentProject.chapters.length}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium font-['Noto_Sans_JP']">
+                あらすじ <strong>{currentProject.synopsis.length}</strong>字
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium font-['Noto_Sans_JP']">
+                草案 <strong>{draftTotalLength}</strong>字
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs font-medium font-['Noto_Sans_JP']">
+                作成 {(currentProject.createdAt instanceof Date ? currentProject.createdAt : new Date(currentProject.createdAt)).toLocaleDateString('ja-JP')}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs font-medium font-['Noto_Sans_JP']">
+                更新 {(currentProject.updatedAt instanceof Date ? currentProject.updatedAt : new Date(currentProject.updatedAt)).toLocaleDateString('ja-JP')}
+              </span>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* エクスポートプレビュー */}
-      <div className="mt-4 lg:mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
+        {/* エクスポートプレビュー */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
             エクスポートプレビュー
@@ -1830,6 +2037,8 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
           </button>
         </div>
       </div>
-    </div >
+        </div>
+      </div>
+    </div>
   );
 };

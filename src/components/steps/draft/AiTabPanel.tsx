@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, SlidersHorizontal } from 'lucide-react';
 import type { AISuggestion, AISuggestionType, ImprovementLog } from './types';
 import { SUGGESTION_CONFIG } from './constants';
 import { formatTimestamp } from './utils';
@@ -30,6 +30,7 @@ interface AiTabPanelProps {
   activeSuggestionType: AISuggestionType;
   improvementLogs: Record<string, ImprovementLog[]>;
   onOpenCustomPrompt: () => void;
+  onOpenContextSettings: () => void;
   onGenerateFullDraft: () => void;
   onImproveChapter: () => void;
   onSelfRefine: () => void;
@@ -63,6 +64,7 @@ export const AiTabPanel: React.FC<AiTabPanelProps> = ({
   activeSuggestionType,
   improvementLogs,
   onOpenCustomPrompt,
+  onOpenContextSettings,
   onGenerateFullDraft,
   onImproveChapter,
   onSelfRefine,
@@ -97,13 +99,24 @@ export const AiTabPanel: React.FC<AiTabPanelProps> = ({
               選択中の章をベースに長文ドラフトを生成します。
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onOpenCustomPrompt}
-            className="px-3 py-1.5 rounded-lg border border-purple-300 text-sm text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/40 font-['Noto_Sans_JP'] transition-colors"
-          >
-            カスタムプロンプト
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenCustomPrompt}
+              className="px-3 py-1.5 rounded-lg border border-purple-300 text-sm text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/40 font-['Noto_Sans_JP'] transition-colors"
+            >
+              カスタムプロンプト
+            </button>
+            <button
+              type="button"
+              onClick={onOpenContextSettings}
+              className="p-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              title="コンテキスト設定"
+              aria-label="コンテキスト設定"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         <button
           type="button"

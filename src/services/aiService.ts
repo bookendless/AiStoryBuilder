@@ -650,7 +650,11 @@ class AIService {
       }
 
       if (!data.content || !data.content[0] || !data.content[0].text) {
-        console.error('Invalid Claude response structure:', data);
+        if (import.meta.env.DEV) {
+          console.error('Invalid Claude response structure:', data);
+        } else {
+          console.error('Invalid Claude response structure');
+        }
         throw new APIError('Claude API からの応答が無効です', 'invalid_request', 'INVALID_RESPONSE');
       }
 
@@ -958,7 +962,11 @@ class AIService {
 
       // candidatesが存在しない場合、promptFeedbackを確認（安全フィルターによるブロック）
       if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
-        console.error('Invalid Gemini response structure - no candidates:', data);
+        if (import.meta.env.DEV) {
+          console.error('Invalid Gemini response structure - no candidates:', data);
+        } else {
+          console.error('Invalid Gemini response structure - no candidates');
+        }
 
         // promptFeedbackが存在する場合、詳細なエラーメッセージを構築
         if (data.promptFeedback) {
@@ -998,28 +1006,48 @@ class AIService {
 
       const candidate = data.candidates[0];
       if (!candidate) {
-        console.error('Invalid Gemini response structure - empty candidates array:', data);
+        if (import.meta.env.DEV) {
+          console.error('Invalid Gemini response structure - empty candidates array:', data);
+        } else {
+          console.error('Invalid Gemini response structure - empty candidates array');
+        }
         throw new APIError('Gemini API からの応答のcandidatesが空です', 'invalid_request', 'EMPTY_CANDIDATES');
       }
 
       if (!candidate.content) {
-        console.error('Invalid Gemini response structure - no content:', candidate);
+        if (import.meta.env.DEV) {
+          console.error('Invalid Gemini response structure - no content:', candidate);
+        } else {
+          console.error('Invalid Gemini response structure - no content');
+        }
         throw new APIError('Gemini API からの応答にcontentが含まれていません', 'invalid_request', 'NO_CONTENT');
       }
 
       if (!candidate.content.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
-        console.error('Invalid Gemini response structure - no parts:', candidate.content);
+        if (import.meta.env.DEV) {
+          console.error('Invalid Gemini response structure - no parts:', candidate.content);
+        } else {
+          console.error('Invalid Gemini response structure - no parts');
+        }
         throw new APIError('Gemini API からの応答にpartsが含まれていません', 'invalid_request', 'NO_PARTS');
       }
 
       const firstPart = candidate.content.parts[0];
       if (!firstPart) {
-        console.error('Invalid Gemini response structure - empty parts array:', candidate.content.parts);
+        if (import.meta.env.DEV) {
+          console.error('Invalid Gemini response structure - empty parts array:', candidate.content.parts);
+        } else {
+          console.error('Invalid Gemini response structure - empty parts array');
+        }
         throw new APIError('Gemini API からの応答のpartsが空です', 'invalid_request', 'EMPTY_PARTS');
       }
 
       if (typeof firstPart.text !== 'string') {
-        console.error('Invalid Gemini response structure - no text in part:', firstPart);
+        if (import.meta.env.DEV) {
+          console.error('Invalid Gemini response structure - no text in part:', firstPart);
+        } else {
+          console.error('Invalid Gemini response structure - no text in part');
+        }
         throw new APIError('Gemini API からの応答にtextが含まれていません', 'invalid_request', 'NO_TEXT');
       }
 
@@ -1027,7 +1055,11 @@ class AIService {
         content: firstPart.text,
       };
     } catch (error) {
-      console.error('Gemini API Error:', error);
+      if (import.meta.env.DEV) {
+        console.error('Gemini API Error:', error);
+      } else {
+        console.error('Gemini API Error:', error instanceof Error ? error.message : 'Unknown error');
+      }
 
       // APIErrorの場合はそのまま、そうでない場合はユーザーフレンドリーなメッセージに変換
       if (error instanceof APIError) {

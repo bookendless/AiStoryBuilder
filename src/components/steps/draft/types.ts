@@ -18,4 +18,5 @@ export type {
   AILogType,
   SuggestionPromptPayload,
   WeaknessItem,
+  ContextSettings,
 } from '../../../types/draft';

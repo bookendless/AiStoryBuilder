@@ -13,20 +13,44 @@ const AES_KEY_LENGTH = 256;
 const AES_IV_LENGTH = 12; // 96 bits
 const AES_TAG_LENGTH = 128; // bits
 const PBKDF2_ITERATIONS = 100000;
-const ENCRYPTION_VERSION = 'v2'; // バージョン管理用
+const ENCRYPTION_VERSION = 'v3'; // バージョン管理用
+const ENCRYPTION_VERSION_V2 = 'v2'; // 後方互換用
+const PERSISTENT_SEED_KEY = '_enc_seed_v1'; // localStorageのキー
 
 /**
- * デバイス固有のシードを取得（暗号化キー生成用）
- * ブラウザのフィンガープリント要素を組み合わせて生成
+ * 永続ランダムシードを取得または生成
+ * localStorageに保存することでデバイス設定変更後も復号可能にする
+ * フォールバックはデバイスフィンガープリント
  */
-const getDeviceSeed = (): string => {
+const getOrCreatePersistentSeed = (): string => {
+  try {
+    const existing = localStorage.getItem(PERSISTENT_SEED_KEY);
+    if (existing) return existing;
+
+    // 初回: 256ビットのランダムシードを生成して保存
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    let binary = '';
+    randomBytes.forEach(b => { binary += String.fromCharCode(b); });
+    const seed = btoa(binary);
+    localStorage.setItem(PERSISTENT_SEED_KEY, seed);
+    return seed;
+  } catch {
+    // localStorageが利用不可の場合はデバイスフィンガープリントにフォールバック
+    return getDeviceSeedLegacy();
+  }
+};
+
+/**
+ * デバイスフィンガープリントシード（v2後方互換用）
+ * OSアップデートや画面解像度変更で変化する可能性があるため、新規暗号化には使用しない
+ */
+const getDeviceSeedLegacy = (): string => {
   const components = [
     navigator.userAgent,
     navigator.language,
     screen.width.toString(),
     screen.height.toString(),
     new Date().getTimezoneOffset().toString(),
-    // 追加の安定した要素
     navigator.hardwareConcurrency?.toString() || '0',
     navigator.maxTouchPoints?.toString() || '0',
   ];
@@ -72,10 +96,9 @@ const base64ToUint8Array = (base64: string): Uint8Array => {
 };
 
 /**
- * PBKDF2を使用して暗号化キーを導出
+ * PBKDF2を使用して暗号化キーを導出（共通処理）
  */
-const deriveKey = async (salt: Uint8Array): Promise<CryptoKey> => {
-  const seed = getDeviceSeed();
+const deriveKeyFromSeed = async (seed: string, salt: Uint8Array): Promise<CryptoKey> => {
   const seedData = stringToUint8Array(seed);
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
@@ -97,6 +120,16 @@ const deriveKey = async (salt: Uint8Array): Promise<CryptoKey> => {
     false,
     ['encrypt', 'decrypt']
   );
+};
+
+/** v3: 永続ランダムシードを使用してキーを導出 */
+const deriveKey = async (salt: Uint8Array): Promise<CryptoKey> => {
+  return deriveKeyFromSeed(getOrCreatePersistentSeed(), salt);
+};
+
+/** v2後方互換: デバイスフィンガープリントを使用してキーを導出 */
+const deriveKeyV2 = async (salt: Uint8Array): Promise<CryptoKey> => {
+  return deriveKeyFromSeed(getDeviceSeedLegacy(), salt);
 };
 
 /**
@@ -172,14 +205,18 @@ export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> 
     }
 
     // バージョンをチェック
-    if (encryptedKey.startsWith(`${ENCRYPTION_VERSION}:`)) {
-      // 新しいAES-GCM形式
+    const isV3 = encryptedKey.startsWith(`${ENCRYPTION_VERSION}:`);
+    const isV2 = encryptedKey.startsWith(`${ENCRYPTION_VERSION_V2}:`);
+
+    if (isV3 || isV2) {
+      // AES-GCM形式（v2: フィンガープリントシード, v3: 永続ランダムシード）
       if (!isWebCryptoAvailable()) {
         console.error('Web Crypto API is required to decrypt this key');
         return encryptedKey;
       }
 
-      const base64Data = encryptedKey.substring(ENCRYPTION_VERSION.length + 1);
+      const prefix = isV3 ? ENCRYPTION_VERSION : ENCRYPTION_VERSION_V2;
+      const base64Data = encryptedKey.substring(prefix.length + 1);
       const combined = base64ToUint8Array(base64Data);
 
       // salt, iv, encryptedDataを分離
@@ -187,8 +224,8 @@ export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> 
       const iv = combined.slice(16, 16 + AES_IV_LENGTH);
       const encryptedData = combined.slice(16 + AES_IV_LENGTH);
 
-      // 暗号化キーを導出
-      const cryptoKey = await deriveKey(salt);
+      // バージョンに応じたキー導出関数を使用
+      const cryptoKey = isV3 ? await deriveKey(salt) : await deriveKeyV2(salt);
 
       // データを復号化
       const decryptedData = await crypto.subtle.decrypt(
@@ -203,7 +240,7 @@ export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> 
 
       return uint8ArrayToString(new Uint8Array(decryptedData));
     } else {
-      // レガシー形式（後方互換性のため）
+      // レガシーXOR形式（後方互換性のため）
       return decryptApiKeyLegacy(encryptedKey);
     }
   } catch (error) {

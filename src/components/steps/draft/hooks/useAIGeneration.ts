@@ -28,6 +28,7 @@ interface ProjectContextInfo {
   glossary: string;
   relationships: string;
   plotInfo: string;
+  timeline: string;
 }
 
 interface PromptArgs {
@@ -344,18 +345,18 @@ export const useAIGeneration = ({
       });
 
       // 追加のコンテキスト情報をプロンプトに追加
+      const contextSections = [
+        contextInfo.relationships ? `【キャラクター相関図】\n${contextInfo.relationships}` : '',
+        contextInfo.worldSettings ? `【設定資料・世界観】\n${contextInfo.worldSettings}` : '',
+        contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}` : '',
+        contextInfo.timeline ? `【タイムライン】\n${contextInfo.timeline}` : '',
+      ].filter(Boolean).join('\n\n');
+
       const enhancedPrompt = `${prompt}
-
-【追加コンテキスト情報（参考）】
-${contextInfo.relationships ? `【キャラクター相関図】\n${contextInfo.relationships}\n` : ''}
-${contextInfo.worldSettings ? `【設定資料・世界観】\n${contextInfo.worldSettings}\n` : ''}
-${contextInfo.glossary ? `【重要用語集】\n${contextInfo.glossary}\n` : ''}
-
+${contextSections ? `\n【追加コンテキスト情報（参考）】\n${contextSections}\n` : ''}
 【追加の執筆指示】
 - 上記の文章の自然な続きを書いてください
-- キャラクターの性格や設定を一貫して保ってください
-- 特に「設定資料・世界観」や「重要用語集」の内容と矛盾しないようにしてください
-- 「キャラクター相関図」の関係性に基づいた会話や態度を描写してください
+- キャラクターの性格や設定を一貫して保ってください${contextInfo.worldSettings || contextInfo.glossary ? '\n- 特に「設定資料・世界観」や「重要用語集」の内容と矛盾しないようにしてください' : ''}${contextInfo.relationships ? '\n- 「キャラクター相関図」の関係性に基づいた会話や態度を描写してください' : ''}${contextInfo.timeline ? '\n- 「タイムライン」の時系列に矛盾しないようにしてください' : ''}
 - 会話を重視し、臨場感のある描写を心がけてください
 - 1000-1500文字程度で続きを執筆してください
 - 章の目的に沿った内容で物語を前進させてください

@@ -62,3 +62,11 @@ export interface WeaknessItem {
   solutions?: string[];
 }
 
+/** AI章執筆時にプロンプトに含めるコンテキスト情報の設定 */
+export interface ContextSettings {
+  glossary: boolean;
+  relationships: boolean;
+  worldSettings: boolean;
+  timeline: boolean;
+}
+
