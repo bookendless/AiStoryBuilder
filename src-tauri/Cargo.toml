@@ -1,6 +1,6 @@
 [package]
 name = "ai-story-builder"
-version = "2.0.4"
+version = "2.0.5"
 description = "AIを活用した小説創作支援アプリケーション"
 authors = ["AI Story Builder Team"]
 license = "MIT"
@@ -10,7 +10,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "ai_story_builder"
+name = "ai_story_builder_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -24,6 +24,13 @@ tauri-plugin-fs = "2.4"
 tauri-plugin-store = "2.4"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
