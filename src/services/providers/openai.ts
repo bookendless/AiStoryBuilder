@@ -4,21 +4,21 @@ import { AIProvider } from '../../types/ai';
 const OPENAI_MODELS = [
   // --- GPT-5.4 Series (Current Generation) ---
   {
-    id: 'gpt-5.4',
-    name: 'GPT-5.4',
-    description: '2026年3月登場の最新フラッグシップ。1.05Mトークンコンテキスト。複雑な分析・エージェントに最適。',
+    id: 'gpt-5.5',
+    name: 'GPT-5.5',
+    description: '2026年4月下旬登場の最新フラッグシップ。1.05Mトークンコンテキスト。最も複雑な専門業務に対応する最新の最先端モデル。',
     maxTokens: 1050000,
     capabilities: ['テキスト', 'ビジョン', 'コード', 'エージェント', '高度推論'],
     recommendedUse: '複雑な実装、リファクタリング、分析、エージェントタスク',
     latencyClass: 'standard' as const,
   },
   {
-    id: 'gpt-5.4-pro',
-    name: 'GPT-5.4 Pro',
-    description: 'GPT-5.4の追加計算リソース版。最難関タスク向け。1.05Mトークンコンテキスト。',
+    id: 'gpt-5.4',
+    name: 'GPT-5.4',
+    description: '2026年3月登場。1.05Mトークンコンテキスト。複雑な分析・エージェントに最適。',
     maxTokens: 1050000,
     capabilities: ['テキスト', 'ビジョン', 'コード', 'エージェント', '高度推論'],
-    recommendedUse: '最高難易度の問題解決、複雑な推論チェーン',
+    recommendedUse: '複雑な実装、リファクタリング、分析、エージェントタスク',
     latencyClass: 'standard' as const,
   },
   {
