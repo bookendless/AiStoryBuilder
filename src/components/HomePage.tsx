@@ -23,7 +23,7 @@ import { StoryProposal } from '../utils/storyProposalParser';
 // プロジェクトカードコンポーネント（メモ化）
 interface ProjectCardProps {
   project: Project;
-  progress: { percentage: number; completedSteps: number; totalSteps: number };
+  progress: { percentage: number; completedSteps: number; totalSteps: number; nextStep?: string };
   onSelect: (project: Project) => void;
   onEdit: (e: React.MouseEvent, project: Project) => void;
   onDuplicate: (e: React.MouseEvent, projectId: string) => void;
@@ -90,6 +90,13 @@ const ProjectCard = React.memo<ProjectCardProps>(({
           </div>
         </div>
       </div>
+
+      {/* 次のステップ */}
+      {progress.nextStep && progress.percentage < 100 && (
+        <p className="text-xs text-sumi-500 dark:text-usuzumi-400 mb-3 font-['Noto_Sans_JP']">
+          次のステップ: {progress.nextStep}
+        </p>
+      )}
 
       {/* 最終更新日 */}
       <div className="mb-3">
@@ -278,9 +285,25 @@ const GENRES = [
 
 type SortOption = 'updatedDesc' | 'updatedAsc' | 'createdDesc' | 'createdAsc' | 'titleAsc' | 'titleDesc' | 'progressDesc' | 'progressAsc' | 'lastAccessedDesc';
 
+const WELCOME_MESSAGES = [
+  'おかえりなさい ✨',
+  'また会えましたね 📖',
+  '今日も物語を紡ぎましょう 🖊️',
+  'あなたの物語が待っています 🌟',
+  'インスピレーションは準備できています 💡',
+  'AI Story Builderへようこそ 🐵🤖',
+  'さあ、続きを書きましょう ✍️',
+  '物語の世界へようこそ 🌙',
+  '創作の時間です 🎨',
+];
+
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const { projects, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
   const { showError, showSuccess } = useToast();
+  const welcomeMessage = useMemo(
+    () => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)],
+    []
+  );
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showImageToStoryModal, setShowImageToStoryModal] = useState(false);
   const [showAudioToStoryModal, setShowAudioToStoryModal] = useState(false);
@@ -361,6 +384,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       percentage: progress.percentage,
       completedSteps: progress.completedSteps,
       totalSteps: progress.totalSteps,
+      nextStep: progress.nextStep,
     };
   };
 
@@ -465,53 +489,94 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     <div className="min-h-screen bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200 dark:from-sumi-900 dark:via-sumi-800 dark:to-sumi-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Hero Section */}
-        <div className="text-center mb-8 sm:mb-12">
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-4 sm:mb-6">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
-              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                AIと共創する
-              </span>
-              <br />
-              ストーリービルダー
-            </h1>
-            <button
-              onClick={() => setShowContextHelp(true)}
-              className="p-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-600 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
-              aria-label="ヘルプを表示"
-              title="ヘルプ"
-            >
-              <HelpCircle className="h-6 w-6" />
-            </button>
+        {projects.length === 0 ? (
+          <div className="text-center mb-8 sm:mb-12">
+            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-4 sm:mb-6">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
+                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                  AIと共創する
+                </span>
+                <br />
+                ストーリービルダー
+              </h1>
+              <button
+                onClick={() => setShowContextHelp(true)}
+                className="p-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-600 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                aria-label="ヘルプを表示"
+                title="ヘルプ"
+              >
+                <HelpCircle className="h-6 w-6" />
+              </button>
+            </div>
+            <p className="text-body sm:text-lg md:text-xl text-sumi-600 dark:text-usuzumi-300 mb-6 sm:mb-8 font-['Noto_Sans_JP'] px-4">
+              80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+              <button
+                onClick={() => setShowImageToStoryModal(true)}
+                className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                <Image className="h-4 w-4" />
+                <span>画像から物語を作る</span>
+              </button>
+              <button
+                id="new-project-btn"
+                onClick={() => setShowNewProjectModal(true)}
+                className="inline-flex items-center space-x-2 bg-semantic-primary text-white px-8 sm:px-10 py-4 sm:py-5 rounded-full font-semibold text-lg sm:text-xl hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                <Plus className="h-7 w-7" />
+                <span>新しいプロジェクトを作成</span>
+              </button>
+              <button
+                onClick={() => setShowAudioToStoryModal(true)}
+                className="inline-flex items-center space-x-2 bg-purple-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                <Mic className="h-4 w-4" />
+                <span>音声から物語を作る</span>
+              </button>
+            </div>
           </div>
-          <p className="text-body sm:text-lg md:text-xl text-sumi-600 dark:text-usuzumi-300 mb-6 sm:mb-8 font-['Noto_Sans_JP'] px-4">
-            80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-            <button
-              onClick={() => setShowImageToStoryModal(true)}
-              className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              <Image className="h-4 w-4" />
-              <span>画像から物語を作る</span>
-            </button>
-            <button
-              id="new-project-btn"
-              onClick={() => setShowNewProjectModal(true)}
-              className="inline-flex items-center space-x-2 bg-semantic-primary text-white px-8 sm:px-10 py-4 sm:py-5 rounded-full font-semibold text-lg sm:text-xl hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              <Plus className="h-7 w-7" />
-              <span>新しいプロジェクトを作成</span>
-            </button>
-            <button
-              onClick={() => setShowAudioToStoryModal(true)}
-              className="inline-flex items-center space-x-2 bg-purple-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              <Mic className="h-4 w-4" />
-              <span>音声から物語を作る</span>
-            </button>
+        ) : (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8 py-4">
+            <div className="flex items-center gap-3">
+              <p className="text-lg sm:text-xl font-semibold text-sumi-900 dark:text-usuzumi-50 font-['Noto_Sans_JP']">
+                {welcomeMessage}
+              </p>
+              <button
+                onClick={() => setShowContextHelp(true)}
+                className="p-1.5 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-600 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                aria-label="ヘルプを表示"
+                title="ヘルプ"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
+              <button
+                onClick={() => setShowImageToStoryModal(true)}
+                className="inline-flex items-center space-x-1.5 bg-indigo-600 text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
+              >
+                <Image className="h-3.5 w-3.5" />
+                <span>画像から物語を作る</span>
+              </button>
+              <button
+                id="new-project-btn"
+                onClick={() => setShowNewProjectModal(true)}
+                className="inline-flex items-center space-x-1.5 bg-semantic-primary text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
+              >
+                <Plus className="h-4 w-4" />
+                <span>新しいプロジェクトを作成</span>
+              </button>
+              <button
+                onClick={() => setShowAudioToStoryModal(true)}
+                className="inline-flex items-center space-x-1.5 bg-purple-600 text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
+              >
+                <Mic className="h-3.5 w-3.5" />
+                <span>音声から物語を作る</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Stats Section */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
@@ -682,8 +747,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
           )}
         </div>
 
-        {/* Features Section */}
-        <Card className="p-8 border-usuzumi-200 dark:border-usuzumi-700">
+        {/* Features Section — プロジェクトが0件の場合のみ表示 */}
+        {projects.length === 0 && <Card className="p-8 border-usuzumi-200 dark:border-usuzumi-700">
           <h2 className="text-section-title text-sumi-900 dark:text-usuzumi-50 mb-6 font-['Noto_Sans_JP']">
             主な機能
           </h2>
@@ -769,7 +834,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
               </div>
             </div>
           </div>
-        </Card>
+        </Card>}
       </div>
 
       {/* New Project Modal */}
