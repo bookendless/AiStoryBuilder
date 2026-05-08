@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { StepNavigation } from '../common/StepNavigation';
+import { SkeletonLoader } from '../common/SkeletonLoader';
 import { Step } from '../../contexts/ProjectContext';
 import { exportFile } from '../../utils/mobileExportUtils';
 
@@ -718,6 +719,15 @@ ${result.detailedAnalysis}
                                             }}
                                         />
                                     </div>
+                                </div>
+                            ) : isEvaluating ? (
+                                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 min-h-[400px]">
+                                    <div className="flex items-center gap-2 mb-4 text-indigo-600 dark:text-indigo-400">
+                                        <Loader2 className="animate-spin" size={18} />
+                                        <span className="text-sm font-medium font-['Noto_Sans_JP']">評価を実行中...</span>
+                                    </div>
+                                    <SkeletonLoader variant="card" lines={6} className="mb-4" />
+                                    <SkeletonLoader variant="list" lines={3} />
                                 </div>
                             ) : (
                                 <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50">

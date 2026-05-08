@@ -62,6 +62,19 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
   // 折りたたみ状態管理
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
+  // 表示モード（アウトライン＝全折りたたみ / 詳細＝全展開）
+  const [viewMode, setViewMode] = useState<'outline' | 'detail'>('detail');
+
+  const applyViewMode = useCallback((mode: 'outline' | 'detail') => {
+    setViewMode(mode);
+    if (mode === 'outline') {
+      const allKeys = PLOT_STRUCTURE_CONFIGS[plotStructure].fields.map(f => f.key);
+      setCollapsedSections(new Set(allKeys));
+    } else {
+      setCollapsedSections(new Set());
+    }
+  }, [plotStructure]);
+
   // 構成スタイルガイドの展開状態
   const [isGuideExpanded, setIsGuideExpanded] = useState(false);
 
@@ -618,6 +631,38 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
             </div>
 
 
+          </div>
+
+          {/* 表示モード切替 */}
+          <div className="flex items-center justify-end mb-3">
+            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-0.5">
+              <button
+                type="button"
+                onClick={() => applyViewMode('outline')}
+                className={`px-3 py-1.5 text-xs font-['Noto_Sans_JP'] rounded-md transition-colors ${
+                  viewMode === 'outline'
+                    ? 'bg-indigo-500 text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+                aria-pressed={viewMode === 'outline'}
+                title="全セクションを折りたたみ、構成全体を俯瞰"
+              >
+                アウトライン
+              </button>
+              <button
+                type="button"
+                onClick={() => applyViewMode('detail')}
+                className={`px-3 py-1.5 text-xs font-['Noto_Sans_JP'] rounded-md transition-colors ${
+                  viewMode === 'detail'
+                    ? 'bg-indigo-500 text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+                aria-pressed={viewMode === 'detail'}
+                title="全セクションを展開し、本文を編集"
+              >
+                詳細
+              </button>
+            </div>
           </div>
 
           {/* プロット構成の表示 */}

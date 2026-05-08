@@ -5,6 +5,7 @@ import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { useToast } from '../Toast';
 import { getUserFriendlyError } from '../../utils/errorHandler';
+import { getCountColor, getCountBarWidth } from '../../utils/charCount';
 import { useAutoSave } from '../common/hooks/useAutoSave';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { StepNavigation } from '../common/StepNavigation';
@@ -366,26 +367,33 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
 
               {/* Progress Bar */}
               <div className="mt-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                    文字数進捗
-                  </span>
-                  <span className={`font-semibold ${wordCount >= targetWordCount
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-gray-900 dark:text-white'
-                    }`}>
-                    {wordCount} / {targetWordCount} 文字 ({Math.min((wordCount / targetWordCount) * 100, 100).toFixed(0)}%)
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-500 ${wordCount >= targetWordCount
-                      ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                      : 'bg-gradient-to-r from-indigo-500 to-purple-500'
-                      }`}
-                    style={{ width: `${Math.min((wordCount / targetWordCount) * 100, 100)}%` }}
-                  />
-                </div>
+                {(() => {
+                  const { bar, text } = getCountColor(wordCount, targetWordCount);
+                  const isOver = wordCount > targetWordCount;
+                  return (
+                    <>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                          文字数
+                        </span>
+                        <span className={`font-semibold font-['Noto_Sans_JP'] ${isOver ? text : 'text-gray-900 dark:text-white'}`}>
+                          {wordCount} / {targetWordCount} 文字 ({((wordCount / targetWordCount) * 100).toFixed(0)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${bar}`}
+                          style={{ width: `${getCountBarWidth(wordCount, targetWordCount)}%` }}
+                        />
+                      </div>
+                      {isOver && (
+                        <p className="mt-2 text-xs text-red-600 dark:text-red-400 font-['Noto_Sans_JP']">
+                          上限を {wordCount - targetWordCount} 文字超過しています
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 

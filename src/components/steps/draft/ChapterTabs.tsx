@@ -284,28 +284,40 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
                   role="tab"
                   tabIndex={isSelected ? 0 : -1}
                   aria-selected={isSelected}
+                  aria-label={chapter.title || `章 ${index + 1}`}
+                  title={chapter.title || `章 ${index + 1}`}
                   onClick={() => onChapterSelect(chapter.id)}
-                  className={`group flex min-w-[200px] flex-col gap-1 rounded-xl border px-4 py-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 font-['Noto_Sans_JP'] ${isSelected
-                    ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-400 dark:bg-blue-900/40 dark:text-blue-100'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-gray-700'
+                  className={`group flex flex-col gap-1 rounded-xl border px-4 py-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 font-['Noto_Sans_JP'] ${isSelected
+                    ? 'min-w-[200px] border-blue-500 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-400 dark:bg-blue-900/40 dark:text-blue-100'
+                    : 'min-w-[88px] border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-gray-700'
                     }`}
                 >
-                  <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                  <div className={`flex items-center ${isSelected ? 'justify-between' : 'justify-center'} text-[11px] text-gray-500 dark:text-gray-400`}>
                     <span>{`第${index + 1}章`}</span>
-                    {hasContent && (
+                    {isSelected && hasContent && (
                       <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                         <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
                         <span>草案あり</span>
                       </span>
                     )}
+                    {!isSelected && hasContent && (
+                      <span
+                        className="inline-block h-2 w-2 rounded-full bg-emerald-500 ml-1"
+                        aria-label="草案あり"
+                      />
+                    )}
                   </div>
-                  <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                    {chapter.title || `章 ${index + 1}`}
-                  </div>
-                  {chapter.summary && (
-                    <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 max-h-10 overflow-hidden">
-                      {convertSummaryCharacterIds(chapter.summary)}
-                    </p>
+                  {isSelected && (
+                    <>
+                      <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                        {chapter.title || `章 ${index + 1}`}
+                      </div>
+                      {chapter.summary && (
+                        <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 max-h-10 overflow-hidden">
+                          {convertSummaryCharacterIds(chapter.summary)}
+                        </p>
+                      )}
+                    </>
                   )}
                 </button>
               );

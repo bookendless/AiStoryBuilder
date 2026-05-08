@@ -183,18 +183,15 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({
               renderLogContent(log)
             ) : (
               <div className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                <div className="mb-2">
-                  <strong>プロンプト:</strong>
-                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                    {log.prompt.substring(0, 200)}...
-                  </div>
-                </div>
-                <div>
-                  <strong>応答:</strong>
-                  <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border text-xs max-h-20 overflow-y-auto">
-                    {log.response.substring(0, 300)}...
-                  </div>
-                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  ✨ {defaultTypeLabels[log.type] || log.type} が完了しました
+                </p>
+                {log.response && (
+                  <p className="mt-1 line-clamp-2 text-gray-600 dark:text-gray-400">
+                    {log.response.substring(0, 80)}
+                    {log.response.length > 80 ? '…' : ''}
+                  </p>
+                )}
                 {enableDetailView && (
                   <button
                     onClick={() => handleViewDetail(log)}

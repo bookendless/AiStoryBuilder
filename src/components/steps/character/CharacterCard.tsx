@@ -1,7 +1,8 @@
 import React from 'react';
-import { User, Sparkles, Edit3, Trash2, Loader, GripVertical, ZoomIn, ChevronDown, ChevronUp, MessageSquare, BookOpen } from 'lucide-react';
+import { Sparkles, Edit3, Trash2, Loader, GripVertical, ZoomIn, ChevronDown, ChevronUp, MessageSquare, BookOpen } from 'lucide-react';
 import { Character } from '../../../contexts/ProjectContext';
 import { InlineEditor } from '../../common/InlineEditor';
+import { getAvatarColor, getAvatarInitial } from '../../../utils/avatarColor';
 
 interface CharacterCardProps {
   character: Character;
@@ -145,8 +146,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo<CharacterC
                   </div>
                 </div>
               ) : (
-                <div className="bg-gradient-to-br from-pink-500 to-purple-600 w-full h-full rounded-lg flex items-center justify-center">
-                  <User className="h-8 w-8 text-white" />
+                <div
+                  className="w-full h-full rounded-lg flex items-center justify-center"
+                  style={{ background: getAvatarColor(character.name) }}
+                  aria-label={character.name ? `${character.name}のアバター` : 'キャラクターアバター'}
+                >
+                  <span className="text-white font-bold text-2xl font-['Noto_Sans_JP'] select-none">
+                    {getAvatarInitial(character.name)}
+                  </span>
                 </div>
               )}
             </div>

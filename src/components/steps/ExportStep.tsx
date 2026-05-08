@@ -1772,9 +1772,43 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
           {/* エクスポートする内容の選択 */}
           <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
-              エクスポートする内容
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                エクスポートする内容
+              </h4>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportOptions({
+                      basicInfo: true, characters: true, plot: true, synopsis: true,
+                      chapters: true, imageBoard: true, draft: true, glossary: true,
+                      relationships: true, timeline: true, worldSettings: true,
+                      foreshadowings: true, memo: true,
+                    });
+                    setSelectedPreset(null);
+                  }}
+                  className="text-xs px-2 py-1 rounded text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-['Noto_Sans_JP']"
+                >
+                  すべて選択
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportOptions({
+                      basicInfo: false, characters: false, plot: false, synopsis: false,
+                      chapters: false, imageBoard: false, draft: false, glossary: false,
+                      relationships: false, timeline: false, worldSettings: false,
+                      foreshadowings: false, memo: false,
+                    });
+                    setSelectedPreset(null);
+                  }}
+                  className="text-xs px-2 py-1 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-['Noto_Sans_JP']"
+                >
+                  すべて解除
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
               {[
                 { key: 'basicInfo', label: '基本情報' },
