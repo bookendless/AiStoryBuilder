@@ -5,7 +5,6 @@
  */
 
 import '@testing-library/jest-dom';
-import { afterEach } from 'vitest';
 
 // グローバルモック設定
 

@@ -1,0 +1,53 @@
+name: Android Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17 セットアップ
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Android SDK セットアップ
+        uses: android-actions/setup-android@v3
+
+      - name: Rust ツールチェーン セットアップ
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Android Rust ターゲット追加
+        run: |
+          rustup target add aarch64-linux-android
+          rustup target add armv7-linux-androideabi
+          rustup target add i686-linux-android
+          rustup target add x86_64-linux-android
+
+      - name: Node.js 20 セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 依存関係インストール
+        run: npm install
+
+      - name: Android デバッグビルド
+        run: npm run tauri:build:android -- --debug
+
+      - name: APK アーティファクト アップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk
+          retention-days: 7

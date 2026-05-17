@@ -29,18 +29,18 @@ export const localProvider: AIProvider = {
   models: LOCAL_MODELS,
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
+export async function checkLocalLLMConnectivity(endpoint: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(`${endpoint}/v1/models`, { signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 
 

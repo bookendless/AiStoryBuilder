@@ -12,8 +12,10 @@ import {
   TrendingUp,
   Sparkles,
   Wrench,
-  HelpCircle
+  HelpCircle,
+  Settings,
 } from 'lucide-react';
+import { getAllFeatureFlags, setFeatureEnabled, FEATURE_LABELS, FeatureKey } from '../constants/features';
 import { useProject } from '../contexts/ProjectContext';
 import { Step } from '../App';
 import { ImageBoard } from './ImageBoard';
@@ -112,6 +114,18 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
   const [showForeshadowings, setShowForeshadowings] = useState(false);
   const [showEmotionMap, setShowEmotionMap] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showFeatureSettings, setShowFeatureSettings] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState(getAllFeatureFlags);
+
+  const TOOL_FEATURE_MAP: Partial<Record<string, FeatureKey>> = {
+    imageBoard: 'IMAGE_BOARD',
+    glossary: 'GLOSSARY',
+    relationships: 'RELATIONSHIPS',
+    timeline: 'TIMELINE',
+    worldSettings: 'WORLD_SETTINGS',
+    foreshadowings: 'FORESHADOWINGS',
+    emotionMap: 'EMOTION_MAP',
+  };
 
   // メモ状態
   const [activeMemoTab, setActiveMemoTab] = useState<MemoTabId>('ideas');
@@ -376,10 +390,37 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
                 {activeTab === 'tools' && (
                   <div className="p-4 space-y-6 animate-fadeIn">
                     <div role="list" aria-label="ツール一覧" className="space-y-2">
-                      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] uppercase tracking-wider mb-2">
-                        プロジェクトツール
-                      </h3>
-                      {tools.map((tool) => {
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] uppercase tracking-wider">
+                          プロジェクトツール
+                        </h3>
+                        <button
+                          onClick={() => setShowFeatureSettings(v => !v)}
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="表示するツールを設定"
+                        >
+                          <Settings className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                        </button>
+                      </div>
+                      {showFeatureSettings && (
+                        <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2">
+                          {(Object.keys(FEATURE_LABELS) as FeatureKey[]).map(key => (
+                            <label key={key} className="flex items-center justify-between text-xs cursor-pointer">
+                              <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">{FEATURE_LABELS[key]}</span>
+                              <input
+                                type="checkbox"
+                                checked={featureFlags[key]}
+                                onChange={(e) => {
+                                  setFeatureEnabled(key, e.target.checked);
+                                  setFeatureFlags(prev => ({ ...prev, [key]: e.target.checked }));
+                                }}
+                                className="rounded text-indigo-600 focus:ring-indigo-500"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      {tools.filter(t => !TOOL_FEATURE_MAP[t.id] || featureFlags[TOOL_FEATURE_MAP[t.id] as FeatureKey]).map((tool) => {
                         const isDisabled = !tool.available;
                         return (
                           <ToolButton

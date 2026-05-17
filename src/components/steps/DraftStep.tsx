@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
 import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save } from 'lucide-react';
 import { databaseService } from '../../services/databaseService';
 import {
@@ -18,7 +17,6 @@ import {
 import { DisplaySettingsPanel } from './draft/DisplaySettingsPanel';
 import { Toast } from './draft/Toast';
 import { BackupDescriptionModal } from './draft/BackupDescriptionModal';
-import { AIStatusBar } from './draft/AIStatusBar';
 import { ChapterTabs } from './draft/ChapterTabs';
 import { MainEditor, type MainEditorHandle } from './draft/MainEditor';
 import { ForeshadowingPanel } from './draft/ForeshadowingPanel';
@@ -27,14 +25,12 @@ import { useChapterDraft } from './draft/hooks/useChapterDraft';
 import { useExport } from './draft/hooks/useExport';
 // AI生成機能はToolsSidebarのDraftAssistantPanelに移行
 // テキスト選択機能は削除され、AI機能はToolsSidebarに移行
-import { useAllChaptersGeneration } from './draft/hooks/useAllChaptersGeneration';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 // AILoadingIndicator is used elsewhere
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
 import type {
-  AIStatusTone,
   ChapterHistoryEntry,
   HistoryEntryType,
 } from './draft/types';
@@ -46,7 +42,6 @@ interface DraftStepProps {
 
 export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject, createManualBackup } = useProject();
-  const { isConfigured, settings } = useAI();
   const { showError, showSuccess, showWarning } = useToast();
   const { handleDatabaseError } = useErrorHandler();
 
@@ -241,26 +236,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   );
 
   // テキスト選択機能は削除され、AI機能はToolsSidebarに移行
-
-  // 全章生成フック
-  const {
-    isGeneratingAllChapters,
-    generationProgress,
-    generationStatus,
-    handleCancelAllChaptersGeneration,
-  } = useAllChaptersGeneration({
-    currentProject,
-    settings,
-    isConfigured,
-    getChapterDetails,
-    onError: showError,
-    onWarning: showWarning,
-    updateProject,
-    setChapterDrafts,
-    setShowCompletionToast,
-  });
-
-  const isGenerating = isGeneratingAllChapters;
 
   useEffect(() => {
     setIsChapterInfoCollapsed(false);
@@ -468,11 +443,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
 
   // 章選択ハンドラー
   const handleChapterSelect = async (chapterId: string) => {
-    // 章が変更される場合は、進行中の生成をキャンセル
-    if (selectedChapter !== chapterId && (isGenerating || isGeneratingAllChapters)) {
-      handleCancelAllGeneration();
-    }
-
     // 現在の章の内容を保存（章が選択されている場合）
     if (selectedChapter) {
       await handleSaveChapterDraft(selectedChapter, draft);
@@ -639,37 +609,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     };
   }, [isModalOpen, isVerticalWriting]);
 
-  // 統合されたキャンセル処理（全章生成のキャンセル）
-  const handleCancelAllGeneration = useCallback(() => {
-    // 全章生成をキャンセル
-    handleCancelAllChaptersGeneration();
-
-    setToastMessage('生成をキャンセルしました');
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
-  }, [handleCancelAllChaptersGeneration]);
-
   // 章全体改善とSelf-RefineはuseAIGenerationフックに移動済み
-
-  // 統合されたAI生成状態
-  const unifiedAIStatus = useMemo(() => {
-    if (isGeneratingAllChapters) {
-      return {
-        visible: true,
-        title: '全章を生成しています…',
-        detail: generationStatus ||
-          (generationProgress.total > 0
-            ? `${generationProgress.current} / ${generationProgress.total}章を処理中です`
-            : 'AIが章を順番に執筆しています'),
-        tone: 'blue' as AIStatusTone,
-        canCancel: true,
-      };
-    }
-
-    // 個別のAI生成はDraftAssistantPanelで管理されるため、ここでは全章生成のみ
-    return { visible: false };
-  }, [isGeneratingAllChapters, generationStatus, generationProgress]);
+  // 全章生成の進捗・キャンセルUIはDraftAssistantPanelで管理される
 
   // プロジェクトが存在しない場合の表示
   if (!currentProject) {
@@ -785,16 +726,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
           </div>
         </div>
       </div>
-
-      {/* 統合AI生成状態バー */}
-      <AIStatusBar
-        visible={unifiedAIStatus.visible}
-        title={unifiedAIStatus.title || ''}
-        detail={unifiedAIStatus.detail}
-        tone={unifiedAIStatus.tone}
-        canCancel={unifiedAIStatus.canCancel}
-        onCancel={handleCancelAllGeneration}
-      />
 
       {/* メインコンテンツ */}
       <div className="overflow-hidden">

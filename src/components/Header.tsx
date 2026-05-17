@@ -107,6 +107,13 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [showMoreMenu]);
 
+  // 外部からAI設定モーダルを開くためのイベントリスナー
+  useEffect(() => {
+    const handleOpenAISettings = () => setShowAISettings(true);
+    window.addEventListener('openAISettings', handleOpenAISettings);
+    return () => window.removeEventListener('openAISettings', handleOpenAISettings);
+  }, []);
+
   return (
     <>
       <header

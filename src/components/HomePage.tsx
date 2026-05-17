@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
+import { startAutoBackup, stopAutoBackup } from '../services/autoBackupService';
+import { AutoBackupStatus } from './common/AutoBackupStatus';
 import { NewProjectModal } from './NewProjectModal';
 import { ProjectSettingsModal } from './ProjectSettingsModal';
 import { ImageToStoryModal } from './ImageToStoryModal';
@@ -298,12 +300,25 @@ const WELCOME_MESSAGES = [
 ];
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
-  const { projects, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
+  const { projects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
   const { showError, showSuccess } = useToast();
   const welcomeMessage = useMemo(
     () => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)],
     []
   );
+
+  const currentProjectRef = React.useRef(currentProject);
+  useEffect(() => {
+    currentProjectRef.current = currentProject;
+  }, [currentProject]);
+
+  useEffect(() => {
+    startAutoBackup(() => currentProjectRef.current);
+    return () => {
+      stopAutoBackup();
+    };
+  }, []);
+
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showImageToStoryModal, setShowImageToStoryModal] = useState(false);
   const [showAudioToStoryModal, setShowAudioToStoryModal] = useState(false);
@@ -913,6 +928,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         confirmLabel="削除"
         cancelLabel="キャンセル"
       />
+
+      <AutoBackupStatus />
     </div>
   );
 };

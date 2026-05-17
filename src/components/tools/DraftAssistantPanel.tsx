@@ -4,6 +4,9 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
+import { useAIProviderFallback } from '../../hooks/useAIProviderFallback';
+import { AIProviderAlert } from '../common/AIProviderAlert';
+import { categorizeError } from '../../utils/errorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
@@ -31,9 +34,15 @@ const DEFAULT_CONTEXT_SETTINGS: ContextSettings = { glossary: true, relationship
 
 export const DraftAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
-    const { settings, isConfigured } = useAI();
+    const { settings, isConfigured, updateSettings } = useAI();
     const { showSuccess, showWarning, showError } = useToast();
     const { handleError } = useErrorHandler();
+
+    // AIプロバイダー障害時のフォールバック制御
+    const { fallbackState, handleAIError, dismissError, retryFallback } = useAIProviderFallback(
+        { provider: settings.provider, localEndpoint: settings.localEndpoint },
+        () => { updateSettings({ provider: 'local', model: 'local-model' }); }
+    );
 
     // 章選択状態（パネル内で管理）
     // sessionStorageから初期値を読み込む
@@ -463,7 +472,14 @@ export const DraftAssistantPanel: React.FC = () => {
         settings,
         isConfigured,
         getChapterDetails,
-        onError: showError,
+        onError: (message: string, duration?: number, options?: { title?: string; details?: string }) => {
+            showError(message, duration, options);
+            try {
+                handleAIError(categorizeError(new Error(options?.title ? `${options.title}: ${message}` : message)));
+            } catch {
+                // フォールバック確認に失敗しても処理を継続
+            }
+        },
         onWarning: showWarning,
         updateProject,
         setChapterDrafts,
@@ -893,6 +909,20 @@ export const DraftAssistantPanel: React.FC = () => {
                     onCancel={handleCancelGeneration}
                 />
             )}
+
+            {/* AIプロバイダー障害時フォールバックアラート */}
+            <AIProviderAlert
+                error={fallbackState.error}
+                isFallbackAvailable={fallbackState.isFallbackAvailable}
+                isCheckingFallback={fallbackState.isCheckingFallback}
+                onSwitchToLocal={retryFallback}
+                onRetry={() => {
+                    dismissError();
+                    void handleGenerateAllChapters();
+                }}
+                onDismiss={dismissError}
+                onOpenSettings={() => window.dispatchEvent(new CustomEvent('openAISettings'))}
+            />
 
             {/* 章選択UI */}
             {currentProject.chapters.length > 0 && (
