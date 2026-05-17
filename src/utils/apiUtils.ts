@@ -109,7 +109,7 @@ export const retryApiCall = async <T>(
 /**
  * ネットワークエラーかどうかを判定
  */
-export const isNetworkError = (error: unknown): boolean => {
+const isNetworkError = (error: unknown): boolean => {
   if (!error) return false;
   
   // ネットワークエラーのパターン
@@ -189,15 +189,5 @@ export const getUserFriendlyErrorMessage = (error: unknown, context: string = ''
   }
 };
 
-/**
- * エラーが再試行可能かどうかを判定
- */
-export const isRetryableError = (error: unknown): boolean => {
-  const errorType = getApiErrorType(error);
-  
-  // 再試行可能なエラー
-  const retryableErrors = ['network', 'server', 'rate_limit'];
-  
-  return retryableErrors.includes(errorType);
-};
+
 

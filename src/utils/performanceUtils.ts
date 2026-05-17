@@ -351,248 +351,6 @@ export const calculateVirtualScrollItems = (
 };
 
 /**
- * データのキャッシュ管理
- */
-export class DataCache<T> {
-  private cache = new Map<string, { data: T; timestamp: number; ttl: number }>();
-  private maxSize: number;
-  private defaultTtl: number;
-  
-  constructor(maxSize: number = 100, defaultTtl: number = 5 * 60 * 1000) { // 5分
-    this.maxSize = maxSize;
-    this.defaultTtl = defaultTtl;
-  }
-  
-  set(key: string, data: T, ttl?: number): void {
-    // キャッシュサイズ制限
-    if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey !== undefined) {
-        this.cache.delete(firstKey);
-      }
-    }
-    
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      ttl: ttl || this.defaultTtl
-    });
-  }
-  
-  get(key: string): T | null {
-    const item = this.cache.get(key);
-    
-    if (!item) {
-      return null;
-    }
-    
-    // TTLチェック
-    if (Date.now() - item.timestamp > item.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-    
-    return item.data;
-  }
-  
-  has(key: string): boolean {
-    return this.get(key) !== null;
-  }
-  
-  delete(key: string): boolean {
-    return this.cache.delete(key);
-  }
-  
-  clear(): void {
-    this.cache.clear();
-  }
-  
-  size(): number {
-    return this.cache.size;
-  }
-  
-  // 期限切れアイテムのクリーンアップ
-  cleanup(): void {
-    const now = Date.now();
-    for (const [key, item] of this.cache.entries()) {
-      if (now - item.timestamp > item.ttl) {
-        this.cache.delete(key);
-      }
-    }
-  }
-}
-
-/**
- * パフォーマンス測定
- */
-export const measurePerformance = <T>(
-  name: string,
-  fn: () => T | Promise<T>
-): T | Promise<T> => {
-  const start = performance.now();
-  
-  const result = fn();
-  
-  if (result instanceof Promise) {
-    return result.then((value) => {
-      const end = performance.now();
-      console.log(`${name}: ${(end - start).toFixed(2)}ms`);
-      return value;
-    });
-  } else {
-    const end = performance.now();
-    console.log(`${name}: ${(end - start).toFixed(2)}ms`);
-    return result;
-  }
-};
-
-/**
- * メモリリークの検出
- */
-export const detectMemoryLeaks = (): {
-  hasLeak: boolean;
-  details: string[];
-} => {
-  const details: string[] = [];
-  let hasLeak = false;
-  
-  // メモリ使用量のチェック
-  const memory = getMemoryUsage();
-  if (memory.percentage > 90) {
-    hasLeak = true;
-    details.push(`メモリ使用量が高い: ${memory.percentage.toFixed(2)}%`);
-  }
-  
-  // DOM要素の数チェック
-  const domElements = document.querySelectorAll('*').length;
-  if (domElements > 10000) {
-    hasLeak = true;
-    details.push(`DOM要素が多すぎる: ${domElements}個`);
-  }
-  
-  // イベントリスナーの数チェック（概算）
-  const eventListeners = performance.getEntriesByType?.('measure') || [];
-  if (eventListeners.length > 1000) {
-    hasLeak = true;
-    details.push(`イベントリスナーが多すぎる可能性: ${eventListeners.length}個`);
-  }
-  
-  return { hasLeak, details };
-};
-
-/**
- * 画像の遅延読み込み
- */
-export const createLazyImageLoader = (): {
-  observe: (img: HTMLImageElement) => void;
-  unobserve: (img: HTMLImageElement) => void;
-  disconnect: () => void;
-} => {
-  const imageObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target as HTMLImageElement;
-        const src = img.dataset.src;
-        if (src) {
-          img.src = src;
-          img.removeAttribute('data-src');
-          imageObserver.unobserve(img);
-        }
-      }
-    });
-  }, {
-    rootMargin: '50px 0px',
-    threshold: 0.01
-  });
-
-  return {
-    observe: (img: HTMLImageElement) => imageObserver.observe(img),
-    unobserve: (img: HTMLImageElement) => imageObserver.unobserve(img),
-    disconnect: () => imageObserver.disconnect()
-  };
-};
-
-/**
- * リソースの事前読み込み
- */
-export const preloadResource = (url: string, type: 'image' | 'script' | 'style' | 'font' = 'image'): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    const link = document.createElement('link');
-    link.rel = 'preload';
-    link.href = url;
-    
-    switch (type) {
-      case 'image':
-        link.as = 'image';
-        break;
-      case 'script':
-        link.as = 'script';
-        break;
-      case 'style':
-        link.as = 'style';
-        break;
-      case 'font':
-        link.as = 'font';
-        link.crossOrigin = 'anonymous';
-        break;
-    }
-    
-    link.onload = () => resolve();
-    link.onerror = () => reject(new Error(`Failed to preload ${url}`));
-    
-    document.head.appendChild(link);
-  });
-};
-
-/**
- * バンドルサイズの分析
- */
-export const analyzeBundleSize = (): {
-  totalSize: number;
-  largestChunks: Array<{ name: string; size: number }>;
-  recommendations: string[];
-} => {
-  const recommendations: string[] = [];
-  let totalSize = 0;
-  const largestChunks: Array<{ name: string; size: number }> = [];
-  
-  // パフォーマンスエントリからリソースサイズを取得
-  const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
-  
-  resources.forEach(resource => {
-    const size = resource.transferSize || 0;
-    totalSize += size;
-    
-    if (size > 100000) { // 100KB以上
-      largestChunks.push({
-        name: resource.name,
-        size: size
-      });
-    }
-  });
-  
-  // 推奨事項を生成
-  if (totalSize > 1000000) { // 1MB以上
-    recommendations.push('バンドルサイズが大きすぎます。コード分割を検討してください。');
-  }
-  
-  if (largestChunks.length > 5) {
-    recommendations.push('大きなチャンクが多すぎます。チャンク分割を最適化してください。');
-  }
-  
-  const jsChunks = largestChunks.filter(chunk => chunk.name.endsWith('.js'));
-  if (jsChunks.length > 3) {
-    recommendations.push('JavaScriptチャンクが多すぎます。バンドルを統合することを検討してください。');
-  }
-  
-  return {
-    totalSize,
-    largestChunks: largestChunks.sort((a, b) => b.size - a.size).slice(0, 10),
-    recommendations
-  };
-};
-
-/**
  * パフォーマンス監視
  */
 export class PerformanceMonitor {
@@ -724,14 +482,54 @@ export const isOnline = (): boolean => {
 export const onOnlineStatusChange = (callback: (isOnline: boolean) => void): () => void => {
   const handleOnline = () => callback(true);
   const handleOffline = () => callback(false);
-  
+
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
-  
+
   return () => {
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
   };
 };
+
+export class DataCache<T> {
+  private cache = new Map<string, { value: T; expiresAt: number }>();
+  private maxSize: number;
+  private ttl: number;
+
+  constructor(maxSize: number, ttl: number) {
+    this.maxSize = maxSize;
+    this.ttl = ttl;
+  }
+
+  get(key: string): T | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  set(key: string, value: T): void {
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== undefined) this.cache.delete(firstKey);
+    }
+    this.cache.set(key, { value, expiresAt: Date.now() + this.ttl });
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+  }
+
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now > entry.expiresAt) this.cache.delete(key);
+    }
+  }
+}
 
 

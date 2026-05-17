@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { getChapterDetails as getChapterDetailsFn } from '../../utils/chapterUtils';
 import ReactDOM from 'react-dom';
 import { useProject } from '../../contexts/ProjectContext';
 import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save } from 'lucide-react';
@@ -116,35 +117,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     return currentProject.chapters.find(c => c.id === selectedChapter) || null;
   }, [selectedChapter, currentProject]);
 
-  // 章詳細情報を取得（メモ化）
   const getChapterDetails = useCallback((chapter: { characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
-    if (!chapter || !currentProject) {
-      return {
-        characters: '未設定',
-        setting: '未設定',
-        mood: '未設定',
-        keyEvents: '未設定'
-      };
-    }
-
-    // キャラクター情報の取得を修正
-    // chapter.charactersは文字列配列（キャラクター名またはキャラクターID）として保存されている
-    // キャラクターIDの場合はキャラクター名に変換する
-    const characters = chapter.characters && chapter.characters.length > 0
-      ? chapter.characters.map(charIdOrName => {
-        // キャラクターIDかどうかを判定（IDは通常UUIDやタイムスタンプベースの文字列）
-        const character = currentProject.characters.find(c => c.id === charIdOrName);
-        return character ? character.name : charIdOrName;
-      }).join(', ')
-      : '未設定';
-
-    const setting = chapter.setting || '未設定';
-    const mood = chapter.mood || '未設定';
-    const keyEvents = chapter.keyEvents && chapter.keyEvents.length > 0
-      ? chapter.keyEvents.join(', ')
-      : '未設定';
-
-    return { characters, setting, mood, keyEvents };
+    if (!currentProject) return { characters: '未設定', setting: '未設定', mood: '未設定', keyEvents: '未設定' };
+    return getChapterDetailsFn(chapter, currentProject.characters);
   }, [currentProject]);
 
 
@@ -435,11 +410,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
       lastSnapshotContentRef.current = entries[0].content;
     }
   }, [chapterHistories, selectedChapter]);
-
-  // 章が変更されたときに提案状態をクリア（フック内で処理されるため不要）
-  // useEffect(() => {
-  //   handleClearSuggestionState();
-  // }, [selectedChapter, handleClearSuggestionState]);
 
   // 章選択ハンドラー
   const handleChapterSelect = async (chapterId: string) => {

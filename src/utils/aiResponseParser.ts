@@ -527,6 +527,15 @@ interface PlotData {
   mainObstacle?: string;
 }
 
+export const validateResponse = (response: ParsedResponse): boolean => {
+  if (!response.success || response.data === null || response.data === undefined) return false;
+  const data = response.data as { type?: string; chapters?: unknown[] };
+  if (data.type === 'chapters') {
+    return Array.isArray(data.chapters) && data.chapters.length > 0;
+  }
+  return true;
+};
+
 const parsePlotInfo = (content: string): ParsedResponse => {
   const plotData: PlotData = {};
   const lines = content.split('\n');
@@ -555,55 +564,6 @@ const parsePlotInfo = (content: string): ParsedResponse => {
     },
     rawContent: content
   };
-};
-
-/**
- * エラーメッセージを生成
- */
-export const generateErrorMessage = (error: unknown, context: string = ''): string => {
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  if (error instanceof Error) {
-    return `${context}${context ? ': ' : ''}${error.message}`;
-  }
-
-  if (error && typeof error === 'object' && 'message' in error) {
-    return `${context}${context ? ': ' : ''}${(error as Error).message}`;
-  }
-
-  return `${context}${context ? ': ' : ''}不明なエラーが発生しました`;
-};
-
-/**
- * 応答内容を検証
- */
-export const validateResponse = (response: ParsedResponse): boolean => {
-  if (!response.success) {
-    return false;
-  }
-
-  if (!response.data) {
-    return false;
-  }
-
-  // データの型に応じた検証
-  const data = response.data as Record<string, unknown>;
-
-  if (data.type === 'chapters') {
-    return Array.isArray(data.chapters) && data.chapters.length > 0;
-  }
-
-  if (data.type === 'characters') {
-    return Array.isArray(data.characters) && data.characters.length > 0;
-  }
-
-  if (data.type === 'plot') {
-    return !!(data.plot && typeof data.plot === 'object' && data.plot !== null && Object.keys(data.plot as Record<string, unknown>).length > 0);
-  }
-
-  return true;
 };
 
 

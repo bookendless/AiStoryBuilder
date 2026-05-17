@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { getChapterDetails as getChapterDetailsFn } from '../../utils/chapterUtils';
 import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3, SlidersHorizontal } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
@@ -110,31 +111,9 @@ export const DraftAssistantPanel: React.FC = () => {
         return chapter?.draft || '';
     }, [selectedChapterId, currentProject, chapterDrafts]);
 
-    // 章詳細情報を取得
     const getChapterDetails = useCallback((chapter: { characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
-        if (!chapter || !currentProject) {
-            return {
-                characters: '未設定',
-                setting: '未設定',
-                mood: '未設定',
-                keyEvents: '未設定'
-            };
-        }
-
-        const characters = chapter.characters && chapter.characters.length > 0
-            ? chapter.characters.map(charIdOrName => {
-                const character = currentProject.characters.find(c => c.id === charIdOrName);
-                return character ? character.name : charIdOrName;
-            }).join(', ')
-            : '未設定';
-
-        const setting = chapter.setting || '未設定';
-        const mood = chapter.mood || '未設定';
-        const keyEvents = chapter.keyEvents && chapter.keyEvents.length > 0
-            ? chapter.keyEvents.join(', ')
-            : '未設定';
-
-        return { characters, setting, mood, keyEvents };
+        if (!currentProject) return { characters: '未設定', setting: '未設定', mood: '未設定', keyEvents: '未設定' };
+        return getChapterDetailsFn(chapter, currentProject.characters);
     }, [currentProject]);
 
     // プロジェクトコンテキスト情報を取得（contextSettingsでフィルタリング）
@@ -877,7 +856,6 @@ export const DraftAssistantPanel: React.FC = () => {
     const isStyleGenerating = isGenerating && currentGenerationAction === 'style';
     const isShortenGenerating = isGenerating && currentGenerationAction === 'shorten';
     const isImproving = isGenerating && currentGenerationAction === 'improve';
-    // const isSelfRefining = isGenerating && currentGenerationAction === 'selfRefine'; // 廃止
     const isAnalyzing = isGenerating && currentGenerationAction === 'critique';
     const isFixingWeaknesses = isGenerating && currentGenerationAction === 'fixWeaknesses';
     const isFixingCharacter = isGenerating && currentGenerationAction === 'fixCharacter';

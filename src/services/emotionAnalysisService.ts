@@ -166,12 +166,6 @@ export const analyzeChapterEmotion = async (
       normalizedEmotions[type] = typeof value === 'number' ? value : 0;
     });
 
-    // 感情の複雑度を計算（複数の感情が混在している度合い）
-    // 現在は使用していないが、将来的に使用する可能性があるためコメントアウト
-    // const emotionValues = Object.values(normalizedEmotions);
-    // const nonZeroEmotions = emotionValues.filter(v => v > 10).length;
-    // const complexity = Math.min(100, (nonZeroEmotions / allEmotionTypes.length) * 100);
-
     // AIの生レスポンスから分析メモを抽出（JSON以外の部分）
     let analysisNotes: string | undefined;
     const rawContent = response.content.trim();

@@ -153,12 +153,6 @@ export const getUserFriendlyError = (error: Error | string | unknown): ErrorInfo
   return categorizeError(new Error('不明なエラーが発生しました'));
 };
 
-/**
- * エラーが再試行可能かどうかを判定
- */
-export const isRetryableError = (error: Error | string): boolean => {
-  return categorizeError(error).retryable;
-};
 
 
 
