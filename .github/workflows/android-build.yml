@@ -42,6 +42,9 @@ jobs:
       - name: 依存関係インストール
         run: npm install
 
+      - name: Android プロジェクト初期化
+        run: npm run tauri:android:init
+
       - name: Android デバッグビルド
         run: npm run tauri:build:android -- --debug
 

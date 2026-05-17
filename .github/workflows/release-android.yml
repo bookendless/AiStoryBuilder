@@ -41,6 +41,9 @@ jobs:
       - name: 依存関係インストール
         run: npm install
 
+      - name: Android プロジェクト初期化
+        run: npm run tauri:android:init
+
       - name: Keystore 配置
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/release.keystore
