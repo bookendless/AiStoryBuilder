@@ -22,8 +22,8 @@ const GEMINI_MODELS = [
     latencyClass: 'fast' as const,
   },
   {
-    id: 'gemini-3.1-flash-lite-preview',
-    name: 'Gemini 3.1 Flash-Lite (Preview)',
+    id: 'gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash-Lite',
     description: '2026年2月登場。最も費用対効果の高いマルチモーダルモデル。最低レイテンシ。',
     maxTokens: 2000000,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', 'コード実行'],

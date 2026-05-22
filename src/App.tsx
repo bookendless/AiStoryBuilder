@@ -40,6 +40,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let cleanupInterval: ReturnType<typeof setInterval> | undefined;
+    let performanceMonitor: PerformanceMonitor | undefined;
+
     const initializeApp = async () => {
       try {
         // セキュリティヘッダーの設定
@@ -50,7 +53,7 @@ function App() {
         sessionManager.updateActivity();
 
         // パフォーマンス監視の開始
-        const performanceMonitor = new PerformanceMonitor();
+        performanceMonitor = new PerformanceMonitor();
 
         // サービスワーカーの登録
         if (import.meta.env.PROD) {
@@ -89,7 +92,7 @@ function App() {
         }
 
         // 定期的なクリーンアップ（1日1回）
-        const cleanupInterval = setInterval(async () => {
+        cleanupInterval = setInterval(async () => {
           try {
             await databaseService.cleanupExpiredHistoryEntries();
             await databaseService.cleanupExpiredAILogEntries();
@@ -97,12 +100,6 @@ function App() {
             console.error('定期データクリーンアップエラー:', error);
           }
         }, 24 * 60 * 60 * 1000); // 24時間
-
-        // クリーンアップ関数
-        return () => {
-          performanceMonitor.disconnect();
-          clearInterval(cleanupInterval);
-        };
       } catch (err) {
         console.error('アプリ初期化エラー:', err);
       } finally {
@@ -111,6 +108,11 @@ function App() {
     };
 
     initializeApp();
+
+    return () => {
+      if (cleanupInterval !== undefined) clearInterval(cleanupInterval);
+      performanceMonitor?.disconnect();
+    };
   }, []);
 
   // ローディング状態
@@ -206,10 +208,15 @@ const RecoveryDialogWrapper: React.FC<{
         await updateProject(merged, true);
         showSuccess('データを復元しました', 5000);
       } else if (data.projectId) {
-        // 該当プロジェクトを読み込んでからマージ
         try {
+          // DBから直接取得してマージ後に保存し、loadProjectで再読み込む。
+          // loadProject完了後もReact stateのクロージャは古いままのため、
+          // currentProjectに依存するupdateProjectは使用できない。
+          const rawProject = await databaseService.loadProject(data.projectId);
+          if (!rawProject) throw new Error('プロジェクトが見つかりません');
+          const merged = mergeRecoveryData(rawProject, data);
+          await databaseService.saveProject(merged);
           await loadProject(data.projectId);
-          // 読み込み後にマージ（currentProjectが更新される）
           showSuccess('プロジェクトを読み込み、データを復元しました', 5000);
         } catch {
           showError('プロジェクトの読み込みに失敗しました');

@@ -3,11 +3,19 @@ import { APIError, ErrorCategory } from '../types/errors';
 // HTTPエラーを作成するヘルパー関数
 function createHttpError(status: number, message: string, _url: string): APIError {
   let category: 'api_key_missing' | 'api_key_invalid' | 'rate_limit' | 'timeout' | 'network' | 'quota_exceeded' | 'model_not_found' | 'invalid_request' | 'server_error' | 'unknown';
-  
-  if (status === 401 || status === 403) {
-    category = message.toLowerCase().includes('api key') || message.toLowerCase().includes('apiキー') || message.toLowerCase().includes('認証')
-      ? 'api_key_invalid'
-      : 'api_key_invalid';
+
+  if (status === 401) {
+    category = 'api_key_invalid';
+  } else if (status === 403) {
+    // 403はquotaメッセージを含む場合はquota_exceeded、それ以外は認証エラー
+    const lower = message.toLowerCase();
+    if (lower.includes('quota') || lower.includes('クォータ') || lower.includes('billing')) {
+      category = 'quota_exceeded';
+    } else {
+      category = 'api_key_invalid';
+    }
+  } else if (status === 402) {
+    category = 'quota_exceeded';
   } else if (status === 429) {
     category = 'rate_limit';
   } else if (status === 404) {
@@ -16,13 +24,6 @@ function createHttpError(status: number, message: string, _url: string): APIErro
     category = 'invalid_request';
   } else if (status >= 500) {
     category = 'server_error';
-  } else if (status === 402 || status === 403) {
-    // 402は通常クォータ超過、403は認証/権限エラー
-    if (message.toLowerCase().includes('quota') || message.toLowerCase().includes('クォータ') || message.toLowerCase().includes('billing')) {
-      category = 'quota_exceeded';
-    } else {
-      category = 'api_key_invalid';
-    }
   } else {
     category = 'unknown';
   }

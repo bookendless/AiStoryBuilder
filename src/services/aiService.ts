@@ -711,9 +711,11 @@ class AIService {
       const method = request.onStream ? 'streamGenerateContent' : 'generateContent';
 
       // 開発環境（ブラウザ）ではプロキシ経由、Tauri環境では直接アクセス
+      // APIキーはURLクエリではなくヘッダーで渡す（ログ・プロキシへの漏洩防止）
       const apiUrl = isTauriEnv || !import.meta.env.DEV
-        ? `https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:${method}?key=${apiKey}`
-        : `/api/gemini/v1beta/models/${request.settings.model}:${method}?key=${apiKey}`;
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${request.settings.model}:${method}`
+        : `/api/gemini/v1beta/models/${request.settings.model}:${method}`;
+      const geminiHeaders = { 'x-goog-api-key': apiKey };
 
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
@@ -724,7 +726,7 @@ class AIService {
           hasAudio: !!request.audio,
           temperature: request.settings.temperature,
           maxTokens: request.settings.maxTokens,
-          apiUrl: apiUrl.replace(/key=[^&]+/, 'key=***'), // APIキーをマスク
+          apiUrl,
           stream: !!request.onStream
         });
       }
@@ -843,6 +845,7 @@ class AIService {
               }
             },
             {
+              headers: geminiHeaders,
               timeout, // request.timeoutが指定されている場合はそれを使用
               signal: request.signal
             }
@@ -913,6 +916,7 @@ class AIService {
 
       // Gemini APIは長文生成に時間がかかることがあるため、タイムアウトを180秒に設定（request.timeoutが指定されている場合はそれを使用、高度なモデルの思考時間を考慮）
       const response = await httpService.post(apiUrl, requestBody, {
+        headers: geminiHeaders,
         timeout, // request.timeoutが指定されている場合はそれを使用
       });
 
