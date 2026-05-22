@@ -2,6 +2,17 @@ import { AIProvider } from '../../types/ai';
 
 // Geminiモデル定義
 const GEMINI_MODELS = [
+  // --- Gemini 3.5 Series (Latest) ---
+  {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    description: '2026年5月登場の最新モデル。高速・高性能なマルチモーダル処理。1Mトークンコンテキスト対応。',
+    maxTokens: 1048576,
+    capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', 'コード実行'],
+    recommendedUse: '高速マルチモーダル処理、リアルタイム応答、コスト効率の高いタスク',
+    latencyClass: 'fast' as const,
+  },
+
   // --- Gemini 3.1 Series (Latest Preview) ---
   {
     id: 'gemini-3.1-pro-preview',
