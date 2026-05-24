@@ -244,6 +244,7 @@ const RecoveryDialogWrapper: React.FC<{
 
 const AppContent: React.FC = () => {
   const { handleError } = useErrorHandler();
+  const { showWarning } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>('home');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const breakpoint = useBreakpoint();
@@ -329,6 +330,26 @@ const AppContent: React.FC = () => {
 
   // メモリ使用量の監視（モバイル安定化）
   useMemoryWarning(70, 85);
+
+  // ローカルLLMでプロンプトが切り詰められた際の警告通知（連続実行時のスパムを抑制）
+  const lastTruncationToastRef = useRef(0);
+  useEffect(() => {
+    const handlePromptTruncated = (e: Event) => {
+      // 直近30秒以内に通知済みなら抑制（反復推敲での重複トーストを防ぐ）
+      const now = Date.now();
+      if (now - lastTruncationToastRef.current < 30000) return;
+      lastTruncationToastRef.current = now;
+
+      const detail = (e as CustomEvent<{ originalLength: number; maxLength: number }>).detail;
+      showWarning(
+        `プロンプトが長いため${detail.maxLength}文字に切り詰められました（元: ${detail.originalLength}文字）。内容の一部が反映されていない可能性があります。AI設定の「最大プロンプト長」で調整できます。`,
+        9000,
+        { title: 'プロンプトを切り詰めました' }
+      );
+    };
+    window.addEventListener('ai:prompt-truncated', handlePromptTruncated);
+    return () => window.removeEventListener('ai:prompt-truncated', handlePromptTruncated);
+  }, [showWarning]);
 
   // 起動時のリカバリーデータチェック
   useEffect(() => {

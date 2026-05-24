@@ -358,7 +358,6 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
 - 上記の文章の自然な続きを書いてください
 - キャラクターの性格や設定を一貫して保ってください${contextInfo.worldSettings || contextInfo.glossary ? '\n- 特に「設定資料・世界観」や「重要用語集」の内容と矛盾しないようにしてください' : ''}${contextInfo.relationships ? '\n- 「キャラクター相関図」の関係性に基づいた会話や態度を描写してください' : ''}${contextInfo.timeline ? '\n- 「タイムライン」の時系列に矛盾しないようにしてください' : ''}
 - 会話を重視し、臨場感のある描写を心がけてください
-- 1000-1500文字程度で続きを執筆してください
 - 章の目的に沿った内容で物語を前進させてください
 - 適度な改行と段落分けを行ってください
 - 改行は通常の改行文字（\n）で表現してください`;
@@ -475,6 +474,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     try {
       const prompt = aiService.buildPrompt('draft', 'adjustStyle', {
         currentText: draft,
+        currentLength: draft.length.toString(),
       });
 
       const abortController = new AbortController();
@@ -769,17 +769,12 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
 
       const critiqueResult = JSON.stringify(filteredCritique, null, 2);
 
-      // プロンプト長制限のための切り詰め
-      const maxDraftLength = 4000;
-      const truncatedDraft = draft.length > maxDraftLength
-        ? draft.substring(0, maxDraftLength) + '\n\n[以下省略]'
-        : draft;
-
+      // 批評フェーズと同様に全文を渡す（切り詰めると末尾が消失し内容が薄くなるため）
       const revisionPrompt = aiService.buildPrompt('draft', 'revise', {
         projectTitle: currentProject?.title || '未設定',
         chapterTitle: currentChapter?.title || '未設定',
         chapterSummary: currentChapter?.summary || '未設定',
-        currentText: truncatedDraft,
+        currentText: draft,
         critiqueResult: critiqueResult,
         currentLength: draft.length.toString(),
       });

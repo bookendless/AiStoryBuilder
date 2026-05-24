@@ -1168,11 +1168,27 @@ class AIService {
       }
       // Tauri環境では常に元のエンドポイントを使用（HTTPプラグインがlocalhostにアクセス可能）
 
-      // プロンプトの長さを制限（Local LLMでは短めに）
-      const maxPromptLength = 3000;
-      const truncatedPrompt = request.prompt.length > maxPromptLength
+      // プロンプトの長さを制限（Local LLMのコンテキスト長に依存）
+      // ユーザー設定があればそれを優先。未設定時は最近のローカルモデルを考慮した既定値を使用。
+      const DEFAULT_LOCAL_CONTEXT_LENGTH = 12000;
+      const MIN_LOCAL_CONTEXT_LENGTH = 1000;
+      // 不正値（0・負数・未設定など）は既定値にフォールバックして全切り詰めを防ぐ
+      const configuredContextLength = request.settings.localContextLength;
+      const maxPromptLength =
+        typeof configuredContextLength === 'number' && configuredContextLength >= MIN_LOCAL_CONTEXT_LENGTH
+          ? configuredContextLength
+          : DEFAULT_LOCAL_CONTEXT_LENGTH;
+      const isPromptTruncated = request.prompt.length > maxPromptLength;
+      const truncatedPrompt = isPromptTruncated
         ? request.prompt.substring(0, maxPromptLength) + '\n\n[プロンプトが長すぎるため省略されました]'
         : request.prompt;
+
+      // 切り詰めが発生した場合はUIに通知（内容欠落をユーザーが認識できるように）
+      if (isPromptTruncated && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ai:prompt-truncated', {
+          detail: { originalLength: request.prompt.length, maxLength: maxPromptLength },
+        }));
+      }
 
       // max_tokensを制限（Local LLMでは適度に設定）
       const maxTokens = Math.min(request.settings.maxTokens, 8192);

@@ -26,6 +26,7 @@ export interface AISettings {
   apiKey?: string; // 後方互換性のため残す（現在のプロバイダーのAPIキー）
   apiKeys?: Record<string, string>; // プロバイダーごとのAPIキー（プロバイダーIDをキーとして暗号化されたAPIキーを保存）
   localEndpoint?: string;
+  localContextLength?: number; // ローカルLLMに送るプロンプトの最大文字数（未設定時は既定値を使用）
   temperature: number;
   maxTokens: number;
 }

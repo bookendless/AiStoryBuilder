@@ -663,6 +663,31 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 パスが含まれていない場合は自動的に追加されます
               </p>
             </div>
+
+            {/* 最大プロンプト長 */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                最大プロンプト長（文字）
+              </label>
+              <input
+                type="number"
+                min={1000}
+                max={200000}
+                step={1000}
+                value={formData.localContextLength ?? 12000}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  // 空欄や不正値はundefined（既定値使用）。下限1000・上限200000にクランプ
+                  const clamped = Number.isFinite(v) && v >= 1000 ? Math.min(v, 200000) : undefined;
+                  setFormData({ ...formData, localContextLength: clamped });
+                }}
+                placeholder="12000"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
+              />
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                これを超える長さのプロンプトは切り詰められます。お使いのモデルのコンテキスト長に合わせて調整してください（既定: 12000文字）。長文の推敲が途中で切れる場合は値を大きく、低スペック環境で不安定な場合は小さくしてください。
+              </p>
+            </div>
           </div>
         )}
 
