@@ -24,7 +24,10 @@ import {
     ChevronRight,
     Search,
     Upload,
-    Book
+    Book,
+    Check,
+    Pencil,
+    ChevronUp,
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { StepNavigation } from '../common/StepNavigation';
@@ -36,10 +39,8 @@ interface ReviewStepProps {
     onNavigateToStep?: (step: Step) => void;
 }
 
-// 定数定義
 const MAX_SCORE = 5;
 
-// 評価モードの定義
 const EVALUATION_MODES: { id: EvaluationMode; label: string; icon: React.ReactNode; description: string }[] = [
     { id: 'structure', label: '構造・プロット', icon: <BookOpen size={18} />, description: '物語の構成、一貫性、ペース配分を分析します' },
     { id: 'character', label: 'キャラクター', icon: <Users size={18} />, description: 'キャラクターの動機、成長、独自性を評価します' },
@@ -47,7 +48,6 @@ const EVALUATION_MODES: { id: EvaluationMode; label: string; icon: React.ReactNo
     { id: 'persona', label: '読者ペルソナ', icon: <UserCheck size={18} />, description: '想定読者になりきって感想と市場性を評価します' },
 ];
 
-// 評価の厳しさレベルの定義
 const STRICTNESS_LEVELS: { id: EvaluationStrictness; label: string; description: string }[] = [
     { id: 'gentle', label: 'やさしい', description: '良い点を重視し、建設的なフィードバックを提供' },
     { id: 'normal', label: '普通', description: 'バランスの取れた評価（デフォルト）' },
@@ -55,18 +55,56 @@ const STRICTNESS_LEVELS: { id: EvaluationStrictness; label: string; description:
     { id: 'harsh', label: '辛辣', description: 'プロの編集者として厳しく評価し、問題点を率直に指摘' },
 ];
 
-// UUID生成のヘルパー関数（crypto.randomUUID()のフォールバック付き）
 const generateUUID = (): string => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
     }
-    // フォールバック: 簡易的なUUID v4の実装
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
         const r = Math.random() * 16 | 0;
         const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
 };
+
+const StepHeader: React.FC<{
+    n: number; title: string; hint?: string;
+    collapsible?: boolean; onToggle?: () => void;
+}> = ({ n, title, hint, collapsible, onToggle }) => (
+    <button
+        type="button"
+        onClick={onToggle}
+        disabled={!collapsible}
+        className="w-full flex items-center gap-2 mb-3 text-left disabled:cursor-default"
+    >
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold shrink-0">
+            {n}
+        </span>
+        <h3 className="font-bold text-gray-800 dark:text-gray-200">{title}</h3>
+        {hint && <span className="text-xs text-gray-400 dark:text-gray-500">{hint}</span>}
+        {collapsible && <ChevronUp size={16} className="ml-auto text-gray-400" />}
+    </button>
+);
+
+const SetupBar: React.FC<{
+    n: number; label: string; value: string; onClick: () => void;
+}> = ({ n, label, value, onClick }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors text-left"
+    >
+        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white shrink-0">
+            <Check size={12} />
+        </span>
+        <span className="text-sm font-bold text-gray-600 dark:text-gray-300 shrink-0">
+            {n}. {label}
+        </span>
+        <span className="ml-auto text-sm font-medium text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full truncate max-w-[45%]">
+            {value}
+        </span>
+        <Pencil size={14} className="text-gray-400 shrink-0" />
+    </button>
+);
 
 export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
     const { currentProject, updateProject } = useProject();
@@ -82,16 +120,15 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
     const [result, setResult] = useState<EvaluationResult | null>(null);
     const [showHistory, setShowHistory] = useState(false);
     const [loadedFileName, setLoadedFileName] = useState<string>('');
+    const [openStep, setOpenStep] = useState<1 | 2 | 3 | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-    // Markdownパーサーの初期化（HTMLを無効化してXSSを防止）
     const mdParser = useMemo(() => new MarkdownIt({
-        html: false, // XSS対策: HTMLを無効化
+        html: false,
         linkify: true,
         typographer: true,
     }), []);
 
-    // モードマップの作成（O(1)ルックアップ用）
     const modeMap = useMemo(() => {
         const map = new Map<EvaluationMode, typeof EVALUATION_MODES[0]>();
         EVALUATION_MODES.forEach(mode => {
@@ -100,12 +137,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
         return map;
     }, []);
 
-    // コンテンツの自動設定（依存配列を最適化）
     const projectId = currentProject?.id;
     const synopsis = currentProject?.synopsis;
     const chapters = currentProject?.chapters;
 
-    // 作品全体のコンテンツを取得（全章の草案を結合）
     const wholeStoryContent = useMemo(() => {
         if (!chapters || chapters.length === 0) return '';
 
@@ -115,7 +150,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
                 return draft ? `# ${chapter.title}\n\n${draft}\n\n---\n\n` : '';
             })
             .join('')
-            .replace(/\n\n---\n\n$/, ''); // 最後の区切りを削除
+            .replace(/\n\n---\n\n$/, '');
     }, [chapters]);
 
     useEffect(() => {
@@ -123,7 +158,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
 
         if (targetType === 'synopsis') {
             setTargetContent(synopsis || '');
-            setLoadedFileName(''); // ファイル名をクリア
+            setLoadedFileName('');
         } else if (targetType === 'chapter') {
             if (selectedChapterId) {
                 const chapter = chapters?.find(c => c.id === selectedChapterId);
@@ -132,15 +167,14 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
                 setSelectedChapterId(chapters[0].id);
                 setTargetContent(chapters[0].draft || chapters[0].summary || '');
             }
-            setLoadedFileName(''); // ファイル名をクリア
+            setLoadedFileName('');
         } else if (targetType === 'whole-story') {
             setTargetContent(wholeStoryContent);
-            setLoadedFileName(''); // ファイル名をクリア
+            setLoadedFileName('');
         } else if (targetType === 'file') {
-            // ファイルから読み込んだ場合は、既にtargetContentに設定されているので何もしない
+            // ファイルから読み込んだ場合は既にtargetContentに設定済み
         } else if (targetType === 'custom') {
-            setLoadedFileName(''); // ファイル名をクリア
-            // カスタムの場合は、ユーザーが手動で入力するので何もしない
+            setLoadedFileName('');
         }
     }, [targetType, selectedChapterId, projectId, synopsis, chapters, wholeStoryContent]);
 
@@ -156,6 +190,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
 
         setIsEvaluating(true);
         setResult(null);
+        setOpenStep(null);
 
         try {
             const context = {
@@ -225,8 +260,7 @@ ${result.summary}
 
 ## スコア: ${result.score}/${MAX_SCORE}
 
-${result.persona ? `## 想定ペルソナ\n${result.persona}\n` : ''}
-## 良かった点
+${result.persona ? `## 想定ペルソナ\n${result.persona}\n` : ''}## 良かった点
 ${result.strengths.map(s => `- ${s}`).join('\n')}
 
 ## 改善の余地
@@ -266,12 +300,10 @@ ${result.detailedAnalysis}
         showSuccess('履歴を削除しました');
     };
 
-    // ファイル読み込み処理
     const handleFileLoad = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // ファイル形式のチェック
         const fileName = file.name.toLowerCase();
         if (!fileName.endsWith('.txt') && !fileName.endsWith('.md')) {
             showError('テキストファイル(.txt)またはMarkdownファイル(.md)を選択してください');
@@ -300,11 +332,9 @@ ${result.detailedAnalysis}
         setResult(evaluation);
         setActiveMode(evaluation.mode);
         setTargetType(evaluation.targetType);
-        // コンテンツの復元は完全にはできない（保存していないため）が、結果は表示できる
         setShowHistory(false);
     }, []);
 
-    // 評価履歴を逆順でメモ化（パフォーマンス最適化）
     const reversedEvaluations = useMemo(() => {
         if (!currentProject?.evaluations || currentProject.evaluations.length === 0) {
             return [];
@@ -312,210 +342,186 @@ ${result.detailedAnalysis}
         return [...currentProject.evaluations].reverse();
     }, [currentProject?.evaluations]);
 
-    return (
-        <div className="h-full flex flex-col gap-6 overflow-y-auto">
-            <StepNavigation
-                currentStep="review"
-                onPrevious={() => onNavigateToStep?.('draft')}
-                onNext={() => onNavigateToStep?.('export')}
-            />
-            <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-teal-400 to-teal-600">
-                            <Search className="h-5 w-5 text-white" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                            作品評価 / Review
-                        </h2>
-                    </div>
-                    <p className="text-gray-600 dark:text-gray-400">
-                        AIを使って作品を多角的に分析・評価し、改善点を見つけましょう。
-                    </p>
-                </div>
-                <button
-                    onClick={() => setShowHistory(!showHistory)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${showHistory
-                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
-                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'
-                        }`}
-                >
-                    <History size={18} />
-                    履歴 ({currentProject?.evaluations?.length || 0})
-                </button>
-            </div>
+    // 結果が存在する＝結果フェーズ（①②③を折りたたむ）
+    const isResultPhase = !!result && !isEvaluating;
 
-            {showHistory ? (
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 className="font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                        <History size={20} />
-                        評価履歴
-                    </h3>
-                    {reversedEvaluations.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {reversedEvaluations.map((evaluation) => (
-                                <div key={evaluation.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-50 dark:bg-gray-800/50">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className="text-xs font-medium px-2 py-1 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                                            {modeMap.get(evaluation.mode)?.label || evaluation.mode}
-                                        </span>
+    // 折りたたみバーに表示する選択値ラベル
+    const TARGET_TYPE_LABEL: Record<typeof targetType, string> = {
+        synopsis: 'あらすじ',
+        chapter: currentProject?.chapters?.find(c => c.id === selectedChapterId)?.title ?? '章',
+        'whole-story': '作品全体',
+        file: loadedFileName || 'ファイル',
+        custom: 'カスタム入力',
+    };
+    const activeModeLabel = modeMap.get(activeMode)?.label ?? activeMode;
+    const strictnessLabel = STRICTNESS_LEVELS.find(l => l.id === evaluationStrictness)?.label ?? '普通';
+
+    // あるステップを「展開表示すべきか」（設定フェーズ中は常に展開）
+    const isStepOpen = (n: 1 | 2 | 3) => !isResultPhase || openStep === n;
+
+    const EditFooter = () => (
+        <div className="flex gap-2 mt-3">
+            <button
+                onClick={handleEvaluate}
+                disabled={isEvaluating || !targetContent.trim()}
+                className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <Play size={16} /> この条件で再評価
+            </button>
+            <button
+                onClick={() => setOpenStep(null)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+                閉じる
+            </button>
+        </div>
+    );
+
+    return (
+        <div className="h-full overflow-y-auto">
+            <div className="flex flex-col gap-4 pb-10">
+                <StepNavigation
+                    currentStep="review"
+                    onPrevious={() => onNavigateToStep?.('draft')}
+                    onNext={() => onNavigateToStep?.('export')}
+                />
+                <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-teal-400 to-teal-600">
+                                <Search className="h-5 w-5 text-white" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                                作品評価 / Review
+                            </h2>
+                        </div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                            AIを使って作品を多角的に分析・評価し、改善点を見つけましょう。
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setShowHistory(!showHistory)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${showHistory
+                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'
+                            }`}
+                    >
+                        <History size={18} />
+                        履歴 ({currentProject?.evaluations?.length || 0})
+                    </button>
+                </div>
+
+                {showHistory ? (
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                        <h3 className="font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                            <History size={20} />
+                            評価履歴
+                        </h3>
+                        {reversedEvaluations.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {reversedEvaluations.map((evaluation) => (
+                                    <div key={evaluation.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-50 dark:bg-gray-800/50">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-xs font-medium px-2 py-1 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                                {modeMap.get(evaluation.mode)?.label || evaluation.mode}
+                                            </span>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteHistory(evaluation.id); }}
+                                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                        <div className="mb-3">
+                                            <p className="text-sm font-bold text-gray-800 dark:text-gray-200 line-clamp-2">
+                                                {evaluation.summary}
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                {evaluation.date instanceof Date
+                                                    ? evaluation.date.toLocaleString()
+                                                    : new Date(evaluation.date).toLocaleString()}
+                                            </p>
+                                        </div>
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteHistory(evaluation.id); }}
-                                            className="text-gray-400 hover:text-red-500 transition-colors"
+                                            onClick={() => loadHistory(evaluation)}
+                                            className="w-full flex items-center justify-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                                         >
-                                            <Trash2 size={16} />
+                                            詳細を見る <ChevronRight size={14} />
                                         </button>
                                     </div>
-                                    <div className="mb-3">
-                                        <p className="text-sm font-bold text-gray-800 dark:text-gray-200 line-clamp-2">
-                                            {evaluation.summary}
-                                        </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {evaluation.date instanceof Date
-                                                ? evaluation.date.toLocaleString()
-                                                : new Date(evaluation.date).toLocaleString()}
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => loadHistory(evaluation)}
-                                        className="w-full flex items-center justify-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                                    >
-                                        詳細を見る <ChevronRight size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                            保存された評価履歴はありません
-                        </p>
-                    )}
-                </div>
-            ) : (
-                <>
-                    {/* モード選択 */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {EVALUATION_MODES.map((mode) => (
-                            <button
-                                key={mode.id}
-                                onClick={() => setActiveMode(mode.id)}
-                                className={`flex flex-col items-start p-4 rounded-xl border-2 transition-all ${activeMode === mode.id
-                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-gray-800'
-                                    }`}
-                            >
-                                <div className={`p-2 rounded-lg mb-3 ${activeMode === mode.id ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                                    }`}>
-                                    {mode.icon}
-                                </div>
-                                <span className="font-bold text-gray-900 dark:text-gray-100 mb-1">{mode.label}</span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400 text-left">{mode.description}</span>
-                            </button>
-                        ))}
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                保存された評価履歴はありません
+                            </p>
+                        )}
                     </div>
-
-                    {/* 評価の厳しさレベル選択 */}
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                        <h3 className="font-bold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-                            <AlertCircle size={18} />
-                            評価の厳しさレベル
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {STRICTNESS_LEVELS.map((level) => (
-                                <button
-                                    key={level.id}
-                                    onClick={() => setEvaluationStrictness(level.id)}
-                                    className={`flex flex-col items-start p-3 rounded-lg border-2 transition-all ${evaluationStrictness === level.id
-                                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 bg-white dark:bg-gray-800'
-                                        }`}
-                                    title={level.description}
-                                >
-                                    <span className={`font-bold text-sm mb-1 ${evaluationStrictness === level.id
-                                        ? 'text-orange-700 dark:text-orange-300'
-                                        : 'text-gray-700 dark:text-gray-300'
-                                        }`}>
-                                        {level.label}
-                                    </span>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 text-left line-clamp-2">
-                                        {level.description}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* 左側: 入力エリア */}
-                        <div className="lg:col-span-1 flex flex-col gap-4">
-                            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                                <h3 className="font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                                    <FileText size={18} />
-                                    評価対象
-                                </h3>
+                ) : (
+                    <>
+                        {/* ━━━ ① 評価対象 ━━━ */}
+                        {isStepOpen(1) ? (
+                            <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                                <StepHeader n={1} title="評価対象" hint="何を評価する？"
+                                    collapsible={isResultPhase} onToggle={() => setOpenStep(openStep === 1 ? null : 1)} />
 
                                 <div className="flex flex-col gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                             ソース選択
                                         </label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                                                <button
-                                                    onClick={() => setTargetType('synopsis')}
-                                                    className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'synopsis'
-                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
-                                                        }`}
-                                                >
-                                                    あらすじ
-                                                </button>
-                                                <div className="w-px bg-gray-200 dark:bg-gray-700" />
-                                                <button
-                                                    onClick={() => setTargetType('chapter')}
-                                                    className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'chapter'
-                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
-                                                        }`}
-                                                >
-                                                    章
-                                                </button>
-                                            </div>
-                                            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                                                <button
-                                                    onClick={() => setTargetType('whole-story')}
-                                                    className={`flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${targetType === 'whole-story'
-                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
-                                                        }`}
-                                                    title="全章の草案を結合して評価"
-                                                >
-                                                    <Book size={14} />
-                                                    作品全体
-                                                </button>
-                                                <div className="w-px bg-gray-200 dark:bg-gray-700" />
-                                                <button
-                                                    onClick={handleFileSelect}
-                                                    className={`flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${targetType === 'file'
-                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
-                                                        }`}
-                                                    title="ファイルから読み込み (.txt, .md)"
-                                                >
-                                                    <Upload size={14} />
-                                                    ファイル
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mt-2">
+                                        <div className="grid grid-cols-5 gap-2">
                                             <button
-                                                onClick={() => setTargetType('custom')}
-                                                className={`flex-1 py-2 text-sm font-medium transition-colors ${targetType === 'custom'
-                                                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                                                    : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400'
+                                                onClick={() => setTargetType('synopsis')}
+                                                className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${targetType === 'synopsis'
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-indigo-300 dark:hover:border-indigo-700'
                                                     }`}
                                             >
-                                                カスタム（手入力）
+                                                <FileText size={18} />
+                                                <span className="text-xs font-medium">あらすじ</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setTargetType('chapter')}
+                                                className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${targetType === 'chapter'
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-indigo-300 dark:hover:border-indigo-700'
+                                                    }`}
+                                            >
+                                                <BookOpen size={18} />
+                                                <span className="text-xs font-medium">章</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setTargetType('whole-story')}
+                                                className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${targetType === 'whole-story'
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-indigo-300 dark:hover:border-indigo-700'
+                                                    }`}
+                                                title="全章の草案を結合して評価"
+                                            >
+                                                <Book size={18} />
+                                                <span className="text-xs font-medium">作品全体</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setTargetType('custom')}
+                                                className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${targetType === 'custom'
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-indigo-300 dark:hover:border-indigo-700'
+                                                    }`}
+                                            >
+                                                <Feather size={18} />
+                                                <span className="text-xs font-medium">カスタム</span>
+                                            </button>
+                                            <button
+                                                onClick={handleFileSelect}
+                                                className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${targetType === 'file'
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-indigo-300 dark:hover:border-indigo-700'
+                                                    }`}
+                                                title="ファイルから読み込み (.txt, .md)"
+                                            >
+                                                <Upload size={18} />
+                                                <span className="text-xs font-medium">ファイル</span>
                                             </button>
                                         </div>
                                         <input
@@ -580,31 +586,112 @@ ${result.detailedAnalysis}
                                             placeholder="評価したいテキストを入力してください..."
                                         />
                                     </div>
-
-                                    <button
-                                        onClick={handleEvaluate}
-                                        disabled={isEvaluating || !targetContent.trim()}
-                                        className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                                    >
-                                        {isEvaluating ? (
-                                            <>
-                                                <Loader2 className="animate-spin" size={18} />
-                                                評価中...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Play size={18} />
-                                                評価を実行
-                                            </>
-                                        )}
-                                    </button>
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* 右側: 結果表示エリア */}
-                        <div className="lg:col-span-2">
-                            {result ? (
+                                {isResultPhase && <EditFooter />}
+                            </section>
+                        ) : (
+                            <SetupBar n={1} label="評価対象" value={TARGET_TYPE_LABEL[targetType]} onClick={() => setOpenStep(1)} />
+                        )}
+
+                        {/* ━━━ ② 評価観点 ━━━ */}
+                        {isStepOpen(2) ? (
+                            <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                                <StepHeader n={2} title="評価観点" hint="どの角度で？"
+                                    collapsible={isResultPhase} onToggle={() => setOpenStep(openStep === 2 ? null : 2)} />
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    {EVALUATION_MODES.map((mode) => (
+                                        <button
+                                            key={mode.id}
+                                            onClick={() => setActiveMode(mode.id)}
+                                            className={`flex flex-col items-start p-4 rounded-xl border-2 transition-all ${activeMode === mode.id
+                                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                                                : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-gray-800'
+                                                }`}
+                                        >
+                                            <div className={`p-2 rounded-lg mb-3 ${activeMode === mode.id ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                {mode.icon}
+                                            </div>
+                                            <span className="font-bold text-gray-900 dark:text-gray-100 mb-1">{mode.label}</span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 text-left">{mode.description}</span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {isResultPhase && <EditFooter />}
+                            </section>
+                        ) : (
+                            <SetupBar n={2} label="評価観点" value={activeModeLabel} onClick={() => setOpenStep(2)} />
+                        )}
+
+                        {/* ━━━ ③ 評価の厳しさ ━━━ */}
+                        {isStepOpen(3) ? (
+                            <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                                <StepHeader n={3} title="評価の厳しさ" hint="どれくらい？"
+                                    collapsible={isResultPhase} onToggle={() => setOpenStep(openStep === 3 ? null : 3)} />
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {STRICTNESS_LEVELS.map((level) => (
+                                        <button
+                                            key={level.id}
+                                            onClick={() => setEvaluationStrictness(level.id)}
+                                            className={`flex flex-col items-start p-3 rounded-lg border-2 transition-all ${evaluationStrictness === level.id
+                                                ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                                                : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 bg-white dark:bg-gray-800'
+                                                }`}
+                                            title={level.description}
+                                        >
+                                            <span className={`font-bold text-sm mb-1 ${evaluationStrictness === level.id
+                                                ? 'text-orange-700 dark:text-orange-300'
+                                                : 'text-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                {level.label}
+                                            </span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 text-left line-clamp-2">
+                                                {level.description}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {isResultPhase && <EditFooter />}
+                            </section>
+                        ) : (
+                            <SetupBar n={3} label="評価の厳しさ" value={strictnessLabel} onClick={() => setOpenStep(3)} />
+                        )}
+
+                        {/* ━━━ ④ 評価を実行（設定フェーズのみ） ━━━ */}
+                        {!isResultPhase && !isEvaluating && (
+                            <button
+                                onClick={handleEvaluate}
+                                disabled={!targetContent.trim()}
+                                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Play size={18} /> 評価を実行
+                            </button>
+                        )}
+
+                        {/* ━━━ 結果 ━━━ */}
+                        {isEvaluating ? (
+                            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 min-h-[300px]">
+                                <div className="flex items-center gap-2 mb-4 text-indigo-600 dark:text-indigo-400">
+                                    <Loader2 className="animate-spin" size={18} />
+                                    <span className="text-sm font-medium font-['Noto_Sans_JP']">評価を実行中...</span>
+                                </div>
+                                <SkeletonLoader variant="card" lines={6} className="mb-4" />
+                                <SkeletonLoader variant="list" lines={3} />
+                            </div>
+                        ) : result ? (
+                            <>
+                                {/* セクション区切り */}
+                                <div className="flex items-center gap-3 my-1">
+                                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                                    <span className="text-xs font-semibold text-gray-400">▼ 評価結果</span>
+                                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                                </div>
+
                                 <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     {/* アクションボタン */}
                                     <div className="flex justify-end gap-2">
@@ -720,28 +807,11 @@ ${result.detailedAnalysis}
                                         />
                                     </div>
                                 </div>
-                            ) : isEvaluating ? (
-                                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 min-h-[400px]">
-                                    <div className="flex items-center gap-2 mb-4 text-indigo-600 dark:text-indigo-400">
-                                        <Loader2 className="animate-spin" size={18} />
-                                        <span className="text-sm font-medium font-['Noto_Sans_JP']">評価を実行中...</span>
-                                    </div>
-                                    <SkeletonLoader variant="card" lines={6} className="mb-4" />
-                                    <SkeletonLoader variant="list" lines={3} />
-                                </div>
-                            ) : (
-                                <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50">
-                                    <div className="bg-white dark:bg-gray-800 p-4 rounded-full shadow-sm mb-4">
-                                        <BookOpen size={32} className="text-indigo-200 dark:text-indigo-800" />
-                                    </div>
-                                    <p className="text-lg font-medium mb-2">評価結果がここに表示されます</p>
-                                    <p className="text-sm">左側のパネルから評価対象を選択し、「評価を実行」ボタンを押してください</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </>
-            )}
+                            </>
+                        ) : null}
+                    </>
+                )}
+            </div>
         </div>
     );
 };

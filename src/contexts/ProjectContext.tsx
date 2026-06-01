@@ -58,6 +58,7 @@ interface ProjectContextType {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
   createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
+  createSequelProject: (parent: Project, overrides: Partial<Project>) => Project;
   saveProject: () => Promise<void>;
   createManualBackup: (description?: string) => Promise<void>;
   loadProject: (id: string) => Promise<void>;
@@ -361,6 +362,69 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     console.log('作成されたプロジェクトのあらすじの長さ:', newProject.synopsis?.length || 0);
 
     return newProject;
+  }, [setCurrentProject]);
+
+  // 続編プロジェクトを作成（続編構成機能から呼び出し）
+  // 前作(parent)の設定を引き継ぎつつ、AI生成した overrides で上書きする
+  const createSequelProject = useCallback((parent: Project, overrides: Partial<Project>): Project => {
+    const now = new Date();
+    const sequel: Project = {
+      id: Date.now().toString(),
+      title: overrides.title || `${parent.title}（続編）`,
+      description: overrides.description ?? '',
+      coverImage: undefined,
+      genre: parent.mainGenre ?? parent.genre,
+      mainGenre: parent.mainGenre,
+      subGenre: parent.subGenre,
+      targetReader: parent.targetReader,
+      projectTheme: parent.projectTheme,
+      customMainGenre: '',
+      customSubGenre: '',
+      customTargetReader: '',
+      customTheme: '',
+      theme: parent.theme ?? '',
+      imageBoard: [],
+      progress: {
+        character: 0,
+        plot: 0,
+        synopsis: 0,
+        chapter: 0,
+        draft: 0,
+      },
+      characters: overrides.characters ?? parent.characters ?? [],
+      plot: {
+        theme: '',
+        setting: '',
+        hook: '',
+        protagonistGoal: '',
+        mainObstacle: '',
+        structure: 'kishotenketsu',
+        ki: '',
+        sho: '',
+        ten: '',
+        ketsu: '',
+        ...overrides.plot,
+      },
+      synopsis: overrides.synopsis ?? '',
+      chapters: [],
+      draft: '',
+      createdAt: now,
+      updatedAt: now,
+      lastAccessed: now,
+      glossary: parent.glossary ?? [],
+      relationships: overrides.relationships ?? parent.relationships ?? [],
+      timeline: [],
+      worldSettings: overrides.worldSettings ?? parent.worldSettings ?? [],
+      foreshadowings: [],
+      writingStyle: parent.writingStyle,
+      parentProjectId: parent.id,
+      sequelNumber: (parent.sequelNumber ?? 0) + 1,
+    };
+
+    setProjects(prev => [...prev, sequel]);
+    setCurrentProject(sequel); // setCurrentProject 内でDBにも保存される
+
+    return sequel;
   }, [setCurrentProject]);
 
   const saveProject = useCallback(async (): Promise<void> => {
@@ -668,6 +732,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     setProjects,
     updateProject,
     createNewProject,
+    createSequelProject,
     saveProject,
     createManualBackup,
     loadProject,
@@ -685,6 +750,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     setCurrentProject,
     updateProject,
     createNewProject,
+    createSequelProject,
     saveProject,
     createManualBackup,
     loadProject,

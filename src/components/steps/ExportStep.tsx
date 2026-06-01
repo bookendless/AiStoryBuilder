@@ -32,6 +32,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
     worldSettings: true,
     foreshadowings: true,
     memo: true,
+    htmlIncludeImages: true,
   });
 
   // プリセット定義
@@ -53,6 +54,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         worldSettings: true,
         foreshadowings: true,
         memo: true,
+        htmlIncludeImages: true,
       },
     },
     draftOnly: {
@@ -72,6 +74,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         worldSettings: false,
         foreshadowings: false,
         memo: false,
+        htmlIncludeImages: true,
       },
     },
     settingsOnly: {
@@ -91,6 +94,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         worldSettings: true,
         foreshadowings: true,
         memo: false,
+        htmlIncludeImages: true,
       },
     },
   };
@@ -1012,6 +1016,21 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
   const generateHtmlContent = useCallback(() => {
     if (!currentProject) return '';
 
+    // サイドバーナビ生成
+    let navHtml = '';
+    if (exportOptions.basicInfo && (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme)) navHtml += '\n        <a href="#basic-info">基本情報</a>';
+    if (exportOptions.characters && currentProject.characters.length > 0) navHtml += '\n        <a href="#characters">キャラクター</a>';
+    if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.hook || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle || currentProject.plot.ending)) navHtml += '\n        <a href="#plot">プロット</a>';
+    if (exportOptions.synopsis && currentProject.synopsis) navHtml += '\n        <a href="#synopsis">あらすじ</a>';
+    if (exportOptions.chapters && currentProject.chapters.length > 0) navHtml += '\n        <a href="#chapters">章立て</a>';
+    if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) navHtml += '\n        <a href="#image-board">イメージボード</a>';
+    if (exportOptions.draft && (currentProject.chapters.some(c => c.draft?.trim()) || !!(currentProject.draft?.trim()))) navHtml += '\n        <a href="#draft">草案</a>';
+    if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) navHtml += '\n        <a href="#glossary">用語集</a>';
+    if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) navHtml += '\n        <a href="#relationships">相関図</a>';
+    if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) navHtml += '\n        <a href="#timeline">タイムライン</a>';
+    if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) navHtml += '\n        <a href="#world-settings">世界観</a>';
+    if (exportOptions.foreshadowings && currentProject.foreshadowings && currentProject.foreshadowings.length > 0) navHtml += '\n        <a href="#foreshadowings">伏線</a>';
+
     let content = `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1019,33 +1038,108 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(currentProject.title)}</title>
     <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
         body {
             font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
             line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
             color: #333;
-            background-color: #fff;
+            background-color: #f5f6fa;
         }
-        h1 {
+        .layout { display: flex; min-height: 100vh; }
+        .sidebar {
+            width: 240px;
+            min-width: 240px;
+            background: #2c3e50;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            padding: 20px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .sidebar-header h1 {
+            font-size: 0.9em;
+            color: #ecf0f1;
+            line-height: 1.4;
+            word-break: break-all;
+            font-weight: bold;
+        }
+        .sidebar nav { padding: 8px 0; }
+        .sidebar a {
+            display: block;
+            padding: 9px 16px;
+            color: #bdc3c7;
+            text-decoration: none;
+            font-size: 0.875em;
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+        .sidebar a:hover {
+            background: rgba(255,255,255,0.08);
+            border-left-color: #e74c3c;
+            color: #ecf0f1;
+        }
+        .main {
+            flex: 1;
+            padding: 32px 40px;
+            max-width: 960px;
+            background: #fff;
+            min-height: 100vh;
+        }
+        .page-header { margin-bottom: 32px; }
+        .page-header h1 {
+            font-size: 2em;
             color: #2c3e50;
             border-bottom: 3px solid #e74c3c;
-            padding-bottom: 10px;
-            margin-bottom: 30px;
+            padding-bottom: 12px;
         }
+        .page-desc { color: #7f8c8d; margin-top: 10px; font-style: italic; }
         h2 {
             color: #34495e;
             border-bottom: 2px solid #3498db;
-            padding-bottom: 5px;
-            margin-top: 30px;
-            margin-bottom: 15px;
+            padding-bottom: 6px;
+            margin-top: 40px;
+            margin-bottom: 16px;
+            font-size: 1.4em;
         }
-        h3 {
-            color: #2c3e50;
-            margin-top: 20px;
-            margin-bottom: 10px;
+        h3 { color: #2c3e50; margin-top: 16px; margin-bottom: 8px; }
+        h4 { color: #34495e; margin-top: 12px; margin-bottom: 6px; }
+        p { margin: 6px 0; }
+        ul { padding-left: 20px; }
+        li { margin: 4px 0; }
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 16px;
+            margin: 16px 0 24px;
         }
+        .char-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .char-card img {
+            width: 100%;
+            height: 170px;
+            object-fit: cover;
+            display: block;
+        }
+        .char-placeholder {
+            width: 100%;
+            height: 170px;
+            background: linear-gradient(135deg, #ecf0f1, #d5d8dc);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .char-card-body { padding: 12px; }
+        .char-card-body h3 { font-size: 0.9em; margin: 0 0 2px; }
+        .char-card-body .role { font-size: 0.78em; color: #7f8c8d; margin: 0; }
         .character-card {
             background-color: #f8f9fa;
             border-left: 4px solid #e74c3c;
@@ -1073,10 +1167,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
             border: 1px solid #ffebee;
             white-space: pre-wrap;
         }
-        .summary {
-            color: #7f8c8d;
-            font-style: italic;
-        }
+        .summary { color: #7f8c8d; font-style: italic; }
         .metadata {
             background-color: #f8f9fa;
             padding: 15px;
@@ -1084,23 +1175,44 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
             margin: 20px 0;
             font-size: 0.9em;
         }
+        .footer {
+            margin-top: 48px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+            color: #95a5a6;
+            font-size: 0.85em;
+        }
+        @media (max-width: 768px) {
+            .layout { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: relative; }
+            .main { padding: 20px 16px; }
+            .char-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        }
+        @media print {
+            .sidebar { display: none; }
+            .main { max-width: 100%; padding: 0; }
+        }
     </style>
 </head>
 <body>
-    <h1>${escapeHtml(currentProject.title)}</h1>`;
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>${escapeHtml(currentProject.title)}</h1>
+            </div>
+            <nav>${navHtml}
+            </nav>
+        </aside>
+        <main class="main">
+            <div class="page-header">
+                <h1>${escapeHtml(currentProject.title)}</h1>${currentProject.description ? `
+                <p class="page-desc">${escapeHtml(currentProject.description)}</p>` : ''}
+            </div>`;
 
     if (exportOptions.basicInfo) {
-      if (currentProject.description) {
-        content += `
-    <div class="summary">
-        <strong>概要:</strong> ${escapeHtml(currentProject.description)}
-    </div>`;
-      }
-
-      // ジャンル・読者層・テーマ情報の追加
       if (currentProject.mainGenre || currentProject.subGenre || currentProject.targetReader || currentProject.projectTheme) {
         content += `
-    <h2>基本情報</h2>
+    <h2 id="basic-info">基本情報</h2>
     <div class="metadata">`;
         if (currentProject.mainGenre) content += `
         <p><strong>メインジャンル:</strong> ${escapeHtml(currentProject.mainGenre)}</p>`;
@@ -1117,7 +1229,34 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.characters && currentProject.characters.length > 0) {
       content += `
-    <h2>キャラクター一覧</h2>`;
+    <h2 id="characters">キャラクター一覧</h2>`;
+
+      if (exportOptions.htmlIncludeImages) {
+        content += `
+    <div class="char-grid">`;
+        currentProject.characters.forEach(char => {
+          content += `
+      <div class="char-card">`;
+          if (char.image) {
+            content += `
+        <img src="${escapeHtml(char.image)}" alt="${escapeHtml(char.name)}" loading="lazy">`;
+          } else {
+            content += `
+        <div class="char-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        </div>`;
+          }
+          content += `
+        <div class="char-card-body">
+          <h3>${escapeHtml(char.name)}</h3>
+          <p class="role">${escapeHtml(char.role)}</p>
+        </div>
+      </div>`;
+        });
+        content += `
+    </div>`;
+      }
+
       currentProject.characters.forEach(char => {
         content += `
     <div class="character-card">
@@ -1135,7 +1274,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.plot && (currentProject.plot.theme || currentProject.plot.setting || currentProject.plot.hook || currentProject.plot.protagonistGoal || currentProject.plot.mainObstacle || currentProject.plot.ending)) {
       content += `
-    <h2>プロット</h2>`;
+    <h2 id="plot">プロット</h2>`;
       if (currentProject.plot.theme) content += `
     <div class="plot-item">
         <strong>テーマ:</strong> ${escapeHtml(currentProject.plot.theme)}
@@ -1312,13 +1451,13 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.synopsis && currentProject.synopsis) {
       content += `
-    <h2>あらすじ</h2>
+    <h2 id="synopsis">あらすじ</h2>
     <div class="draft-content">${escapeHtml(currentProject.synopsis)}</div>`;
     }
 
     if (exportOptions.chapters && currentProject.chapters.length > 0) {
       content += `
-    <h2>章立て</h2>`;
+    <h2 id="chapters">章立て</h2>`;
       currentProject.chapters.forEach((chapter, index) => {
         content += `
     <div class="chapter-item">
@@ -1347,7 +1486,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.imageBoard && currentProject.imageBoard.length > 0) {
       content += `
-    <h2>イメージボード</h2>`;
+    <h2 id="image-board">イメージボード</h2>`;
       currentProject.imageBoard.forEach((image, index) => {
         content += `
     <div class="character-card" style="margin-bottom: 20px;">
@@ -1379,7 +1518,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
       if (allDrafts.length > 0 || projectDraft) {
         content += `
-    <h2>草案</h2>`;
+    <h2 id="draft">草案</h2>`;
 
         // 章の草案を追加
         if (allDrafts.length > 0) {
@@ -1396,7 +1535,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.glossary && currentProject.glossary && currentProject.glossary.length > 0) {
       content += `
-    <h2>用語集</h2>`;
+    <h2 id="glossary">用語集</h2>`;
       currentProject.glossary.forEach(term => {
         content += `
     <div class="character-card">
@@ -1413,7 +1552,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.relationships && currentProject.relationships && currentProject.relationships.length > 0) {
       content += `
-    <h2>キャラクター相関図</h2>`;
+    <h2 id="relationships">キャラクター相関図</h2>`;
       currentProject.relationships.forEach(rel => {
         const fromChar = currentProject.characters.find(c => c.id === rel.from);
         const toChar = currentProject.characters.find(c => c.id === rel.to);
@@ -1434,7 +1573,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.timeline && currentProject.timeline && currentProject.timeline.length > 0) {
       content += `
-    <h2>タイムライン</h2>`;
+    <h2 id="timeline">タイムライン</h2>`;
       const sortedTimeline = [...currentProject.timeline].sort((a, b) => a.order - b.order);
       sortedTimeline.forEach(event => {
         content += `
@@ -1464,7 +1603,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
     if (exportOptions.worldSettings && currentProject.worldSettings && currentProject.worldSettings.length > 0) {
       content += `
-    <h2>世界観設定</h2>`;
+    <h2 id="world-settings">世界観設定</h2>`;
       currentProject.worldSettings.forEach(setting => {
         content += `
     <div class="character-card">
@@ -1488,7 +1627,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
       const statusColors: Record<string, string> = { planted: '#3498db', hinted: '#f39c12', resolved: '#27ae60', abandoned: '#7f8c8d' };
 
       content += `
-    <h2>伏線トラッカー</h2>`;
+    <h2 id="foreshadowings">伏線トラッカー</h2>`;
       currentProject.foreshadowings.forEach(foreshadowing => {
         content += `
     <div class="character-card" style="border-left-color: ${statusColors[foreshadowing.status] || '#e74c3c'};">
@@ -1585,7 +1724,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
           const hasMemo = Object.values(memoData).some(v => v && v.trim().length > 0);
           if (hasMemo) {
             content += `
-    <h2>クイックメモ</h2>`;
+    <h2 id="memo">クイックメモ</h2>`;
             Object.entries(memoData).forEach(([key, value]) => {
               if (value && value.trim().length > 0) {
                 content += `
@@ -1607,9 +1746,11 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
     const updatedAtDate = currentProject.updatedAt instanceof Date ? currentProject.updatedAt : new Date(currentProject.updatedAt);
 
     content += `
-    <div class="metadata">
+    <div class="footer">
         <p><strong>作成日:</strong> ${createdAtDate.toLocaleDateString('ja-JP')}</p>
         <p><strong>更新日:</strong> ${updatedAtDate.toLocaleDateString('ja-JP')}</p>
+    </div>
+        </main>
     </div>
 </body>
 </html>`;
@@ -1784,7 +1925,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
                       basicInfo: true, characters: true, plot: true, synopsis: true,
                       chapters: true, imageBoard: true, draft: true, glossary: true,
                       relationships: true, timeline: true, worldSettings: true,
-                      foreshadowings: true, memo: true,
+                      foreshadowings: true, memo: true, htmlIncludeImages: true,
                     });
                     setSelectedPreset(null);
                   }}
@@ -1799,7 +1940,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
                       basicInfo: false, characters: false, plot: false, synopsis: false,
                       chapters: false, imageBoard: false, draft: false, glossary: false,
                       relationships: false, timeline: false, worldSettings: false,
-                      foreshadowings: false, memo: false,
+                      foreshadowings: false, memo: false, htmlIncludeImages: false,
                     });
                     setSelectedPreset(null);
                   }}
@@ -1845,6 +1986,26 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
               ))}
             </div>
           </div>
+
+          {/* HTML形式専用オプション */}
+          {selectedFormat === 'html' && (
+            <div className="mt-4 pt-4 border-t border-orange-200 dark:border-orange-800">
+              <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2 font-['Noto_Sans_JP']">
+                HTML専用オプション
+              </h4>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportOptions.htmlIncludeImages}
+                  onChange={(e) => setExportOptions({ ...exportOptions, htmlIncludeImages: e.target.checked })}
+                  className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                  キャラクター画像を含める
+                </span>
+              </label>
+            </div>
+          )}
 
           <div className="mt-4 lg:mt-6 pt-4 lg:pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2">
             <button

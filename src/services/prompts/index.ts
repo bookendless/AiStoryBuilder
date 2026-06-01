@@ -62,6 +62,9 @@ export * from './foreshadowing';
 // 画像・音声からの物語生成関連プロンプト
 export * from './media';
 
+// 続編構成関連プロンプト（ビルダー関数群）
+export * from './sequel';
+
 // 全プロンプトを統合したオブジェクトを構築
 import { CHARACTER_PROMPTS } from './character';
 import { PLOT_PROMPTS } from './plot';

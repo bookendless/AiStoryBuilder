@@ -131,6 +131,8 @@ export interface Project {
     };
     emotionMap?: EmotionMap; // 感情マップ
     currentStep?: Exclude<Step, 'home'>; // 最後に編集中だったステップ（'home'は除外）
+    parentProjectId?: string; // 続編元（前作）のプロジェクトID。続編構成で生成された場合に設定
+    sequelNumber?: number; // 続編の世代（1=直接続編, 2=続編の続編 ...）。オリジナルは未設定
 }
 
 /**

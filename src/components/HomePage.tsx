@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic } from 'lucide-react';
+import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic, Library } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { startAutoBackup, stopAutoBackup } from '../services/autoBackupService';
@@ -10,6 +10,7 @@ import { ImageToStoryModal } from './ImageToStoryModal';
 import { AudioToStoryModal } from './AudioToStoryModal';
 import { AudioImageToStoryModal } from './AudioImageToStoryModal';
 import { StoryProposalModal } from './StoryProposalModal';
+import { SequelComposerModal } from './sequel/SequelComposerModal';
 import { Project } from '../contexts/ProjectContext';
 import { useToast } from './Toast';
 import { getUserFriendlyError } from '../utils/errorHandler';
@@ -31,6 +32,7 @@ interface ProjectCardProps {
   onDuplicate: (e: React.MouseEvent, projectId: string) => void;
   onDelete: (e: React.MouseEvent, projectId: string) => void;
   isLoading: boolean;
+  parentTitle?: string;
 }
 
 const ProjectCard = React.memo<ProjectCardProps>(({
@@ -40,7 +42,8 @@ const ProjectCard = React.memo<ProjectCardProps>(({
   onEdit,
   onDuplicate,
   onDelete,
-  isLoading
+  isLoading,
+  parentTitle
 }) => {
   return (
     <Card
@@ -66,6 +69,12 @@ const ProjectCard = React.memo<ProjectCardProps>(({
 
       {/* タイトル */}
       <div className="mb-3">
+        {parentTitle && (
+          <span className="inline-flex items-center gap-1 mb-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 text-xs rounded-full font-['Noto_Sans_JP']">
+            <Library className="h-3 w-3" />
+            「{parentTitle}」の続編
+          </span>
+        )}
         <h3 className="text-xl font-bold text-sumi-900 dark:text-usuzumi-50 line-clamp-2 font-['Noto_Sans_JP']">
           {project.title}
         </h3>
@@ -207,7 +216,8 @@ const ProjectCard = React.memo<ProjectCardProps>(({
     prevProps.progress.percentage === nextProps.progress.percentage &&
     prevProps.progress.completedSteps === nextProps.progress.completedSteps &&
     prevProps.progress.totalSteps === nextProps.progress.totalSteps &&
-    prevProps.isLoading === nextProps.isLoading
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.parentTitle === nextProps.parentTitle
   );
 });
 
@@ -324,6 +334,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const [showAudioToStoryModal, setShowAudioToStoryModal] = useState(false);
   const [showAudioImageToStoryModal, setShowAudioImageToStoryModal] = useState(false);
   const [showStoryProposalModal, setShowStoryProposalModal] = useState(false);
+  const [showSequelModal, setShowSequelModal] = useState(false);
   const [storyProposal, setStoryProposal] = useState<StoryProposal | null>(null);
   const [showContextHelp, setShowContextHelp] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
@@ -402,6 +413,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       nextStep: progress.nextStep,
     };
   };
+
+  // プロジェクトID → タイトルのマップ（続編バッジの前作名表示に使用）
+  const projectTitleById = useMemo(() => {
+    const map: Record<string, string> = {};
+    projects.forEach(p => { map[p.id] = p.title; });
+    return map;
+  }, [projects]);
 
   // 最近使用したプロジェクトを取得（最大5件）
   const recentProjects = useMemo(() => {
@@ -589,6 +607,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                 <Mic className="h-3.5 w-3.5" />
                 <span>音声から物語を作る</span>
               </button>
+              <button
+                onClick={() => setShowSequelModal(true)}
+                className="inline-flex items-center space-x-1.5 bg-teal-600 text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
+                title="完成した作品の続編をAI補助で作成"
+              >
+                <Library className="h-3.5 w-3.5" />
+                <span>続編構成</span>
+              </button>
             </div>
           </div>
         )}
@@ -755,6 +781,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                     onDuplicate={handleDuplicateProject}
                     onDelete={handleDeleteProject}
                     isLoading={false}
+                    parentTitle={project.parentProjectId ? projectTitleById[project.parentProjectId] : undefined}
                   />
                 );
               })}
@@ -901,6 +928,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
         }}
         onNavigateToStep={onNavigateToStep}
         proposal={storyProposal}
+      />
+
+      {/* Sequel Composer Modal */}
+      <SequelComposerModal
+        isOpen={showSequelModal}
+        onClose={() => setShowSequelModal(false)}
+        onNavigateToStep={onNavigateToStep}
       />
 
       {/* Context Help */}
