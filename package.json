@@ -54,10 +54,10 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/cli": "^2.9.4",
-    "@tauri-apps/plugin-dialog": "^2.4.2",
-    "@tauri-apps/plugin-fs": "^2.4.4",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-http": "^2.5.4",
     "@tauri-apps/plugin-store": "^2.2.0",
     "axios": "^1.11.0",
