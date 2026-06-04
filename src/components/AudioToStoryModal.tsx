@@ -93,9 +93,9 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
     const isOpenAISupported = settings.provider === 'openai';
 
     if (!isGeminiSupported && !isOpenAISupported) {
-      showError('音声解析にはGemini 3.0 ProまたはOpenAI（GPT-5.1系など）が必要です。AI設定で対応モデルを選択してください。', 7000, {
+      showError('音声解析にはGemini 3系またはOpenAIのモデルが必要です。AI設定で対応モデルを選択してください。', 7000, {
         title: '対応モデルエラー',
-        details: '音声解析機能はGemini 3.0 Pro（gemini-3-pro-preview）またはOpenAI（gpt-5.1、gpt-5.1-mini、gpt-4o、gpt-4-turboなど）に対応しています。',
+        details: '音声解析機能はGemini 3系（gemini-3.1-pro-preview など）またはOpenAI（gpt-5.5、gpt-5.4、gpt-4o など）に対応しています。',
       });
       return;
     }
@@ -150,7 +150,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
         if (response.error) {
           // モデルが存在しない場合のエラーメッセージを改善
           if (response.error.includes('does not exist') || response.error.includes('not have access')) {
-            throw new Error(`選択されたモデル「${settings.model}」にアクセスできません。\n\n【対処法】\n- AI設定で別のモデル（例：gpt-4o、gpt-4-turbo、gpt-4o-mini）を選択してください\n- モデルが利用可能か、APIキーに適切な権限があるか確認してください`);
+            throw new Error(`選択されたモデル「${settings.model}」にアクセスできません。\n\n【対処法】\n- AI設定で別のモデル（例：gpt-5.4、gpt-5.4-mini、gpt-4o）を選択してください\n- モデルが利用可能か、APIキーに適切な権限があるか確認してください`);
           }
           throw new Error(response.error);
         }
@@ -317,7 +317,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
             音声ファイルをアップロードすると、AIが音声を分析して物語プロジェクトの提案を生成します。
             <br />
             <span className="text-xs mt-2 block">
-              ※ 音声解析にはGemini 3.0 ProまたはGPT-5.2系（gpt-5.2、gpt-5.1）が必要です。
+              ※ 音声解析にはGemini 3系またはOpenAI（GPT-5系など）のモデルが必要です。
             </span>
           </p>
         </div>

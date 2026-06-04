@@ -61,8 +61,11 @@ npm run tauri:dev:android
 プロジェクトルートに `.env.local` ファイルを作成することで、APIキー等を自動読み込みできます。
 
 ```bash
-# OpenAI / xAI Grok (OpenAI compatible)
+# OpenAI
 VITE_OPENAI_API_KEY=sk-xxx
+
+# xAI Grok（OpenAI互換APIだが、キーは個別に設定）
+VITE_GROK_API_KEY=xai-xxx
 
 # Anthropic Claude
 VITE_CLAUDE_API_KEY=sk-ant-xxx
@@ -73,6 +76,8 @@ VITE_GEMINI_API_KEY=xxx
 # Local LLM Endpoint (Default)
 VITE_LOCAL_LLM_ENDPOINT=http://localhost:11434/v1
 ```
+
+> ⚠️ `VITE_*` 変数はビルド時にJSバンドルへ平文で埋め込まれます。配布ビルドには設定せず、APIキーはアプリ内の「AI設定」画面から登録してください（暗号化して保存されます）。`.env.local` は開発・テスト用途に限定してください。
 
 ## 🏗 ビルドとデプロイ
 

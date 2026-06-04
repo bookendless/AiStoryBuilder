@@ -29,7 +29,7 @@ const getDefaultSettings = (): AISettings => {
     defaultModel = 'gpt-4.1-mini';
   } else if (claudeKey) {
     defaultProvider = 'claude';
-    defaultModel = 'claude-3-5-haiku-20241022';
+    defaultModel = 'claude-haiku-4-5-20251001';
   } else if (geminiKey) {
     defaultProvider = 'gemini';
     defaultModel = 'gemini-2.5-flash';

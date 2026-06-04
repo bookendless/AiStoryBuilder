@@ -3,12 +3,21 @@ import { AIProvider } from '../../types/ai';
 // Claudeモデル定義
 const CLAUDE_MODELS = [
   {
-    id: 'claude-opus-4-7',
-    name: 'Claude Opus 4.7',
-    description: '2026年最新フラッグシップ。推論・エージェント機能が最高水準。1Mコンテキスト、最大128k出力',
+    id: 'claude-opus-4-8',
+    name: 'Claude Opus 4.8',
+    description: '2026年最新フラッグシップ。複雑な推論・長期エージェントコーディングで最高水準。1Mコンテキスト、最大128k出力',
     maxTokens: 1000000,
     capabilities: ['テキスト', 'ビジョン', '高度推論', 'エージェント'],
     recommendedUse: '最高難易度の分析、長期エージェントタスク、高度な専門領域',
+    latencyClass: 'standard' as const,
+  },
+  {
+    id: 'claude-opus-4-7',
+    name: 'Claude Opus 4.7',
+    description: '2026年登場。レガシー版フラッグシップ（4.8への移行を推奨）。1Mコンテキスト、最大128k出力',
+    maxTokens: 1000000,
+    capabilities: ['テキスト', 'ビジョン', '高度推論', 'エージェント'],
+    recommendedUse: '高難易度の分析、長期エージェントタスク、高度な専門領域',
     latencyClass: 'standard' as const,
   },
   {
@@ -81,7 +90,7 @@ export const claudeProvider: AIProvider = {
   id: 'claude',
   name: 'Anthropic Claude',
   requiresApiKey: true,
-  description: 'Claude 4.7 / 4.6 / 4.5 ファミリー。長文要約や整合性チェックに強みがあります。',
+  description: 'Claude 4.8 / 4.7 / 4.6 / 4.5 ファミリー。長文要約や整合性チェックに強みがあります。',
   apiDocsUrl: 'https://docs.anthropic.com/en/api/messages',
   recommendedUses: [
     '長文の推敲や構造化された要約',

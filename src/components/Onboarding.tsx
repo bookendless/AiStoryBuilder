@@ -1,364 +1,370 @@
+// Onboarding.tsx — 案B「ガイドマップ」実装
+// 既存の Onboarding を置き換えるドロップイン。props / 完了フラグ / フックは踏襲。
+// レイアウトは Tailwind、data 駆動の色のみ inline style。レスポンシブは md: で分岐。
+
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, Sparkles, BookOpen, PenTool, Download, CheckCircle2, ArrowRight, HelpCircle, Wrench, Settings } from 'lucide-react';
+import {
+  ChevronRight, ChevronLeft, ArrowRight, X, Check, Compass, HelpCircle,
+} from 'lucide-react';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
-import { Modal } from './common/Modal';
 import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { createPortal } from 'react-dom';
+import {
+  GUIDE_PALETTE as P, GUIDE_GRADIENT as GRAD,
+  CHAPTERS, CORE_VALUES, PHASES, TOOL_GROUPS, SCHEMATIC_TOOLS, AI_SETUP, SHORTCUTS,
+} from './onboardingData';
 
 interface OnboardingProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: () => void;
-  mode?: 'full' | 'quick'; // フルオンボーディングまたはクイックガイド
+  mode?: 'full' | 'quick';
 }
 
-interface OnboardingStep {
-  id: string;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  image?: string;
-  features?: string[];
-}
-
-// クイックガイド用の簡素化されたステップ
-const quickOnboardingSteps: OnboardingStep[] = [
-  {
-    id: 'welcome',
-    title: 'AIと共創するストーリービルダーへようこそ',
-    description: 'このアプリは、AIの力を借りて小説を創作するための支援ツールです。80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう。',
-    icon: <Sparkles className="h-12 w-12 text-indigo-600 dark:text-indigo-400" />,
-    features: [
-      'AIによるキャラクター設計の支援 - キャラクターの名前、性格、背景、外見などをAIが提案し、あなたの創作をサポートします',
-      'プロット構造の自動生成 - 起承転結や3幕構成など、様々な物語構造のテンプレートに基づいてプロットを自動生成します',
-      '草案執筆のAI支援 - 章ごとの執筆をAIがサポートし、続きを書く、描写を強化する、リライトするなどの機能で執筆を効率化します',
-      '',
-      '用語集 - 作品内の重要な用語や設定を整理・管理し、一貫性のある世界観を構築します',
-      '相関図 - キャラクター間の関係性を視覚的に表示し、複雑な人間関係を把握しやすくします',
-      'タイムライン - 物語の時系列やイベントを管理し、時系列の整合性を保ちます',
-      '世界観 - 地理、文化、技術、魔法などの世界設定を体系的に管理し、詳細な世界観を構築します',
-      '伏線トラッカー - 伏線の設置、ヒント、回収を管理し、物語の整合性を保ちます',
-      '感情マップ - キャラクターの感情変化を可視化し、感情の流れを追跡して物語の深みを増します',
-      '',
-      '完全オフライン対応（ローカルLLM使用時） - OllamaなどのローカルLLMを使用すれば、インターネット接続なしでも様々な機能を利用できます',
-    ],
-  },
-  {
-    id: 'workflow',
-    title: '6ステップの制作ワークフロー',
-    description: '小説制作は6つのステップで進めます。各ステップを順番に完了することで、完成度の高い作品を作成できます。',
-    icon: <BookOpen className="h-12 w-12 text-purple-600 dark:text-purple-400" />,
-    features: [
-      '1. 物語の種 - プロットの基本設定',
-      '2. キャラクター - 登場人物の設定',
-      '3. 構成 - 起承転結や3幕構成',
-      '4. あらすじ - 物語の概要',
-      '5. 章立て - 各章の構成',
-      '6. 執筆 - AI支援による執筆',
-    ],
-  },
-  {
-    id: 'tools',
-    title: '分析・エクスポートとプロジェクトツール',
-    description: '作品の完成後は分析機能で品質を確認し、エクスポートで出力できます。また、右側のツールサイドバーには創作を支援する様々なツールが用意されています。',
-    icon: <Wrench className="h-12 w-12 text-teal-600 dark:text-teal-400" />,
-    features: [
-      '分析 - 作品の構造や整合性をチェック',
-      'エクスポート - 完成した作品を出力',
-      'イメージボード - 参考画像を管理',
-      '用語集 - 作品内の用語を整理',
-      '相関図 - キャラクターの関係を可視化',
-      'タイムライン - 物語の時系列を管理',
-      '世界観 - 設定を体系的に管理',
-      '伏線トラッカー - 伏線の設置と回収を管理',
-      '感情マップ - キャラクターの感情変化を可視化',
-      'AIチャット相談 - 創作に関する質問に回答',
-    ],
-  },
-  {
-    id: 'ai-settings',
-    title: 'AI設定を完了させよう',
-    description: 'このアプリの能力を最大限に引き出すために、まずはAI設定を行いましょう。設定画面からAPIキーの登録やローカルLLMとの接続設定が可能です。',
-    icon: <Settings className="h-12 w-12 text-blue-600 dark:text-blue-400" />,
-    features: [
-      'APIキーの設定 - Gemini, OpenAI, AnthropicなどのAPIキーを登録',
-      'ローカルLLM接続 - Ollamaなどと連携してオフラインで利用',
-      'モデルの選択 - 用途に合わせて使用するAIモデルを切り替え',
-      'プロンプトのカスタマイズ - AIの振る舞いを細かく調整',
-    ],
-  },
-];
-
-// フルオンボーディング用の詳細なステップ
-const fullOnboardingSteps: OnboardingStep[] = [
-  {
-    id: 'welcome',
-    title: 'AIと共創するストーリービルダーへようこそ',
-    description: 'このアプリは、AIの力を借りて小説を創作するための支援ツールです。80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう。',
-    icon: <Sparkles className="h-12 w-12 text-indigo-600 dark:text-indigo-400" />,
-    features: [
-      'AIによるキャラクター設計の支援 - キャラクターの名前、性格、背景、外見などをAIが提案し、あなたの創作をサポートします',
-      'プロット構造の自動生成 - 起承転結や3幕構成など、様々な物語構造のテンプレートに基づいてプロットを自動生成します',
-      '草案執筆のAI支援 - 章ごとの執筆をAIがサポートし、続きを書く、描写を強化する、リライトするなどの機能で執筆を効率化します',
-      '完全オフライン対応（ローカルLLM使用時） - OllamaなどのローカルLLMを使用すれば、インターネット接続なしでも様々な機能を利用できます',
-    ],
-  },
-  {
-    id: 'workflow',
-    title: '6ステップの制作ワークフロー',
-    description: '小説制作は6つのステップで進めます。各ステップを順番に完了することで、完成度の高い作品を作成できます。',
-    icon: <BookOpen className="h-12 w-12 text-purple-600 dark:text-purple-400" />,
-    features: [
-      '1. 物語の種 - プロットの基本設定',
-      '2. キャラクター - 登場人物の設定',
-      '3. 構成 - 起承転結や3幕構成',
-      '4. あらすじ - 物語の概要',
-      '5. 章立て - 各章の構成',
-      '6. 執筆 - AI支援による執筆',
-    ],
-  },
-  {
-    id: 'tools',
-    title: '分析・エクスポートとプロジェクトツール',
-    description: '作品の完成後は分析機能で品質を確認し、エクスポートで出力できます。また、右側のツールサイドバーには創作を支援する様々なツールが用意されています。',
-    icon: <Wrench className="h-12 w-12 text-teal-600 dark:text-teal-400" />,
-    features: [
-      '分析 - 作品の構造や整合性をチェックし、改善点を提案',
-      'エクスポート - 完成した作品をMarkdownやテキスト形式で出力',
-      'イメージボード - 参考画像やキャラクター画像を管理',
-      '用語集 - 作品内の重要な用語や設定を整理・管理',
-      '相関図 - キャラクター間の関係性を視覚的に表示',
-      'タイムライン - 物語の時系列やイベントを管理',
-      '世界観 - 地理、文化、技術などの世界設定を体系的に管理',
-      '伏線トラッカー - 伏線の設置、ヒント、回収を管理',
-      '感情マップ - キャラクターの感情変化を可視化',
-      'AIチャット相談 - 創作に関する質問や相談にAIが回答',
-    ],
-  },
-  {
-    id: 'ai-features',
-    title: 'AI機能の活用',
-    description: '各ステップでAIがあなたの創作をサポートします。設定したプロンプトに基づいて、AIが適切な提案を生成します。',
-    icon: <PenTool className="h-12 w-12 text-green-600 dark:text-green-400" />,
-    features: [
-      'キャラクターの背景や性格を自動生成',
-      'プロット構造の提案',
-      'あらすじの自動生成',
-      '章ごとの草案執筆支援',
-      '文章の改善提案',
-    ],
-  },
-  {
-    id: 'shortcuts',
-    title: 'キーボードショートカット',
-    description: '効率的に作業するために、キーボードショートカットを活用しましょう。',
-    icon: <Download className="h-12 w-12 text-orange-600 dark:text-orange-400" />,
-    features: [
-      'Ctrl+S / Cmd+S: 手動保存',
-      'Ctrl+N / Cmd+N: 新規プロジェクト作成',
-      'Ctrl+/ / Cmd+/: ショートカット一覧表示',
-      'Ctrl+B / Cmd+B: サイドバーの折りたたみ',
-      'Esc: モーダルを閉じる',
-    ],
-  },
-  {
-    id: 'ai-settings',
-    title: 'AI設定を完了させよう',
-    description: 'このアプリの能力を最大限に引き出すために、まずはAI設定を行いましょう。設定画面からAPIキーの登録やローカルLLMとの接続設定が可能です。',
-    icon: <Settings className="h-12 w-12 text-blue-600 dark:text-blue-400" />,
-    features: [
-      'APIキーの設定 - Gemini, OpenAI, AnthropicなどのAPIキーを登録',
-      'ローカルLLM接続 - Ollamaなどと連携してオフラインで利用',
-      'モデルの選択 - 用途に合わせて使用するAIモデルを切り替え',
-      'プロンプトのカスタマイズ - AIの振る舞いを細かく調整',
-    ],
-  },
-];
-
-export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onComplete, mode = 'quick' }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const { modalRef } = useModalNavigation({
-    isOpen,
-    onClose: () => {
-      handleComplete();
-    },
-  });
-
-  // Android戻るボタン対応
-  useOverlayBackHandler(isOpen, onClose, 'onboarding-modal', 80);
-
-  // モードに応じてステップを選択
-  const onboardingSteps = mode === 'full' ? fullOnboardingSteps : quickOnboardingSteps;
-  const isFirstTime = !localStorage.getItem('onboarding-completed');
-
-  const handleNext = () => {
-    if (currentStep < onboardingSteps.length - 1) {
-      setIsAnimating(true);
-      setTimeout(() => {
-        setCurrentStep(currentStep + 1);
-        setIsAnimating(false);
-      }, 200);
-    } else {
-      handleComplete();
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStep > 0) {
-      setIsAnimating(true);
-      setTimeout(() => {
-        setCurrentStep(currentStep - 1);
-        setIsAnimating(false);
-      }, 200);
-    }
-  };
-
-  const handleSkip = () => {
-    handleComplete();
-  };
-
-  const handleComplete = () => {
-    // 初回のみ完了フラグを設定
-    if (isFirstTime) {
-      localStorage.setItem('onboarding-completed', 'true');
-    }
-    onComplete();
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
-  const step = onboardingSteps[currentStep];
-  const isFirstStep = currentStep === 0;
-  const isLastStep = currentStep === onboardingSteps.length - 1;
-  const progress = ((currentStep + 1) / onboardingSteps.length) * 100;
-
+// ── 小物 ───────────────────────────────────────────────────────
+const Badge: React.FC<{ kind: 'クラウド' | 'オフライン' }> = ({ kind }) => {
+  const offline = kind === 'オフライン';
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleSkip}
-      title={
-        <div className="flex items-center space-x-3">
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
-            {isFirstTime ? (
-              <Sparkles className="h-6 w-6 text-white" />
-            ) : (
-              <HelpCircle className="h-6 w-6 text-white" />
-            )}
+    <span
+      className="text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+      style={{ color: offline ? P.waka700 : P.ai600, background: offline ? P.waka100 : P.ai50 }}
+    >
+      {kind}
+    </span>
+  );
+};
+
+// ── ようこそ ───────────────────────────────────────────────────
+const WelcomeBody: React.FC = () => (
+  <div>
+    <h2 className="text-2xl md:text-[28px] font-extrabold text-sumi-900 dark:text-white leading-snug mb-2.5 font-['Noto_Sans_JP']">
+      ようこそ。<br />AIと共創する小説づくりへ。
+    </h2>
+    <p className="text-[15px] leading-7 text-sumi-500 dark:text-gray-300 mb-6 max-w-xl font-['Noto_Sans_JP']">
+      面倒な作業の<b style={{ color: P.ai600 }}>80%</b>はAIに、あなたは<b style={{ color: P.murasaki }}>20%</b>の創造性に集中。このガイドで、できることと進め方を3分で掴みましょう。
+    </p>
+    <div className="flex flex-col gap-2.5 mb-5">
+      {CORE_VALUES.map((v, i) => {
+        const Ico = v.icon;
+        return (
+          <div
+            key={v.title}
+            className="flex items-center gap-3.5 px-4 py-3 bg-white dark:bg-white/5 rounded-xl"
+            style={{ border: `1px solid ${P.line}`, borderLeft: `4px solid ${v.tint}` }}
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: v.bg }}>
+              <Ico className="w-5 h-5" style={{ color: v.tint }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14.5px] font-bold text-sumi-900 dark:text-white font-['Noto_Sans_JP']">{v.title}</div>
+              <div className="text-[12.5px] text-sumi-400 dark:text-gray-400 leading-snug font-['Noto_Sans_JP']">{v.desc}</div>
+            </div>
+            <span className="text-xs font-bold text-sumi-300">0{i + 1}</span>
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
-              {isFirstTime ? 'はじめに' : 'ガイド'}
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-              {mode === 'full' ? '詳細ガイド' : 'クイックガイド'} - ステップ {currentStep + 1} / {onboardingSteps.length}
-            </p>
+        );
+      })}
+    </div>
+    <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-[13px] text-sumi-500 dark:text-gray-300 font-['Noto_Sans_JP']" style={{ background: P.uno100 }}>
+      <Compass className="w-[17px] h-[17px] shrink-0" style={{ color: P.ai500 }} />
+      <span>左の<b className="text-sumi-700 dark:text-white">4つの章</b>に沿って、制作の流れ・ツール・AI設定を順に見ていきます。</span>
+    </div>
+  </div>
+);
+
+// ── 制作の流れ：横断ジャーニー ─────────────────────────────────
+const WorkflowBody: React.FC = () => (
+  <div>
+    <h2 className="text-xl md:text-2xl font-extrabold text-sumi-900 dark:text-white mb-1.5 font-['Noto_Sans_JP']">制作の流れ — 3フェーズ・8ステップ</h2>
+    <p className="text-[13.5px] text-sumi-500 dark:text-gray-400 mb-5 font-['Noto_Sans_JP']">左から右へ。1本道で完成まで導きます。</p>
+    <div className="flex flex-col md:flex-row gap-3.5 md:gap-0 items-stretch">
+      {PHASES.map((p, pi) => (
+        <div key={p.id} className="flex-1 relative" style={{ paddingRight: pi < PHASES.length - 1 ? 14 : 0 }}>
+          <div className="text-[12.5px] font-extrabold mb-2.5 flex items-center gap-2 font-['Noto_Sans_JP']" style={{ color: p.color }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+            {p.name}
+            <span className="text-sumi-300 font-semibold">· {p.sub}</span>
+          </div>
+          <div className="rounded-xl p-3" style={{ background: p.bg }}>
+            <div className="flex flex-col md:flex-row gap-2.5 md:gap-1.5 relative">
+              {/* コネクタ線 */}
+              <div className="absolute hidden md:block" style={{ left: 26, right: 26, top: 18, height: 2, background: p.color, opacity: 0.25 }} />
+              <div className="absolute md:hidden" style={{ top: 18, bottom: 18, left: 17, width: 2, background: p.color, opacity: 0.25 }} />
+              {p.steps.map((s) => (
+                <div key={s.n} className="flex-1 flex flex-row md:flex-col items-center gap-3 md:gap-1.5 relative z-[1]">
+                  <div className="w-9 h-9 rounded-full text-white flex items-center justify-center font-extrabold text-[15px] shrink-0" style={{ background: p.color, boxShadow: `0 0 0 3px ${p.bg}` }}>{s.n}</div>
+                  <div className="text-left md:text-center">
+                    <div className="text-[13px] font-bold text-sumi-900 dark:text-white leading-tight font-['Noto_Sans_JP']">{s.label}</div>
+                    <div className="text-[11px] text-sumi-400 dark:text-gray-400 leading-tight mt-0.5 font-['Noto_Sans_JP']">{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      }
-      size="lg"
-      ref={modalRef}
-    >
-      {/* 進捗バー */}
-      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-6">
-        <div
-          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
+      ))}
+    </div>
+  </div>
+);
 
-      {/* コンテンツ */}
-      <div className="flex-1 overflow-y-auto">
-        <div
-          className={`transition-all duration-300 ${isAnimating ? 'opacity-0 transform translate-x-4' : 'opacity-100 transform translate-x-0'
-            }`}
-        >
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">{step.icon}</div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-              {step.title}
-            </h3>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-6 font-['Noto_Sans_JP']">
-              {step.description}
-            </p>
+// ── 創作ツール：アプリの見取り図 ───────────────────────────────
+const WireCol: React.FC<{ label: string; color: string; active?: boolean; className?: string; children: React.ReactNode }> = ({ label, color, active, className = '', children }) => (
+  <div
+    className={`rounded-lg p-2 relative ${className}`}
+    style={{ border: `1.5px ${active ? 'solid' : 'dashed'} ${active ? color : '#CFEDF9'}`, background: active ? `${color}14` : P.uno50 }}
+  >
+    <div className="text-[10.5px] font-bold mb-1.5" style={{ color: active ? color : P.sumi400 }}>{label}</div>
+    {children}
+  </div>
+);
+
+const ToolsBody: React.FC = () => (
+  <div>
+    <h2 className="text-xl md:text-2xl font-extrabold text-sumi-900 dark:text-white mb-1.5 font-['Noto_Sans_JP']">創作ツールは「どこ」にある？</h2>
+    <p className="text-[13.5px] text-sumi-500 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">画面右のサイドバーに、10種のツールがまとまっています。</p>
+    <div className="flex flex-col md:flex-row gap-4">
+      {/* 見取り図 */}
+      <div className="md:w-[300px] md:shrink-0">
+        <div className="bg-white dark:bg-white/5 rounded-2xl p-3 shadow-sm" style={{ border: `1px solid ${P.line}` }}>
+          <div className="h-4 rounded mb-2 flex items-center pl-2 gap-1" style={{ background: '#DFF3FB' }}>
+            {[0, 1, 2].map((i) => <span key={i} className="w-[5px] h-[5px] rounded-full" style={{ background: '#CFEDF9' }} />)}
           </div>
-
-          {step.features && (
-            <div className="space-y-3">
-              {step.features.map((feature, index) => {
-                // 空文字列の場合はスペーサーとして表示
-                if (feature === '') {
-                  return <div key={index} className="h-2" />;
-                }
+          <div className="flex gap-2 h-[150px]">
+            <WireCol label="① 制作ステップ" color={P.ai500} className="w-16 shrink-0">
+              {[1, 2, 3, 4].map((i) => <div key={i} className="h-[7px] rounded mb-[5px]" style={{ background: '#CFEDF9' }} />)}
+            </WireCol>
+            <WireCol label="エディタ" color={P.sumi400} className="flex-1">
+              {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-1.5 rounded mb-1.5" style={{ background: '#DFF3FB', width: i === 5 ? '60%' : '100%' }} />)}
+            </WireCol>
+            <WireCol label="ツール" color={P.murasaki} active className="w-[52px] shrink-0">
+              <div className="flex flex-col gap-1.5 items-center">
+                {SCHEMATIC_TOOLS.map((Ico, i) => (
+                  <div key={i} className="w-[26px] h-[26px] rounded-lg bg-white flex items-center justify-center" style={{ border: `1px solid ${P.murasaki}40` }}>
+                    <Ico className="w-[15px] h-[15px]" style={{ color: P.murasaki }} />
+                  </div>
+                ))}
+              </div>
+            </WireCol>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 mt-2.5 text-xs font-semibold font-['Noto_Sans_JP']" style={{ color: '#684E86' }}>
+          <ArrowRight className="w-[15px] h-[15px]" style={{ color: P.murasaki }} /> いつでもワンタップで開閉できます
+        </div>
+      </div>
+      {/* 凡例 */}
+      <div className="flex-1 flex flex-col gap-3">
+        {TOOL_GROUPS.map((g) => (
+          <div key={g.name}>
+            <div className="text-xs font-bold mb-1.5 font-['Noto_Sans_JP']" style={{ color: g.color }}>{g.name}</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {g.tools.map((t) => {
+                const Ico = t.icon;
                 return (
-                  <div
-                    key={index}
-                    className="flex items-start space-x-3 p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
-                      {feature}
-                    </span>
+                  <div key={t.label} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg" style={{ background: g.bg }}>
+                    <Ico className="w-4 h-4 shrink-0" style={{ color: g.color }} />
+                    <span className="text-[12.5px] font-semibold text-sumi-700 dark:text-white truncate font-['Noto_Sans_JP']">{t.label}</span>
                   </div>
                 );
               })}
             </div>
-          )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// ── AI設定 ─────────────────────────────────────────────────────
+const SettingsBody: React.FC<{ mode: 'full' | 'quick'; onStart: () => void }> = ({ mode, onStart }) => (
+  <div>
+    <h2 className="text-xl md:text-2xl font-extrabold text-sumi-900 dark:text-white mb-1.5 font-['Noto_Sans_JP']">最後に、AI設定</h2>
+    <p className="text-[13.5px] leading-relaxed text-sumi-500 dark:text-gray-400 mb-5 max-w-xl font-['Noto_Sans_JP']">使うAIを選びましょう。クラウドでもオフラインでも動きます。設定はいつでも変更できます。</p>
+    <div className="flex flex-col gap-2.5 mb-5">
+      {AI_SETUP.map((s, i) => {
+        const Ico = s.icon;
+        return (
+          <div key={s.title} className="flex items-center gap-3.5 px-4 py-3.5 bg-white dark:bg-white/5 rounded-xl" style={{ border: `1px solid ${P.line}` }}>
+            <div className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-xs font-extrabold shrink-0" style={{ border: `2px solid #BAC9E1`, color: P.ai500 }}>{i + 1}</div>
+            <div className="w-[42px] h-[42px] rounded-xl flex items-center justify-center shrink-0" style={{ background: P.uno100 }}>
+              <Ico className="w-[22px] h-[22px]" style={{ color: P.ai600 }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[14.5px] font-bold text-sumi-900 dark:text-white font-['Noto_Sans_JP']">{s.title}</span>
+                {s.badge && <Badge kind={s.badge} />}
+              </div>
+              <div className="text-[12.5px] text-sumi-400 dark:text-gray-400 font-['Noto_Sans_JP']">{s.desc}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    {mode === 'full' && (
+      <div className="mb-5 px-4 py-3 rounded-xl" style={{ background: P.uno100 }}>
+        <div className="text-xs font-bold text-sumi-500 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">便利なショートカット</div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          {SHORTCUTS.map((sc) => (
+            <div key={sc.keys} className="flex items-center gap-2 text-[12px] font-['Noto_Sans_JP']">
+              <kbd className="px-1.5 py-0.5 rounded bg-white text-sumi-600 font-mono text-[11px]" style={{ border: `1px solid ${P.line}` }}>{sc.keys}</kbd>
+              <span className="text-sumi-400 dark:text-gray-400">{sc.desc}</span>
+            </div>
+          ))}
         </div>
       </div>
+    )}
+    <div className="flex flex-col md:flex-row gap-2.5">
+      <button
+        onClick={onStart}
+        className="inline-flex items-center justify-center gap-2 px-6 py-3 text-white rounded-xl text-[15px] font-bold font-['Noto_Sans_JP'] transition-transform hover:scale-[1.02]"
+        style={{ background: GRAD, boxShadow: `0 8px 22px ${P.ai500}38` }}
+      >
+        AI設定を開く <ArrowRight className="w-[18px] h-[18px]" />
+      </button>
+      <button
+        onClick={onStart}
+        className="px-5 py-3 bg-transparent text-sumi-500 dark:text-gray-300 rounded-xl text-[14px] font-semibold font-['Noto_Sans_JP'] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+        style={{ border: `1px solid ${P.line}` }}
+      >
+        あとで設定する
+      </button>
+    </div>
+  </div>
+);
 
-      {/* フッター */}
-      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={handlePrevious}
-            disabled={isFirstStep}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors font-['Noto_Sans_JP'] ${isFirstStep
-              ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-          >
-            <ChevronLeft className="h-5 w-5" />
-            <span>前へ</span>
-          </button>
+// ── 章レール ───────────────────────────────────────────────────
+const RailItem: React.FC<{ index: number; step: number; chapter: typeof CHAPTERS[number]; compact?: boolean; onClick: () => void }> = ({ index, step, chapter, compact, onClick }) => {
+  const active = index === step;
+  const done = index < step;
+  const Ico = chapter.icon;
+  const dot = (
+    <div
+      className="rounded-full flex items-center justify-center shrink-0"
+      style={{
+        width: compact ? 24 : 26, height: compact ? 24 : 26,
+        background: active ? '#fff' : done ? P.waka500 : 'rgba(255,255,255,0.16)',
+      }}
+    >
+      {done
+        ? <Check className="text-white" style={{ width: 14, height: 14 }} strokeWidth={3} />
+        : <Ico style={{ width: compact ? 13 : 14, height: compact ? 13 : 14, color: active ? P.ai700 : 'rgba(255,255,255,0.82)' }} />}
+    </div>
+  );
 
-          <div className="flex items-center space-x-2">
-            {onboardingSteps.map((_, index) => (
-              <div
-                key={index}
-                className={`h-2 w-2 rounded-full transition-colors ${index === currentStep
-                  ? 'bg-indigo-600 dark:bg-indigo-400'
-                  : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-              />
-            ))}
-          </div>
-
-          <button
-            onClick={handleNext}
-            className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:scale-105 transition-all duration-200 shadow-lg font-['Noto_Sans_JP']"
-          >
-            <span>{isLastStep ? '始める' : '次へ'}</span>
-            {isLastStep ? (
-              <ArrowRight className="h-5 w-5" />
-            ) : (
-              <ChevronRight className="h-5 w-5" />
-            )}
-          </button>
-        </div>
-
-        {!isLastStep && (
-          <div className="mt-4 text-center">
-            <button
-              onClick={handleSkip}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors font-['Noto_Sans_JP']"
-            >
-              スキップして始める
-            </button>
-          </div>
-        )}
+  if (compact) {
+    return (
+      <button onClick={onClick} className="flex-1 flex flex-col items-center gap-1.5 py-2 px-1 rounded-lg font-['Noto_Sans_JP']" style={{ background: active ? 'rgba(255,255,255,0.16)' : 'transparent' }}>
+        {dot}
+        <span className="text-[10.5px] whitespace-nowrap" style={{ fontWeight: active ? 700 : 500, color: active ? '#fff' : 'rgba(255,255,255,0.7)' }}>{chapter.short}</span>
+      </button>
+    );
+  }
+  return (
+    <button onClick={onClick} className="flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-left transition-colors font-['Noto_Sans_JP']" style={{ background: active ? 'rgba(255,255,255,0.14)' : 'transparent' }}>
+      {dot}
+      <div>
+        <div className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>STEP {index + 1}</div>
+        <div className="text-[13.5px]" style={{ fontWeight: active ? 700 : 500, color: active ? '#fff' : 'rgba(255,255,255,0.78)' }}>{chapter.short}</div>
       </div>
-    </Modal>
+    </button>
   );
 };
 
+// ── 本体 ───────────────────────────────────────────────────────
+export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onClose, onComplete, mode = 'quick' }) => {
+  const [step, setStep] = useState(0);
+  const isFirstTime = !localStorage.getItem('onboarding-completed');
+
+  const handleComplete = () => {
+    if (isFirstTime) localStorage.setItem('onboarding-completed', 'true');
+    onComplete();
+    onClose();
+  };
+
+  const { modalRef } = useModalNavigation({ isOpen, onClose: handleComplete });
+  useOverlayBackHandler(isOpen, onClose, 'onboarding-modal', 80);
+
+  if (!isOpen) return null;
+
+  const last = CHAPTERS.length - 1;
+  const next = () => (step < last ? setStep(step + 1) : handleComplete());
+  const prev = () => setStep((s) => Math.max(0, s - 1));
+
+  const bodies = [
+    <WelcomeBody key="w" />,
+    <WorkflowBody key="f" />,
+    <ToolsBody key="t" />,
+    <SettingsBody key="s" mode={mode} onStart={handleComplete} />,
+  ];
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6" role="dialog" aria-modal="true" aria-label="ガイド">
+      <div className="absolute inset-0 glass-overlay" onClick={handleComplete} aria-hidden="true" />
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        className="relative w-full max-w-5xl flex flex-col md:flex-row overflow-hidden rounded-t-2xl sm:rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom sm:zoom-in-95 duration-300 focus:outline-none h-[93vh] sm:h-[86vh] md:h-[628px]"
+      >
+        {/* モバイル：上部タブ */}
+        <div className="md:hidden shrink-0 px-3.5 pt-3.5 pb-3" style={{ background: P.ai800 }}>
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center" style={{ background: GRAD }}>
+              <HelpCircle className="w-[17px] h-[17px] text-white" />
+            </div>
+            <div className="text-white text-[14.5px] font-extrabold flex-1 font-['Noto_Sans_JP']">ガイド</div>
+            <button onClick={handleComplete} aria-label="閉じる" className="w-[30px] h-[30px] rounded-lg flex items-center justify-center text-white" style={{ background: 'rgba(255,255,255,0.12)' }}>
+              <X className="w-[17px] h-[17px]" />
+            </button>
+          </div>
+          <div className="flex gap-1.5">
+            {CHAPTERS.map((c, i) => <RailItem key={c.id} index={i} step={step} chapter={c} compact onClick={() => setStep(i)} />)}
+          </div>
+        </div>
+
+        {/* デスクトップ：縦レール */}
+        <div className="hidden md:flex md:flex-col md:w-[196px] shrink-0 px-4 py-5" style={{ background: P.ai800 }}>
+          <div className="flex items-center gap-2.5 mb-6">
+            <div className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center" style={{ background: GRAD }}>
+              <HelpCircle className="w-[19px] h-[19px] text-white" />
+            </div>
+            <div className="text-white text-[15px] font-extrabold font-['Noto_Sans_JP']">ガイド</div>
+          </div>
+          <div className="flex flex-col gap-1 flex-1">
+            {CHAPTERS.map((c, i) => <RailItem key={c.id} index={i} step={step} chapter={c} onClick={() => setStep(i)} />)}
+          </div>
+          <div className="text-[11.5px] mt-3.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{step + 1} / {CHAPTERS.length} 章</div>
+        </div>
+
+        {/* コンテンツ列 */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-white dark:bg-sumi-800" style={{ backgroundImage: 'linear-gradient(180deg, #F7FCFE, transparent 30%)' }}>
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-[18px] py-5 md:px-9 md:py-8 dark:bg-sumi-800">
+            <div key={step} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {bodies[step]}
+            </div>
+          </div>
+          {/* フッター */}
+          <div className="shrink-0 px-[18px] py-3 md:px-9 md:py-4 flex items-center justify-between bg-white dark:bg-sumi-800" style={{ borderTop: `1px solid ${P.line}` }}>
+            <button
+              onClick={prev}
+              disabled={step === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-[9px] font-semibold text-[14px] font-['Noto_Sans_JP'] disabled:cursor-default"
+              style={{ color: step === 0 ? P.sumi400 : undefined }}
+            >
+              <ChevronLeft className="w-[18px] h-[18px]" /> 前へ
+            </button>
+            {step !== last && (
+              <button onClick={handleComplete} className="text-[13px] text-sumi-400 dark:text-gray-500 hover:text-sumi-600 dark:hover:text-gray-300 font-['Noto_Sans_JP']">スキップ</button>
+            )}
+            <button
+              onClick={next}
+              className="flex items-center gap-1.5 px-5 py-2.5 text-white rounded-xl font-bold text-[14.5px] font-['Noto_Sans_JP'] transition-transform hover:scale-[1.03]"
+              style={{ background: GRAD, boxShadow: `0 6px 18px ${P.ai500}33` }}
+            >
+              {step === last ? '始める' : '次へ'}
+              {step === last ? <ArrowRight className="w-[17px] h-[17px]" /> : <ChevronRight className="w-[17px] h-[17px]" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};

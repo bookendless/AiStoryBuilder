@@ -138,9 +138,9 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
     const isGeminiSupported = settings.provider === 'gemini' && settings.model.includes('gemini-3');
 
     if (!isGeminiSupported) {
-      showError('音声と画像の同時解析にはGemini 3.0 Proが必要です。AI設定でGemini 3.0 Pro（gemini-3-pro-preview）を選択してください。', 7000, {
+      showError('音声と画像の同時解析にはGemini 3系のモデルが必要です。AI設定でGemini 3系（gemini-3.1-pro-preview など）を選択してください。', 7000, {
         title: '対応モデルエラー',
-        details: '音声と画像の同時解析機能はGemini 3.0 Pro（gemini-3-pro-preview）のみに対応しています。',
+        details: '音声と画像の同時解析機能はGemini 3系（gemini-3.1-pro-preview など）のみに対応しています。',
       });
       return;
     }
@@ -291,7 +291,7 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
             音声ファイルと画像ファイルの両方をアップロードすると、AIが音声と画像を統合的に分析して物語プロジェクトの提案を生成します。
             <br />
             <span className="text-xs mt-2 block">
-              ※ 音声と画像の同時解析にはGemini 3.0 Pro（gemini-3-pro-preview）が必要です。
+              ※ 音声と画像の同時解析にはGemini 3系（gemini-3.1-pro-preview など）が必要です。
             </span>
           </p>
         </div>
