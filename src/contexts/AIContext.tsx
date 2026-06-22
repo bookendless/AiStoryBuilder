@@ -11,6 +11,14 @@ interface AIContextType {
   isStorageReady: boolean; // ストレージの準備状態
 }
 
+// ログ出力用: APIキー等の機密情報をマスクした設定オブジェクトを返す（CLAUDE.md: 機密はログに出さない）
+const redactSettings = (s: Partial<AISettings>): Record<string, unknown> => {
+  const apiKeys = s.apiKeys
+    ? Object.fromEntries(Object.keys(s.apiKeys).map((k) => [k, '***']))
+    : s.apiKeys;
+  return { ...s, apiKey: s.apiKey ? '***' : s.apiKey, apiKeys };
+};
+
 // 環境変数からデフォルト設定を取得
 const getDefaultSettings = (): AISettings => {
   // 環境変数からAPIキーを取得
@@ -205,8 +213,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const updated = { ...settingsRef.current, ...newSettings };
 
     console.log('Updating AI settings:', {
-      newSettings: JSON.stringify(newSettings, null, 2),
-      updated: JSON.stringify(updated, null, 2)
+      newSettings: redactSettings(newSettings),
+      updated: redactSettings(updated)
     });
 
     // モデルが変更された場合、そのモデルの最大トークン数に合わせて調整
@@ -288,7 +296,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       }
     }
 
-    console.log('Final settings to save:', JSON.stringify(updated, null, 2));
+    console.log('Final settings to save:', redactSettings(updated));
     settingsRef.current = updated;
     setSettings(updated);
 
@@ -337,7 +345,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     }
   }, [isStorageReady, settings.apiKeys]);
 
-  console.log('AI Context - Current settings:', JSON.stringify(settings, null, 2));
+  console.log('AI Context - Current settings:', redactSettings(settings));
   console.log('AI Context - Is configured:', isConfigured);
   console.log('AI Context - Provider:', settings.provider);
   console.log('AI Context - LocalEndpoint:', settings.localEndpoint);

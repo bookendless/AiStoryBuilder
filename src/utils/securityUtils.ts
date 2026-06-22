@@ -607,7 +607,9 @@ export const setSecurityHeaders = (): void => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://10.0.2.2:* ws://10.0.2.2:*",
+    // CSP の connect-src はホスト中間の '*'（例 192.168.*）を許可しない（無効として無視される）。
+    // Tauri の IPC は scheme-source 'ipc:' と http(s)://ipc.localhost で許可する。
+    "connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* http://10.0.2.2:* ws://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.x.ai",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ') : [
@@ -617,7 +619,8 @@ export const setSecurityHeaders = (): void => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:* https://localhost:*",
+    // CSP の connect-src はホスト中間の '*' を許可しない。Tauri IPC は 'ipc:' と ipc.localhost で許可。
+    "connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* http://10.0.2.2:* ws://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.x.ai",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ');

@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { Project, Character } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
+import { useGeneration } from '../../../../contexts/GenerationContext';
 import type { GenerationAction, ImprovementLog, WeaknessItem } from '../types';
 import { formatText } from '../../../../utils/textFormatter';
 
@@ -102,20 +103,20 @@ export const useAIGeneration = ({
   buildCustomPrompt,
   setImprovementLogs,
 }: UseAIGenerationOptions): UseAIGenerationReturn => {
-  const [isGenerating, setIsGenerating] = useState(false);
+  const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
   const [currentGenerationAction, setCurrentGenerationAction] = useState<GenerationAction | null>(null);
-  const generationAbortControllerRef = useRef<AbortController | null>(null);
 
-  // AI生成キャンセル処理
+  // 生成タスクの識別キー。実行中判定はマネージャから導出（ステップ移動でも維持）
+  const pid = currentProject?.id ?? 'none';
+  const mainKey = `${pid}:draft:main`;
+  const isGenerating = isKeyActive(mainKey);
+
+  // AI生成キャンセル処理（マネージャ経由でabort）
   const handleCancelGeneration = useCallback(() => {
-    if (generationAbortControllerRef.current) {
-      generationAbortControllerRef.current.abort();
-      generationAbortControllerRef.current = null;
-    }
-    setIsGenerating(false);
+    cancelByKey(mainKey);
     setCurrentGenerationAction(null);
     // キャンセルメッセージは呼び出し元で表示するため、ここでは表示しない
-  }, []);
+  }, [cancelByKey, mainKey]);
 
   // 章全体生成
   const handleAIGenerate = useCallback(async () => {
@@ -131,7 +132,7 @@ export const useAIGeneration = ({
     // 確認は親コンポーネントで行う（ConfirmDialogを使用）
 
     setCurrentGenerationAction('fullDraft');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       if (!currentChapter) {
@@ -201,8 +202,7 @@ export const useAIGeneration = ({
         contextInfo,
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const response = await aiService.generateContent({
         prompt,
@@ -227,8 +227,10 @@ export const useAIGeneration = ({
 
       if (response && response.content) {
         onDraftUpdate(response.content);
-        // 章草案を保存
-        await onSaveChapterDraft(selectedChapter!, response.content);
+        // 章草案を保存（selectedChapterのnullは保存層へnullキーが渡るのを防ぐためガード）
+        if (selectedChapter) {
+          await onSaveChapterDraft(selectedChapter, response.content);
+        }
         // 完了通知
         onCompletionToast('章全体の生成が完了しました');
       }
@@ -240,9 +242,8 @@ export const useAIGeneration = ({
         });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [
     isConfigured,
@@ -264,10 +265,17 @@ export const useAIGeneration = ({
 
   // 続き生成
   const handleContinueGeneration = useCallback(async () => {
+    if (!isConfigured) {
+      onError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
+      return;
+    }
+
     if (!currentProject || !selectedChapter) return;
 
     setCurrentGenerationAction('continue');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       // プロジェクトのキャラクター情報を整理
@@ -307,6 +315,7 @@ export const useAIGeneration = ({
       const dialogue = writingStyle.dialogue || '';
       const emotion = writingStyle.emotion || '';
       const tone = writingStyle.tone || '';
+      const styleSample = currentProject.styleSample || '';
 
       // プロット情報の整理
       const plotStructure = currentProject.plot?.structure
@@ -342,6 +351,7 @@ export const useAIGeneration = ({
         dialogue: dialogue,
         emotion: emotion,
         tone: tone,
+        styleSample: styleSample,
       });
 
       // 追加のコンテキスト情報をプロンプトに追加
@@ -362,8 +372,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
 - 適度な改行と段落分けを行ってください
 - 改行は通常の改行文字（\n）で表現してください`;
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const response = await aiService.generateContent({
         prompt: enhancedPrompt,
@@ -400,11 +409,11 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [
+    isConfigured,
     currentProject,
     selectedChapter,
     draft,
@@ -423,15 +432,14 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     if (!selectedChapter || !draft.trim()) return;
 
     setCurrentGenerationAction('description');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       const prompt = aiService.buildPrompt('draft', 'enhanceDescription', {
         currentText: draft,
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const response = await aiService.generateContent({
         prompt,
@@ -458,9 +466,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [selectedChapter, draft, settings, onDraftUpdate, onSaveChapterDraft, onError, onCompletionToast]);
 
@@ -469,7 +476,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     if (!selectedChapter || !draft.trim()) return;
 
     setCurrentGenerationAction('style');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       const prompt = aiService.buildPrompt('draft', 'adjustStyle', {
@@ -477,8 +484,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         currentLength: draft.length.toString(),
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const response = await aiService.generateContent({
         prompt,
@@ -505,9 +511,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [selectedChapter, draft, settings, onDraftUpdate, onSaveChapterDraft, onError, onCompletionToast]);
 
@@ -516,15 +521,14 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     if (!selectedChapter || !draft.trim()) return;
 
     setCurrentGenerationAction('shorten');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       const prompt = aiService.buildPrompt('draft', 'shorten', {
         currentText: draft,
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const response = await aiService.generateContent({
         prompt,
@@ -551,9 +555,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [selectedChapter, draft, settings, onDraftUpdate, onSaveChapterDraft, onError, onCompletionToast]);
 
@@ -569,7 +572,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     }
 
     setCurrentGenerationAction('improve');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       const prompt = aiService.buildPrompt('draft', 'improve', {
@@ -579,8 +582,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         currentLength: draft.length.toString(),
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const response = await aiService.generateContent({
         prompt,
@@ -607,9 +609,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [
     selectedChapter,
@@ -635,19 +636,39 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     }
 
     setCurrentGenerationAction('critique');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       // フェーズ1：批評フェーズ（弱点の特定と修正案の生成）
+      const writingStyleForCritique = currentProject?.writingStyle || {};
+      const critiqueStyle = writingStyleForCritique.style || '現代小説風';
+      const critiqueStyleDetailsArray: string[] = [];
+      if (writingStyleForCritique.perspective || writingStyleForCritique.formality || writingStyleForCritique.rhythm || writingStyleForCritique.metaphor || writingStyleForCritique.dialogue || writingStyleForCritique.emotion || writingStyleForCritique.tone) {
+        critiqueStyleDetailsArray.push('【文体の詳細指示】');
+        if (writingStyleForCritique.perspective) critiqueStyleDetailsArray.push(`- **人称**: ${writingStyleForCritique.perspective}`);
+        if (writingStyleForCritique.formality) critiqueStyleDetailsArray.push(`- **硬軟**: ${writingStyleForCritique.formality}`);
+        if (writingStyleForCritique.rhythm) critiqueStyleDetailsArray.push(`- **リズム**: ${writingStyleForCritique.rhythm}`);
+        if (writingStyleForCritique.metaphor) critiqueStyleDetailsArray.push(`- **比喩表現**: ${writingStyleForCritique.metaphor}`);
+        if (writingStyleForCritique.dialogue) critiqueStyleDetailsArray.push(`- **会話比率**: ${writingStyleForCritique.dialogue}`);
+        if (writingStyleForCritique.emotion) critiqueStyleDetailsArray.push(`- **感情描写**: ${writingStyleForCritique.emotion}`);
+        if (writingStyleForCritique.tone) critiqueStyleDetailsArray.push(`\n【参考となるトーン】\n${writingStyleForCritique.tone}`);
+      }
+      // 文体見本があれば評価基準として併記する（見本との文体の乖離を指摘させる）
+      if (currentProject?.styleSample) {
+        critiqueStyleDetailsArray.push(`\n【文体見本（この文体に沿っているかを評価する）】\n---\n${currentProject.styleSample}\n---`);
+      }
+      const critiqueStyleDetails = critiqueStyleDetailsArray.length > 0 ? critiqueStyleDetailsArray.join('\n') : '';
+
       const critiquePrompt = aiService.buildPrompt('draft', 'critique', {
         projectTitle: currentProject?.title || '未設定',
         chapterTitle: currentChapter?.title || '未設定',
         chapterSummary: currentChapter?.summary || '未設定',
         currentText: draft,
+        style: critiqueStyle,
+        styleDetails: critiqueStyleDetails,
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const critiqueResponse = await aiService.generateContent({
         prompt: critiquePrompt,
@@ -736,9 +757,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       }
       return null;
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [
     selectedChapter,
@@ -758,7 +778,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     if (!selectedChapter || !draft.trim()) return;
 
     setCurrentGenerationAction('fixWeaknesses');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       // 選択された弱点のみを含むCritiqueResultを構築
@@ -769,6 +789,25 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
 
       const critiqueResult = JSON.stringify(filteredCritique, null, 2);
 
+      const writingStyleForRevise = currentProject?.writingStyle || {};
+      const reviseStyle = writingStyleForRevise.style || '現代小説風';
+      const reviseStyleDetailsArray: string[] = [];
+      if (writingStyleForRevise.perspective || writingStyleForRevise.formality || writingStyleForRevise.rhythm || writingStyleForRevise.metaphor || writingStyleForRevise.dialogue || writingStyleForRevise.emotion || writingStyleForRevise.tone) {
+        reviseStyleDetailsArray.push('【文体の詳細指示】');
+        if (writingStyleForRevise.perspective) reviseStyleDetailsArray.push(`- **人称**: ${writingStyleForRevise.perspective}`);
+        if (writingStyleForRevise.formality) reviseStyleDetailsArray.push(`- **硬軟**: ${writingStyleForRevise.formality}`);
+        if (writingStyleForRevise.rhythm) reviseStyleDetailsArray.push(`- **リズム**: ${writingStyleForRevise.rhythm}`);
+        if (writingStyleForRevise.metaphor) reviseStyleDetailsArray.push(`- **比喩表現**: ${writingStyleForRevise.metaphor}`);
+        if (writingStyleForRevise.dialogue) reviseStyleDetailsArray.push(`- **会話比率**: ${writingStyleForRevise.dialogue}`);
+        if (writingStyleForRevise.emotion) reviseStyleDetailsArray.push(`- **感情描写**: ${writingStyleForRevise.emotion}`);
+        if (writingStyleForRevise.tone) reviseStyleDetailsArray.push(`\n【参考となるトーン】\n${writingStyleForRevise.tone}`);
+      }
+      // 文体見本があれば「維持すべき文体」として注入する
+      if (currentProject?.styleSample) {
+        reviseStyleDetailsArray.push(`\n【文体見本（最重要・この文章の雰囲気・文体・語り口を維持する）】\n---\n${currentProject.styleSample}\n---\n※見本の内容（出来事・人物）を流用せず、文体・リズム・語彙の傾向だけを真似てください。`);
+      }
+      const reviseStyleDetails = reviseStyleDetailsArray.length > 0 ? reviseStyleDetailsArray.join('\n') : '';
+
       // 批評フェーズと同様に全文を渡す（切り詰めると末尾が消失し内容が薄くなるため）
       const revisionPrompt = aiService.buildPrompt('draft', 'revise', {
         projectTitle: currentProject?.title || '未設定',
@@ -777,10 +816,11 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         currentText: draft,
         critiqueResult: critiqueResult,
         currentLength: draft.length.toString(),
+        style: reviseStyle,
+        styleDetails: reviseStyleDetails,
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const revisionResponse = await aiService.generateContent({
         prompt: revisionPrompt,
@@ -893,9 +933,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         onError('修正処理中にエラーが発生しました', 7000, { title: '修正エラー' });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [
     selectedChapter,
@@ -915,7 +954,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     if (!selectedChapter || !draft.trim()) return;
 
     setCurrentGenerationAction('fixCharacter');
-    setIsGenerating(true);
+    const { id: taskId, signal } = startTask({ key: mainKey, label: '草案を生成中', step: 'draft' });
 
     try {
       // プロジェクトのキャラクター情報を整理
@@ -943,8 +982,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         currentLength: draft.length.toString(),
       });
 
-      const abortController = new AbortController();
-      generationAbortControllerRef.current = abortController;
+      const abortController = { signal };
 
       const response = await aiService.generateContent({
         prompt,
@@ -970,9 +1008,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
         });
       }
     } finally {
-      setIsGenerating(false);
+      completeTask(taskId);
       setCurrentGenerationAction(null);
-      generationAbortControllerRef.current = null;
     }
   }, [
     selectedChapter,

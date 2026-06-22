@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BookOpen, Edit3, Trash2, Loader, Sparkles, Calendar, StopCircle, Download } from 'lucide-react';
 import { useAI } from '../../contexts/AIContext';
 import { useProject } from '../../contexts/ProjectContext';
+import { useGeneration } from '../../contexts/GenerationContext';
 import { aiService } from '../../services/aiService';
 import { CharacterDiaryEntry } from '../../types/characterPossession';
 import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
@@ -15,12 +16,15 @@ interface CharacterDiaryProps {
   isOpen: boolean;
   onClose: () => void;
   characterId: string;
+  // 完了トーストの「確認する」から日記モーダルを再オープンするための導線
+  onRequestReopen?: (characterId: string) => void;
 }
 
 export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
   isOpen,
   onClose,
   characterId,
+  onRequestReopen,
 }) => {
   const { modalRef } = useModalNavigation({
     isOpen,
@@ -33,16 +37,31 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
   const { settings, isConfigured } = useAI();
   const { currentProject } = useProject();
   const { showError, showSuccess } = useToast();
+  const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
   const [diaries, setDiaries] = useState<CharacterDiaryEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedDiary, setSelectedDiary] = useState<CharacterDiaryEntry | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [generatingChapterId, setGeneratingChapterId] = useState<string | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // 生成タスクの識別キー（キャラごと）。実行中判定はマネージャから導出するため
+  // モーダルを閉じても（アンマウントしても）裏で生成は継続する。
+  const pid = currentProject?.id ?? 'none';
+  const diaryKey = `${pid}:character-diary:${characterId}`;
+  const isGenerating = isKeyActive(diaryKey);
+
+  // async 完了（別フレーム/アンマウント後）から最新の開閉状態を参照するための ref。
+  // このモーダルは閉じるとアンマウントされる（isOpen が false になるのではなく消える）ため、
+  // cleanup で false に倒さないと「閉じた後の完了」を検知できない（再オープン導線が死ぬ）。
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+    return () => {
+      isOpenRef.current = false;
+    };
+  }, [isOpen]);
 
   // 選択されたキャラクターを取得
   const character = currentProject?.characters.find(c => c.id === characterId);
@@ -76,18 +95,13 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
     }
   }, [isOpen, characterId, currentProject, loadDiaries]);
 
-  // モーダルが閉じられたら生成をキャンセル
+  // 生成完了時（実行中→停止）に最新の日記を読み直す。
+  // 生成中に開き直した別インスタンスは、完了後の新エントリを localStorage から拾う必要があるため。
   useEffect(() => {
-    if (!isOpen && abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-      setIsLoading(false);
-      setGeneratingChapterId(null);
-      setSelectedChapterId(null);
+    if (!isGenerating && isOpen) {
+      loadDiaries();
     }
-  }, [isOpen]);
-
-
+  }, [isGenerating, isOpen, loadDiaries]);
 
   // 日記をローカルストレージに保存
   const saveDiaries = useCallback((updatedDiaries: CharacterDiaryEntry[]) => {
@@ -101,14 +115,28 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
     }
   }, [currentProject, characterId]);
 
-  // 生成をキャンセル
-  const handleCancelGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+  // 生成中の日記をlocalStorageへ追記（背景完了時にクロージャの古い diaries で取りこぼさないよう都度読み直す）
+  const appendDiaryToStorage = useCallback((entry: CharacterDiaryEntry) => {
+    if (!currentProject) return;
+    const key = `character_diary_${currentProject.id}_${characterId}`;
+    let existing: CharacterDiaryEntry[] = [];
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        existing = (JSON.parse(saved) as Array<Omit<CharacterDiaryEntry, 'createdAt'> & { createdAt: string | Date }>)
+          .map((d) => ({ ...d, createdAt: d.createdAt instanceof Date ? d.createdAt : new Date(d.createdAt) }));
+      }
+    } catch (error) {
+      console.error('日記の読み込みに失敗しました:', error);
     }
-    setIsLoading(false);
-    setGeneratingChapterId(null);
+    const updated = [entry, ...existing];
+    localStorage.setItem(key, JSON.stringify(updated));
+    setDiaries(updated); // マウント中ならUI反映（アンマウント時はno-op）
+  }, [currentProject, characterId]);
+
+  // 生成をキャンセル（key単位でabort）
+  const handleCancelGeneration = () => {
+    cancelByKey(diaryKey);
   };
 
   // 日記を生成
@@ -133,12 +161,13 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
       return;
     }
 
-    setGeneratingChapterId(chapterId || null);
-    setIsLoading(true);
-
-    // AbortControllerのセットアップ
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+    // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）。
+    // signal を渡すことで、モーダルを閉じても生成は継続し左下インジケータに表示される。
+    const { id: taskId, signal } = startTask({
+      key: diaryKey,
+      label: `「${character.name}」の本音日記を生成中`,
+      step: 'character',
+    });
 
     try {
       const chapterSummary = chapter.summary || '章の内容が設定されていません';
@@ -170,26 +199,23 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
         prompt,
         type: 'character',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
       if (response.error) {
-        // モーダルが開いている時のみエラー表示
-        if (isOpen) {
-          showError(`日記生成エラー: ${response.error}`);
-        }
+        showError(`日記生成エラー: ${response.error}`);
         return;
       }
 
       const diaryContent = response.content?.trim() || '';
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -204,12 +230,21 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
         isAiGenerated: true,
       };
 
-      const updatedDiaries = [newDiary, ...diaries];
-      saveDiaries(updatedDiaries);
+      // localStorageへ追記（モーダルが閉じていても保存される）
+      appendDiaryToStorage(newDiary);
 
-      // モーダルが開いている時のみ成功メッセージを表示
-      if (isOpen) {
+      // 完了通知。モーダルが閉じている場合は「確認する」で再オープンできるようにする。
+      if (isOpenRef.current) {
         showSuccess('日記を生成しました');
+      } else {
+        showSuccess(`「${character.name}」の本音日記の生成が完了しました`, 8000, {
+          title: '生成完了',
+          action: {
+            label: '確認する',
+            onClick: () => onRequestReopen?.(character.id),
+            variant: 'primary',
+          },
+        });
       }
 
     } catch (error) {
@@ -220,14 +255,10 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
       }
 
       console.error('日記生成エラー:', error);
-      // モーダルが開いている時のみエラー表示
-      if (isOpen) {
-        showError('日記生成中にエラーが発生しました');
-      }
+      showError('日記生成中にエラーが発生しました');
     } finally {
-      setIsLoading(false);
-      setGeneratingChapterId(null);
-      abortControllerRef.current = null;
+      // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+      completeTask(taskId);
     }
   };
 
@@ -353,13 +384,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
       <Modal
         isOpen={isOpen}
         onClose={() => {
-          // 生成中の場合、キャンセル
-          if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            abortControllerRef.current = null;
-          }
-          setIsLoading(false);
-          setGeneratingChapterId(null);
+          // 閉じても生成は中断しない（バックグラウンドで継続）。UI選択状態のみクリア。
           setSelectedChapterId(null);
           onClose();
         }}
@@ -405,7 +430,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
                     onChange={(e) => {
                       setSelectedChapterId(e.target.value || null);
                     }}
-                    disabled={isLoading || !isConfigured}
+                    disabled={isGenerating || !isConfigured}
                     className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
                   >
                     <option value="">章を選択...</option>
@@ -421,7 +446,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
                         handleGenerateDiary(selectedChapterId);
                       }
                     }}
-                    disabled={!selectedChapterId || isLoading || !isConfigured}
+                    disabled={!selectedChapterId || isGenerating || !isConfigured}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-['Noto_Sans_JP'] whitespace-nowrap"
                   >
                     <Sparkles className="h-4 w-4 inline mr-1" />
@@ -431,7 +456,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
               )}
             </div>
             <div className="flex items-center space-x-2">
-              {isLoading && generatingChapterId && (
+              {isGenerating && (
                 <>
                   <Loader className="h-5 w-5 animate-spin text-purple-600" />
                   <span className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -446,7 +471,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
                   </button>
                 </>
               )}
-              {!isLoading && (
+              {!isGenerating && (
                 <button
                   onClick={() => {
                     const lastChapter = currentProject?.chapters[currentProject.chapters.length - 1];

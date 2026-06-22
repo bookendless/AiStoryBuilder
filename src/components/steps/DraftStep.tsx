@@ -123,8 +123,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   }, [currentProject]);
 
 
-  const [showCompletionToast, setShowCompletionToast] = useState<string | null>(null);
-
   const mainEditorRef = useRef<MainEditorHandle | null>(null);
   const historyAutoSaveTimeoutRef = useRef<number | null>(null);
   const lastSnapshotContentRef = useRef<string>('');
@@ -974,15 +972,6 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
           message={toastMessage}
           type="success"
           onClose={() => setToastMessage(null)}
-        />
-      )}
-
-      {/* 生成完了通知 */}
-      {showCompletionToast && (
-        <Toast
-          message={showCompletionToast}
-          type="info"
-          onClose={() => setShowCompletionToast(null)}
         />
       )}
 

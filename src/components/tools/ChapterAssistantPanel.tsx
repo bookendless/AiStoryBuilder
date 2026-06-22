@@ -1,11 +1,17 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Sparkles, Loader, CheckCircle, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
+import { useGeneration } from '../../contexts/GenerationContext';
+import { usePendingResult } from '../../contexts/PendingResultContext';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
+import { parseChapterList } from '../../services/chapter/parseChapterList';
+import { buildCreativePointsInstruction } from '../../services/prompts/creativePoints';
+import { splitCreativePoints } from '../../services/creativePoints/parseCreativePoints';
+import { buildBranchInstruction } from '../../services/creativePoints/buildBranchInstruction';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { StructureProgress } from '../steps/chapter/types';
@@ -14,16 +20,21 @@ import { exportFile } from '../../utils/mobileExportUtils';
 export const ChapterAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
-    const { showSuccess, showWarning, showInfo, showError } = useToast();
+    const { showSuccess, showInfo, showError } = useToast();
     const { handleAPIError } = useErrorHandler();
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
+    const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
+    const { proposeResult } = usePendingResult();
     const { aiLogs, addLog } = useAILog({
         projectId: currentProject?.id,
         autoLoad: true,
     });
-    const basicAbortControllerRef = useRef<AbortController | null>(null);
-    const structureAbortControllerRef = useRef<AbortController | null>(null);
+
+    // 生成タスクの識別キー（種別ごと）。実行中判定はマネージャから導出
+    const pid = currentProject?.id ?? 'none';
+    const basicKey = `${pid}:chapter:basic`;
+    const structureKey = `${pid}:chapter:structure`;
+    const isGenerating = isKeyActive(basicKey);
+    const isGeneratingStructure = isKeyActive(structureKey);
 
     // 構成バランスの状態管理
     const [structureProgress, setStructureProgress] = useState<StructureProgress>({
@@ -236,185 +247,20 @@ export const ChapterAssistantPanel: React.FC = () => {
         }
     }, [projectContext, structureProgress]);
 
-    // AI応答を解析
-    const parseAIResponse = useCallback((content: string) => {
-        const newChapters: Array<{ id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }> = [];
-        const lines = content.split('\n').filter(line => line.trim());
-        let currentChapter: {
-            id: string;
-            title: string;
-            summary: string;
-            setting: string;
-            mood: string;
-            keyEvents: string[];
-            characters: string[];
-        } | null = null;
+    // AI応答を解析（共有パーサを使用。先回り生成（Phase D）と解析ロジックを共通化）
+    const parseAIResponse = useCallback((content: string) => parseChapterList(content), []);
 
-        // 拡張された章検出パターン
-        const chapterPatterns = [
-            /第(\d+)章[：:]\s*(.+)/,           // 標準形式: 第1章: タイトル
-            /(\d+)\.\s*(.+)/,                  // 番号付き形式: 1. タイトル
-            /【第(\d+)章】\s*(.+)/,            // 括弧形式: 【第1章】 タイトル
-            /Chapter\s*(\d+)[：:]\s*(.+)/i,    // 英語形式: Chapter 1: タイトル
-            /章(\d+)[：:]\s*(.+)/,             // 簡略形式: 章1: タイトル
-            /^(\d+)\s*[．.]\s*(.+)/,           // 数字+句点形式: 1．タイトル
-            /^(\d+)\s*[-－]\s*(.+)/,           // 数字+ハイフン形式: 1-タイトル
-        ];
-
-        // 詳細情報検出パターン（より柔軟）
-        const detailPatterns = {
-            summary: [/概要[：:]\s*(.+)/, /あらすじ[：:]\s*(.+)/, /内容[：:]\s*(.+)/, /要約[：:]\s*(.+)/],
-            setting: [/設定[・・]場所[：:]\s*(.+)/, /舞台[：:]\s*(.+)/, /場所[：:]\s*(.+)/, /設定[：:]\s*(.+)/],
-            mood: [/雰囲気[・・]ムード[：:]\s*(.+)/, /ムード[：:]\s*(.+)/, /雰囲気[：:]\s*(.+)/, /トーン[：:]\s*(.+)/],
-            keyEvents: [/重要な出来事[：:]\s*(.+)/, /キーイベント[：:]\s*(.+)/, /出来事[：:]\s*(.+)/, /イベント[：:]\s*(.+)/],
-            characters: [/登場キャラクター[：:]\s*(.+)/, /登場人物[：:]\s*(.+)/, /キャラクター[：:]\s*(.+)/, /人物[：:]\s*(.+)/]
-        };
-
-        for (const line of lines) {
-            const trimmedLine = line.trim();
-
-            // 章の開始を検出（複数パターンを試行）
-            let chapterMatch: RegExpMatchArray | null = null;
-            let chapterTitle = '';
-
-            for (const pattern of chapterPatterns) {
-                const match = trimmedLine.match(pattern);
-                if (match) {
-                    chapterMatch = match;
-                    chapterTitle = match[2].trim();
-                    break;
-                }
-            }
-
-            if (chapterMatch) {
-                if (currentChapter) {
-                    newChapters.push(currentChapter);
-                }
-                currentChapter = {
-                    id: Date.now().toString() + Math.random(),
-                    title: chapterTitle,
-                    summary: '',
-                    setting: '',
-                    mood: '',
-                    keyEvents: [] as string[],
-                    characters: [] as string[],
-                };
-            } else if (currentChapter) {
-                // 章の詳細情報を解析（複数パターンを試行）
-                let detailFound = false;
-
-                // 概要の検出
-                for (const pattern of detailPatterns.summary) {
-                    const match = trimmedLine.match(pattern);
-                    if (match) {
-                        currentChapter.summary = match[1].trim();
-                        detailFound = true;
-                        break;
-                    }
-                }
-
-                // 設定・場所の検出
-                if (!detailFound) {
-                    for (const pattern of detailPatterns.setting) {
-                        const match = trimmedLine.match(pattern);
-                        if (match) {
-                            currentChapter.setting = match[1].trim();
-                            detailFound = true;
-                            break;
-                        }
-                    }
-                }
-
-                // 雰囲気・ムードの検出
-                if (!detailFound) {
-                    for (const pattern of detailPatterns.mood) {
-                        const match = trimmedLine.match(pattern);
-                        if (match) {
-                            currentChapter.mood = match[1].trim();
-                            detailFound = true;
-                            break;
-                        }
-                    }
-                }
-
-                // 重要な出来事の検出
-                if (!detailFound) {
-                    for (const pattern of detailPatterns.keyEvents) {
-                        const match = trimmedLine.match(pattern);
-                        if (match) {
-                            const eventsText = match[1].trim();
-                            currentChapter.keyEvents = eventsText.split(/[,、;；]/).map(event => event.trim()).filter(event => event) as string[];
-                            detailFound = true;
-                            break;
-                        }
-                    }
-                }
-
-                // 登場キャラクターの検出（名前のまま保存）
-                if (!detailFound) {
-                    for (const pattern of detailPatterns.characters) {
-                        const match = trimmedLine.match(pattern);
-                        if (match) {
-                            const charactersText = match[1].trim();
-                            currentChapter.characters = charactersText.split(/[,、;；]/).map(char => char.trim()).filter(char => char) as string[];
-                            detailFound = true;
-                            break;
-                        }
-                    }
-                }
-
-                // 詳細情報が見つからず、概要も空の場合は最初の説明文を概要として使用
-                if (!detailFound && !currentChapter.summary &&
-                    !trimmedLine.startsWith('役割:') &&
-                    !trimmedLine.startsWith('ペース:') &&
-                    !trimmedLine.includes('【') &&
-                    !trimmedLine.includes('】') &&
-                    trimmedLine.length > 10) {
-                    currentChapter.summary = trimmedLine;
-                }
-            }
-        }
-
-        if (currentChapter) {
-            newChapters.push(currentChapter);
-        }
-
-        return newChapters;
-    }, []);
-
-    // キャンセルハンドラー
+    // キャンセルハンドラー（マネージャ経由でkey単位にabort）
     const handleCancelBasic = useCallback(() => {
-        if (basicAbortControllerRef.current) {
-            basicAbortControllerRef.current.abort();
-            basicAbortControllerRef.current = null;
-            setIsGenerating(false);
-        }
-    }, []);
+        cancelByKey(basicKey);
+    }, [cancelByKey, basicKey]);
 
     const handleCancelStructure = useCallback(() => {
-        if (structureAbortControllerRef.current) {
-            structureAbortControllerRef.current.abort();
-            structureAbortControllerRef.current = null;
-            setIsGeneratingStructure(false);
-        }
-    }, []);
-
-    // クリーンアップ
-    useEffect(() => {
-        return () => {
-            if (basicAbortControllerRef.current) {
-                basicAbortControllerRef.current.abort();
-                basicAbortControllerRef.current = null;
-            }
-            if (structureAbortControllerRef.current) {
-                structureAbortControllerRef.current.abort();
-                structureAbortControllerRef.current = null;
-            }
-        };
-    }, []);
+        cancelByKey(structureKey);
+    }, [cancelByKey, structureKey]);
 
     // 基本章立て生成
-    const handleAIGenerate = async () => {
+    const handleAIGenerate = async (branchInstruction?: string) => {
         if (!isConfigured) {
             handleAPIError(
                 new Error('AI設定が必要です'),
@@ -429,28 +275,33 @@ export const ChapterAssistantPanel: React.FC = () => {
 
         if (!currentProject) return;
 
-        // 既存のリクエストをキャンセル
-        if (basicAbortControllerRef.current) {
-            basicAbortControllerRef.current.abort();
-        }
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+        const { id: taskId, signal } = startTask({
+            key: basicKey,
+            label: '章立てを生成中',
+            step: 'chapter',
+        });
 
-        // 新しいAbortControllerを作成
-        const abortController = new AbortController();
-        basicAbortControllerRef.current = abortController;
-
-        setIsGenerating(true);
+        // 創造ポイント（Phase C）: 設定ONなら分岐候補の付記を要求する
+        const cpEnabled = settings.creativePointsEnabled !== false;
 
         try {
-            const prompt = buildAIPrompt('basic');
+            let prompt = buildAIPrompt('basic');
+            if (branchInstruction) {
+                prompt += `\n\n【別案の指定】${branchInstruction}`;
+            }
+            if (cpEnabled) {
+                prompt += buildCreativePointsInstruction('章立て');
+            }
             const response = await aiService.generateContent({
                 prompt,
                 type: 'chapter',
                 settings,
-                signal: abortController.signal,
+                signal,
             });
 
             // キャンセルされた場合は処理をスキップ
-            if (abortController.signal.aborted) {
+            if (signal.aborted) {
                 return;
             }
 
@@ -476,7 +327,11 @@ export const ChapterAssistantPanel: React.FC = () => {
                 return;
             }
 
-            const newChapters = parseAIResponse(response.content);
+            // 創造ポイントのマーカー以降を章立て本文から分離してから解析する
+            const { content: chapterContent, creativePoints } = cpEnabled
+                ? splitCreativePoints(response.content)
+                : { content: response.content, creativePoints: [] };
+            const newChapters = parseAIResponse(chapterContent);
 
             // 解析結果を含めてログを保存
             addLog({
@@ -488,9 +343,8 @@ export const ChapterAssistantPanel: React.FC = () => {
             });
 
             if (newChapters.length > 0) {
-                updateProject({
-                    chapters: [...currentProject.chapters, ...newChapters],
-                });
+                const existingChapters = currentProject.chapters;
+                const chaptersToAdd = newChapters;
 
                 // 不完全な章があるかチェック
                 const incompleteChapters = newChapters.filter((ch: {
@@ -505,14 +359,29 @@ export const ChapterAssistantPanel: React.FC = () => {
                     !ch.summary || !ch.setting || !ch.mood || !ch.keyEvents?.length || !ch.characters?.length
                 );
 
-                if (incompleteChapters.length > 0) {
-                    showWarning(`AI構成提案で${newChapters.length}章を追加しました。`, 8000, {
-                        title: '章を追加しました',
-                        details: `注意: ${incompleteChapters.length}章で情報が不完全です。必要に応じて手動で編集してください。`,
-                    });
-                } else {
-                    showSuccess(`AI構成提案で${newChapters.length}章を追加しました。`);
-                }
+                const previewText = [
+                    incompleteChapters.length > 0
+                        ? `⚠ ${incompleteChapters.length}章で情報が不完全です。反映後に手動編集できます。\n`
+                        : '',
+                    ...newChapters.map((ch: { title: string; summary?: string }, i: number) =>
+                        `${i + 1}. ${ch.title}\n   ${ch.summary || '(概要なし)'}`
+                    ),
+                ].filter(Boolean).join('\n\n');
+
+                // 即時反映せず、確認モーダルで反映/破棄を選べるよう保留に登録
+                proposeResult({
+                    label: `章立て（${newChapters.length}章追加）`,
+                    preview: previewText,
+                    onApply: () => updateProject({
+                        chapters: [...existingChapters, ...chaptersToAdd],
+                    }),
+                    creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
+                    onRegenerateWithSelections:
+                        creativePoints.length > 0
+                            ? (selections) =>
+                                  handleAIGenerate(buildBranchInstruction(selections))
+                            : undefined,
+                });
             } else {
                 handleAPIError(
                     new Error('章立ての解析に失敗しました'),
@@ -549,15 +418,13 @@ export const ChapterAssistantPanel: React.FC = () => {
                 }
             );
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGenerating(false);
-            }
-            basicAbortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
     };
 
     // 構成バランス分析に基づく章立て生成
-    const handleStructureBasedAIGenerate = async () => {
+    const handleStructureBasedAIGenerate = async (branchInstruction?: string) => {
         if (!isConfigured || !currentProject) {
             handleAPIError(
                 new Error('AI設定が完了していません'),
@@ -582,33 +449,42 @@ export const ChapterAssistantPanel: React.FC = () => {
             return;
         }
 
-        // 既存のリクエストをキャンセル
-        if (structureAbortControllerRef.current) {
-            structureAbortControllerRef.current.abort();
-        }
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+        const { id: taskId, signal } = startTask({
+            key: structureKey,
+            label: '構成ベース章立てを生成中',
+            step: 'chapter',
+        });
 
-        // 新しいAbortControllerを作成
-        const abortController = new AbortController();
-        structureAbortControllerRef.current = abortController;
-
-        setIsGeneratingStructure(true);
+        // 創造ポイント（Phase C）: 設定ONなら分岐候補の付記を要求する
+        const cpEnabled = settings.creativePointsEnabled !== false;
 
         try {
-            const prompt = buildAIPrompt('structure');
+            let prompt = buildAIPrompt('structure');
+            if (branchInstruction) {
+                prompt += `\n\n【別案の指定】${branchInstruction}`;
+            }
+            if (cpEnabled) {
+                prompt += buildCreativePointsInstruction('章立て');
+            }
             const response = await aiService.generateContent({
                 prompt: prompt,
                 type: 'chapter',
                 settings: settings,
-                signal: abortController.signal,
+                signal,
             });
 
             // キャンセルされた場合は処理をスキップ
-            if (abortController.signal.aborted) {
+            if (signal.aborted) {
                 return;
             }
 
             if (response.content && !response.error) {
-                const newChapters = parseAIResponse(response.content);
+                // 創造ポイントのマーカー以降を章立て本文から分離してから解析する
+                const { content: chapterContent, creativePoints } = cpEnabled
+                    ? splitCreativePoints(response.content)
+                    : { content: response.content, creativePoints: [] };
+                const newChapters = parseAIResponse(chapterContent);
 
                 // 解析結果を含めてログを保存
                 addLog({
@@ -620,9 +496,8 @@ export const ChapterAssistantPanel: React.FC = () => {
                 });
 
                 if (newChapters.length > 0) {
-                    updateProject({
-                        chapters: [...currentProject.chapters, ...newChapters],
-                    });
+                    const existingChapters = currentProject.chapters;
+                    const chaptersToAdd = newChapters;
 
                     // 不完全な章があるかチェック
                     const incompleteChapters = newChapters.filter((ch: {
@@ -637,14 +512,31 @@ export const ChapterAssistantPanel: React.FC = () => {
                         !ch.summary || !ch.setting || !ch.mood || !ch.keyEvents?.length || !ch.characters?.length
                     );
 
-                    if (incompleteChapters.length > 0) {
-                        showWarning(`構成バランスAI提案で${newChapters.length}章を追加しました。`, 8000, {
-                            title: '章を追加しました',
-                            details: `対象: ${incompleteStructures.join('、')}\n注意: ${incompleteChapters.length}章で情報が不完全です。必要に応じて手動で編集してください。`,
-                        });
-                    } else {
-                        showSuccess(`構成バランスAI提案で${newChapters.length}章を追加しました。対象: ${incompleteStructures.join('、')}`);
-                    }
+                    const previewText = [
+                        `対象: ${incompleteStructures.join('、')}`,
+                        incompleteChapters.length > 0
+                            ? `⚠ ${incompleteChapters.length}章で情報が不完全です。反映後に手動編集できます。`
+                            : '',
+                        '',
+                        ...newChapters.map((ch: { title: string; summary?: string }, i: number) =>
+                            `${i + 1}. ${ch.title}\n   ${ch.summary || '(概要なし)'}`
+                        ),
+                    ].filter(Boolean).join('\n\n');
+
+                    // 即時反映せず、確認モーダルで反映/破棄を選べるよう保留に登録
+                    proposeResult({
+                        label: `構成バランス章立て（${newChapters.length}章追加）`,
+                        preview: previewText,
+                        onApply: () => updateProject({
+                            chapters: [...existingChapters, ...chaptersToAdd],
+                        }),
+                        creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
+                        onRegenerateWithSelections:
+                            creativePoints.length > 0
+                                ? (selections) =>
+                                      handleStructureBasedAIGenerate(buildBranchInstruction(selections))
+                                : undefined,
+                    });
                 } else {
                     showError('章立ての解析に失敗しました。', 10000, {
                         title: '解析エラー',
@@ -687,10 +579,8 @@ export const ChapterAssistantPanel: React.FC = () => {
                 }
             );
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGeneratingStructure(false);
-            }
-            structureAbortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
     };
 
@@ -825,7 +715,7 @@ ${'='.repeat(80)}`;
                     構成詳細（起承転結・三幕構成・四幕構成）を最重要視し、ジャンルに適した章立てを自動生成します。
                 </p>
                 <button
-                    onClick={handleAIGenerate}
+                    onClick={() => handleAIGenerate()}
                     disabled={isAnyLoading || !isConfigured}
                     className="w-full px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center space-x-2 text-sm"
                 >
@@ -894,7 +784,7 @@ ${'='.repeat(80)}`;
                         未完了の構成要素に焦点を当て、構成詳細を最重要視した章立てをAIが提案します。
                     </p>
                     <button
-                        onClick={handleStructureBasedAIGenerate}
+                        onClick={() => handleStructureBasedAIGenerate()}
                         disabled={isAnyLoading || Object.values(structureProgress).every(Boolean)}
                         className="w-full px-3 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-lg hover:scale-105 transition-all duration-200 font-['Noto_Sans_JP'] disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center space-x-2 text-sm"
                     >

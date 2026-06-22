@@ -26,7 +26,7 @@ const categoryLabels: Record<GlossaryTerm['category'], string> = {
 
 export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
-  const { showError, showWarning, showSuccess } = useToast();
+  const { showError, showWarning, showSuccess, showInfo } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -352,6 +352,11 @@ JSON配列形式で出力してください：
           setAiResults(filteredTerms);
           // すべて選択状態にする
           setSelectedResults(new Set(filteredTerms.map((_, idx) => idx)));
+          if (filteredTerms.length > 0) {
+            showSuccess(`${filteredTerms.length}件の用語候補を抽出しました`);
+          } else {
+            showInfo('新しく追加できる用語候補は見つかりませんでした');
+          }
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
           showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {
@@ -463,6 +468,7 @@ JSON形式で出力してください：
             }));
           }
         }
+        showSuccess('用語の説明文を生成しました');
       }
     } catch (error) {
       console.error('説明生成エラー:', error);
@@ -555,6 +561,11 @@ JSON配列形式で出力してください：
 
           setAiResults(filteredTerms);
           setSelectedResults(new Set(filteredTerms.map((_, idx) => idx)));
+          if (filteredTerms.length > 0) {
+            showSuccess(`${filteredTerms.length}件の用語候補を生成しました`);
+          } else {
+            showInfo('新しく追加できる用語候補は見つかりませんでした');
+          }
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
           showError('AIの応答を解析できませんでした。応答形式が正しくない可能性があります。', 7000, {

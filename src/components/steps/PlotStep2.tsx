@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, RotateCcw, Layers, ChevronDown, ChevronUp, AlertCircle, Clock, BookOpen, Info } from 'lucide-react';
+import { Check, RotateCcw, Layers, ChevronDown, ChevronUp, AlertCircle, Clock, BookOpen, Info, Wand2, Loader2 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
@@ -14,7 +14,18 @@ import { getProjectContext, hasAnyOverLimit, getLastSavedText } from './plot2/ut
 import { usePlotForm } from './plot2/hooks/usePlotForm';
 
 import { PlotStructureSection } from './plot2/components/PlotStructureSection';
+import { StructureInferenceModal } from './plot2/components/StructureInferenceModal';
 import { StepNavigation } from '../common/StepNavigation';
+import { getInputCharBudget } from '../../services/summarization/tokenBudget';
+import { IMPORT_SYSTEM_PROMPT } from '../../services/prompts/import';
+import { buildStructureInferencePrompt } from '../../services/prompts/plotStructure';
+import {
+  INFER_STRUCTURE_PROMPT_CAP,
+  buildStructureCatalog,
+  buildChapterDigest,
+  parseStructureInference,
+  type StructureInference,
+} from '../../services/plotStructure/inferStructure';
 
 
 export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
@@ -254,6 +265,94 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
     }
   }, [isConfigured, formData, currentProject, settings, addLog, showError, setFormData, isGenerating]);
 
+  // 構成推定（あらすじ＋章一覧からどの構成に当てはまるかをAIが判定・忠実抽出系）
+  const [inferenceResult, setInferenceResult] = useState<StructureInference | null>(null);
+
+  const handleInferStructure = useCallback(async () => {
+    if (isGenerating) return;
+    if (!currentProject) return;
+
+    if (!isConfigured) {
+      showError('AI設定が必要です。設定画面でAIプロバイダーとAPIキーを設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
+      return;
+    }
+
+    setIsGenerating('infer-structure');
+
+    try {
+      // 既定の10000字キャップでは章ダイジェスト＋カタログが欠落し得るため上限を引き上げ、
+      // 予算計算（getInputCharBudget）と実際の切り詰め（maxPromptLength）を整合させる
+      const budget = getInputCharBudget(settings, INFER_STRUCTURE_PROMPT_CAP);
+      const synopsis = (currentProject.synopsis || '').slice(0, Math.floor(budget * 0.5));
+      const chaptersDigest = buildChapterDigest(
+        currentProject.chapters,
+        Math.max(500, budget - synopsis.length)
+      );
+
+      const prompt = buildStructureInferencePrompt({
+        synopsis,
+        theme: currentProject.plot?.theme || '',
+        setting: currentProject.plot?.setting || '',
+        chaptersDigest,
+        structureCatalog: buildStructureCatalog(),
+      });
+
+      const response = await aiService.generateContent({
+        prompt,
+        type: 'plot',
+        // 既定の創作支援システムプロンプトは捏造の原因になるため、忠実抽出用に差し替える
+        systemPrompt: IMPORT_SYSTEM_PROMPT,
+        settings: { ...settings, temperature: Math.min(settings.temperature, 0.2) },
+        maxPromptLength: INFER_STRUCTURE_PROMPT_CAP,
+      });
+
+      addLog({
+        type: 'inferStructure',
+        prompt,
+        response: response.content || '',
+        error: response.error,
+      });
+
+      if (response.error) {
+        showError(`AI生成エラー: ${response.error}`, 7000, {
+          title: '構成推定エラー',
+        });
+        return;
+      }
+
+      const parsed = parseStructureInference(response.content);
+      if (!parsed) {
+        showError('AI応答の解析に失敗しました。もう一度お試しください。', 7000, {
+          title: '構成推定エラー',
+        });
+        return;
+      }
+
+      setInferenceResult(parsed);
+    } catch (error) {
+      console.error('構成推定エラー:', error);
+      showError('構成の推定中にエラーが発生しました。', 7000, {
+        title: '構成推定エラー',
+      });
+    } finally {
+      setIsGenerating(null);
+    }
+  }, [isGenerating, currentProject, isConfigured, settings, addLog, showError]);
+
+  // 推定結果の適用（updateProject 直接更新＝usePlotFormの同期エフェクトと競合しない）
+  const handleApplyInference = useCallback((result: StructureInference) => {
+    if (!currentProject) return;
+    updateProject({
+      plot: {
+        ...currentProject.plot,
+        structure: result.structure,
+        ...result.fields,
+      },
+    }, true);
+    showSuccess('推定された構成を適用しました。内容を確認・編集してください。');
+  }, [currentProject, updateProject, showSuccess]);
 
   // 手動保存（即座に保存し、他の構成のデータをクリア）
   const handleManualSave = useCallback(async () => {
@@ -572,22 +671,37 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
               </div>
             </div>
 
-            {/* 2段目: 構成スタイル切り替え（ドロップダウン） */}
-            <div className="relative">
-              <select
-                value={plotStructure}
-                onChange={(e) => setPlotStructure(e.target.value as PlotStructureType)}
-                className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none cursor-pointer"
-              >
-                {Object.entries(PLOT_STRUCTURE_CONFIGS).map(([key, config]) => (
-                  <option key={key} value={key}>
-                    {config.label} - {config.description}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <ChevronDown className="h-5 w-5 text-gray-400" />
+            {/* 2段目: 構成スタイル切り替え（ドロップダウン）＋ AI構成推定 */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <select
+                  value={plotStructure}
+                  onChange={(e) => setPlotStructure(e.target.value as PlotStructureType)}
+                  className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP'] appearance-none cursor-pointer"
+                >
+                  {Object.entries(PLOT_STRUCTURE_CONFIGS).map(([key, config]) => (
+                    <option key={key} value={key}>
+                      {config.label} - {config.description}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <ChevronDown className="h-5 w-5 text-gray-400" />
+                </div>
               </div>
+              <button
+                onClick={handleInferStructure}
+                disabled={!!isGenerating}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm whitespace-nowrap font-['Noto_Sans_JP']"
+                title="あらすじと章一覧から、どの構成に当てはまるかをAIが推定します（適用前に確認できます）"
+              >
+                {isGenerating === 'infer-structure' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4" />
+                )}
+                <span>{isGenerating === 'infer-structure' ? '推定中...' : 'AIで構成を推定'}</span>
+              </button>
             </div>
 
             {/* 構成スタイルガイド（ドロップダウン直下にインライン表示） */}
@@ -847,6 +961,16 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
                 : '確認'
         }
       />
+
+      {/* 構成推定結果の確認モーダル */}
+      {inferenceResult && (
+        <StructureInferenceModal
+          isOpen={!!inferenceResult}
+          result={inferenceResult}
+          onClose={() => setInferenceResult(null)}
+          onApply={handleApplyInference}
+        />
+      )}
     </div>
   );
 };

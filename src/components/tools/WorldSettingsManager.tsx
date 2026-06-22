@@ -31,7 +31,7 @@ const categoryLabels: Record<WorldSetting['category'], { label: string; color: s
 
 export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
-  const { showError, showWarning } = useToast();
+  const { showError, showWarning, showSuccess } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -401,6 +401,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
           title: title || `AI生成された世界観設定（${categoryLabels[aiCategory].label}）`,
           content: extractedContent || content,
         });
+        showSuccess('世界観設定の生成が完了しました');
       } else {
         // コンテンツが空の場合
         setAiError('AIからの応答が空でした。もう一度お試しください。');
@@ -502,8 +503,6 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                 onClick={() => {
                   setShowAIAssistant(true);
                   setAiMode('generate');
-                  setAiResult(null);
-                  setAiError(null);
                   setAiInstruction('');
                   setSelectedSettingForAI(null);
                 }}
@@ -623,8 +622,6 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                                     setShowAIAssistant(true);
                                     setAiMode('enhance');
                                     setSelectedSettingForAI(setting);
-                                    setAiResult(null);
-                                    setAiError(null);
                                     setAiInstruction('');
                                   }}
                                   className="p-1.5 rounded hover:bg-purple-100 dark:hover:bg-purple-900 transition-colors"
@@ -638,8 +635,6 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                                     setShowAIAssistant(true);
                                     setAiMode('expand');
                                     setSelectedSettingForAI(setting);
-                                    setAiResult(null);
-                                    setAiError(null);
                                     setAiInstruction('');
                                   }}
                                   className="p-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
@@ -816,9 +811,10 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
       <Modal
         isOpen={showAIAssistant}
         onClose={() => {
+          // 結果(aiResult)・エラーは保持する。AI生成中に閉じても、
+          // 再表示時に完了した生成結果を確認できるようにするため。
+          // クリアは生成開始時・反映後・明示的な破棄(×)でのみ行う。
           setShowAIAssistant(false);
-          setAiResult(null);
-          setAiError(null);
           setAiInstruction('');
           setSelectedSettingForAI(null);
         }}

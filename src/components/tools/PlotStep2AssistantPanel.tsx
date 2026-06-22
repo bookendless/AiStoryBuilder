@@ -1,33 +1,50 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { Sparkles, AlertCircle, Loader2, CheckCircle, FileText } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
+import { useGeneration } from '../../contexts/GenerationContext';
+import { usePendingResult } from '../../contexts/PendingResultContext';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
+import { buildCreativePointsJsonKeyInstruction } from '../../services/prompts/creativePoints';
+import { normalizeCreativePointsList } from '../../services/creativePoints/parseCreativePoints';
+import { buildBranchInstruction } from '../../services/creativePoints/buildBranchInstruction';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import type { PlotStructureType, PlotFormData, ConsistencyCheck } from '../steps/plot2/types';
 import { PLOT_STRUCTURE_CONFIGS, AI_LOG_TYPE_LABELS } from '../steps/plot2/constants';
 import { getProjectContext, getStructureFields, formatCharactersInfo } from '../steps/plot2/utils';
 import { exportFile } from '../../utils/mobileExportUtils';
-import { Modal } from '../common/Modal';
 
 export const PlotStep2AssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured } = useAI();
     const { showSuccess, showError } = useToast();
     const { handleAPIError } = useErrorHandler();
-    const [isGenerating, setIsGenerating] = useState<string | null>(null);
+    const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
+    const { proposeResult } = usePendingResult();
     const { aiLogs, addLog } = useAILog({
         projectId: currentProject?.id,
         autoLoad: true,
     });
     const [consistencyCheck, setConsistencyCheck] = useState<ConsistencyCheck | null>(null);
-    const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
-    const structureAbortControllerRef = useRef<AbortController | null>(null);
-    const consistencyAbortControllerRef = useRef<AbortController | null>(null);
+    // 一貫性チェックの自動修正を保留結果(onApply)から呼ぶための参照（定義順のTDZ回避）
+    const applyConsistencyRef = useRef<((check?: ConsistencyCheck) => Promise<void>) | null>(null);
+
+    // 生成タスクの識別キー（種別ごと）。実行中判定はマネージャから導出する
+    const pid = currentProject?.id ?? 'none';
+    const structureKey = `${pid}:plot2:structure`;
+    const consistencyKey = `${pid}:plot2:consistency`;
+    const applyConsistencyKey = `${pid}:plot2:applyConsistency`;
+    const isGenerating: string | null = isKeyActive(structureKey)
+        ? 'structure'
+        : isKeyActive(consistencyKey)
+            ? 'consistency'
+            : isKeyActive(applyConsistencyKey)
+                ? 'applyConsistency'
+                : null;
 
     // plotStructureとformDataは直接currentProjectから取得して即座に反映
     // これにより、PlotStep2との状態競合を防ぐ
@@ -70,39 +87,18 @@ export const PlotStep2AssistantPanel: React.FC = () => {
         ms7: currentProject?.plot?.ms7 || '',
     }), [currentProject?.plot]);
 
-    // キャンセルハンドラー
+    // キャンセルハンドラー（マネージャ経由でkey単位にabort）
     const handleCancelStructure = useCallback(() => {
-        if (structureAbortControllerRef.current) {
-            structureAbortControllerRef.current.abort();
-            structureAbortControllerRef.current = null;
-            setIsGenerating(null);
-        }
-    }, []);
+        cancelByKey(structureKey);
+    }, [cancelByKey, structureKey]);
 
     const handleCancelConsistency = useCallback(() => {
-        if (consistencyAbortControllerRef.current) {
-            consistencyAbortControllerRef.current.abort();
-            consistencyAbortControllerRef.current = null;
-            setIsGenerating(null);
-        }
-    }, []);
-
-    // クリーンアップ
-    useEffect(() => {
-        return () => {
-            if (structureAbortControllerRef.current) {
-                structureAbortControllerRef.current.abort();
-                structureAbortControllerRef.current = null;
-            }
-            if (consistencyAbortControllerRef.current) {
-                consistencyAbortControllerRef.current.abort();
-                consistencyAbortControllerRef.current = null;
-            }
-        };
-    }, []);
+        cancelByKey(consistencyKey);
+        cancelByKey(applyConsistencyKey);
+    }, [cancelByKey, consistencyKey, applyConsistencyKey]);
 
     // 構成全体の生成
-    const handleStructureAIGenerate = useCallback(async () => {
+    const handleStructureAIGenerate = useCallback(async (branchInstruction?: string) => {
         if (isGenerating) return;
 
         if (!isConfigured) {
@@ -117,16 +113,12 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             return;
         }
 
-        // 既存のリクエストをキャンセル
-        if (structureAbortControllerRef.current) {
-            structureAbortControllerRef.current.abort();
-        }
-
-        // 新しいAbortControllerを作成
-        const abortController = new AbortController();
-        structureAbortControllerRef.current = abortController;
-
-        setIsGenerating('structure');
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+        const { id: taskId, signal } = startTask({
+            key: structureKey,
+            label: '構成全体を生成中',
+            step: 'plot2',
+        });
 
         try {
             const context = getProjectContext(currentProject);
@@ -253,7 +245,10 @@ export const PlotStep2AssistantPanel: React.FC = () => {
 }`;
             }
 
-            const prompt = aiService.buildPrompt('plot', 'generateStructure', {
+            // 創造ポイント（Phase C）: 設定ONなら分岐候補の付記を要求する
+            const cpEnabled = settings.creativePointsEnabled !== false;
+
+            let prompt = aiService.buildPrompt('plot', 'generateStructure', {
                 structureType: structureType,
                 title: context.title,
                 mainGenre: context.mainGenre || context.genre,
@@ -270,16 +265,23 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 structureDescription: structureDescription,
                 outputFormat: outputFormat,
             });
+            if (branchInstruction) {
+                prompt += `\n\n【別案の指定】${branchInstruction}`;
+            }
+            if (cpEnabled) {
+                // plot2 は単一JSON出力のため、マーカー方式ではなく creativePoints キーを同一JSONに付記させる
+                prompt += buildCreativePointsJsonKeyInstruction();
+            }
 
             const response = await aiService.generateContent({
                 prompt,
                 type: 'plot',
                 settings,
-                signal: abortController.signal,
+                signal,
             });
 
             // キャンセルされた場合は処理をスキップ
-            if (abortController.signal.aborted) {
+            if (signal.aborted) {
                 return;
             }
 
@@ -322,6 +324,11 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                         jsonString = jsonString.slice(0, -1);
                     }
                     const parsed = JSON.parse(jsonString);
+
+                    // 創造ポイント（Phase C）: 同一JSON内の creativePoints キーを正規化（構成キーには非干渉）
+                    const creativePoints = cpEnabled
+                        ? normalizeCreativePointsList((parsed as Record<string, unknown>).creativePoints)
+                        : [];
 
                     const getStringValue = (key: string, defaultValue: string): string => {
                         const value = parsed[key];
@@ -385,21 +392,31 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                         };
                     }
 
-                    // プロジェクトを直接更新（即座に保存）
+                    // 即時反映せず、確認モーダルで反映/破棄を選べるよう保留に登録
                     const currentPlot = currentProject?.plot;
-                    await updateProject({
-                        plot: {
-                            theme: currentPlot?.theme || '',
-                            setting: currentPlot?.setting || '',
-                            hook: currentPlot?.hook || '',
-                            protagonistGoal: currentPlot?.protagonistGoal || '',
-                            mainObstacle: currentPlot?.mainObstacle || '',
-                            ...currentPlot,
-                            ...plotUpdates,
-                        }
-                    }, true);
-
-                    showSuccess(`${PLOT_STRUCTURE_CONFIGS[plotStructure].label}の内容を生成しました`);
+                    const nextPlot = {
+                        theme: currentPlot?.theme || '',
+                        setting: currentPlot?.setting || '',
+                        hook: currentPlot?.hook || '',
+                        protagonistGoal: currentPlot?.protagonistGoal || '',
+                        mainObstacle: currentPlot?.mainObstacle || '',
+                        ...currentPlot,
+                        ...plotUpdates,
+                    };
+                    const previewText = Object.values(plotUpdates)
+                        .filter((v) => typeof v === 'string' && v.trim().length > 0)
+                        .join('\n\n');
+                    proposeResult({
+                        label: `${PLOT_STRUCTURE_CONFIGS[plotStructure].label}`,
+                        preview: previewText,
+                        onApply: () => updateProject({ plot: nextPlot }, true),
+                        creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
+                        onRegenerateWithSelections:
+                            creativePoints.length > 0
+                                ? (selections) =>
+                                      handleStructureAIGenerate(buildBranchInstruction(selections))
+                                : undefined,
+                    });
                 } catch (error) {
                     console.error('JSON解析エラー:', error);
                     handleAPIError(
@@ -442,12 +459,10 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 }
             );
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGenerating(null);
-            }
-            structureAbortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
-    }, [isConfigured, currentProject, plotStructure, formData, settings, addLog, showError, showSuccess, updateProject, isGenerating]);
+    }, [isConfigured, currentProject, plotStructure, formData, settings, addLog, showError, showSuccess, updateProject, isGenerating, startTask, completeTask, structureKey, proposeResult]);
 
     // 一貫性チェック
     const checkConsistency = useCallback(async () => {
@@ -465,16 +480,12 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             return;
         }
 
-        // 既存のリクエストをキャンセル
-        if (consistencyAbortControllerRef.current) {
-            consistencyAbortControllerRef.current.abort();
-        }
-
-        // 新しいAbortControllerを作成
-        const abortController = new AbortController();
-        consistencyAbortControllerRef.current = abortController;
-
-        setIsGenerating('consistency');
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+        const { id: taskId, signal } = startTask({
+            key: consistencyKey,
+            label: '一貫性チェック中',
+            step: 'plot2',
+        });
 
         try {
             const context = getProjectContext(currentProject);
@@ -508,11 +519,11 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 prompt,
                 type: 'plot',
                 settings,
-                signal: abortController.signal,
+                signal,
             });
 
             // キャンセルされた場合は処理をスキップ
-            if (abortController.signal.aborted) {
+            if (signal.aborted) {
                 return;
             }
 
@@ -560,13 +571,50 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                     const suggestions = Array.isArray(parsed.suggestions)
                         ? parsed.suggestions.filter((suggestion: unknown) => typeof suggestion === 'string')
                         : [];
-                    setConsistencyCheck({
+                    const parsedCheck: ConsistencyCheck = {
                         hasIssues: typeof parsed.hasIssues === 'boolean' ? parsed.hasIssues : false,
                         issues: issues,
                         suggestions: suggestions,
-                    });
-                    setIsConsistencyModalOpen(true);
-                    showSuccess('一貫性チェックが完了しました');
+                    };
+                    setConsistencyCheck(parsedCheck);
+                    if (parsedCheck.hasIssues) {
+                        // 即時表示せず保留結果として登録。どのステップにいても、完了トーストの
+                        // 「確認する」や左下インジケータの「確認待ち」から内容を確認・反映できる。
+                        proposeResult({
+                            label: 'プロット一貫性チェック',
+                            applyLabel: '提案に従って修正を実施',
+                            applySuccessMessage: '提案に従ってプロットを修正しました',
+                            preview: (
+                                <div className="space-y-4">
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                                        <p className="font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center">
+                                            <AlertCircle className="w-4 h-4 mr-2" />指摘された問題点
+                                        </p>
+                                        <ul className="list-disc list-inside space-y-1 text-amber-700 dark:text-amber-300">
+                                            {parsedCheck.issues.map((issue, i) => (
+                                                <li key={i} className="leading-relaxed">{issue}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    {parsedCheck.suggestions.length > 0 && (
+                                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                                            <p className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
+                                                <Sparkles className="w-4 h-4 mr-2" />改善提案
+                                            </p>
+                                            <ul className="list-disc list-inside space-y-1 text-blue-700 dark:text-blue-300">
+                                                {parsedCheck.suggestions.map((s, i) => (
+                                                    <li key={i} className="leading-relaxed">{s}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            ),
+                            onApply: () => applyConsistencyRef.current?.(parsedCheck),
+                        });
+                    } else {
+                        showSuccess('一貫性チェック完了：問題なし');
+                    }
                 } catch (error) {
                     console.error('JSON解析エラー:', error);
                     showError('AI出力の解析に失敗しました。', 7000, {
@@ -591,16 +639,15 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 }
             );
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGenerating(null);
-            }
-            consistencyAbortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
-    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, handleAPIError, showSuccess, isGenerating]);
+    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, handleAPIError, showSuccess, isGenerating, startTask, completeTask, consistencyKey, proposeResult]);
 
     // 一貫性チェックから自動修正を適用
-    const handleApplyConsistency = useCallback(async () => {
-        if (!consistencyCheck || !consistencyCheck.hasIssues || !consistencyCheck.suggestions.length) return;
+    const handleApplyConsistency = useCallback(async (checkOverride?: ConsistencyCheck) => {
+        const check = checkOverride ?? consistencyCheck;
+        if (!check || !check.hasIssues || !check.suggestions.length) return;
 
         if (isGenerating) return;
 
@@ -616,14 +663,12 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             return;
         }
 
-        if (consistencyAbortControllerRef.current) {
-            consistencyAbortControllerRef.current.abort();
-        }
-
-        const abortController = new AbortController();
-        consistencyAbortControllerRef.current = abortController;
-
-        setIsGenerating('applyConsistency');
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+        const { id: taskId, signal } = startTask({
+            key: applyConsistencyKey,
+            label: 'プロット自動修正中',
+            step: 'plot2',
+        });
 
         try {
             const context = getProjectContext(currentProject);
@@ -641,7 +686,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
 
             const structureFields = getStructureFields(plotStructure, formData);
             const structureText = structureFields.map(f => `${f.label}: ${f.value}`).join('\n\n');
-            const suggestionsText = consistencyCheck.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n');
+            const suggestionsText = check.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n');
 
             let structureType = '';
             let structureDescription = '';
@@ -763,10 +808,10 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 prompt,
                 type: 'plot',
                 settings,
-                signal: abortController.signal,
+                signal,
             });
 
-            if (abortController.signal.aborted) {
+            if (signal.aborted) {
                 return;
             }
 
@@ -780,17 +825,9 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             });
 
             if (response.error) {
-                handleAPIError(
-                    new Error(response.error),
-                    'プロット自動修正',
-                    {
-                        title: 'AI生成エラー',
-                        duration: 7000,
-                        showDetails: true,
-                        onRetry: () => handleApplyConsistency(),
-                    }
-                );
-                return;
+                // 誤った成功表示を防ぐため、呼び出し元(applyResult)へ送出する。
+                // 保留結果は残るため、再度「反映」で再試行できる。
+                throw new Error(response.error);
             }
 
             const content = response.content;
@@ -871,6 +908,9 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                         };
                     }
 
+                    // 注意: スナップショット上書き。currentProject は onApply 登録時点の値で、
+                    // 構成全体を再生成結果で置換する。確認モーダルで待つ間にプロット構成を
+                    // 手動編集すると上書きされ得る（別ステップ移動中の利用が前提のため影響は限定的）。
                     const currentPlot = currentProject?.plot;
                     await updateProject({
                         plot: {
@@ -884,55 +924,31 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                         }
                     }, true);
 
-                    showSuccess('提案に従ってプロットを修正しました');
-                    setIsConsistencyModalOpen(false);
+                    // 反映完了トーストは PendingResultContext 側（applySuccessMessage）で表示する
                 } catch (error) {
+                    // エラーは呼び出し元(applyResult)へ送出し、誤った成功表示を防ぐ。
+                    // 保留結果は残るため、再度「反映」で再試行できる。
                     console.error('JSON解析エラー:', error);
-                    handleAPIError(
-                        error,
-                        'プロット自動修正',
-                        {
-                            title: '解析エラー',
-                            duration: 7000,
-                            showDetails: true,
-                            onRetry: () => handleApplyConsistency(),
-                        }
-                    );
+                    throw error;
                 }
             } else {
-                handleAPIError(
-                    new Error('AI出力の形式が正しくありません'),
-                    'プロット自動修正',
-                    {
-                        title: '形式エラー',
-                        duration: 7000,
-                        showDetails: true,
-                        onRetry: () => handleApplyConsistency(),
-                    }
-                );
+                throw new Error('AI出力の形式が正しくありません');
             }
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 return;
             }
             console.error('自動修正エラー:', error);
-            handleAPIError(
-                error,
-                'プロット自動修正',
-                {
-                    title: '自動修正中にエラーが発生しました',
-                    duration: 7000,
-                    showDetails: true,
-                    onRetry: () => handleApplyConsistency(),
-                }
-            );
+            // 誤った成功表示を防ぐため、呼び出し元(applyResult)へ送出する
+            throw error;
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGenerating(null);
-            }
-            consistencyAbortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
-    }, [isConfigured, formData, plotStructure, currentProject, consistencyCheck, settings, addLog, updateProject, handleAPIError, showSuccess, isGenerating]);
+    }, [isConfigured, formData, plotStructure, currentProject, consistencyCheck, settings, addLog, updateProject, handleAPIError, showSuccess, isGenerating, startTask, completeTask, applyConsistencyKey]);
+
+    // 保留結果(onApply)から最新の自動修正関数を呼べるように参照を更新
+    applyConsistencyRef.current = handleApplyConsistency;
 
     // 進捗状況を計算
     const progress = useMemo(() => {
@@ -1143,12 +1159,9 @@ ${'='.repeat(80)}`;
                             </span>
                         </div>
                         {consistencyCheck.hasIssues && (
-                            <button
-                                onClick={() => setIsConsistencyModalOpen(true)}
-                                className="px-3 py-1 bg-amber-100 hover:bg-amber-200 dark:bg-amber-800 dark:hover:bg-amber-700 text-amber-700 dark:text-amber-200 rounded text-xs font-semibold transition-colors focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                            >
-                                詳細を確認
-                            </button>
+                            <span className="text-xs text-amber-600 dark:text-amber-400">
+                                完了トースト/左下の「確認待ち」から確認
+                            </span>
                         )}
                     </div>
                 )}
@@ -1215,84 +1228,6 @@ ${'='.repeat(80)}`;
                     />
                 </div>
             </div>
-
-            {/* 一貫性チェック結果表示用モーダル */}
-            <Modal
-                isOpen={isConsistencyModalOpen}
-                onClose={() => setIsConsistencyModalOpen(false)}
-                title="プロットの一貫性チェック結果"
-                size="lg"
-            >
-                <div className="space-y-6 font-['Noto_Sans_JP']">
-                    {consistencyCheck && consistencyCheck.hasIssues ? (
-                        <>
-                            <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                                <h4 className="font-semibold text-amber-800 dark:text-amber-200 mb-3 flex items-center">
-                                    <AlertCircle className="w-5 h-5 mr-2" />
-                                    指摘された問題点
-                                </h4>
-                                <ul className="list-disc list-inside space-y-2 text-sm text-amber-700 dark:text-amber-300">
-                                    {consistencyCheck.issues.map((issue, index) => (
-                                        <li key={index} className="leading-relaxed">{issue}</li>
-                                    ))}
-                                </ul>
-                            </div>
-
-                            {consistencyCheck.suggestions && consistencyCheck.suggestions.length > 0 && (
-                                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                                    <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center">
-                                        <Sparkles className="w-5 h-5 mr-2" />
-                                        改善提案
-                                    </h4>
-                                    <ul className="list-disc list-inside space-y-2 text-sm text-blue-700 dark:text-blue-300">
-                                        {consistencyCheck.suggestions.map((suggestion, index) => (
-                                            <li key={index} className="leading-relaxed">{suggestion}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end pt-4 space-x-3 border-t border-gray-200 dark:border-gray-700 mt-6">
-                                <button
-                                    onClick={() => setIsConsistencyModalOpen(false)}
-                                    className="px-4 py-2 text-sm justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                                >
-                                    閉じる
-                                </button>
-                                <button
-                                    onClick={handleApplyConsistency}
-                                    disabled={isGenerating === 'applyConsistency'}
-                                    className="px-4 py-2 text-sm justify-center rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold transition-all shadow shadow-blue-500/30 flex items-center disabled:opacity-50"
-                                >
-                                    {isGenerating === 'applyConsistency' ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            修正中...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles className="w-4 h-4 mr-2" />
-                                            提案に従って修正を実施
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="py-8 text-center text-green-600 dark:text-green-400">
-                            <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-80" />
-                            <p className="font-semibold text-lg">一貫性チェック完了：問題なし</p>
-                            <p className="text-sm mt-2 opacity-80">現在の構成に大きな問題は見つかりませんでした。</p>
-                            <button
-                                onClick={() => setIsConsistencyModalOpen(false)}
-                                className="mt-6 px-6 py-2 bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:hover:bg-green-800 text-green-800 dark:text-green-200 rounded-lg transition-colors font-semibold"
-                            >
-                                閉じる
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </Modal>
         </div>
     );
 };

@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Sparkles, Loader, FileText, CheckCircle } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
+import { useGeneration } from '../../contexts/GenerationContext';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
@@ -29,12 +30,15 @@ export const PlotStep1AssistantPanel: React.FC = () => {
     const { settings, isConfigured } = useAI();
     const { showSuccess, showWarning } = useToast();
     const { handleAPIError } = useErrorHandler();
-    const [isGenerating, setIsGenerating] = useState(false);
+    const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
     const { aiLogs, addLog } = useAILog({
         projectId: currentProject?.id,
         autoLoad: true,
     });
-    const abortControllerRef = useRef<AbortController | null>(null);
+    // 生成タスクの識別キー（プロジェクト+ステップ+種別）
+    const taskKey = `${currentProject?.id ?? 'none'}:plot1:basic`;
+    // 実行中判定はマネージャから導出（アンマウント/再マウントでも維持される）
+    const isGenerating = isKeyActive(taskKey);
 
     // 現在のプロット設定を取得
     const plotData = currentProject?.plot || {
@@ -149,24 +153,10 @@ export const PlotStep1AssistantPanel: React.FC = () => {
         return formatted;
     }, []);
 
-    // キャンセルハンドラー
+    // キャンセルハンドラー（マネージャ経由でkey単位にabort）
     const handleCancel = useCallback(() => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            abortControllerRef.current = null;
-            setIsGenerating(false);
-        }
-    }, []);
-
-    // クリーンアップ
-    useEffect(() => {
-        return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-                abortControllerRef.current = null;
-            }
-        };
-    }, []);
+        cancelByKey(taskKey);
+    }, [cancelByKey, taskKey]);
 
     // 基本設定全体のAI生成関数
     const handleBasicAIGenerate = useCallback(async () => {
@@ -175,16 +165,12 @@ export const PlotStep1AssistantPanel: React.FC = () => {
             return;
         }
 
-        // 既存のリクエストをキャンセル
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-
-        // 新しいAbortControllerを作成
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
-
-        setIsGenerating(true);
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換される）
+        const { id: taskId, signal } = startTask({
+            key: taskKey,
+            label: '基本設定を生成中',
+            step: 'plot1',
+        });
 
         try {
             // プロジェクトの詳細情報を取得
@@ -271,11 +257,11 @@ ${synopsisInfo}
                 prompt,
                 type: 'plot',
                 settings,
-                signal: abortController.signal,
+                signal,
             });
 
             // キャンセルされた場合は処理をスキップ
-            if (abortController.signal.aborted) {
+            if (signal.aborted) {
                 return;
             }
 
@@ -459,12 +445,10 @@ ${synopsisInfo}
                 }
             );
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGenerating(false);
-            }
-            abortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
-    }, [isConfigured, getProjectContext, settings, showSuccess, showWarning, addLog, formatContentToFit, plotData, updateProject, currentProject, handleAPIError]);
+    }, [isConfigured, getProjectContext, settings, showSuccess, showWarning, addLog, formatContentToFit, plotData, updateProject, currentProject, handleAPIError, startTask, completeTask, taskKey]);
 
     // 基本設定完成度を計算
     const progress = useMemo(() => {

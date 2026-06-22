@@ -279,6 +279,10 @@ export const DraftAssistantPanel: React.FC = () => {
             if (emotion) styleDetailsArray.push(`- **感情描写**: ${emotion}`);
             if (tone) styleDetailsArray.push(`\n【参考となるトーン】\n${tone}`);
         }
+        // 文体見本（few-shot）。選択肢ラベルより直接的に文体を伝える
+        if (currentProject?.styleSample) {
+            styleDetailsArray.push(`\n【文体見本（最重要・この文章の雰囲気・文体・語り口に合わせて執筆する）】\n---\n${currentProject.styleSample}\n---\n※見本の内容（出来事・人物）を流用せず、文体・リズム・語彙の傾向だけを真似てください。`);
+        }
         const styleDetails = styleDetailsArray.length > 0 ? styleDetailsArray.join('\n') + '\n' : '';
 
         let plotStructure = '';
@@ -464,7 +468,12 @@ export const DraftAssistantPanel: React.FC = () => {
         setChapterDrafts,
         setShowCompletionToast: (message: string | null) => {
             if (message) {
-                showSuccess(message);
+                // 全章生成は長時間処理。別ステップに移動していても気づけるよう、
+                // グローバルかつ消えない（残る）完了トーストで通知する。
+                showSuccess(message, undefined, {
+                    title: '全章生成が完了しました',
+                    persistent: true,
+                });
             }
         },
         addLog: addAllChaptersLog,

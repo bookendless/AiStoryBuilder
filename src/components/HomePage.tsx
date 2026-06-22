@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic, Library } from 'lucide-react';
+import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic, Library, FileUp } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
 import { startAutoBackup, stopAutoBackup } from '../services/autoBackupService';
@@ -11,6 +11,7 @@ import { AudioToStoryModal } from './AudioToStoryModal';
 import { AudioImageToStoryModal } from './AudioImageToStoryModal';
 import { StoryProposalModal } from './StoryProposalModal';
 import { SequelComposerModal } from './sequel/SequelComposerModal';
+import { StoryImporterModal } from './import/StoryImporterModal';
 import { Project } from '../contexts/ProjectContext';
 import { useToast } from './Toast';
 import { getUserFriendlyError } from '../utils/errorHandler';
@@ -335,6 +336,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   const [showAudioImageToStoryModal, setShowAudioImageToStoryModal] = useState(false);
   const [showStoryProposalModal, setShowStoryProposalModal] = useState(false);
   const [showSequelModal, setShowSequelModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [storyProposal, setStoryProposal] = useState<StoryProposal | null>(null);
   const [showContextHelp, setShowContextHelp] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
@@ -544,14 +546,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
             <p className="text-body sm:text-lg md:text-xl text-sumi-600 dark:text-usuzumi-300 mb-6 sm:mb-8 font-['Noto_Sans_JP'] px-4">
               80%の面倒な作業はAIに任せて、20%の創造性に集中しましょう
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-              <button
-                onClick={() => setShowImageToStoryModal(true)}
-                className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
-                <Image className="h-4 w-4" />
-                <span>画像から物語を作る</span>
-              </button>
+            <div className="flex flex-col items-center justify-center gap-4">
+              {/* 上段: 新しいプロジェクトを作成 */}
               <button
                 id="new-project-btn"
                 onClick={() => setShowNewProjectModal(true)}
@@ -560,13 +556,30 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                 <Plus className="h-7 w-7" />
                 <span>新しいプロジェクトを作成</span>
               </button>
-              <button
-                onClick={() => setShowAudioToStoryModal(true)}
-                className="inline-flex items-center space-x-2 bg-purple-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
-                <Mic className="h-4 w-4" />
-                <span>音声から物語を作る</span>
-              </button>
+              {/* 下段: 画像 / 小説取込 / 音声 */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+                <button
+                  onClick={() => setShowImageToStoryModal(true)}
+                  className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  <Image className="h-4 w-4" />
+                  <span>画像から物語を作る</span>
+                </button>
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="inline-flex items-center space-x-2 bg-amber-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  <FileUp className="h-4 w-4" />
+                  <span>小説を取り込む</span>
+                </button>
+                <button
+                  onClick={() => setShowAudioToStoryModal(true)}
+                  className="inline-flex items-center space-x-2 bg-purple-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  <Mic className="h-4 w-4" />
+                  <span>音声から物語を作る</span>
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -590,7 +603,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                 className="inline-flex items-center space-x-1.5 bg-indigo-600 text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
               >
                 <Image className="h-3.5 w-3.5" />
-                <span>画像から物語を作る</span>
+                <span>画像から</span>
               </button>
               <button
                 id="new-project-btn"
@@ -598,14 +611,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                 className="inline-flex items-center space-x-1.5 bg-semantic-primary text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
               >
                 <Plus className="h-4 w-4" />
-                <span>新しいプロジェクトを作成</span>
+                <span>新規プロジェクト</span>
               </button>
               <button
                 onClick={() => setShowAudioToStoryModal(true)}
                 className="inline-flex items-center space-x-1.5 bg-purple-600 text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
               >
                 <Mic className="h-3.5 w-3.5" />
-                <span>音声から物語を作る</span>
+                <span>音声から</span>
               </button>
               <button
                 onClick={() => setShowSequelModal(true)}
@@ -614,6 +627,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
               >
                 <Library className="h-3.5 w-3.5" />
                 <span>続編構成</span>
+              </button>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="inline-flex items-center space-x-1.5 bg-amber-600 text-white px-4 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all duration-200 shadow hover:shadow-md"
+                title="手持ちの小説・断片をAI解析して取り込む"
+              >
+                <FileUp className="h-3.5 w-3.5" />
+                <span>小説取込</span>
               </button>
             </div>
           </div>
@@ -934,6 +955,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       <SequelComposerModal
         isOpen={showSequelModal}
         onClose={() => setShowSequelModal(false)}
+        onNavigateToStep={onNavigateToStep}
+      />
+
+      {/* Story Importer Modal */}
+      <StoryImporterModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
         onNavigateToStep={onNavigateToStep}
       />
 

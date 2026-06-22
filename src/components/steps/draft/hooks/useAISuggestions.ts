@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { Project } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
+import { useGeneration } from '../../../../contexts/GenerationContext';
 import { SUGGESTION_CONFIG, MAX_SUGGESTION_TEXT_LENGTH } from '../constants';
 import { parseAISuggestions } from '../utils';
 import type { AISuggestion, AISuggestionType } from '../types';
@@ -67,13 +68,19 @@ export const useAISuggestions = ({
   createHistorySnapshot,
   setChapterDrafts,
 }: UseAISuggestionsOptions): UseAISuggestionsReturn => {
+  const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
   const [aiSuggestions, setAISuggestions] = useState<AISuggestion[]>([]);
-  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState<boolean>(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [lastSelectedText, setLastSelectedText] = useState<string>('');
   const [activeSuggestionType, setActiveSuggestionType] = useState<AISuggestionType>('rewrite');
   const [wasSelectionTruncated, setWasSelectionTruncated] = useState<boolean>(false);
-  const suggestionAbortControllerRef = useRef<AbortController | null>(null);
+  // 提案生成時の選択範囲を保持（適用時に現在のカーソル位置ではなくこの範囲へ置換する）
+  const selectionRangeRef = useRef<{ start: number; end: number; text: string } | null>(null);
+
+  // 生成タスクの識別キー。実行中判定はマネージャから導出（ステップ移動でも維持）
+  const pid = currentProject?.id ?? 'none';
+  const suggestionKey = `${pid}:draft:suggestion`;
+  const isGeneratingSuggestion = isKeyActive(suggestionKey);
 
   // 現在の選択テキストを取得
   const getCurrentSelection = useCallback(() => {
@@ -81,15 +88,11 @@ export const useAISuggestions = ({
     return mainEditorRef.current.getCurrentSelection();
   }, [mainEditorRef]);
 
-  // AI提案生成のキャンセル処理
+  // AI提案生成のキャンセル処理（マネージャ経由でabort）
   const handleCancelSuggestion = useCallback(() => {
-    if (suggestionAbortControllerRef.current) {
-      suggestionAbortControllerRef.current.abort();
-      suggestionAbortControllerRef.current = null;
-    }
-    setIsGeneratingSuggestion(false);
+    cancelByKey(suggestionKey);
     setSuggestionError(null);
-  }, []);
+  }, [cancelByKey, suggestionKey]);
 
   // AI提案生成
   const handleGenerateSuggestions = useCallback(
@@ -113,6 +116,20 @@ export const useAISuggestions = ({
         return;
       }
 
+      // 適用時にカーソルが移動していても正しい範囲へ置換できるよう、生成時点の選択範囲を保存
+      const textarea = mainEditorRef.current?.getTextareaRef();
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        selectionRangeRef.current = {
+          start,
+          end,
+          text: textarea.value.slice(start, end),
+        };
+      } else {
+        selectionRangeRef.current = null;
+      }
+
       let truncatedSelection = selection.trim();
       let truncated = false;
       if (truncatedSelection.length > MAX_SUGGESTION_TEXT_LENGTH) {
@@ -121,14 +138,18 @@ export const useAISuggestions = ({
       }
 
       setActiveSuggestionType(type);
-      setIsGeneratingSuggestion(true);
       setSuggestionError(null);
       setAISuggestions([]);
       setLastSelectedText(truncatedSelection);
       setWasSelectionTruncated(truncated);
 
-      const abortController = new AbortController();
-      suggestionAbortControllerRef.current = abortController;
+      // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+      const { id: taskId, signal } = startTask({
+        key: suggestionKey,
+        label: 'AI提案を生成中',
+        step: 'draft',
+      });
+      const abortController = { signal };
 
       try {
         const prompt = SUGGESTION_CONFIG[type].prompt({
@@ -178,8 +199,8 @@ export const useAISuggestions = ({
           );
         }
       } finally {
-        setIsGeneratingSuggestion(false);
-        suggestionAbortControllerRef.current = null;
+        // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+        completeTask(taskId);
       }
     },
     [
@@ -187,6 +208,7 @@ export const useAISuggestions = ({
       currentProject,
       getCurrentSelection,
       isConfigured,
+      mainEditorRef,
       selectedChapter,
       settings,
       onError,
@@ -203,7 +225,18 @@ export const useAISuggestions = ({
       if (!textarea) return;
 
       const replacement = suggestion.body;
-      const { selectionStart, selectionEnd } = textarea;
+
+      // 生成時に保存した選択範囲を優先使用。生成後にdraftが編集され範囲が無効化されている場合は、
+      // 誤位置への挿入（草案破損）を避けるため適用を中止して再選択を促す。
+      const saved = selectionRangeRef.current;
+      if (!saved || saved.end > draft.length || draft.slice(saved.start, saved.end) !== saved.text) {
+        onError('提案生成後に文章が変更されたため、提案を適用できませんでした。対象を選択し直してください。', 7000, {
+          title: '提案を適用できません',
+        });
+        return;
+      }
+      const selectionStart = saved.start;
+      const selectionEnd = saved.end;
       const before = draft.slice(0, selectionStart);
       const after = draft.slice(selectionEnd);
       const newContent = `${before}${replacement}${after}`;
@@ -243,6 +276,7 @@ export const useAISuggestions = ({
       draft,
       mainEditorRef,
       onDraftUpdate,
+      onError,
       onSaveChapterDraft,
       selectedChapter,
       setChapterDrafts,

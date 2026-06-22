@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Key, Server, Zap } from 'lucide-react';
+import { Settings, Key, Server, Zap, Lightbulb } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
 import { AI_PROVIDERS, AVAILABLE_PROVIDERS } from '../services/providers';
 import { useToast } from './Toast';
@@ -727,6 +727,44 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             />
           </div>
         </div>
+
+        {/* 創造ポイント（Phase C） */}
+        <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={formData.creativePointsEnabled !== false}
+            onChange={(e) => setFormData({ ...formData, creativePointsEnabled: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+          />
+          <span className="font-['Noto_Sans_JP']">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              創造ポイントを提案する
+            </span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+              あらすじ・章立て・プロット構成の生成時に、AIが「作者の判断で物語が分かれる箇所」と別案を付記します。確認モーダルで変えたい別案を選び、まとめて生成し直せます。
+            </span>
+          </span>
+        </label>
+
+        {/* 先回り生成（Phase D） */}
+        <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={formData.preemptiveGenerationEnabled === true}
+            onChange={(e) => setFormData({ ...formData, preemptiveGenerationEnabled: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+          />
+          <span className="font-['Noto_Sans_JP']">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
+              <Zap className="h-4 w-4 text-blue-500" />
+              次のステップを先回り生成する
+            </span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+              あるステップを完了して次へ進むと、次のステップ（あらすじ・章立て・草案）を裏で先回り生成します。到着時に「反映する／破棄する」を選べます。<span className="text-amber-600 dark:text-amber-400">※自動でAPI課金が発生します。</span>
+            </span>
+          </span>
+        </label>
 
         {/* Connection Test */}
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">

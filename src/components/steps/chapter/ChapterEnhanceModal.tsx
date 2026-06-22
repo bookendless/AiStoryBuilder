@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
     X,
     Sparkles,
@@ -19,13 +19,14 @@ import {
 } from 'lucide-react';
 import { useProject, Chapter, Foreshadowing } from '../../../contexts/ProjectContext';
 import { useAI } from '../../../contexts/AIContext';
+import { useGeneration } from '../../../contexts/GenerationContext';
 import { useToast } from '../../Toast';
 import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { aiService } from '../../../services/aiService';
 import { parseAIResponse } from '../../../utils/aiResponseParser';
 
 // 強化タイプの定義
-type EnhanceType = 'comprehensive' | 'split' | 'deepen';
+export type EnhanceType = 'comprehensive' | 'split' | 'deepen';
 
 interface EnhanceTypeOption {
     id: EnhanceType;
@@ -80,7 +81,7 @@ const enhanceTypeOptions: EnhanceTypeOption[] = [
 ];
 
 // AI応答の型定義
-interface EnhanceResult {
+export interface EnhanceResult {
     enhancedSummary: string;
     enhancedSetting: string;
     enhancedMood: string;
@@ -113,6 +114,12 @@ interface EnhanceResult {
     }>;
 }
 
+// 章ごとに保持する強化結果（モーダルを閉じても親が保持し、再オープンで復元する）
+export interface EnhanceResultPayload {
+    selectedType: EnhanceType;
+    result: EnhanceResult;
+}
+
 interface ChapterEnhanceModalProps {
     isOpen: boolean;
     chapter: Chapter;
@@ -122,6 +129,10 @@ interface ChapterEnhanceModalProps {
 
     onRequestSplit: (chapter: Chapter) => void;
     onInsertChapter?: (chapterData: Partial<Chapter>) => void;
+    // 親が保持する生成結果。再オープン時の復元に使う
+    cachedResult?: EnhanceResultPayload | null;
+    // 生成完了で結果を親へ通知（payload=null で適用後にクリア）
+    onResult?: (chapterId: string, payload: EnhanceResultPayload | null) => void;
 }
 
 export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
@@ -133,15 +144,23 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
 
     onRequestSplit,
     onInsertChapter,
+    cachedResult,
+    onResult,
 }) => {
     const { currentProject } = useProject();
     const { settings: aiSettings } = useAI();
     const { showError, showSuccess } = useToast();
+    const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
 
-    // 状態管理
-    const [selectedType, setSelectedType] = useState<EnhanceType>('comprehensive');
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [result, setResult] = useState<EnhanceResult | null>(null);
+    // 生成タスクの識別キー（章ごと）。実行中判定はマネージャから導出するため
+    // モーダルを閉じても（アンマウントしても）裏で生成は継続する。
+    const pid = currentProject?.id ?? 'none';
+    const enhanceKey = `${pid}:chapter-enhance:${chapter.id}`;
+    const isGenerating = isKeyActive(enhanceKey);
+
+    // 状態管理（親キャッシュがあれば復元）
+    const [selectedType, setSelectedType] = useState<EnhanceType>(cachedResult?.selectedType ?? 'comprehensive');
+    const [result, setResult] = useState<EnhanceResult | null>(cachedResult?.result ?? null);
     const [isApplied, setIsApplied] = useState(false);
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['summary', 'setting', 'mood', 'events']));
     const [selectedUpdates, setSelectedUpdates] = useState<{
@@ -161,6 +180,41 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
 
     // Android戻るボタン対応
     useOverlayBackHandler(isOpen, onClose, 'chapter-enhance-modal', 95);
+
+    // 対象章が変わったら（別章で再オープン等）親キャッシュから結果を復元する。
+    // インスタンスは親で使い回されるため useState の初期化だけでは追従できない。
+    useEffect(() => {
+        setResult(cachedResult?.result ?? null);
+        setSelectedType(cachedResult?.selectedType ?? 'comprehensive');
+        setIsApplied(false);
+        setSelectedSuggestionIndex(null);
+        setSelectedUpdates({
+            summary: true,
+            setting: true,
+            mood: true,
+            keyEvents: cachedResult?.result?.enhancedKeyEvents
+                ? new Set(cachedResult.result.enhancedKeyEvents.map((_, i) => i))
+                : new Set<number>(),
+        });
+    // cachedResult はオブジェクト参照のため依存に含めない（章切替時のみ復元する）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chapter.id]);
+
+    // 生成中に同じ章で開き直した場合、完了後に親キャッシュへ入った結果を取り込む。
+    // （生成を起動した旧インスタンスはアンマウント済みで、この新インスタンスは
+    //   handleGenerate を実行していないため、prop 経由で結果を反映する必要がある）
+    useEffect(() => {
+        if (!isGenerating && cachedResult && result === null) {
+            setResult(cachedResult.result);
+            setSelectedType(cachedResult.selectedType);
+            setSelectedUpdates((prev) => ({
+                ...prev,
+                keyEvents: cachedResult.result.enhancedKeyEvents
+                    ? new Set(cachedResult.result.enhancedKeyEvents.map((_, i) => i))
+                    : new Set<number>(),
+            }));
+        }
+    }, [isGenerating, cachedResult, result]);
 
     // 関連する伏線を取得
     const relatedForeshadowings = useMemo(() => {
@@ -186,9 +240,21 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
     const handleGenerate = async () => {
         if (!currentProject) return;
 
-        setIsGenerating(true);
         setResult(null);
         setSelectedSuggestionIndex(null);
+        setIsApplied(false);
+
+        const chapterId = chapter.id;
+        // 古い保持結果を破棄（再生成中に旧結果が残り、完了後の取り込みが阻害されるのを防ぐ）
+        onResult?.(chapterId, null);
+
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）。
+        // signal を渡すことで、モーダルを閉じても生成は継続し左下インジケータに表示される。
+        const { id: taskId, signal } = startTask({
+            key: enhanceKey,
+            label: `「${chapter.title}」を強化中`,
+            step: 'chapter',
+        });
 
         try {
             // キャラクター詳細を構築
@@ -230,7 +296,13 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
                 prompt,
                 type: 'chapter',
                 settings: aiSettings,
+                signal,
             });
+
+            // キャンセルされた場合は処理をスキップ
+            if (signal.aborted) {
+                return;
+            }
 
             if (response.error) {
                 throw new Error(response.error);
@@ -257,14 +329,26 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
                 }));
             }
 
-            showSuccess('章の強化案を生成しました');
+            // 結果を親へ通知（モーダルが閉じていても保持・再確認できる）。
+            // 完了トーストの発火は親に一元化する（二重トースト防止）。
+            onResult?.(chapterId, { selectedType, result: enhanceResult });
         } catch (error) {
+            // キャンセルされた場合はエラーを表示しない
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error('Chapter enhance error:', error);
             const errorMessage = error instanceof Error ? error.message : '章の強化に失敗しました';
             showError(errorMessage);
         } finally {
-            setIsGenerating(false);
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
+    };
+
+    // 生成キャンセル（key単位でabort）
+    const handleCancelGenerate = () => {
+        cancelByKey(enhanceKey);
     };
 
     // 選択した提案を挿入
@@ -281,6 +365,9 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
             keyEvents: suggestion.keyEvents,
             characters: suggestion.characters,
         });
+
+        // 適用済みなので保持結果をクリア
+        onResult?.(chapter.id, null);
 
         // モーダルを閉じる
         onClose();
@@ -330,6 +417,8 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
 
         onApply(updates);
         setIsApplied(true);
+        // 適用済みなので保持結果をクリア（再オープン時に未適用の結果が残らないように）
+        onResult?.(chapter.id, null);
         showSuccess('章の内容を更新しました');
         // モーダルは閉じない（分割機能を使えるようにするため）
     };
@@ -541,6 +630,20 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
                                     </>
                                 )}
                             </button>
+                            {isGenerating && (
+                                <>
+                                    <p className="text-xs text-center text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                                        このモーダルを閉じても生成は継続します。完了後、再度開くか通知の「確認する」から結果を確認できます。
+                                    </p>
+                                    <button
+                                        onClick={handleCancelGenerate}
+                                        className="w-full flex items-center justify-center space-x-2 px-6 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-white/20 transition-colors font-['Noto_Sans_JP'] text-sm"
+                                    >
+                                        <X className="h-4 w-4" />
+                                        <span>生成を中止</span>
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
 

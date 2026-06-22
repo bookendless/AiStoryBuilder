@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(gh pr:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(awk '/^diff --git.*types\\\\/ai.ts/,/^diff --git/' /tmp/review.diff)",
+      "Bash(awk '/^diff --git.*types\\\\/project\\\\/project.ts/,/^diff --git/' /tmp/review.diff)",
+      "Bash(awk '/^diff --git.*types\\\\/sequel/,/^diff --git/' /tmp/review.diff)",
+      "Bash(git --no-pager diff HEAD -- src/services/prompts/draft.ts)",
+      "Bash(git --no-pager diff HEAD -- src/components/steps/draft/hooks/useAllChaptersGeneration.ts)",
+      "Bash(awk '/revise:/{f=1} f{print NR\": \"$0} /revise:/{c++} f&&/`,$/{print \"---END---\"; exit}' d:/Dev/AiStoryBuilder/src/services/prompts/draft.ts)",
+      "Bash(awk ' *)",
+      "Bash(git --no-pager diff HEAD -- src/components/steps/draft/hooks/useAISuggestions.ts)"
     ]
   }
 }

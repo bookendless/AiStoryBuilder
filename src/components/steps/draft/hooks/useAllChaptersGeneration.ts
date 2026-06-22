@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Project } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
+import { useGeneration } from '../../../../contexts/GenerationContext';
 
 interface Chapter {
   id: string;
@@ -34,7 +35,7 @@ interface UseAllChaptersGenerationOptions {
   getChapterDetails: (chapter: Chapter) => ChapterDetails;
   onError: (message: string, duration?: number, options?: { title?: string; details?: string }) => void;
   onWarning: (message: string, duration?: number, options?: { title?: string }) => void;
-  updateProject: (updates: Partial<Project>) => void;
+  updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
   setChapterDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setShowCompletionToast: (message: string | null) => void;
   addLog?: (log: { type: string; prompt: string; response: string; error?: string; chapterId?: string }) => Promise<unknown>;
@@ -61,25 +62,35 @@ export const useAllChaptersGeneration = ({
   setShowCompletionToast,
   addLog,
 }: UseAllChaptersGenerationOptions): UseAllChaptersGenerationReturn => {
-  const [isGeneratingAllChapters, setIsGeneratingAllChapters] = useState(false);
+  const { startTask, updateTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [generationStatus, setGenerationStatus] = useState<string>('');
   const [chapterProgressList, setChapterProgressList] = useState<ChapterProgress[]>([]);
-  const generationAbortControllerRef = useRef<AbortController | null>(null);
+  // 完了トーストの自動非表示タイマー（再生成・アンマウント時にクリアして誤消去を防ぐ）
+  const completionToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 全章生成のキャンセル処理
+  useEffect(() => {
+    return () => {
+      if (completionToastTimerRef.current) {
+        clearTimeout(completionToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 生成タスクの識別キー。実行中判定はマネージャから導出（ステップ移動でも維持）
+  const pid = currentProject?.id ?? 'none';
+  const allChaptersKey = `${pid}:draft:allChapters`;
+  const isGeneratingAllChapters = isKeyActive(allChaptersKey);
+
+  // 全章生成のキャンセル処理（マネージャ経由でabort）
   const handleCancelAllChaptersGeneration = useCallback(() => {
-    if (generationAbortControllerRef.current) {
-      generationAbortControllerRef.current.abort();
-      generationAbortControllerRef.current = null;
-    }
-    setIsGeneratingAllChapters(false);
+    cancelByKey(allChaptersKey);
     setGenerationProgress({ current: 0, total: 0 });
     setGenerationStatus('キャンセルされました');
-    setChapterProgressList(prev => 
+    setChapterProgressList(prev =>
       prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'pending' } : ch)
     );
-  }, []);
+  }, [cancelByKey, allChaptersKey]);
 
   // 全章生成
   const handleGenerateAllChapters = useCallback(async () => {
@@ -99,10 +110,10 @@ export const useAllChaptersGeneration = ({
 
     // 確認は親コンポーネントで行う（ConfirmDialogを使用）
 
-    setIsGeneratingAllChapters(true);
-    setGenerationProgress({ current: 0, total: currentProject.chapters.length });
+    const totalChapters = currentProject.chapters.length;
+    setGenerationProgress({ current: 0, total: totalChapters });
     setGenerationStatus('準備中...');
-    
+
     // 章ごとの進捗リストを初期化
     const initialChapterProgress = currentProject.chapters.map(chapter => ({
       chapterId: chapter.id,
@@ -111,9 +122,20 @@ export const useAllChaptersGeneration = ({
     }));
     setChapterProgressList(initialChapterProgress);
 
-    // キャンセル用のAbortControllerを作成
-    const abortController = new AbortController();
-    generationAbortControllerRef.current = abortController;
+    // マネージャに生成タスクを登録（グローバルインジケータに進捗表示・どこからでもキャンセル可）
+    const { id: taskId, signal: abortSignal } = startTask({
+      key: allChaptersKey,
+      label: '全章草案を生成中',
+      step: 'draft',
+    });
+    const abortController = { signal: abortSignal };
+    updateTask(taskId, {
+      progress: {
+        current: 0,
+        total: totalChapters,
+        chapters: initialChapterProgress.map(c => ({ ...c })),
+      },
+    });
 
     let fullPrompt = '';
     
@@ -213,8 +235,9 @@ export const useAllChaptersGeneration = ({
         setGenerationStatus('結果を解析中...');
         
         // 生成された内容を解析して各章に分割
+        // セパレータは全角数字・全角コロン・空白揺れを許容（AI出力の表記ブレ対策）
         const content = response.content;
-        const chapterSections = content.split(/=== 第\d+章: .+? ===/);
+        const chapterSections = content.split(/===\s*第\s*[0-9０-９]+\s*章\s*[:：]\s*.*?\s*===/);
         
         // 最初の要素は空文字列なので削除
         chapterSections.shift();
@@ -222,35 +245,49 @@ export const useAllChaptersGeneration = ({
         // 各章の内容を抽出
         const generatedChapters: Record<string, string> = {};
         let chapterIndex = 0;
-        
+        // 進捗状態はローカル変数で保持し、setState更新関数の中で副作用を起こさない
+        let chapterStatuses: ChapterProgress[] = initialChapterProgress.map(c => ({ ...c }));
+
         for (let i = 0; i < currentProject.chapters.length && i < chapterSections.length; i++) {
           const chapter = currentProject.chapters[i];
           const chapterContent = chapterSections[i]?.trim() || '';
-          
-          // 進捗を更新
-          setGenerationProgress({ current: i + 1, total: currentProject.chapters.length });
-          setChapterProgressList(prev => 
-            prev.map((ch, idx) => {
-              if (idx === i) {
-                return { ...ch, status: chapterContent ? 'completed' : 'error' };
-              }
-              if (idx === i + 1 && chapterContent) {
-                return { ...ch, status: 'generating' };
-              }
-              return ch;
-            })
-          );
-          
+          const current = i + 1;
+
+          // 進捗をローカルで算出してからstate/マネージャへ反映
+          chapterStatuses = chapterStatuses.map((ch, idx) => {
+            if (idx === i) {
+              return { ...ch, status: chapterContent ? 'completed' : 'error' };
+            }
+            if (idx === i + 1 && chapterContent) {
+              return { ...ch, status: 'generating' };
+            }
+            return ch;
+          });
+
+          setGenerationProgress({ current, total: currentProject.chapters.length });
+          setChapterProgressList(chapterStatuses);
+          // グローバルインジケータにも進捗を反映
+          updateTask(taskId, {
+            progress: { current, total: currentProject.chapters.length, chapters: chapterStatuses },
+          });
+
           if (chapterContent) {
             generatedChapters[chapter.id] = chapterContent;
             chapterIndex++;
           }
         }
 
+        const totalCount = currentProject.chapters.length;
+
+        // 1章も分割できなかった場合はエラー扱い（偽の成功表示を避ける）
+        if (chapterIndex === 0) {
+          throw new Error('AI出力を章に分割できませんでした。生成結果の形式が想定と異なります。');
+        }
+
         // 章草案を更新
         setChapterDrafts(prev => ({ ...prev, ...generatedChapters }));
 
-        // プロジェクトの章に草案を保存
+        // プロジェクトの章に草案を保存（未生成章は既存のまま保全される）
         const updatedChapters = currentProject.chapters.map(chapter => {
           if (generatedChapters[chapter.id]) {
             return { ...chapter, draft: generatedChapters[chapter.id] };
@@ -258,15 +295,28 @@ export const useAllChaptersGeneration = ({
           return chapter;
         });
 
-        updateProject({ chapters: updatedChapters });
+        await updateProject({ chapters: updatedChapters });
 
         setGenerationStatus(`完了！${chapterIndex}章の草案を生成しました。各章の内容を確認してください。`);
-        
-        // 成功メッセージ
-        setShowCompletionToast(`全章生成が完了しました（${chapterIndex}/${currentProject.chapters.length}章）`);
-        setTimeout(() => {
-          setShowCompletionToast(null);
-        }, 5000);
+
+        if (chapterIndex < totalCount) {
+          // 一部の章しか生成できなかった場合は明示的に警告
+          onWarning(
+            `全${totalCount}章中${chapterIndex}章のみ生成されました。未生成の章があります。再度実行するか、個別に生成してください。`,
+            10000,
+            { title: '一部の章が未生成です' }
+          );
+        } else {
+          // 全章成功時のみ完了トーストを表示
+          setShowCompletionToast(`全章生成が完了しました（${chapterIndex}/${totalCount}章）`);
+          if (completionToastTimerRef.current) {
+            clearTimeout(completionToastTimerRef.current);
+          }
+          completionToastTimerRef.current = setTimeout(() => {
+            setShowCompletionToast(null);
+            completionToastTimerRef.current = null;
+          }, 5000);
+        }
 
         // AIログを記録
         if (addLog) {
@@ -297,60 +347,59 @@ export const useAllChaptersGeneration = ({
         return;
       }
       
-      if ((error as Error).name !== 'AbortError') {
-        // エラーが発生した章をマーク
-        setChapterProgressList(prev => 
-          prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'error' } : ch)
-        );
-        let errorMessage = '不明なエラーが発生しました';
-        let errorDetails = '';
-        
-        if (error instanceof Error) {
-          errorMessage = error.message;
-          
-          // エラーの種類に応じた詳細メッセージ
-          if (error.message.includes('network') || error.message.includes('fetch')) {
-            errorDetails = '\n\nネットワークエラーが発生しました。インターネット接続を確認してください。';
-          } else if (error.message.includes('timeout')) {
-            errorDetails = '\n\nタイムアウトエラーが発生しました。時間をおいて再度お試しください。';
-          } else if (error.message.includes('quota') || error.message.includes('limit')) {
-            errorDetails = '\n\nAPIの利用制限に達しました。しばらく時間をおいてから再度お試しください。';
-          } else if (error.message.includes('unauthorized') || error.message.includes('401')) {
-            errorDetails = '\n\nAPIキーが無効です。AI設定でAPIキーを確認してください。';
-          } else if (error.message.includes('rate limit')) {
-            errorDetails = '\n\nリクエスト制限に達しました。しばらく時間をおいてから再度お試しください。';
-          }
-        }
-        
-        const fullErrorMessage = `全章生成中にエラーが発生しました: ${errorMessage}${errorDetails}`;
-        const errorDetailsText = '対処方法：\n• ネットワーク接続を確認してください\n• AI設定でAPIキーが正しく設定されているか確認してください\n• しばらく時間をおいてから再度お試しください\n• 問題が続く場合は、個別に章を生成してください';
-        
-        onError(fullErrorMessage, 10000, {
-          title: '全章生成エラー',
-          details: errorDetailsText,
-        });
-        setGenerationStatus('エラーが発生しました');
+      // ここに到達するのは非AbortErrorのみ（AbortErrorは上で早期return済み）
+      // エラーが発生した章をマーク
+      setChapterProgressList(prev =>
+        prev.map(ch => ch.status === 'generating' ? { ...ch, status: 'error' } : ch)
+      );
+      let errorMessage = '不明なエラーが発生しました';
+      let errorDetails = '';
 
-        // エラー時もAIログを記録
-        if (addLog && currentProject) {
-          try {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            await addLog({
-              type: 'generateFull',
-              prompt: fullPrompt || '',
-              response: '',
-              error: errorMessage,
-            });
-          } catch (logError) {
-            console.error('AIログの記録に失敗しました:', logError);
-          }
+      if (error instanceof Error) {
+        errorMessage = error.message;
+
+        // エラーの種類に応じた詳細メッセージ
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorDetails = '\n\nネットワークエラーが発生しました。インターネット接続を確認してください。';
+        } else if (error.message.includes('timeout')) {
+          errorDetails = '\n\nタイムアウトエラーが発生しました。時間をおいて再度お試しください。';
+        } else if (error.message.includes('quota') || error.message.includes('limit')) {
+          errorDetails = '\n\nAPIの利用制限に達しました。しばらく時間をおいてから再度お試しください。';
+        } else if (error.message.includes('unauthorized') || error.message.includes('401')) {
+          errorDetails = '\n\nAPIキーが無効です。AI設定でAPIキーを確認してください。';
+        } else if (error.message.includes('rate limit')) {
+          errorDetails = '\n\nリクエスト制限に達しました。しばらく時間をおいてから再度お試しください。';
+        }
+      }
+
+      const fullErrorMessage = `全章生成中にエラーが発生しました: ${errorMessage}${errorDetails}`;
+      const errorDetailsText = '対処方法：\n• ネットワーク接続を確認してください\n• AI設定でAPIキーが正しく設定されているか確認してください\n• しばらく時間をおいてから再度お試しください\n• 問題が続く場合は、個別に章を生成してください';
+
+      onError(fullErrorMessage, 10000, {
+        title: '全章生成エラー',
+        details: errorDetailsText,
+      });
+      setGenerationStatus('エラーが発生しました');
+
+      // エラー時もAIログを記録
+      if (addLog && currentProject) {
+        try {
+          const logErrorMessage = error instanceof Error ? error.message : String(error);
+          await addLog({
+            type: 'generateFull',
+            prompt: fullPrompt || '',
+            response: '',
+            error: logErrorMessage,
+          });
+        } catch (logError) {
+          console.error('AIログの記録に失敗しました:', logError);
         }
       }
     } finally {
-      setIsGeneratingAllChapters(false);
+      // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+      completeTask(taskId);
       setGenerationProgress({ current: 0, total: 0 });
       setChapterProgressList([]);
-      generationAbortControllerRef.current = null;
     }
   }, [
     currentProject,
@@ -363,6 +412,10 @@ export const useAllChaptersGeneration = ({
     setChapterDrafts,
     setShowCompletionToast,
     addLog,
+    startTask,
+    updateTask,
+    completeTask,
+    allChaptersKey,
   ]);
 
   return {

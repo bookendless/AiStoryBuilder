@@ -16,6 +16,11 @@ import {
 } from './components/LazyComponents';
 import { ProjectProvider, useProject, Step, ProjectErrorNotifier } from './contexts/ProjectContext';
 import { AIProvider } from './contexts/AIContext';
+import { GenerationProvider } from './contexts/GenerationContext';
+import { GenerationStatusIndicator } from './components/common/GenerationStatusIndicator';
+import { PendingResultProvider } from './contexts/PendingResultContext';
+import { PendingResultModal } from './components/common/PendingResultModal';
+import { PreemptiveGenerationManager } from './components/preemptive/PreemptiveGenerationManager';
 import { ToastProvider, useToast } from './components/Toast';
 import { OfflineNotifier } from './components/OfflineNotifier';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -497,9 +502,14 @@ const AppContent: React.FC = () => {
   return (
     <ErrorBoundary>
       <AIProvider>
+        <GenerationProvider>
+        <PendingResultProvider>
         <ProjectProvider errorNotifier={errorNotifier}>
           <StepChangeAutoSave currentStep={currentStep} />
+          <PreemptiveGenerationManager currentStep={currentStep} />
           <OfflineNotifier />
+          <GenerationStatusIndicator />
+          <PendingResultModal />
 
           {/* クラッシュリカバリーダイアログ */}
           <RecoveryDialogWrapper
@@ -631,6 +641,8 @@ const AppContent: React.FC = () => {
             mode={onboardingMode}
           />
         </ProjectProvider>
+        </PendingResultProvider>
+        </GenerationProvider>
       </AIProvider>
     </ErrorBoundary>
   );

@@ -102,6 +102,9 @@
         },
         {
           "path": "$DOCUMENT/**"
+        },
+        {
+          "path": "$APPLOCALDATA/**"
         }
       ],
       "deny": []
@@ -120,6 +123,36 @@
         },
         {
           "path": "$DOCUMENT/**"
+        },
+        {
+          "path": "$APPLOCALDATA/**"
+        }
+      ],
+      "deny": []
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [
+        {
+          "path": "$APPLOCALDATA/**"
+        }
+      ],
+      "deny": []
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        {
+          "path": "$APPLOCALDATA/**"
+        }
+      ],
+      "deny": []
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        {
+          "path": "$APPLOCALDATA/**"
         }
       ],
       "deny": []

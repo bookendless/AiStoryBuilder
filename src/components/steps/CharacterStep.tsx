@@ -563,6 +563,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
           isOpen={!!diaryCharacterId}
           onClose={() => setDiaryCharacterId(null)}
           characterId={diaryCharacterId}
+          onRequestReopen={(id) => setDiaryCharacterId(id)}
         />
       )}
 

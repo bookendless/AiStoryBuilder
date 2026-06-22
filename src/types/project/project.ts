@@ -129,6 +129,12 @@ export interface Project {
         customEmotion?: string; // カスタム感情描写
         customTone?: string; // カスタムトーン
     };
+    /**
+     * 文体見本（few-shot 用の原文抜粋）。AI執筆（続きを書く・章生成・リバイズ等）の
+     * プロンプトに「この文章の雰囲気・文体に合わせる」見本として注入される。
+     * writingStyle（選択肢＋カスタム値のペア構造）とは性質が異なる長文のため、トップレベルに置く。
+     */
+    styleSample?: string;
     emotionMap?: EmotionMap; // 感情マップ
     currentStep?: Exclude<Step, 'home'>; // 最後に編集中だったステップ（'home'は除外）
     parentProjectId?: string; // 続編元（前作）のプロジェクトID。続編構成で生成された場合に設定

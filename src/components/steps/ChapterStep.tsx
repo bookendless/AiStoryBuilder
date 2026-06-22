@@ -5,8 +5,9 @@ import { useToast } from '../Toast';
 import { ChapterFormModal } from './chapter/ChapterFormModal';
 import { ChapterHistoryModal } from './chapter/ChapterHistoryModal';
 import { ChapterList } from './chapter/ChapterList';
-import { ChapterEnhanceModal } from './chapter/ChapterEnhanceModal';
+import { ChapterEnhanceModal, EnhanceResultPayload } from './chapter/ChapterEnhanceModal';
 import { ChapterSplitPreview } from './chapter/ChapterSplitPreview';
+import { ChapterDraftSplitModal } from './chapter/ChapterDraftSplitModal';
 import { ChapterHistory, ChapterFormData } from './chapter/types';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
@@ -81,8 +82,28 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     chapterIndex: -1,
   });
 
+  // AI強化の生成結果を章ごとに保持（モーダルを閉じても再オープンで確認できるようにする）
+  const [enhanceResultCache, setEnhanceResultCache] = useState<Record<string, EnhanceResultPayload>>({});
+
+  // 現在開いている強化モーダルの対象章ID（生成完了が別フレーム/アンマウント後でも開閉判定に使う）
+  const openEnhanceChapterIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    openEnhanceChapterIdRef.current = enhanceModalState.isOpen ? enhanceModalState.chapter?.id ?? null : null;
+  }, [enhanceModalState]);
+
   // 分割プレビューモーダルの状態
   const [splitPreviewState, setSplitPreviewState] = useState<{
+    isOpen: boolean;
+    chapter: Chapter | null;
+    chapterIndex: number;
+  }>({
+    isOpen: false,
+    chapter: null,
+    chapterIndex: -1,
+  });
+
+  // 本文分割モーダル（draft を持つ章の逐語分割）の状態
+  const [draftSplitState, setDraftSplitState] = useState<{
     isOpen: boolean;
     chapter: Chapter | null;
     chapterIndex: number;
@@ -470,6 +491,42 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     });
   };
 
+  // AI強化の生成結果を受け取る（payload=null で適用後にクリア）
+  const handleEnhanceResult = useCallback(
+    (chapterId: string, payload: EnhanceResultPayload | null) => {
+      setEnhanceResultCache((prev) => {
+        const next = { ...prev };
+        if (payload) {
+          next[chapterId] = payload;
+        } else {
+          delete next[chapterId];
+        }
+        return next;
+      });
+
+      if (!payload) return;
+
+      // モーダルが閉じている/別章を開いている場合は、再オープン導線付きの完了トーストを出す
+      if (openEnhanceChapterIdRef.current !== chapterId) {
+        const ch = currentProject?.chapters.find((c) => c.id === chapterId);
+        const idx = currentProject?.chapters.findIndex((c) => c.id === chapterId) ?? -1;
+        if (ch) {
+          showSuccess('章の強化案の生成が完了しました', 8000, {
+            title: '生成完了',
+            action: {
+              label: '確認する',
+              onClick: () => handleOpenEnhanceModal(ch, idx),
+              variant: 'primary',
+            },
+          });
+        }
+      } else {
+        showSuccess('章の強化案を生成しました');
+      }
+    },
+    [currentProject, showSuccess]
+  );
+
   // AI強化結果を適用
   const handleApplyEnhancement = (updates: Partial<Chapter>) => {
     if (!currentProject || !enhanceModalState.chapter) return;
@@ -493,10 +550,20 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     showSuccess('章の内容を更新しました');
   };
 
-  // 分割プレビューモーダルを開く
-  const handleRequestSplit = (chapter: Chapter) => {
+  // メタデータ分割モーダルを開く（機能1: AI強化モーダルの「分割」専用。draftの有無に依らず常にメタデータ分割提案）
+  const handleRequestMetadataSplit = (chapter: Chapter) => {
     const index = currentProject?.chapters.findIndex(c => c.id === chapter.id) ?? -1;
     setSplitPreviewState({
+      isOpen: true,
+      chapter,
+      chapterIndex: index,
+    });
+  };
+
+  // 本文分割モーダルを開く（機能2: 章カードのハサミ専用。draftを持つ章のみ表示されるため常に逐語分割）
+  const handleRequestDraftSplit = (chapter: Chapter) => {
+    const index = currentProject?.chapters.findIndex(c => c.id === chapter.id) ?? -1;
+    setDraftSplitState({
       isOpen: true,
       chapter,
       chapterIndex: index,
@@ -522,6 +589,28 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     });
 
     showSuccess(`章を${newChapters.length}つに分割しました`);
+  };
+
+  // 本文の逐語分割を適用（元章のメタデータは履歴へ退避してから置換）
+  const handleApplyDraftSplit = (newChapters: Chapter[]) => {
+    if (!currentProject || !draftSplitState.chapter) return;
+
+    const chapterIndex = currentProject.chapters.findIndex(
+      c => c.id === draftSplitState.chapter!.id
+    );
+
+    if (chapterIndex === -1) return;
+
+    saveChapterHistory(draftSplitState.chapter, 'manual');
+
+    const updatedChapters = [...currentProject.chapters];
+    updatedChapters.splice(chapterIndex, 1, ...newChapters);
+
+    updateProject({
+      chapters: updatedChapters,
+    });
+
+    showSuccess(`本文を${newChapters.length}つの章に分割しました`);
   };
 
   // AI深掘りで生成された新しい章を挿入
@@ -688,6 +777,7 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
               onDrop={handleDrop}
               onAddChapter={() => setShowAddForm(true)}
               onEnhance={handleOpenEnhanceModal}
+              onSplitDraft={handleRequestDraftSplit}
             />
           </div>
         </div>
@@ -758,8 +848,10 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
           chapterIndex={enhanceModalState.chapterIndex}
           onClose={() => setEnhanceModalState({ isOpen: false, chapter: null, chapterIndex: -1 })}
           onApply={handleApplyEnhancement}
-          onRequestSplit={handleRequestSplit}
+          onRequestSplit={handleRequestMetadataSplit}
           onInsertChapter={handleInsertChapter}
+          cachedResult={enhanceResultCache[enhanceModalState.chapter.id] ?? null}
+          onResult={handleEnhanceResult}
         />
       )}
 
@@ -771,6 +863,17 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
           chapterIndex={splitPreviewState.chapterIndex}
           onClose={() => setSplitPreviewState({ isOpen: false, chapter: null, chapterIndex: -1 })}
           onApplySplit={handleApplySplit}
+        />
+      )}
+
+      {/* 本文分割モーダル（逐語分割） */}
+      {draftSplitState.chapter && (
+        <ChapterDraftSplitModal
+          isOpen={draftSplitState.isOpen}
+          chapter={draftSplitState.chapter}
+          chapterIndex={draftSplitState.chapterIndex}
+          onClose={() => setDraftSplitState({ isOpen: false, chapter: null, chapterIndex: -1 })}
+          onApply={handleApplyDraftSplit}
         />
       )}
     </div>

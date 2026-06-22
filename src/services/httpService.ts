@@ -93,6 +93,11 @@ export class HttpService {
       timeout = 45000
     } = options;
 
+    // Tauri応答フェーズ全体のタイムアウト用タイマー。
+    // connectTimeoutは接続確立のみを制御し、ボディ読み取りには適用されないため、
+    // 応答が滞留した場合に永久ハングするのを防ぐ目的で別途AbortControllerを併用する。
+    let tauriTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
     try {
       // Tauri環境かブラウザ環境かで適切なfetchを使用
       const tauriFetch = await getTauriFetch();
@@ -110,12 +115,16 @@ export class HttpService {
       // Tauri環境ではconnectTimeoutを設定
       if (isUsingTauri) {
         fetchOptions.connectTimeout = timeout;
+        // connectTimeoutは応答ボディ読み取りには効かないため、全体タイムアウトをAbortControllerで担保する
+        const controller = new AbortController();
+        tauriTimeoutId = setTimeout(() => controller.abort(), timeout);
+        fetchOptions.signal = controller.signal;
       } else {
         // ブラウザ環境ではAbortControllerでタイムアウトを実装
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         fetchOptions.signal = controller.signal;
-        
+
         try {
           const response = await fetchToUse(url, fetchOptions);
           clearTimeout(timeoutId);
@@ -172,8 +181,10 @@ export class HttpService {
       const response = await fetchToUse(url, fetchOptions);
 
       const responseText = await response.text();
+      // 応答受信完了。全体タイムアウトタイマーを解除
+      if (tauriTimeoutId) clearTimeout(tauriTimeoutId);
       let data: T;
-      
+
       try {
         data = JSON.parse(responseText) as T;
       } catch {
@@ -183,7 +194,7 @@ export class HttpService {
       // エラーレスポンスの処理
       if (response.status >= 400) {
         console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
-        
+
         // エラーレスポンスの詳細を取得
         let errorMessage = `HTTP ${response.status}`;
         try {
@@ -198,7 +209,7 @@ export class HttpService {
         } catch {
           // エラーレスポンスの解析に失敗した場合はデフォルトメッセージを使用
         }
-        
+
         // ステータスコードに基づいて適切なエラーをスロー
         throw createHttpError(response.status, errorMessage, url);
       }
@@ -210,11 +221,13 @@ export class HttpService {
         headers: Object.fromEntries(response.headers.entries()),
       };
     } catch (error) {
+      // 全体タイムアウトタイマーを解除（Tauri経路で残存している場合）
+      if (tauriTimeoutId) clearTimeout(tauriTimeoutId);
       // 既にAPIErrorの場合はそのまま再スロー
       if (error instanceof APIError) {
         throw error;
       }
-      
+
       // エラーログは簡略化（APIキーを含む可能性があるため）
       if (error instanceof Error) {
         console.error(`HTTP Request Error: ${method} ${url} - ${error.message}`);

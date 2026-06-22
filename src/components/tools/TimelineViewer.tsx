@@ -32,7 +32,7 @@ const categoryColors: Record<TimelineEvent['category'], string> = {
 
 export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose }) => {
   const { currentProject, updateProject } = useProject();
-  const { showError, showWarning, showSuccess } = useToast();
+  const { showError, showWarning, showSuccess, showInfo } = useToast();
   const { modalRef } = useModalNavigation({
     isOpen,
     onClose,
@@ -332,6 +332,11 @@ ${projectContext}
 
           setAiResults(filteredEvents);
           setSelectedResults(new Set(filteredEvents.map((_, idx) => idx)));
+          if (filteredEvents.length > 0) {
+            showSuccess(`${filteredEvents.length}件のイベント候補を抽出しました`);
+          } else {
+            showInfo('新しく追加できるイベント候補は見つかりませんでした');
+          }
         } catch (parseError) {
           console.warn('JSON解析に失敗、フォールバック解析を試みます:', parseError);
 
@@ -499,6 +504,7 @@ JSON形式で出力してください：
             }));
           }
         }
+        showSuccess('イベントの説明文を生成しました');
       }
     } catch (error) {
       console.error('説明生成エラー:', error);
@@ -653,6 +659,7 @@ ${timelineText}
 
           setConsistencyCheckResult(resultText);
         }
+        showSuccess('タイムラインの整合性チェックが完了しました');
       }
     } catch (error) {
       console.error('整合性チェックエラー:', error);
@@ -790,6 +797,11 @@ ${timelineText}
 
           setAiResults(processedEvents);
           setSelectedResults(new Set(processedEvents.map((_, idx) => idx)));
+          if (processedEvents.length > 0) {
+            showSuccess(`${processedEvents.length}件のイベント候補を提案しました`);
+          } else {
+            showInfo('新しく追加できるイベント候補は見つかりませんでした');
+          }
         } catch (parseError) {
           console.warn('JSON解析に失敗、フォールバック解析を試みます:', parseError);
 

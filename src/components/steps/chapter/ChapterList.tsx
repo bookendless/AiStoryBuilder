@@ -1,5 +1,5 @@
 import React, { RefObject, useMemo } from 'react';
-import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles } from 'lucide-react';
+import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles, Scissors } from 'lucide-react';
 import { useProject, Chapter } from '../../../contexts/ProjectContext';
 import { EmptyState } from '../../common/EmptyState';
 
@@ -21,6 +21,7 @@ interface ChapterListProps {
   onDrop: (e: React.DragEvent, chapterId: string) => void;
   onAddChapter: () => void;
   onEnhance?: (chapter: Chapter, index: number) => void;
+  onSplitDraft?: (chapter: Chapter) => void;
 }
 
 // 個別の章アイテムコンポーネント（メモ化）
@@ -42,6 +43,7 @@ interface ChapterItemProps {
   onDrop: (e: React.DragEvent, chapterId: string) => void;
   totalChapters: number;
   onEnhance?: (chapter: Chapter, index: number) => void;
+  onSplitDraft?: (chapter: Chapter) => void;
 }
 
 const ChapterItem = React.memo<ChapterItemProps>(({
@@ -62,6 +64,7 @@ const ChapterItem = React.memo<ChapterItemProps>(({
   onDrop,
   totalChapters,
   onEnhance,
+  onSplitDraft,
 }) => {
   const { currentProject } = useProject();
 
@@ -192,6 +195,18 @@ const ChapterItem = React.memo<ChapterItemProps>(({
                 title="AI強化"
               >
                 <Sparkles className="h-4 w-4" />
+              </button>
+            )}
+            {onSplitDraft && chapter.draft?.trim() && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSplitDraft(chapter);
+                }}
+                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                title="本文を章に分割"
+              >
+                <Scissors className="h-4 w-4" />
               </button>
             )}
             <button
@@ -357,6 +372,8 @@ const ChapterItem = React.memo<ChapterItemProps>(({
     prevProps.chapter.mood === nextProps.chapter.mood &&
     JSON.stringify(prevProps.chapter.characters) === JSON.stringify(nextProps.chapter.characters) &&
     JSON.stringify(prevProps.chapter.keyEvents) === JSON.stringify(nextProps.chapter.keyEvents) &&
+    // 本文分割ボタンの表示可否に影響するため、draft の有無も比較する
+    !!prevProps.chapter.draft === !!nextProps.chapter.draft &&
     prevProps.originalIndex === nextProps.originalIndex &&
     prevProps.isExpanded === nextProps.isExpanded &&
     prevProps.isDragged === nextProps.isDragged &&
@@ -384,6 +401,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
   onDrop,
   onAddChapter,
   onEnhance,
+  onSplitDraft,
 }) => {
   const { currentProject } = useProject();
 
@@ -459,6 +477,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
             onDrop={onDrop}
             totalChapters={currentProject.chapters.length}
             onEnhance={onEnhance}
+            onSplitDraft={onSplitDraft}
           />
         );
       })}

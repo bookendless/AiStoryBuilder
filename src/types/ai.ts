@@ -29,6 +29,10 @@ export interface AISettings {
   localContextLength?: number; // ローカルLLMに送るプロンプトの最大文字数（未設定時は既定値を使用）
   temperature: number;
   maxTokens: number;
+  /** 創造ポイント（Phase C）の提案を有効にするか。未設定は有効（true）扱い。 */
+  creativePointsEnabled?: boolean;
+  /** 先回りバックグラウンド生成（Phase D）を有効にするか。未設定/false は無効（OFF）扱い＝オプトイン。 */
+  preemptiveGenerationEnabled?: boolean;
 }
 
 export interface AIRequest {
@@ -41,6 +45,8 @@ export interface AIRequest {
   onStream?: (chunk: string) => void; // ストリーミング用のコールバック
   signal?: AbortSignal; // 中断用のシグナル
   timeout?: number; // タイムアウト時間（ミリ秒）。全章生成など長時間かかる処理で使用
+  maxPromptLength?: number; // プロンプトのサニタイズ上限（文字数）。未指定時は既定の10000。インポート/要約など大入力パイプラインで明示的に引き上げる
+  systemPrompt?: string; // システムプロンプトの上書き。未指定時は既定の創作支援用 SYSTEM_PROMPT。小説取り込みなど「忠実抽出（創作禁止）」タスクで分析用プロンプトに差し替える
 }
 
 export interface AIResponse {
@@ -108,7 +114,7 @@ export interface OpenAIErrorResponse {
 export interface ClaudeRequestBody {
   model: string;
   max_tokens: number;
-  temperature: number;
+  temperature?: number; // 一部の新しいモデル（opus 4.7/4.8 など）は temperature 非対応のため省略可能
   system: string;
   messages: Array<{
     role: 'user' | 'assistant';

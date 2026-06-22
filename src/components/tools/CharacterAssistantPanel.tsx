@@ -1,7 +1,9 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { Sparkles, CheckCircle, FileText, UserPlus } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
+import { useGeneration } from '../../contexts/GenerationContext';
+import { usePendingResult } from '../../contexts/PendingResultContext';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
@@ -11,7 +13,7 @@ import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { extractCharactersFromContent, ParseResult } from '../../utils/characterParser';
 import { CHARACTER_GENERATION } from '../../constants/character';
 import { exportFile } from '../../utils/mobileExportUtils';
-import { SuggestionModal, SuggestedCharacter } from '../steps/character/SuggestionModal';
+import { SuggestedCharacter } from '../steps/character/SuggestionModal';
 import { generateUUID } from '../../utils/securityUtils';
 
 export const CharacterAssistantPanel: React.FC = () => {
@@ -19,34 +21,25 @@ export const CharacterAssistantPanel: React.FC = () => {
     const { settings, isConfigured } = useAI();
     const { showSuccess } = useToast();
     const { handleAPIError } = useErrorHandler();
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [suggestions, setSuggestions] = useState<SuggestedCharacter[]>([]);
-    const [isSuggestionModalOpen, setIsSuggestionModalOpen] = useState(false);
+    const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
+    const { proposeResult } = usePendingResult();
 
     const { aiLogs, addLog } = useAILog({
         projectId: currentProject?.id,
         autoLoad: true,
     });
-    const abortControllerRef = useRef<AbortController | null>(null);
 
-    // キャンセルハンドラー
+    // 生成タスクの識別キー（種別ごと）。実行中判定はマネージャから導出
+    const pid = currentProject?.id ?? 'none';
+    const suggestKey = `${pid}:character:suggest`;
+    const generateKey = `${pid}:character:generate`;
+    const isGenerating = isKeyActive(suggestKey) || isKeyActive(generateKey);
+
+    // キャンセルハンドラー（マネージャ経由でkey単位にabort）
     const handleCancel = useCallback(() => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            abortControllerRef.current = null;
-            setIsGenerating(false);
-        }
-    }, []);
-
-    // クリーンアップ
-    useEffect(() => {
-        return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-                abortControllerRef.current = null;
-            }
-        };
-    }, []);
+        cancelByKey(suggestKey);
+        cancelByKey(generateKey);
+    }, [cancelByKey, suggestKey, generateKey]);
 
     // AIによるキャラクター提案処理
     const handleSuggestCharacters = async () => {
@@ -64,15 +57,12 @@ export const CharacterAssistantPanel: React.FC = () => {
 
         if (!currentProject) return;
 
-        // 既存のリクエストをキャンセル
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
-
-        setIsGenerating(true);
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+        const { id: taskId, signal } = startTask({
+            key: suggestKey,
+            label: 'キャラクターを提案中',
+            step: 'character',
+        });
 
         try {
             // プロジェクト情報
@@ -119,10 +109,10 @@ export const CharacterAssistantPanel: React.FC = () => {
                 prompt,
                 type: 'character',
                 settings,
-                signal: abortController.signal,
+                signal,
             });
 
-            if (abortController.signal.aborted) return;
+            if (signal.aborted) return;
 
             if (response.error) {
                 addLog({
@@ -199,14 +189,24 @@ export const CharacterAssistantPanel: React.FC = () => {
             });
 
             if (parsedSuggestions.length > 0) {
-                setSuggestions(parsedSuggestions);
-                setIsSuggestionModalOpen(true);
-
-                let msg = `${parsedSuggestions.length}人のキャラクターが提案されました`;
+                // 通常のキャラ生成と同様に保留結果として登録する。
+                // 背景で完了 → トーストの「確認する」→ 確認モーダルで反映/破棄できる。
+                const existingCharacters = currentProject?.characters ?? [];
+                const suggestionsToAdd = parsedSuggestions;
+                const previewLines = parsedSuggestions.map((c, i) =>
+                    `${i + 1}. ${c.name}（${c.role || '役割未設定'}）${c.reason ? `\n   💡 ${c.reason}` : ''}`
+                );
                 if (parseMethod === 'fallback') {
-                    msg += '（JSON解析に失敗したため、テキスト解析を実行しました）';
+                    previewLines.unshift('（JSON解析に失敗したため、テキスト解析を実行しました）\n');
                 }
-                showSuccess(msg);
+                proposeResult({
+                    label: `不足キャラクターの提案（${parsedSuggestions.length}人）`,
+                    preview: previewLines.join('\n\n'),
+                    onApply: () => {
+                        const cleanCharacters = suggestionsToAdd.map(({ reason: _reason, ...char }) => char);
+                        updateProject({ characters: [...existingCharacters, ...cleanCharacters] });
+                    },
+                });
             } else {
                 handleAPIError(
                     new Error(`キャラクターの抽出に失敗しました。\n解析エラー: ${parseError || '不明'}`),
@@ -219,10 +219,8 @@ export const CharacterAssistantPanel: React.FC = () => {
             if (error instanceof Error && error.name === 'AbortError') return;
             handleAPIError(error, 'キャラクター提案');
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGenerating(false);
-            }
-            abortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
     };
 
@@ -241,16 +239,12 @@ export const CharacterAssistantPanel: React.FC = () => {
 
         if (!currentProject) return;
 
-        // 既存のリクエストをキャンセル
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-
-        // 新しいAbortControllerを作成
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
-
-        setIsGenerating(true);
+        // マネージャに生成タスクを登録（同keyの既存タスクは自動でキャンセル・置換）
+        const { id: taskId, signal } = startTask({
+            key: generateKey,
+            label: 'キャラクターを生成中',
+            step: 'character',
+        });
 
         try {
             // プロジェクト設定から情報を取得
@@ -293,11 +287,11 @@ export const CharacterAssistantPanel: React.FC = () => {
                 prompt,
                 type: 'character',
                 settings,
-                signal: abortController.signal,
+                signal,
             });
 
             // キャンセルされた場合は処理をスキップ
-            if (abortController.signal.aborted) {
+            if (signal.aborted) {
                 return;
             }
 
@@ -350,12 +344,8 @@ export const CharacterAssistantPanel: React.FC = () => {
                 });
             }
 
-            // 既存のキャラクターに追加
+            // 既存のキャラクターに追加（即時反映せず確認モーダルへ）
             if (newCharacters.length > 0) {
-                updateProject({
-                    characters: [...currentProject.characters, ...newCharacters],
-                });
-
                 // 成功時は解析結果を含めてログを記録
                 addLog({
                     type: 'generate',
@@ -365,20 +355,27 @@ export const CharacterAssistantPanel: React.FC = () => {
                     parsedCharacters: newCharacters,
                 });
 
-                const characterNames = newCharacters.map(c => c.name).join('、');
+                const existingCharacters = currentProject.characters;
+                const charactersToAdd = newCharacters;
 
-                // 警告やエラーがある場合のメッセージ
-                let successMessage = `${newCharacters.length}人のキャラクター（${characterNames}）を生成しました！`;
-
+                // プレビュー: キャラ名・役割・性格の要約
+                const previewLines = newCharacters.map((c, i) =>
+                    `${i + 1}. ${c.name}（${c.role || '役割未設定'}）\n   ${c.personality || c.background || ''}`.trimEnd()
+                );
                 if (parseResult.warnings.length > 0) {
-                    successMessage += `\n注意: ${parseResult.warnings.length}件の警告があります。`;
+                    previewLines.unshift(`⚠ ${parseResult.warnings.length}件の警告があります。\n`);
                 }
-
                 if (parseResult.parseMethod === 'fallback') {
-                    successMessage += '\n（JSON形式の解析に失敗したため、テキスト形式で解析しました）';
+                    previewLines.unshift('（JSON形式の解析に失敗したため、テキスト形式で解析しました）\n');
                 }
 
-                showSuccess(successMessage);
+                proposeResult({
+                    label: `キャラクター（${newCharacters.length}人追加）`,
+                    preview: previewLines.join('\n\n'),
+                    onApply: () => updateProject({
+                        characters: [...existingCharacters, ...charactersToAdd],
+                    }),
+                });
             } else {
                 // 解析失敗時もログを記録
                 addLog({
@@ -433,10 +430,8 @@ export const CharacterAssistantPanel: React.FC = () => {
                 }
             );
         } finally {
-            if (!abortController.signal.aborted) {
-                setIsGenerating(false);
-            }
-            abortControllerRef.current = null;
+            // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
+            completeTask(taskId);
         }
     };
 
@@ -635,18 +630,6 @@ ${'='.repeat(80)}`;
                     />
                 </div>
             </div>
-
-            <SuggestionModal
-                isOpen={isSuggestionModalOpen}
-                onClose={() => setIsSuggestionModalOpen(false)}
-                suggestions={suggestions}
-                onAddCharacters={(chars) => {
-                    updateProject({
-                        characters: [...currentProject.characters, ...chars]
-                    });
-                    showSuccess(`${chars.length}人のキャラクターを追加しました`);
-                }}
-            />
         </div>
     );
 };

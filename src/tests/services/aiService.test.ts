@@ -145,3 +145,42 @@ describe('プロンプト長の検証', () => {
         checkJapanese(PROMPTS);
     });
 });
+
+describe('buildPrompt の文体見本（styleSample）注入', () => {
+    // aiService 本体を遅延 import する（モジュール読み込みの副作用をこの describe に限定）
+    const buildContinuePrompt = async (vars: Record<string, string>) => {
+        const { aiService } = await import('../../services/aiService');
+        return aiService.buildPrompt('draft', 'continue', {
+            currentText: '本文',
+            chapterTitle: '第1章',
+            chapterSummary: '概要',
+            projectCharacters: '人物',
+            plotTheme: 'テーマ',
+            plotSetting: '舞台',
+            plotStructure: '構成',
+            style: '現代小説風',
+            perspective: '',
+            formality: '',
+            rhythm: '',
+            metaphor: '',
+            dialogue: '',
+            emotion: '',
+            tone: '',
+            ...vars,
+        });
+    };
+
+    it('styleSample があれば文体見本ブロックが {styleDetails} に展開される', async () => {
+        const prompt = await buildContinuePrompt({ styleSample: '雨はただ静かに降り続けていた。' });
+        expect(prompt).toContain('【文体見本');
+        expect(prompt).toContain('雨はただ静かに降り続けていた。');
+        expect(prompt).toContain('文体・リズム・語彙の傾向だけを真似て');
+        expect(prompt).not.toContain('{styleDetails}');
+    });
+
+    it('styleSample が空なら文体見本ブロックは出力されない', async () => {
+        const prompt = await buildContinuePrompt({ styleSample: '' });
+        expect(prompt).not.toContain('【文体見本');
+        expect(prompt).not.toContain('{styleDetails}');
+    });
+});

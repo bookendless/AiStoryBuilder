@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BookOpen, Image, Upload, X } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
+import { useSkeletonGenerator } from './skeleton/useSkeletonGenerator';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
 import { useOverlayBackHandler } from '../contexts/BackButtonContext';
@@ -57,6 +58,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const [activeTab, setActiveTab] = useState<'basic' | 'style'>('basic');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [aiSkeleton, setAiSkeleton] = useState(false);
   const [mainGenre, setMainGenre] = useState('');
   const [subGenre, setSubGenre] = useState('');
   const [targetReader, setTargetReader] = useState('');
@@ -89,6 +91,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { createNewProject } = useProject();
+  const { startSkeletonGeneration } = useSkeletonGenerator();
   const { showError } = useToast();
 
   // バリデーション関数
@@ -166,6 +169,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     if (!isOpen) {
       setTitle('');
       setDescription('');
+      setAiSkeleton(false);
       setMainGenre('');
       setSubGenre('');
       setTargetReader('');
@@ -380,11 +384,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
         ? undefined
         : writingStyle;
 
-      createNewProject(title.trim(), description.trim(), finalMainGenre, finalSubGenre, coverImage, finalTargetReader, finalTheme, finalWritingStyle);
+      const created = createNewProject(title.trim(), description.trim(), finalMainGenre, finalSubGenre, coverImage, finalTargetReader, finalTheme, finalWritingStyle);
       onNavigateToStep('plot1');
+
+      // AIおまかせ骨組み生成（説明入力時のみ・トグルON時）。
+      // plot1 遷移後にバックグラウンドで実行し、完了後に確認モーダルで反映/破棄を選べる。
+      if (aiSkeleton && description.trim()) {
+        startSkeletonGeneration({
+          title: title.trim(),
+          description: description.trim(),
+          mainGenre: finalMainGenre,
+          subGenre: finalSubGenre,
+          targetReader: finalTargetReader,
+          projectTheme: finalTheme,
+        }, created.id);
+      }
+
       onClose();
       setTitle('');
       setDescription('');
+      setAiSkeleton(false);
       setMainGenre('');
       setSubGenre('');
       setTargetReader('');
@@ -501,6 +520,31 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                 rows={3}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-['Noto_Sans_JP']"
               />
+
+              {/* AIおまかせ骨組み生成トグル（説明入力時のみ有効） */}
+              <label
+                className={`mt-3 flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                  description.trim()
+                    ? 'border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
+                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 opacity-60 cursor-not-allowed'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={aiSkeleton}
+                  disabled={!description.trim()}
+                  onChange={(e) => setAiSkeleton(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm font-['Noto_Sans_JP']">
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    AIおまかせ骨組み生成
+                  </span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    説明文を「物語の種」として、基本設定・主要キャラクター・推奨構成をAIが下書きします。作成後にバックグラウンドで生成され、完了後に反映するか選べます。
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* メインジャンル選択 */}

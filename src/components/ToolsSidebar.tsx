@@ -519,12 +519,13 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
         onClose={() => setShowWorldSettings(false)}
       />
 
-      {showForeshadowings && (
-        <ForeshadowingTracker
-          isOpen={showForeshadowings}
-          onClose={() => setShowForeshadowings(false)}
-        />
-      )}
+      {/* 常時マウント: AI生成中にモーダルを閉じても結果（提案・整合性・強化・回収）を保持するため、
+          条件レンダーで都度アンマウントせず、isOpen で表示制御する */}
+      <ForeshadowingTracker
+        isOpen={showForeshadowings}
+        onClose={() => setShowForeshadowings(false)}
+      />
+
 
       <EmotionMapVisualizer
         isOpen={showEmotionMap}

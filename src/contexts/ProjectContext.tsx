@@ -59,6 +59,7 @@ interface ProjectContextType {
   updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
   createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
   createSequelProject: (parent: Project, overrides: Partial<Project>) => Project;
+  createImportedProject: (title: string, overrides: Partial<Project>) => Project;
   saveProject: () => Promise<void>;
   createManualBackup: (description?: string) => Promise<void>;
   loadProject: (id: string) => Promise<void>;
@@ -427,6 +428,77 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     return sequel;
   }, [setCurrentProject]);
 
+  // インポート機能から呼び出し: 解析した小説断片を新規プロジェクトとして一括生成する。
+  // createNewProject では characters/plot/draft/chapters を渡せず、続けて updateProject を
+  // 呼ぶと currentProject のクロージャーが未更新（直前の create が反映前）で取りこぼすため、
+  // createSequelProject と同様に1回の呼び出しで全項目を確定させる。
+  const createImportedProject = useCallback((title: string, overrides: Partial<Project>): Project => {
+    const now = new Date();
+    const imported: Project = {
+      id: Date.now().toString(),
+      title,
+      description: overrides.description ?? '',
+      genre: overrides.mainGenre, // 後方互換性のため
+      mainGenre: overrides.mainGenre,
+      subGenre: overrides.subGenre,
+      coverImage: undefined,
+      targetReader: overrides.targetReader,
+      projectTheme: overrides.projectTheme,
+      customMainGenre: '',
+      customSubGenre: '',
+      customTargetReader: '',
+      customTheme: '',
+      theme: overrides.theme ?? '',
+      imageBoard: [],
+      progress: {
+        character: 0,
+        plot: 0,
+        synopsis: 0,
+        chapter: 0,
+        draft: 0,
+      },
+      characters: overrides.characters ?? [],
+      plot: {
+        theme: '',
+        setting: '',
+        hook: '',
+        protagonistGoal: '',
+        mainObstacle: '',
+        structure: 'kishotenketsu',
+        ki: '',
+        sho: '',
+        ten: '',
+        ketsu: '',
+        act1: '',
+        act2: '',
+        act3: '',
+        fourAct1: '',
+        fourAct2: '',
+        fourAct3: '',
+        fourAct4: '',
+        ...overrides.plot,
+      },
+      synopsis: overrides.synopsis ?? '',
+      chapters: overrides.chapters ?? [],
+      draft: overrides.draft ?? '',
+      createdAt: now,
+      updatedAt: now,
+      lastAccessed: now,
+      glossary: [],
+      relationships: [],
+      timeline: [],
+      writingStyle: overrides.writingStyle,
+      styleSample: overrides.styleSample,
+      worldSettings: [],
+      foreshadowings: [],
+    };
+
+    setProjects(prev => [...prev, imported]);
+    setCurrentProject(imported); // setCurrentProject 内でDBにも保存される
+
+    return imported;
+  }, [setCurrentProject]);
+
   const saveProject = useCallback(async (): Promise<void> => {
     if (!currentProject) return;
 
@@ -733,6 +805,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     updateProject,
     createNewProject,
     createSequelProject,
+    createImportedProject,
     saveProject,
     createManualBackup,
     loadProject,
@@ -751,6 +824,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     updateProject,
     createNewProject,
     createSequelProject,
+    createImportedProject,
     saveProject,
     createManualBackup,
     loadProject,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { BookOpen } from 'lucide-react';
 import { useProject } from '../../../contexts/ProjectContext';
 import {
     STYLE_OPTIONS,
@@ -10,9 +11,11 @@ import {
     EMOTION_OPTIONS,
     TONE_OPTIONS,
 } from '../../../constants/writingStyle';
+import { StyleSampleModal } from './StyleSampleModal';
 
 export const WritingStyleSettings: React.FC = () => {
     const { currentProject, updateProject } = useProject();
+    const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
 
     // ローカルステートでフォームの値を管理
     const [styleData, setStyleData] = useState({
@@ -379,6 +382,35 @@ export const WritingStyleSettings: React.FC = () => {
                     />
                 )}
             </div>
+
+            {/* 文体見本（編集は専用モーダルに集約。パネルは幅が狭く長文編集に向かないため） */}
+            <div className="space-y-1 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 font-['Noto_Sans_JP']">
+                    文体見本
+                </label>
+                {currentProject.styleSample ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] line-clamp-2">
+                        {currentProject.styleSample.slice(0, 80)}
+                        {currentProject.styleSample.length > 80 ? '…' : ''}
+                    </p>
+                ) : (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 font-['Noto_Sans_JP']">
+                        未登録。登録するとAI執筆が見本の雰囲気・文体に合わせて生成されます。
+                    </p>
+                )}
+                <button
+                    onClick={() => setIsSampleModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 mt-1 text-xs rounded-md border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors font-['Noto_Sans_JP']"
+                >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    見本を編集
+                </button>
+            </div>
+
+            <StyleSampleModal
+                isOpen={isSampleModalOpen}
+                onClose={() => setIsSampleModalOpen(false)}
+            />
         </div>
     );
 };

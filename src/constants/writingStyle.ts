@@ -73,6 +73,13 @@ export const EMOTION_OPTIONS = [
   '抑制的'
 ] as const;
 
+// 文体見本（Project.styleSample）の上限文字数
+// プロンプト全体のサニタイズ上限（既定10000字）を圧迫しない範囲で few-shot 効果を確保する
+export const STYLE_SAMPLE_MAX_CHARS = 1000;
+
+// 本文から文体見本を自動抽出するときの目安文字数（手動編集の上限より少し短く）
+export const STYLE_SAMPLE_EXTRACT_CHARS = 800;
+
 // トーンオプション
 // NewProjectModalの具体的な選択肢を使用
 export const TONE_OPTIONS = [

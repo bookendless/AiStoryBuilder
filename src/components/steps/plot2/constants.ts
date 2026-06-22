@@ -459,5 +459,6 @@ export const AI_LOG_TYPE_LABELS: Record<string, string> = {
   supplement: '補完',
   consistency: '一貫性チェック',
   generateStructure: '構造生成',
+  inferStructure: '構成推定',
   applyConsistency: 'プロット自動修正',
 };

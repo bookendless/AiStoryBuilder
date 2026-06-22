@@ -1,7 +1,7 @@
 {
   "name": "ai-story-builder",
   "private": false,
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "description": "AIを活用した小説創作支援アプリケーション",
   "keywords": [
@@ -58,7 +58,7 @@
     "@tauri-apps/cli": "^2.9.4",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
-    "@tauri-apps/plugin-http": "^2.5.4",
+    "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-store": "^2.2.0",
     "axios": "^1.11.0",
     "dexie": "^4.2.0",

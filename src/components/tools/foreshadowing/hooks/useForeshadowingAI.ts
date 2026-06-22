@@ -11,7 +11,7 @@ import type { AISuggestion, ConsistencyResult, EnhanceResult, PayoffResult } fro
 export const useForeshadowingAI = () => {
   const { currentProject, updateProject } = useProject();
   const { settings: aiSettings, isConfigured } = useAI();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
 
   const foreshadowings = currentProject?.foreshadowings || [];
   const chapters = currentProject?.chapters || [];
@@ -48,12 +48,15 @@ export const useForeshadowingAI = () => {
   // AI操作の共通ラッパー（ローディング管理・エラー処理）
   const executeAIOperation = async <T>(
     errorMessage: string,
-    operation: () => Promise<T>
+    operation: () => Promise<T>,
+    successMessage?: string
   ): Promise<T | undefined> => {
     setIsAILoading(true);
     setAiError(null);
     try {
-      return await operation();
+      const result = await operation();
+      if (successMessage) showSuccess(successMessage);
+      return result;
     } catch (error) {
       console.error(errorMessage, error);
       const msg = error instanceof Error ? error.message : errorMessage;
@@ -143,7 +146,7 @@ export const useForeshadowingAI = () => {
       const prompt = aiService.buildPrompt('foreshadowing', 'suggest', projectInfo);
       const parsed = await fetchAndParseAI<{ suggestions?: AISuggestion[] }>(prompt);
       setAiSuggestions(parsed.suggestions || []);
-    });
+    }, '伏線の提案が完了しました');
   };
 
   // AI整合性チェック
@@ -155,7 +158,7 @@ export const useForeshadowingAI = () => {
       const prompt = aiService.buildPrompt('foreshadowing', 'checkConsistency', projectInfo);
       const parsed = await fetchAndParseAI<ConsistencyResult>(prompt);
       setConsistencyResult(parsed);
-    });
+    }, '伏線の整合性チェックが完了しました');
   };
 
   // AI伏線強化提案
@@ -186,7 +189,7 @@ export const useForeshadowingAI = () => {
       });
       const parsed = await fetchAndParseAI<EnhanceResult>(prompt);
       setEnhanceResult(parsed);
-    });
+    }, '伏線強化の提案が完了しました');
   };
 
   // AI回収タイミング提案
@@ -219,7 +222,7 @@ export const useForeshadowingAI = () => {
       });
       const parsed = await fetchAndParseAI<PayoffResult>(prompt);
       setPayoffResult(parsed);
-    });
+    }, '伏線回収タイミングの提案が完了しました');
   };
 
   // AI提案から伏線を追加

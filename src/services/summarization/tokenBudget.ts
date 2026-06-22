@@ -13,8 +13,6 @@ import { AISettings } from '../../types/ai';
 /** ローカルLLMの既定コンテキスト長（aiService.ts と同値） */
 const DEFAULT_LOCAL_CONTEXT_LENGTH = 12000;
 const MIN_LOCAL_CONTEXT_LENGTH = 1000;
-/** クラウドプロバイダーの入力目安（実際の上限はモデル依存だが下記の強制上限が効く） */
-const DEFAULT_CLOUD_CONTEXT_LENGTH = 10000;
 /** プロンプトテンプレート＋システムプロンプト分のオーバーヘッド見込み */
 const PROMPT_OVERHEAD = 1500;
 /**
@@ -29,16 +27,21 @@ const SANITIZE_HARD_CAP = 10000;
 /**
  * 1回のAI呼び出しで、可変データ（章要約や本文など）に割り当てられる
  * 安全な最大文字数を返す。
+ *
+ * @param hardCap サニタイズ上限のオーバーライド。既定は 10000（従来の続編/要約パイプライン互換）。
+ *   インポート等で aiService に request.maxPromptLength を渡して上限を引き上げる場合、
+ *   同じ値をここにも渡すことで予算計算と実際の切り詰めを整合させる。
+ *   ローカルLLMは別途 localContextLength で切り詰められるため、その範囲内に収める。
  */
-export function getInputCharBudget(settings: AISettings): number {
+export function getInputCharBudget(settings: AISettings, hardCap: number = SANITIZE_HARD_CAP): number {
     const isLocal = settings.provider === 'local';
     const base = isLocal
         ? (typeof settings.localContextLength === 'number' && settings.localContextLength >= MIN_LOCAL_CONTEXT_LENGTH
             ? settings.localContextLength
             : DEFAULT_LOCAL_CONTEXT_LENGTH)
-        : DEFAULT_CLOUD_CONTEXT_LENGTH;
+        : hardCap;
 
-    // base からテンプレート分を引き、さらにサニタイザの強制上限内に収める
-    const budget = Math.min(base, SANITIZE_HARD_CAP) - PROMPT_OVERHEAD;
+    // base からテンプレート分を引き、さらにサニタイザの上限内に収める
+    const budget = Math.min(base, hardCap) - PROMPT_OVERHEAD;
     return Math.max(800, budget);
 }

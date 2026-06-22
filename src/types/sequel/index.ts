@@ -78,7 +78,7 @@ export interface SequelWizardSnapshot {
 /** AI呼び出しを抽象化したランナー（services層をReactから切り離すため） */
 export type AIRunner = (
     prompt: string,
-    opts?: { signal?: AbortSignal; temperature?: number; timeout?: number }
+    opts?: { signal?: AbortSignal; temperature?: number; timeout?: number; maxPromptLength?: number }
 ) => Promise<string>;
 
 /** パイプライン進捗の通知 */
