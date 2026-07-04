@@ -1760,6 +1760,18 @@ class AIService {
         }
       );
 
+      // 利用トークン量を記録（fire-and-forget・コスト可視化用）
+      // 型別の早期returnより前に記録することで、draftを含む全タイプで計上される
+      if (response.usage) {
+        void import('./aiCostService').then(m => m.recordUsage({
+          provider: settings.provider,
+          model: settings.model,
+          promptTokens: response.usage?.promptTokens,
+          completionTokens: response.usage?.completionTokens,
+          totalTokens: response.usage?.totalTokens,
+        })).catch(() => { /* noop */ });
+      }
+
       // ストリーミングの場合はそのまま返す
       if (request.onStream) {
         return response;

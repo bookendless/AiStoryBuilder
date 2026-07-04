@@ -28,6 +28,7 @@ import { Save, RotateCcw, Trash2, Eye } from 'lucide-react';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { exportFile } from '../../utils/mobileExportUtils';
 import { HistoryViewerModal } from '../steps/draft/HistoryViewerModal';
+import { DiffPreviewModal } from '../steps/draft/DiffPreviewModal';
 import { WritingStyleSettings } from '../steps/draft/WritingStyleSettings';
 import { ContextSettingsModal } from '../steps/draft/ContextSettingsModal';
 
@@ -93,6 +94,29 @@ export const DraftAssistantPanel: React.FC = () => {
     const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>({});
     const [deletingHistoryEntryId, setDeletingHistoryEntryId] = useState<string | null>(null);
     const [showGenerateAllChaptersConfirm, setShowGenerateAllChaptersConfirm] = useState(false);
+
+    // AI提案の差分プレビュー状態（Promiseベースの確認ゲート）
+    const [diffPreview, setDiffPreview] = useState<{
+        oldText: string;
+        newText: string;
+        resolve: (approved: boolean) => void;
+    } | null>(null);
+
+    const confirmDraftReplace = useCallback(
+        ({ oldText, newText }: { oldText: string; newText: string }) => {
+            return new Promise<boolean>(resolve => {
+                setDiffPreview({ oldText, newText, resolve });
+            });
+        },
+        []
+    );
+
+    const resolveDiffPreview = useCallback((approved: boolean) => {
+        if (diffPreview) {
+            diffPreview.resolve(approved);
+            setDiffPreview(null);
+        }
+    }, [diffPreview]);
 
     // 現在の章と草案を取得
     const currentChapter = useMemo(() => {
@@ -416,6 +440,7 @@ export const DraftAssistantPanel: React.FC = () => {
         getProjectContextInfo,
         buildCustomPrompt,
         setImprovementLogs,
+        confirmDraftReplace,
     });
 
     // 弱点特定ハンドラ
@@ -1685,6 +1710,14 @@ ${'='.repeat(80)}`;
                 weaknesses={critiqueWeaknesses}
                 critiqueSummary={critiqueSummary}
                 isFixing={isFixingWeaknesses}
+            />
+            {/* AI提案の差分プレビュー */}
+            <DiffPreviewModal
+                isOpen={diffPreview !== null}
+                oldText={diffPreview?.oldText ?? ''}
+                newText={diffPreview?.newText ?? ''}
+                onApply={() => resolveDiffPreview(true)}
+                onDiscard={() => resolveDiffPreview(false)}
             />
         </div>
     );

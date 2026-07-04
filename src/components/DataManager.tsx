@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Database, Download, Upload, Trash2, Copy, RotateCcw, HardDrive, Save, Clock, FileText, Eraser, Archive } from 'lucide-react';
+import { Database, Download, Upload, Trash2, Copy, RotateCcw, HardDrive, Save, Clock, FileText, Eraser, Archive, GitCompare } from 'lucide-react';
 import { databaseService } from '../services/databaseService';
 import { useProject, Project } from '../contexts/ProjectContext';
 import { useToast } from './Toast';
@@ -11,6 +11,7 @@ import { PieChart, type PieChartData } from './common/PieChart';
 import { ConfirmDialog } from './common/ConfirmDialog';
 import { BackupDescriptionModal } from './steps/draft/BackupDescriptionModal';
 import { ClearAllDataConfirmModal } from './common/ClearAllDataConfirmModal';
+import { SnapshotCompareModal } from './SnapshotCompareModal';
 import { isTauriEnvironment, isAndroidEnvironment } from '../utils/platformUtils';
 
 interface DataManagerProps {
@@ -94,6 +95,13 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
 
   // バックアップ説明入力モーダルの状態
   const [backupDescriptionModalOpen, setBackupDescriptionModalOpen] = useState(false);
+
+  // スナップショット比較モーダルの状態
+  const [compareState, setCompareState] = useState<{
+    backupId: string;
+    description: string;
+    createdAt: Date;
+  } | null>(null);
 
   // 全データ削除確認用の入力モーダル状態（2段階確認の2段階目）
   const [clearAllDataInputModalOpen, setClearAllDataInputModalOpen] = useState(false);
@@ -1091,6 +1099,15 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                             </div>
                             <div className="flex items-center space-x-2">
                               <button
+                                onClick={() => setCompareState({ backupId: backup.id, description: backup.description, createdAt: backup.createdAt })}
+                                disabled={isLoading}
+                                className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
+                                title="現在のプロジェクトと比較"
+                              >
+                                <GitCompare className="h-4 w-4" />
+                                <span>比較</span>
+                              </button>
+                              <button
                                 onClick={() => handleRestoreBackup(backup.id)}
                                 disabled={isLoading}
                                 className="flex items-center space-x-2 px-3 py-1 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
@@ -1162,6 +1179,15 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => setCompareState({ backupId: backup.id, description: backup.description, createdAt: backup.createdAt })}
+                                disabled={isLoading}
+                                className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors disabled:opacity-50 text-sm font-['Noto_Sans_JP']"
+                                title="現在のプロジェクトと比較"
+                              >
+                                <GitCompare className="h-4 w-4" />
+                                <span>比較</span>
+                              </button>
                               <button
                                 onClick={() => handleRestoreBackup(backup.id)}
                                 disabled={isLoading}
@@ -1620,6 +1646,15 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         isOpen={clearAllDataInputModalOpen}
         onClose={() => setClearAllDataInputModalOpen(false)}
         onConfirm={handleConfirmClearAllDataFinal}
+      />
+
+      {/* スナップショット比較モーダル */}
+      <SnapshotCompareModal
+        isOpen={compareState !== null}
+        onClose={() => setCompareState(null)}
+        backupId={compareState?.backupId ?? null}
+        backupDescription={compareState?.description ?? ''}
+        backupCreatedAt={compareState?.createdAt ?? null}
       />
     </Modal>
   );

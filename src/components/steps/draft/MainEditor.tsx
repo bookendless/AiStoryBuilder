@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { PenTool, BookOpen, Save, Download, MoreVertical, Minimize } from 'lucide-react';
+import { PenTool, BookOpen, Save, Download, MoreVertical, Minimize, SpellCheck } from 'lucide-react';
 import { formatTimestamp } from './utils';
 import MarkdownIt from 'markdown-it';
 import MdEditor from 'react-markdown-editor-lite';
@@ -35,6 +35,7 @@ interface MainEditorProps {
   onSave: () => void;
   onOpenViewer: () => void;
   onExportChapter: () => void;
+  onOpenProofread?: () => void;
   isVerticalWriting: boolean;
   isZenMode: boolean;
   onExitZenMode: () => void;
@@ -54,6 +55,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   onSave,
   onOpenViewer,
   onExportChapter,
+  onOpenProofread,
   isVerticalWriting,
   isZenMode,
   onExitZenMode,
@@ -117,6 +119,49 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   const handleMarkdownChange = useCallback(({ text }: { text: string }) => {
     onDraftChange(text);
   }, [onDraftChange]);
+
+  // 現在アクティブなtextarea（縦書き/Markdownエディタ）を取得
+  const getActiveTextarea = useCallback((): HTMLTextAreaElement | null => {
+    if (isVerticalWriting) {
+      return mainTextareaRef.current;
+    }
+    return mdEditorRef.current?.querySelector?.('textarea') || null;
+  }, [isVerticalWriting]);
+
+  // 選択範囲を指定の記法で包む（ルビ・傍点挿入用）
+  const wrapSelection = useCallback((build: (selected: string) => { text: string; cursorOffset: number }) => {
+    const textarea = getActiveTextarea();
+    if (!textarea) return;
+
+    const { selectionStart, selectionEnd, value } = textarea;
+    const selected = value.slice(selectionStart, selectionEnd);
+    const { text, cursorOffset } = build(selected);
+    const newValue = value.slice(0, selectionStart) + text + value.slice(selectionEnd);
+
+    onDraftChange(newValue);
+
+    setTimeout(() => {
+      textarea.focus();
+      const position = selectionStart + cursorOffset;
+      textarea.setSelectionRange(position, position);
+    }, 0);
+  }, [getActiveTextarea, onDraftChange]);
+
+  // ルビ挿入: 選択文字列を親文字にして ｜親文字《》 を挿入（カーソルは《》内）
+  const handleInsertRuby = useCallback(() => {
+    wrapSelection(selected => ({
+      text: `｜${selected}《》`,
+      cursorOffset: 1 + selected.length + 1,
+    }));
+  }, [wrapSelection]);
+
+  // 傍点挿入: 選択文字列を 《《》》 で包む（未選択時はカーソルを中央に）
+  const handleInsertEmphasis = useCallback(() => {
+    wrapSelection(selected => ({
+      text: `《《${selected}》》`,
+      cursorOffset: selected ? 4 + selected.length : 2,
+    }));
+  }, [wrapSelection]);
 
   // 親コンポーネントからref経由でアクセスできるメソッドを公開
   useImperativeHandle(ref, () => ({
@@ -303,6 +348,39 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
               </button>
             )}
 
+            {/* ルビ・傍点挿入ボタン */}
+            {selectedChapterId && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleInsertRuby}
+                  title="ルビを挿入（選択文字列を親文字にして ｜親文字《るび》 形式で挿入）"
+                  className={`px-2.5 py-2 rounded-lg border text-sm font-['Noto_Sans_JP'] transition-colors ${isZenMode
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                  <ruby className="pointer-events-none">ルビ<rt className="text-[8px]">るび</rt></ruby>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleInsertEmphasis}
+                  title="傍点を挿入（選択文字列を 《《傍点》》 形式で強調）"
+                  className={`px-2.5 py-2 rounded-lg border text-sm font-['Noto_Sans_JP'] transition-colors ${isZenMode
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                  <span
+                    className="pointer-events-none"
+                    style={{ textEmphasis: 'filled sesame', WebkitTextEmphasis: 'filled sesame' } as React.CSSProperties}
+                  >
+                    傍点
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* プライマリボタン */}
             <div className="flex items-center gap-2">
               <button
@@ -347,6 +425,20 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
               {/* ドロップダウンメニュー */}
               {isMenuOpen && (
                 <div className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 fade-in">
+                  {currentChapter && onOpenProofread && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenProofread();
+                        setIsMenuOpen(false);
+                      }}
+                      disabled={!draft.trim()}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
+                    >
+                      <SpellCheck className="h-4 w-4" />
+                      校正チェック
+                    </button>
+                  )}
                   {currentChapter && (
                     <button
                       type="button"

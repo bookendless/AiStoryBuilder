@@ -247,6 +247,9 @@ class DatabaseService {
       // キャッシュを更新（トランザクション成功後）
       this.projectCache.set(project.id, storedProject);
 
+      // 執筆統計の日次サンプルを記録（fire-and-forget・失敗しても保存には影響しない）
+      void import('./writingStatsService').then(m => m.recordDailySnapshot(project)).catch(() => { /* noop */ });
+
       console.log(`プロジェクト "${project.title}" を確実に保存しました`);
     } catch (error) {
       // 既にカスタムエラーの場合はそのまま再スロー
@@ -693,25 +696,29 @@ class DatabaseService {
     await this.createBackup(project, description, 'manual');
   }
 
-  // バックアップから復元（圧縮対応）
-  async restoreFromBackup(backupId: string): Promise<Project | null> {
+  // バックアップからプロジェクトデータを読み出す（保存はしない・圧縮対応）
+  // 復元前の差分比較（スナップショット比較）などで使用する
+  async getBackupProject(backupId: string): Promise<Project | null> {
     const backup = await db.backups.get(backupId);
     if (!backup) return null;
 
-    try {
-      let projectData: Project;
+    // 圧縮されている場合は展開
+    if (backup.compressed && typeof backup.data === 'string') {
+      const decompressed = await this.decompressData(backup.data);
+      return JSON.parse(decompressed) as Project;
+    } else if (typeof backup.data === 'string') {
+      // 非圧縮の文字列データ
+      return JSON.parse(backup.data) as Project;
+    }
+    // 古い形式（オブジェクト）の場合はそのまま使用
+    return backup.data as Project;
+  }
 
-      // 圧縮されている場合は展開
-      if (backup.compressed && typeof backup.data === 'string') {
-        const decompressed = await this.decompressData(backup.data);
-        projectData = JSON.parse(decompressed);
-      } else if (typeof backup.data === 'string') {
-        // 非圧縮の文字列データ
-        projectData = JSON.parse(backup.data);
-      } else {
-        // 古い形式（オブジェクト）の場合はそのまま使用
-        projectData = backup.data as Project;
-      }
+  // バックアップから復元（圧縮対応）
+  async restoreFromBackup(backupId: string): Promise<Project | null> {
+    try {
+      const projectData = await this.getBackupProject(backupId);
+      if (!projectData) return null;
 
       const restoredProject: Project = {
         ...projectData,

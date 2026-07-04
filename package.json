@@ -63,6 +63,7 @@
     "axios": "^1.11.0",
     "dexie": "^4.2.0",
     "diff": "^8.0.4",
+    "fflate": "^0.8.3",
     "lucide-react": "^0.344.0",
     "markdown-it": "^14.1.0",
     "openai": "^5.12.2",

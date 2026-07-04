@@ -64,6 +64,11 @@ interface UseAIGenerationOptions {
   getProjectContextInfo: () => ProjectContextInfo;
   buildCustomPrompt: (args: PromptArgs) => string;
   setImprovementLogs: React.Dispatch<React.SetStateAction<Record<string, ImprovementLog[]>>>;
+  /**
+   * AI提案を草案へ適用する前の確認ゲート（差分プレビュー用）。
+   * true を返すと適用、false を返すと破棄。未指定時は従来通り即適用。
+   */
+  confirmDraftReplace?: (params: { oldText: string; newText: string }) => Promise<boolean>;
 }
 
 interface UseAIGenerationReturn {
@@ -102,6 +107,7 @@ export const useAIGeneration = ({
   getProjectContextInfo,
   buildCustomPrompt,
   setImprovementLogs,
+  confirmDraftReplace,
 }: UseAIGenerationOptions): UseAIGenerationReturn => {
   const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
   const [currentGenerationAction, setCurrentGenerationAction] = useState<GenerationAction | null>(null);
@@ -117,6 +123,28 @@ export const useAIGeneration = ({
     setCurrentGenerationAction(null);
     // キャンセルメッセージは呼び出し元で表示するため、ここでは表示しない
   }, [cancelByKey, mainKey]);
+
+  /**
+   * AI提案を草案へ適用する共通処理。
+   * 確認ゲート（差分プレビュー）が設定されていて既存の草案がある場合は、
+   * ユーザーの承認を得てから適用・保存する。
+   * @returns 適用した場合 true、破棄した場合 false
+   */
+  const applyDraftResult = useCallback(async (newText: string, successMessage: string): Promise<boolean> => {
+    if (confirmDraftReplace && draft.trim() && newText !== draft) {
+      const approved = await confirmDraftReplace({ oldText: draft, newText });
+      if (!approved) {
+        onCompletionToast('AI提案を破棄しました');
+        return false;
+      }
+    }
+    onDraftUpdate(newText);
+    if (selectedChapter) {
+      await onSaveChapterDraft(selectedChapter, newText);
+    }
+    onCompletionToast(successMessage);
+    return true;
+  }, [confirmDraftReplace, draft, selectedChapter, onDraftUpdate, onSaveChapterDraft, onCompletionToast]);
 
   // 章全体生成
   const handleAIGenerate = useCallback(async () => {
@@ -226,13 +254,7 @@ export const useAIGeneration = ({
       });
 
       if (response && response.content) {
-        onDraftUpdate(response.content);
-        // 章草案を保存（selectedChapterのnullは保存層へnullキーが渡るのを防ぐためガード）
-        if (selectedChapter) {
-          await onSaveChapterDraft(selectedChapter, response.content);
-        }
-        // 完了通知
-        onCompletionToast('章全体の生成が完了しました');
+        await applyDraftResult(response.content, '章全体の生成が完了しました');
       }
     } catch (error) {
       console.error('AI生成エラー:', error);
@@ -255,11 +277,9 @@ export const useAIGeneration = ({
     getChapterDetails,
     getProjectContextInfo,
     buildCustomPrompt,
-    onDraftUpdate,
-    onSaveChapterDraft,
+    applyDraftResult,
     onError,
     onWarning,
-    onCompletionToast,
     addLog,
   ]);
 
@@ -397,9 +417,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
 
       if (response && response.content) {
         const newContent = draft + '\n\n' + response.content;
-        onDraftUpdate(newContent);
-        await onSaveChapterDraft(selectedChapter!, newContent);
-        onCompletionToast('文章の続きを生成しました');
+        await applyDraftResult(newContent, '文章の続きを生成しました');
       }
     } catch (error) {
       console.error('続き生成エラー:', error);
@@ -420,10 +438,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     currentChapter,
     settings,
     getProjectContextInfo,
-    onDraftUpdate,
-    onSaveChapterDraft,
+    applyDraftResult,
     onError,
-    onCompletionToast,
     addLog,
   ]);
 
@@ -454,9 +470,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       }
 
       if (response && response.content) {
-        onDraftUpdate(response.content);
-        await onSaveChapterDraft(selectedChapter!, response.content);
-        onCompletionToast('描写を強化しました');
+        await applyDraftResult(response.content, '描写を強化しました');
       }
     } catch (error) {
       console.error('描写強化エラー:', error);
@@ -469,7 +483,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, onDraftUpdate, onSaveChapterDraft, onError, onCompletionToast]);
+  }, [selectedChapter, draft, settings, applyDraftResult, onError]);
 
   // 文体調整
   const handleStyleAdjustment = useCallback(async () => {
@@ -499,9 +513,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       }
 
       if (response && response.content) {
-        onDraftUpdate(response.content);
-        await onSaveChapterDraft(selectedChapter!, response.content);
-        onCompletionToast('文体を調整しました');
+        await applyDraftResult(response.content, '文体を調整しました');
       }
     } catch (error) {
       console.error('文体調整エラー:', error);
@@ -514,7 +526,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, onDraftUpdate, onSaveChapterDraft, onError, onCompletionToast]);
+  }, [selectedChapter, draft, settings, applyDraftResult, onError]);
 
   // 文章短縮
   const handleShortenText = useCallback(async () => {
@@ -543,9 +555,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       }
 
       if (response && response.content) {
-        onDraftUpdate(response.content);
-        await onSaveChapterDraft(selectedChapter!, response.content);
-        onCompletionToast('文章を短縮しました');
+        await applyDraftResult(response.content, '文章を短縮しました');
       }
     } catch (error) {
       console.error('文章短縮エラー:', error);
@@ -558,7 +568,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, onDraftUpdate, onSaveChapterDraft, onError, onCompletionToast]);
+  }, [selectedChapter, draft, settings, applyDraftResult, onError]);
 
   // 章全体改善（描写強化＋文体調整の組み合わせ）
   const handleChapterImprovement = useCallback(async () => {
@@ -597,9 +607,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       }
 
       if (response && response.content) {
-        onDraftUpdate(response.content);
-        await onSaveChapterDraft(selectedChapter!, response.content);
-        onCompletionToast('章全体を改善しました');
+        await applyDraftResult(response.content, '章全体を改善しました');
       }
     } catch (error) {
       console.error('章全体改善エラー:', error);
@@ -618,10 +626,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     isConfigured,
     currentChapter,
     settings,
-    onDraftUpdate,
-    onSaveChapterDraft,
+    applyDraftResult,
     onError,
-    onCompletionToast,
   ]);
 
   // 弱点の特定（分析フェーズ）
@@ -897,32 +903,34 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       }
 
       if (revisedText.trim()) {
-        onDraftUpdate(revisedText);
-        await onSaveChapterDraft(selectedChapter!, revisedText);
+        const applied = await applyDraftResult(
+          revisedText,
+          improvementSummary
+            ? `選択した ${selectedWeaknesses.length} 件の弱点を修正しました`
+            : '修正が完了しました'
+        );
 
-        const logId = `log-${Date.now()}`;
-        const improvementLog: ImprovementLog = {
-          id: logId,
-          timestamp: Date.now(),
-          chapterId: selectedChapter!,
-          phase1Critique: rawCritique,
-          phase2Summary: improvementSummary || '改善戦略の要約が取得できませんでした',
-          phase2Changes: phase2Changes,
-          originalLength: draft.length,
-          revisedLength: revisedText.length,
-        };
-
-        setImprovementLogs(prev => {
-          const chapterLogs = prev[selectedChapter!] || [];
-          return {
-            ...prev,
-            [selectedChapter!]: [improvementLog, ...chapterLogs].slice(0, 20),
+        if (applied) {
+          const logId = `log-${Date.now()}`;
+          const improvementLog: ImprovementLog = {
+            id: logId,
+            timestamp: Date.now(),
+            chapterId: selectedChapter!,
+            phase1Critique: rawCritique,
+            phase2Summary: improvementSummary || '改善戦略の要約が取得できませんでした',
+            phase2Changes: phase2Changes,
+            originalLength: draft.length,
+            revisedLength: revisedText.length,
           };
-        });
 
-        onCompletionToast(improvementSummary
-          ? `選択した ${selectedWeaknesses.length} 件の弱点を修正しました`
-          : '修正が完了しました');
+          setImprovementLogs(prev => {
+            const chapterLogs = prev[selectedChapter!] || [];
+            return {
+              ...prev,
+              [selectedChapter!]: [improvementLog, ...chapterLogs].slice(0, 20),
+            };
+          });
+        }
       } else {
         throw new Error('改訂後の文章が空です');
       }
@@ -942,10 +950,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     currentProject,
     currentChapter,
     settings,
-    onDraftUpdate,
-    onSaveChapterDraft,
+    applyDraftResult,
     onError,
-    onCompletionToast,
     setImprovementLogs,
   ]);
 
@@ -996,9 +1002,7 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
       }
 
       if (response && response.content) {
-        onDraftUpdate(response.content);
-        await onSaveChapterDraft(selectedChapter!, response.content);
-        onCompletionToast('キャラクター情報のブレを修正しました');
+        await applyDraftResult(response.content, 'キャラクター情報のブレを修正しました');
       }
     } catch (error) {
       console.error('キャラクター修正エラー:', error);
@@ -1016,10 +1020,8 @@ ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${conte
     draft,
     currentProject,
     settings,
-    onDraftUpdate,
-    onSaveChapterDraft,
+    applyDraftResult,
     onError,
-    onCompletionToast,
   ]);
 
   return {

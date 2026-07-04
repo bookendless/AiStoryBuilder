@@ -3,6 +3,9 @@ import { Download, FileText, File, Globe, Check, Copy, Search, ChevronDown, Chev
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../Toast';
 import { escapeHtml, sanitizeFileName } from '../../utils/securityUtils';
+import { rubyNotationToHtml } from '../../utils/rubyUtils';
+import { WebNovelExportPanel } from '../export/WebNovelExportPanel';
+import { EpubExportPanel } from '../export/EpubExportPanel';
 import { isTauriEnvironment } from '../../utils/platformUtils';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../contexts/ProjectContext';
@@ -1167,6 +1170,11 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
             border: 1px solid #ffebee;
             white-space: pre-wrap;
         }
+        ruby rt { font-size: 0.5em; }
+        .emphasis-dots {
+            text-emphasis: filled sesame;
+            -webkit-text-emphasis: filled sesame;
+        }
         .summary { color: #7f8c8d; font-style: italic; }
         .metadata {
             background-color: #f8f9fa;
@@ -1507,7 +1515,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
           const chapterDraft = chapter.draft || '';
           if (chapterDraft.trim()) {
             return `<h3>第${index + 1}章: ${escapeHtml(chapter.title)}</h3>
-    <div class="draft-content">${escapeHtml(chapterDraft)}</div>`;
+    <div class="draft-content">${rubyNotationToHtml(chapterDraft, escapeHtml)}</div>`;
           }
           return null;
         })
@@ -1526,9 +1534,9 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         }
 
         // プロジェクト全体の草案がある場合は追加
-        if (projectDraft && !allDrafts.some(d => d.includes(escapeHtml(projectDraft)))) {
+        if (projectDraft && !allDrafts.some(d => d.includes(rubyNotationToHtml(projectDraft, escapeHtml)))) {
           content += `
-    <div class="draft-content">${escapeHtml(projectDraft)}</div>`;
+    <div class="draft-content">${rubyNotationToHtml(projectDraft, escapeHtml)}</div>`;
         }
       }
     }
@@ -2231,6 +2239,12 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
             <span>コピー</span>
           </button>
         </div>
+
+        {/* 投稿サイト向け出力 */}
+        <WebNovelExportPanel />
+
+        {/* EPUB出力 */}
+        <EpubExportPanel />
       </div>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { Moon, Sun, Home, Save, PanelLeftClose, PanelLeftOpen, Database, Setting
 import { useProject } from '../contexts/ProjectContext';
 import { useAI } from '../contexts/AIContext';
 import { DataManager } from './DataManager';
+import { WritingDashboardModal } from './WritingDashboardModal';
 import { AISettings } from './AISettings';
 import { useToast } from './Toast';
 import { getUserFriendlyError } from '../utils/errorHandler';
@@ -46,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { isConfigured } = useAI();
   const { showError, showSuccess } = useToast();
   const [showDataManager, setShowDataManager] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const [showProgressDetails, setShowProgressDetails] = useState(false);
   const [showContextHelp, setShowContextHelp] = useState(false);
@@ -302,6 +304,23 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </button>
 
+              {/* 執筆ダッシュボード（プロジェクト選択時のみ表示） */}
+              {currentProject && (
+                <button
+                  onClick={() => setShowDashboard(true)}
+                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg bg-ai-100 dark:bg-ai-900/30 hover:bg-ai-200 dark:hover:bg-ai-900/50 text-ai-700 dark:text-ai-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-offset-2"
+                  aria-label="執筆ダッシュボードを開く"
+                  title="執筆ダッシュボード"
+                >
+                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                  {currentStep === 'home' && (
+                    <span className="hidden lg:inline text-sm font-['Noto_Sans_JP']">
+                      執筆記録
+                    </span>
+                  )}
+                </button>
+              )}
+
               {/* データ管理（常時表示、ホーム以外はアイコンのみ） */}
               <button
                 onClick={() => setShowDataManager(true)}
@@ -463,6 +482,12 @@ export const Header: React.FC<HeaderProps> = ({
       <DataManager
         isOpen={showDataManager}
         onClose={() => setShowDataManager(false)}
+      />
+
+      {/* 執筆ダッシュボード */}
+      <WritingDashboardModal
+        isOpen={showDashboard}
+        onClose={() => setShowDashboard(false)}
       />
 
       <AISettings

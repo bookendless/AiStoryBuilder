@@ -20,6 +20,7 @@ import { Toast } from './draft/Toast';
 import { BackupDescriptionModal } from './draft/BackupDescriptionModal';
 import { ChapterTabs } from './draft/ChapterTabs';
 import { MainEditor, type MainEditorHandle } from './draft/MainEditor';
+import { ProofreadModal } from './draft/ProofreadModal';
 import { ForeshadowingPanel } from './draft/ForeshadowingPanel';
 // AILogPanel is used in ToolsSidebar, reference removed from here
 import { useChapterDraft } from './draft/hooks/useChapterDraft';
@@ -30,6 +31,7 @@ import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 // AILoadingIndicator is used elsewhere
 import { StepNavigation } from '../common/StepNavigation';
+import { RubyText } from '../common/RubyText';
 import { Step } from '../../App';
 import type {
   ChapterHistoryEntry,
@@ -50,6 +52,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalDraft, setModalDraft] = useState('');
+  const [isProofreadOpen, setIsProofreadOpen] = useState(false);
   const [isVerticalWriting, setIsVerticalWriting] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
   const [chapterHistories, setChapterHistories] = useState<Record<string, ChapterHistoryEntry[]>>({});
@@ -864,6 +867,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
               }}
               onOpenViewer={handleOpenViewer}
               onExportChapter={handleExportChapter}
+              onOpenProofread={() => setIsProofreadOpen(true)}
               isVerticalWriting={isVerticalWriting}
               isZenMode={isZenMode}
               onExitZenMode={() => setIsZenMode(false)}
@@ -883,6 +887,23 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
         </div>
       </div>
 
+
+      {/* 校正チェックモーダル */}
+      <ProofreadModal
+        isOpen={isProofreadOpen}
+        onClose={() => setIsProofreadOpen(false)}
+        draft={draft}
+        onApply={(newText) => {
+          setDraft(newText);
+          if (selectedChapter) {
+            setChapterDrafts(prev => ({
+              ...prev,
+              [selectedChapter]: newText,
+            }));
+            handleSaveChapterDraft(selectedChapter, newText, false);
+          }
+        }}
+      />
 
       {/* バックアップ説明モーダル */}
       <BackupDescriptionModal
@@ -954,7 +975,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
                   textOrientation: isVerticalWriting ? 'upright' : 'mixed',
                 }}
               >
-                {modalDraft || (
+                {modalDraft ? (
+                  <RubyText text={modalDraft} />
+                ) : (
                   <div className="text-gray-400 dark:text-gray-500 italic text-center mt-20">
                     草案がまだ作成されていません。メインエディタで執筆を開始してください。
                   </div>

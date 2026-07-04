@@ -23,6 +23,8 @@ import { EmptyState } from './common/EmptyState';
 import { SkeletonLoader } from './common/SkeletonLoader';
 import { ConfirmDialog } from './common/ConfirmDialog';
 import { StoryProposal } from '../utils/storyProposalParser';
+import { databaseService } from '../services/databaseService';
+import { createSampleProject } from '../data/sampleProject';
 
 // プロジェクトカードコンポーネント（メモ化）
 interface ProjectCardProps {
@@ -311,7 +313,8 @@ const WELCOME_MESSAGES = [
 ];
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
-  const { projects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress } = useProject();
+  const { projects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress, loadAllProjects } = useProject();
+  const [isLoadingSample, setIsLoadingSample] = useState(false);
   const { showError, showSuccess } = useToast();
   const welcomeMessage = useMemo(
     () => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)],
@@ -352,6 +355,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     // 保存されたcurrentStepがあればそのステップに遷移、なければplot1に遷移
     const stepToNavigate = project.currentStep || 'plot1';
     onNavigateToStep(stepToNavigate as Step);
+  };
+
+  // 同梱サンプルプロジェクトを読み込んで開く（APIキー不要で全工程を体験）
+  const handleTrySample = async () => {
+    if (isLoadingSample) return;
+    setIsLoadingSample(true);
+    try {
+      const sample = createSampleProject();
+      await databaseService.saveProject(sample);
+      await loadAllProjects();
+      setCurrentProject(sample);
+      showSuccess('サンプルプロジェクトを読み込みました。自由に触って試してみてください', 4000);
+      onNavigateToStep((sample.currentStep || 'draft') as Step);
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message || 'サンプルの読み込みに失敗しました');
+    } finally {
+      setIsLoadingSample(false);
+    }
   };
 
   const handleDeleteProject = (e: React.MouseEvent, projectId: string) => {
@@ -580,6 +602,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                   <span>音声から物語を作る</span>
                 </button>
               </div>
+              {/* サンプルを試す（APIキー不要で全工程を体験） */}
+              <button
+                onClick={handleTrySample}
+                disabled={isLoadingSample}
+                className="mt-2 inline-flex items-center space-x-2 text-ai-700 dark:text-ai-300 hover:text-ai-900 dark:hover:text-ai-100 underline underline-offset-4 decoration-dotted text-sm sm:text-base transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
+              >
+                <Library className="h-4 w-4" />
+                <span>{isLoadingSample ? '読み込み中…' : 'まずサンプル作品で試す（APIキー不要）'}</span>
+              </button>
             </div>
           </div>
         ) : (

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, ChevronRight, FileSearch } from 'lucide-react';
+import { Search, X, ChevronRight, FileSearch, Replace } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { searchProject, SearchResult, getSearchResultTypeLabel } from '../utils/searchUtils';
 import { Step } from '../App';
 import { EmptyState } from './common/EmptyState';
+import { SearchReplaceModal } from './SearchReplaceModal';
 
 interface SearchBarProps {
   onNavigate?: (step: Step, chapterId?: string) => void;
@@ -15,6 +16,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onNavigate }) => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isReplaceOpen, setIsReplaceOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -107,7 +109,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onNavigate }) => {
 
   return (
     <div ref={searchRef} className="relative flex-1 max-w-2xl">
-      <div className="relative">
+      <div className="flex items-center gap-1">
+      <div className="relative flex-1">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-sumi-400 dark:text-usuzumi-500" aria-hidden="true" />
         </div>
@@ -138,6 +141,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onNavigate }) => {
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         )}
+      </div>
+      <button
+        type="button"
+        onClick={() => setIsReplaceOpen(true)}
+        disabled={!currentProject}
+        title="検索と置換（プロジェクト全体を一括置換）"
+        aria-label="検索と置換"
+        className="p-2 rounded-lg border border-usuzumi-300 dark:border-usuzumi-600 text-sumi-500 dark:text-usuzumi-400 hover:text-sumi-700 dark:hover:text-usuzumi-200 hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Replace className="h-5 w-5" aria-hidden="true" />
+      </button>
       </div>
 
       {/* 検索結果ドロップダウン */}
@@ -207,6 +221,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onNavigate }) => {
           />
         </div>
       )}
+
+      {/* 検索と置換モーダル */}
+      <SearchReplaceModal
+        isOpen={isReplaceOpen}
+        onClose={() => setIsReplaceOpen(false)}
+        initialQuery={query}
+      />
     </div>
   );
 };
