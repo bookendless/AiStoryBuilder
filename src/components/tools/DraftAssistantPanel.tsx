@@ -96,27 +96,46 @@ export const DraftAssistantPanel: React.FC = () => {
     const [showGenerateAllChaptersConfirm, setShowGenerateAllChaptersConfirm] = useState(false);
 
     // AI提案の差分プレビュー状態（Promiseベースの確認ゲート）
+    // resolve は ref で保持し、アンマウントや上書きでも確実に解決してリークを防ぐ
     const [diffPreview, setDiffPreview] = useState<{
         oldText: string;
         newText: string;
-        resolve: (approved: boolean) => void;
     } | null>(null);
+    const pendingDiffResolveRef = useRef<((approved: boolean) => void) | null>(null);
+
+    // 未解決の確認Promiseを指定値で解決してクリアする（多重解決は起きない）
+    const settlePendingDiff = useCallback((approved: boolean) => {
+        const resolve = pendingDiffResolveRef.current;
+        if (resolve) {
+            pendingDiffResolveRef.current = null;
+            resolve(approved);
+        }
+    }, []);
 
     const confirmDraftReplace = useCallback(
         ({ oldText, newText }: { oldText: string; newText: string }) => {
             return new Promise<boolean>(resolve => {
-                setDiffPreview({ oldText, newText, resolve });
+                // 直前の未解決確認が残っていれば破棄扱いで解決し、resolve の取りこぼしを防ぐ
+                settlePendingDiff(false);
+                pendingDiffResolveRef.current = resolve;
+                setDiffPreview({ oldText, newText });
             });
         },
-        []
+        [settlePendingDiff]
     );
 
     const resolveDiffPreview = useCallback((approved: boolean) => {
-        if (diffPreview) {
-            diffPreview.resolve(approved);
-            setDiffPreview(null);
-        }
-    }, [diffPreview]);
+        settlePendingDiff(approved);
+        setDiffPreview(null);
+    }, [settlePendingDiff]);
+
+    // アンマウント時に未解決の確認Promiseを破棄(false)で解決する。
+    // 放置すると applyDraftResult の await が永久にハングし、生成タスクがリークする。
+    useEffect(() => {
+        return () => {
+            settlePendingDiff(false);
+        };
+    }, [settlePendingDiff]);
 
     // 現在の章と草案を取得
     const currentChapter = useMemo(() => {
