@@ -1,5 +1,5 @@
 import { AIRequest, AIResponse, AISettings, OpenAIRequestBody, OpenAIResponse, OpenAIErrorResponse, ClaudeRequestBody, ClaudeResponse, ClaudeErrorResponse, GeminiRequestBody, GeminiResponse, GeminiErrorResponse, GeminiPromptFeedback, GeminiSafetyRating, LocalLLMRequestBody, LocalLLMResponse, LocalLLMErrorResponse } from '../types/ai';
-import { EvaluationRequest, EvaluationResult, EvaluationStrictness } from '../types/evaluation';
+import { EvaluationRequest, EvaluationResult } from '../types/evaluation';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
 import { decryptApiKeyAsync, sanitizeInputForPrompt } from '../utils/securityUtils';
@@ -7,31 +7,6 @@ import { httpService } from './httpService';
 import { APIError, ErrorCategory } from '../types/errors';
 import { logAPIError, logError } from '../utils/errorLogger';
 import { getUserFriendlyError } from '../utils/errorHandler';
-
-// システムプロンプト（全プロバイダー共通）
-export const SYSTEM_PROMPT = `あなたは日本語の小説創作を専門とするプロフェッショナルな
-編集者兼作家アシスタントです。
-
-【あなたの役割】
-- 作家の創作意図を深く理解し、物語の魅力を最大化する
-- 読者を引き込む自然で美しい日本語を生成する
-- キャラクターの一貫性、プロットの整合性を常に意識する
-- 具体的で実用的な提案を行う
-
-【出力品質基準】
-1. **自然な日本語**: 会話は自然で、地の文は情景が浮かぶ描写、情景法もバランスよく使用する
-2. **感情の深み**: キャラクターの内面や心情を丁寧に描写、自由間接話法もバランスよく使用する
-3. **五感の活用**: 視覚だけでなく、聴覚・触覚・嗅覚・味覚も活用
-4. **リズムとテンポ**: 文章の長短を調整し、読みやすいリズム
-5. **一貫性**: 既存設定・世界観・キャラクター性格・容姿・行動と矛盾しない
-
-【禁止事項】
-- 陳腐な表現や使い古された比喩、クリシェの多用
-- 説明的すぎる文章（Show, don't tell 原則を逸脱する文章）
-- キャラクターの性格と矛盾する言動
-- 不自然な日本語や直訳調の表現
-
-常に読者の没入感を高めることを最優先に考えてください。`;
 
 /**
  * モデルが temperature パラメータをサポートするか判定する。
@@ -45,16 +20,8 @@ const modelSupportsTemperature = (model: string): boolean => {
   return !/opus-4-[789]/.test(model);
 };
 
-// 評価の厳しさレベル別の指示文
-const STRICTNESS_INSTRUCTIONS: Record<EvaluationStrictness, string> = {
-  gentle: "【評価方針】\n良い点を重視し、建設的なフィードバックを提供してください。改善点は控えめに、励ましの言葉と共に指摘してください。",
-  normal: "【評価方針】\nバランスの取れた評価を行ってください。良い点と改善点を公平に指摘してください。",
-  strict: "【評価方針】\nより厳格な基準で評価してください。改善点を明確に指摘し、具体的な改善案を提示してください。",
-  harsh: "【評価方針】\nプロの編集者として厳しく評価してください。問題点を率直に指摘し、改善が必須の点を明確化してください。批判的であっても建設的な提案を含めてください。"
-};
-
 // プロンプトテンプレートを外部ファイルからインポート
-import { PROMPTS } from './prompts';
+import { PROMPTS, SYSTEM_PROMPT, STRICTNESS_INSTRUCTIONS } from './prompts';
 
 
 class AIService {

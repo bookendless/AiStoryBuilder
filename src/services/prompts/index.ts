@@ -15,6 +15,13 @@
  * - **例**: `{{"score": 0-10の整数, "summary": "..."}}`
  * - **理由**: テンプレートリテラル内で `{` をエスケープするため
  * - **注意**: AIへの出力例として表示され、置換されない
+ *
+ * ## データ境界マーカー規約
+ *
+ * ユーザー由来・AI生成由来の長文データ（本文・あらすじ・要約・会話履歴など）は
+ * `dataBlock()`（common.ts）による【ラベル（ここから）】/【ラベル（ここまで）】マーカーで囲む。
+ * XMLタグは sanitizeInputForPrompt（securityUtils.ts）が `<` `>` を除去するため使用不可。
+ * 短いメタ情報（タイトル・ジャンル等）は従来どおり【見出し】方式のまま記載する。
  * 
  * ### 使用例
  * ```typescript
@@ -34,6 +41,9 @@ export interface PromptTemplates {
         [subType: string]: string;
     };
 }
+
+// 共通定数・ヘルパー（出力ルール・データ境界マーカー）
+export * from './common';
 
 // キャラクター関連プロンプト
 export * from './character';
@@ -64,6 +74,21 @@ export * from './media';
 
 // 続編構成関連プロンプト（ビルダー関数群）
 export * from './sequel';
+
+// 感情分析関連プロンプト
+export * from './emotion';
+
+// キャラクター相関図関連プロンプト
+export * from './relationship';
+
+// タイムライン関連プロンプト
+export * from './timeline';
+
+// 用語集関連プロンプト
+export * from './glossary';
+
+// チャットアシスタント関連プロンプト
+export * from './chatAssistant';
 
 // 全プロンプトを統合したオブジェクトを構築
 import { CHARACTER_PROMPTS } from './character';

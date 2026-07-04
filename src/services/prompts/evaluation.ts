@@ -1,17 +1,30 @@
 /**
  * 評価関連プロンプトテンプレート
+ *
+ * 注意: このファイルのJSON出力例は単一波括弧で記述する（既存規約）。
+ * プレースホルダ置換は既知のキー名のみを対象とするため衝突しない。
  */
 
+import { dataBlock, JSON_OUTPUT_RULES } from './common';
+import { EvaluationStrictness } from '../../types/evaluation';
+
+/** 評価の厳しさレベル別の指示文 */
+export const STRICTNESS_INSTRUCTIONS: Record<EvaluationStrictness, string> = {
+  gentle: "【評価方針】\n良い点を重視し、建設的なフィードバックを提供してください。改善点は控えめに、励ましの言葉と共に指摘してください。",
+  normal: "【評価方針】\nバランスの取れた評価を行ってください。良い点と改善点を公平に指摘してください。",
+  strict: "【評価方針】\nより厳格な基準で評価してください。改善点を明確に指摘し、具体的な改善案を提示してください。",
+  harsh: "【評価方針】\nプロの編集者として厳しく評価してください。問題点を率直に指摘し、改善が必須の点を明確化してください。批判的であっても建設的な提案を含めてください。"
+};
+
 export const EVALUATION_PROMPTS = {
-  structure: `以下の物語の構成とプロットを分析し、評価してください。
+  structure: `あなたは物語構成を専門とするプロの文芸編集者です。以下の物語の構成とプロットを分析し、評価してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
 テーマ: {theme}
 ジャンル: {genre}
 
-【評価対象テキスト】
-{content}
+${dataBlock('評価対象テキスト', '{content}')}
 
 【評価観点】
 1. **一貫性**: 設定やキャラクターの行動に矛盾がないか
@@ -19,6 +32,7 @@ export const EVALUATION_PROMPTS = {
 3. **伏線と回収**: 提示された謎や要素が効果的に扱われているか
 4. **論理性**: 因果関係は明確か
 
+【出力形式】
 以下のJSON形式で出力してください：
 {
   "score": 1-5の整数,
@@ -27,18 +41,20 @@ export const EVALUATION_PROMPTS = {
   "weaknesses": ["改善点1", "改善点2", ...],
   "improvements": ["具体的な改善案1", "具体的な改善案2", ...],
   "detailedAnalysis": "Markdown形式の詳細な分析レポート"
-}`,
+}
 
-  character: `以下の物語におけるキャラクター描写を分析し、評価してください。
+${JSON_OUTPUT_RULES}`,
+
+  character: `あなたはキャラクター描写を専門とするプロの文芸編集者です。以下の物語におけるキャラクター描写を分析し、評価してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
 テーマ: {theme}
 ジャンル: {genre}
-キャラクター情報: {characters}
 
-【評価対象テキスト】
-{content}
+${dataBlock('キャラクター情報', '{characters}')}
+
+${dataBlock('評価対象テキスト', '{content}')}
 
 【評価観点】
 1. **動機と行動**: キャラクターの行動原理は明確で納得感があるか
@@ -46,6 +62,7 @@ export const EVALUATION_PROMPTS = {
 3. **独自性**: ステレオタイプに留まらない個性があるか
 4. **関係性**: キャラクター間の相互作用は自然で魅力的か
 
+【出力形式】
 以下のJSON形式で出力してください：
 {
   "score": 1-5の整数,
@@ -54,17 +71,18 @@ export const EVALUATION_PROMPTS = {
   "weaknesses": ["改善点1", "改善点2", ...],
   "improvements": ["具体的な改善案1", "具体的な改善案2", ...],
   "detailedAnalysis": "Markdown形式の詳細な分析レポート"
-}`,
+}
 
-  style: `以下の物語の文章表現（文体）を分析し、評価してください。
+${JSON_OUTPUT_RULES}`,
+
+  style: `あなたは文章表現を専門とするプロの文芸編集者です。以下の物語の文章表現（文体）を分析し、評価してください。
 
 【プロジェクト情報】
 作品タイトル: {title}
 テーマ: {theme}
 ジャンル: {genre}
 
-【評価対象テキスト】
-{content}
+${dataBlock('評価対象テキスト', '{content}')}
 
 【評価観点】
 1. **Show, Don't Tell**: 説明過多にならず、描写で状況や感情を伝えているか
@@ -72,6 +90,7 @@ export const EVALUATION_PROMPTS = {
 3. **可読性とリズム**: 文章のリズムは良く、読みやすいか
 4. **語彙と表現力**: 表現は豊かで、陳腐な言い回しを避けているか
 
+【出力形式】
 以下のJSON形式で出力してください：
 {
   "score": 1-5の整数,
@@ -80,10 +99,19 @@ export const EVALUATION_PROMPTS = {
   "weaknesses": ["改善点1", "改善点2", ...],
   "improvements": ["具体的な改善案1", "具体的な改善案2", ...],
   "detailedAnalysis": "Markdown形式の詳細な分析レポート"
-}`,
+}
+
+${JSON_OUTPUT_RULES}`,
 
   persona: `あなたは「{targetAudience}」を代表する読者です。
 この作品を読んで、ターゲット読者層として率直な感想と評価を行ってください。
+
+【作品情報】
+タイトル: {title}
+ジャンル: {genre}
+ターゲット: {targetAudience}
+
+${dataBlock('評価対象テキスト', '{content}')}
 
 【評価の視点】
 1. **市場性**: この作品はターゲット層に売れるか、興味を引くか
@@ -91,6 +119,7 @@ export const EVALUATION_PROMPTS = {
 3. **期待値**: ターゲット層が求める要素（カタルシス、萌え、感動など）が含まれているか
 4. **推奨度**: 友人に勧めたくなるか
 
+【出力形式】
 以下のJSON形式で出力してください：
 {
   "score": 1-5の整数,
@@ -102,11 +131,5 @@ export const EVALUATION_PROMPTS = {
   "persona": "シミュレートしたペルソナの詳細（年齢、性別、職業、趣味、好みのジャンルなど具体的に）"
 }
 
-作品情報:
-タイトル: {title}
-ジャンル: {genre}
-ターゲット: {targetAudience}
-
-評価対象テキスト:
-{content}`
+${JSON_OUTPUT_RULES}`
 };

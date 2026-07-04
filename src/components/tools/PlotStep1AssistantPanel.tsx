@@ -7,6 +7,7 @@ import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
+import { buildPlotBasicSettingsPrompt } from '../../services/prompts/plot';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { exportFile } from '../../utils/mobileExportUtils';
@@ -200,58 +201,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
 （注：あらすじは参考情報としてのみ使用し、他の設定と矛盾する場合は他の設定を優先してください）`
                 : '';
 
-            const prompt = `あなたは物語プロット生成の専門AIです。以下の指示を厳密に守って、指定されたJSON形式のみで出力してください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-作品説明: ${context.description || '説明未設定'}
-メインジャンル: ${context.mainGenre || context.genre}
-サブジャンル: ${context.subGenre || '未設定'}
-ターゲット読者: ${context.targetReader}
-プロジェクトテーマ: ${context.projectTheme}
-
-【キャラクター情報】
-${charactersInfo}
-${synopsisInfo}
-【重要指示】以下のJSON形式以外は一切出力しないでください。説明文、コメント、その他のテキストは一切不要です。
-
-{
-  "メインテーマ": "ここに物語の核心となるメインテーマを100文字以内で記述",
-  "舞台設定": "ここにジャンルに合わせた世界観を表現して300文字以内で記述",
-  "フック要素": "ここに魅力的なフック要素を300文字以内で記述",
-  "主人公の目標": "ここに主人公が達成したい目標を100文字以内で記述",
-  "主要な障害": "ここに主人公の目標を阻む主要な障害を100文字以内で記述",
-  "物語の結末": "ここに物語の結末を200文字以内で記述"
-}
-
-【絶対に守るべきルール】
-1. 上記のJSON形式以外は一切出力しない
-2. 説明文、コメント、マークダウンは一切不要
-3. 項目名は必ず「メインテーマ」「舞台設定」「フック要素」「主人公の目標」「主要な障害」で記述
-4. 各項目の内容は指定された文字数以内で記述
-5. 日本語の内容のみで記述
-6. 改行文字は使用しない
-7. 特殊文字や装飾は使用しない
-
-【文字数制限】
-- メインテーマ：100文字以内
-- 舞台設定：300文字以内  
-- フック要素：300文字以内
-- 主人公の目標：100文字以内
-- 主要な障害：100文字以内
-- 物語の結末：200文字以内
-
-【出力例】
-{
-  "メインテーマ": "友情と成長をテーマにした青春物語",
-  "舞台設定": "現代の高校を舞台に、主人公の日常と非日常が交錯する世界観",
-  "フック要素": "謎の転校生との出会いが引き起こす予想外の展開",
-  "主人公の目標": "転校生の正体を突き止め、クラスメイトとの友情を深める",
-  "主要な障害": "転校生の秘密と、クラス内の対立関係",
-  "物語の結末": "主人公と転校生が和解し、クラス全体が団結して新しい関係を築く"
-}
-
-上記の形式で出力してください。`;
+            const prompt = buildPlotBasicSettingsPrompt(context, charactersInfo, synopsisInfo);
 
             const response = await aiService.generateContent({
                 prompt,

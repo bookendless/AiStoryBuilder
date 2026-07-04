@@ -3,6 +3,7 @@ import { Send, Bot, User, Sparkles, BookOpen, Calendar, Network, Zap, CheckCircl
 import { useAI } from '../../contexts/AIContext';
 import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
+import { buildChatAssistantSystemPrompt } from '../../services/prompts/chatAssistant';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
@@ -279,26 +280,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
       const projectContext = getProjectContext();
 
       // 拡張システムプロンプト
-      let systemPrompt = `あなたは小説創作を支援するAIアシスタントです。ユーザーの質問に親切に答えてください。
-
-【利用可能な機能】
-1. 用語集の参照: 「用語集から『魔王』の説明を教えて」など
-2. タイムラインの参照: 「タイムラインを教えて」「イベント一覧を表示して」など
-3. 相関図の参照: 「相関図で『主人公』の関係性を教えて」など
-4. プロジェクト分析: 「プロジェクトの整合性をチェックして」「ストーリーの構造を分析して」など
-5. 創作支援: プロット、キャラクター、ストーリー展開などのアドバイス
-
-【重要な注意事項】
-- 用語集、タイムライン、相関図の情報は上記のプロジェクト情報に含まれています
-- ユーザーが特定の情報を求めている場合は、プロジェクト情報から該当する情報を探して提供してください
-- 創作に関する質問には、プロジェクトの設定や世界観を考慮した回答をしてください`;
-
-      if (projectContext) {
-        systemPrompt += `\n\n【現在のプロジェクト情報】\n${projectContext}`;
-      }
-      if (conversationHistory) {
-        systemPrompt += `\n\n【会話履歴】\n${conversationHistory}`;
-      }
+      const systemPrompt = buildChatAssistantSystemPrompt(projectContext, conversationHistory);
 
       // ユーザーの質問を追加（generateContent内でサニタイズされるが、念のためここでもサニタイズ）
       const { sanitizeInputForPrompt } = await import('../../utils/securityUtils');

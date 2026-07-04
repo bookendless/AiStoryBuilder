@@ -7,14 +7,15 @@
  * 生成された文字列は aiService.generateContent({ prompt, type, settings }) に渡す。
  */
 
+import { dataBlock, JSON_OUTPUT_RULES } from './common';
+
 /** 1章分の本文を要約するプロンプト（詳細モードのみ使用） */
 export function buildChapterSummaryPrompt(title: string, body: string): string {
-    return `次の章の本文を、続編制作のための分析素材として簡潔に要約してください。
+    return `あなたは小説の分析を専門とする編集者です。次の章の本文を、続編制作のための分析素材として簡潔に要約してください。
 
 【章タイトル】${title}
 
-【本文】
-${body}
+${dataBlock('本文', body)}
 
 【要約の方針】
 - 起きた出来事、登場人物の行動と心情の変化、世界観に関わる情報を漏れなく拾う
@@ -28,10 +29,9 @@ export function buildAggregatePrompt(joinedDigests: string, isPartial: boolean):
         ? '次は、ある作品の連続する章の要約です。これらを1つのまとまった要約に統合してください。'
         : '次は、ある作品の全章の要約です。物語全体を通した一貫した要約に統合してください。';
 
-    return `${role}
+    return `あなたは小説の分析を専門とする編集者です。${role}
 
-【章ごとの要約】
-${joinedDigests}
+${dataBlock('章ごとの要約', joinedDigests)}
 
 【統合の方針】
 - 時系列に沿って物語全体の流れを再構成する
@@ -50,17 +50,13 @@ export function buildExtractPrompt(
 ): string {
     return `あなたは続編制作を支援する編集者です。前作の情報を分析し、続編づくりに必要な観点を抽出してください。
 
-【前作の全体要約】
-${storyDigest}
+${dataBlock('前作の全体要約', storyDigest)}
 
-【登場キャラクター】
-${charactersInfo}
+${dataBlock('登場キャラクター', charactersInfo)}
 
-【世界観設定】
-${worldInfo}
+${dataBlock('世界観設定', worldInfo)}
 
-【キャラクター相関】
-${relationshipsInfo}
+${dataBlock('キャラクター相関', relationshipsInfo)}
 
 【抽出してほしい観点】
 1. characterGrowth: 各主要キャラクターが前作を通してどう成長・変化したか
@@ -75,7 +71,9 @@ ${relationshipsInfo}
   "relationshipChanges": "...",
   "worldChanges": "...",
   "openThreads": "..."
-}`;
+}
+
+${JSON_OUTPUT_RULES}`;
 }
 
 /** 続編のあらすじとプロット基本設定を生成するプロンプト */
@@ -86,19 +84,15 @@ export function buildGenerateSynopsisPlotPrompt(
     worldChanges: string,
     openThreads: string
 ): string {
-    return `前作「${sourceTitle}」の続編となる物語の、あらすじとプロット基本設定を考えてください。
+    return `あなたは小説のプロット設計を専門とする編集者です。前作「${sourceTitle}」の続編となる物語の、あらすじとプロット基本設定を考えてください。
 
-【前作の全体要約】
-${storyDigest}
+${dataBlock('前作の全体要約', storyDigest)}
 
-【キャラクターの到達点】
-${characterGrowth}
+${dataBlock('キャラクターの到達点', characterGrowth)}
 
-【世界観の変化】
-${worldChanges}
+${dataBlock('世界観の変化', worldChanges)}
 
-【未解決の要素（続編のフック候補）】
-${openThreads}
+${dataBlock('未解決の要素（続編のフック候補）', openThreads)}
 
 【方針】
 - 前作の結末と地続きで、キャラクターの成長を踏まえた自然な続編にする
@@ -116,7 +110,9 @@ ${openThreads}
     "protagonistGoal": "主人公の新たな目標",
     "mainObstacle": "主要な障害"
   }
-}`;
+}
+
+${JSON_OUTPUT_RULES}`;
 }
 
 /** 続編開始時点に向けてキャラクター設定を更新するプロンプト */
@@ -125,16 +121,13 @@ export function buildUpdateCharactersPrompt(
     characterGrowth: string,
     sequelSynopsis: string
 ): string {
-    return `前作のキャラクターを、続編の開始時点に合わせて更新してください。成長や変化を反映し、続編であらためて描くための設定にします。
+    return `あなたはキャラクター設定を専門とする編集者です。前作のキャラクターを、続編の開始時点に合わせて更新してください。成長や変化を反映し、続編であらためて描くための設定にします。
 
-【前作終了時点のキャラクター】
-${charactersInfo}
+${dataBlock('前作終了時点のキャラクター', charactersInfo)}
 
-【キャラクターの成長・変化】
-${characterGrowth}
+${dataBlock('キャラクターの成長・変化', characterGrowth)}
 
-【続編のあらすじ】
-${sequelSynopsis}
+${dataBlock('続編のあらすじ', sequelSynopsis)}
 
 【方針】
 - id は元のまま変更しない（対応関係を保つため）
@@ -147,5 +140,7 @@ ${sequelSynopsis}
   "characters": [
     { "id": "元のID", "personality": "更新後の性格", "background": "更新後の背景" }
   ]
-}`;
+}
+
+${JSON_OUTPUT_RULES}`;
 }

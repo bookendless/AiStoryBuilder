@@ -2,6 +2,8 @@
  * 伏線関連プロンプトテンプレート
  */
 
+import { dataBlock, JSON_OUTPUT_RULES } from './common';
+
 export const FORESHADOWING_PROMPTS = {
   suggest: `あなたは物語構成のプロフェッショナルです。以下のプロジェクト情報を分析し、効果的な伏線を提案してください。
 
@@ -21,21 +23,16 @@ export const FORESHADOWING_PROMPTS = {
 【物語構造】
 {structureInfo}
 
-【キャラクター情報】
-{characters}
+${dataBlock('キャラクター情報', '{characters}')}
 
-【章立て】
-{chapters}
+${dataBlock('章立て', '{chapters}')}
 
-【あらすじ】
-{synopsis}
+${dataBlock('あらすじ', '{synopsis}')}
 
-【既存の伏線】
-{existingForeshadowings}
+${dataBlock('既存の伏線', '{existingForeshadowings}')}
 
 【指示】
 上記の情報を総合的に分析し、物語をより深く魅力的にする伏線を3〜5個提案してください。
-各伏線には以下の情報を含めてください：
 
 【提案の観点】
 1. キャラクターの秘密や過去に関する伏線
@@ -44,6 +41,7 @@ export const FORESHADOWING_PROMPTS = {
 4. 人間関係の変化を示唆する伏線
 5. テーマを深める象徴的な伏線
 
+【出力形式】
 以下のJSON形式で出力してください：
 {{
   "suggestions": [
@@ -60,9 +58,11 @@ export const FORESHADOWING_PROMPTS = {
       "effect": "この伏線が物語にもたらす効果（50文字程度）"
     }}
   ]
-}}`,
+}}
 
-  checkConsistency: `あなたは厳格な編集者として、以下の伏線の整合性をチェックしてください。
+${JSON_OUTPUT_RULES}`,
+
+  checkConsistency: `あなたは伏線管理に厳格なプロの文芸編集者です。以下の伏線の整合性をチェックしてください。
 
 【プロジェクト基本情報】
 タイトル: {title}
@@ -77,14 +77,11 @@ export const FORESHADOWING_PROMPTS = {
 【物語構造】
 {structureInfo}
 
-【キャラクター情報】
-{characters}
+${dataBlock('キャラクター情報', '{characters}')}
 
-【章立て】
-{chapters}
+${dataBlock('章立て', '{chapters}')}
 
-【伏線一覧】
-{foreshadowings}
+${dataBlock('伏線一覧', '{foreshadowings}')}
 
 【チェック観点】
 1. **未回収の伏線**: 設置されたが回収されていない伏線はないか？
@@ -93,6 +90,7 @@ export const FORESHADOWING_PROMPTS = {
 4. **バランス**: 伏線の重要度や配置のバランスは適切か？
 5. **キャラクター整合性**: キャラクターの行動や性格と矛盾する伏線はないか？
 
+【出力形式】
 以下のJSON形式で出力してください：
 {{
   "overallScore": 0-100の整数（整合性スコア）,
@@ -119,7 +117,9 @@ export const FORESHADOWING_PROMPTS = {
     }}
   ],
   "strengths": ["良い点1", "良い点2"]
-}}`,
+}}
+
+${JSON_OUTPUT_RULES}`,
 
   suggestPayoff: `あなたは物語構成のエキスパートです。以下の伏線について、最適な回収タイミングと方法を提案してください。
 
@@ -134,21 +134,19 @@ export const FORESHADOWING_PROMPTS = {
 重要度: {foreshadowingImportance}
 現在のポイント: {currentPoints}
 
-【関連キャラクター】
-{relatedCharacters}
-
-【章立て】
-{chapters}
-
 【物語構造】
 {structureInfo}
 
-【他の伏線との関係】
-{otherForeshadowings}
+${dataBlock('関連キャラクター', '{relatedCharacters}')}
+
+${dataBlock('章立て', '{chapters}')}
+
+${dataBlock('他の伏線との関係', '{otherForeshadowings}')}
 
 【指示】
 この伏線を最も効果的に回収するためのタイミングと方法を提案してください。
 
+【出力形式】
 以下のJSON形式で出力してください：
 {{
   "recommendedChapter": "推奨する回収章",
@@ -168,7 +166,9 @@ export const FORESHADOWING_PROMPTS = {
     }}
   ],
   "avoidTiming": ["避けるべきタイミングとその理由"]
-}}`,
+}}
+
+${JSON_OUTPUT_RULES}`,
 
   enhance: `あなたは物語構成のプロフェッショナルです。以下の伏線をより効果的にするための改善案を提案してください。
 
@@ -186,8 +186,7 @@ export const FORESHADOWING_PROMPTS = {
 現在のポイント: {currentPoints}
 計画中の回収: {plannedPayoff}
 
-【関連キャラクター】
-{relatedCharacters}
+${dataBlock('関連キャラクター', '{relatedCharacters}')}
 
 【物語のテーマとの関連】
 {themeConnection}
@@ -195,6 +194,7 @@ export const FORESHADOWING_PROMPTS = {
 【指示】
 この伏線をより効果的にするための改善案を提案してください。
 
+【出力形式】
 以下のJSON形式で出力してください：
 {{
   "enhancedDescription": "改善された伏線の説明（現在の説明を発展させたもの）",
@@ -220,5 +220,7 @@ export const FORESHADOWING_PROMPTS = {
     }}
   ],
   "warnings": ["注意すべき点"]
-}}`
+}}
+
+${JSON_OUTPUT_RULES}`
 };

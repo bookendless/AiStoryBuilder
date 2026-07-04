@@ -19,8 +19,9 @@ export interface StructureInferencePromptVars {
 export function buildStructureInferencePrompt(vars: StructureInferencePromptVars): string {
     return `あなたは物語の構成を分析する編集者です。次の作品情報を読み、下記6種類の構成のうちどれに最も当てはまるかを判定し、各段階に対応する内容を作品情報から抽出してください。
 
-【あらすじ】
+【あらすじ（ここから）】
 ${vars.synopsis || '（未設定）'}
+【あらすじ（ここまで）】
 
 【テーマ】
 ${vars.theme || '（未設定）'}
@@ -28,8 +29,9 @@ ${vars.theme || '（未設定）'}
 【舞台設定】
 ${vars.setting || '（未設定）'}
 
-【章一覧】
+【章一覧（ここから）】
 ${vars.chaptersDigest || '（章は未作成）'}
+【章一覧（ここまで）】
 
 【構成カタログ】
 ${vars.structureCatalog}

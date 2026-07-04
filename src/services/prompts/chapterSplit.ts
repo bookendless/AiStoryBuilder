@@ -11,8 +11,9 @@ export function buildBoundaryLocatorPrompt(body: string, part: number, total: nu
     const scope = total > 1 ? `（全${total}部分中の第${part}部分）` : '';
     return `次の小説本文${scope}を読み、新しい章が始まると判断できる位置を挙げてください。
 
-【本文】
+【本文（ここから）】
 ${body}
+【本文（ここまで）】
 
 【最重要ルール】
 - locator には「新しい章の最初の行」を本文から一字一句そのままコピーする（10〜40文字。行が短ければ行全体）

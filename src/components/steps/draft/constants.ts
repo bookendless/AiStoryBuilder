@@ -4,6 +4,11 @@ import type {
   HistoryEntryType,
   SuggestionPromptPayload,
 } from './types';
+import {
+  buildQuickRewritePrompt,
+  buildQuickTonePrompt,
+  buildQuickSummaryPrompt,
+} from '../../../services/prompts/draft';
 
 export const MODAL_TEXTAREA_MIN_HEIGHT = 260;
 export const MODAL_TEXTAREA_MAX_HEIGHT = 1000;
@@ -43,71 +48,17 @@ export const SUGGESTION_CONFIG: Record<
   rewrite: {
     label: 'リライト案',
     description: '読みやすさと臨場感を両立した案を生成します',
-    prompt: ({ selectedText, chapterTitle, chapterSummary, projectTitle }) => `あなたは熟練の小説編集者です。以下のテキストを、読者が没入しやすい自然な流れに整えてください。
-
-作品タイトル: ${projectTitle || '未設定'}
-章タイトル: ${chapterTitle || '未設定'}
-章概要: ${chapterSummary || '未設定'}
-
-対象テキスト:
-"""${selectedText}"""
-
-返答は必ず次のJSON形式で出力してください（余計な文章は書かないこと）:
-{
-  "suggestions": [
-    { "title": "案の短い説明", "body": "提案内容（200文字程度）" },
-    { "title": "案の短い説明", "body": "提案内容（200文字程度）" },
-    { "title": "案の短い説明", "body": "提案内容（200文字程度）" }
-  ]
-}
-
-各案は文体やリズムに変化を付け、会話と描写のバランスを意識してください。`,
+    prompt: buildQuickRewritePrompt,
   },
   tone: {
     label: 'トーン調整',
     description: '雰囲気や感情のトーンを強調した案を提示します',
-    prompt: ({ selectedText, chapterTitle, chapterSummary, projectTitle }) => `あなたは物語のトーンを整える編集者です。以下のテキストの感情・雰囲気を際立たせたバリエーションを3案提案してください。
-
-作品タイトル: ${projectTitle || '未設定'}
-章タイトル: ${chapterTitle || '未設定'}
-章概要: ${chapterSummary || '未設定'}
-
-対象テキスト:
-"""${selectedText}"""
-
-返答は必ず次のJSON形式で出力してください:
-{
-  "suggestions": [
-    { "title": "強調するトーンの説明", "body": "提案本文（180文字程度）" },
-    { "title": "強調するトーンの説明", "body": "提案本文（180文字程度）" },
-    { "title": "強調するトーンの説明", "body": "提案本文（180文字程度）" }
-  ]
-}
-
-各案では異なる感情や雰囲気（例: 緊張感、切なさ、希望など）を意識し、描写を調整してください。`,
+    prompt: buildQuickTonePrompt,
   },
   summary: {
     label: '要約＆鍵フレーズ',
     description: '内容を整理し、重要な要素を抽出します',
-    prompt: ({ selectedText, chapterTitle, chapterSummary, projectTitle }) => `あなたは編集アシスタントです。以下のテキストの要点を整理し、今後の執筆に役立つ情報を抽出してください。
-
-作品タイトル: ${projectTitle || '未設定'}
-章タイトル: ${chapterTitle || '未設定'}
-章概要: ${chapterSummary || '未設定'}
-
-対象テキスト:
-"""${selectedText}"""
-
-返答は必ず次のJSON形式で出力してください:
-{
-  "suggestions": [
-    { "title": "要約", "body": "3〜4文で内容を要約" },
-    { "title": "伏線・感情のヒント", "body": "注意すべきポイントを箇条書きで" },
-    { "title": "キーフレーズ", "body": "重要語句やアイデアを列挙" }
-  ]
-}
-
-要約は具体的・簡潔に、箇条書きは「・」で始めてください。`,
+    prompt: buildQuickSummaryPrompt,
   },
 };
 

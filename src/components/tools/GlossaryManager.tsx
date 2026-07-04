@@ -10,6 +10,11 @@ import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 import { exportFile } from '../../utils/mobileExportUtils';
+import {
+  buildGlossaryExtractTermsPrompt,
+  buildGlossaryDescriptionPrompt,
+  buildGlossaryBatchGeneratePrompt,
+} from '../../services/prompts/glossary';
 
 interface GlossaryManagerProps {
   isOpen: boolean;
@@ -290,32 +295,10 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
     try {
       const projectContext = getProjectContext();
 
-      const prompt = `以下のプロジェクト情報から、用語集に追加すべき重要な用語を抽出してください。
-
-${projectContext}
-
-【指示】
-1. プロジェクト内で使用されている重要な用語（固有名詞、専門用語、特殊な概念など）を抽出してください
-2. 既存の用語集に含まれている用語は除外してください
-3. 各用語について、以下の情報を提供してください：
-   - 用語名
-   - 読み方（ひらがなまたはカタカナ）
-   - 説明（プロジェクトの世界観に合わせた説明）
-   - カテゴリ（character: キャラクター, location: 場所・舞台, concept: 概念・用語, item: アイテム, other: その他）
-
-【出力形式】
-JSON配列形式で出力してください：
-[
-  {
-    "term": "用語名",
-    "reading": "読み方",
-    "definition": "説明",
-    "category": "character|location|concept|item|other"
-  },
-  ...
-]
-
-既存の用語集: ${JSON.stringify(glossary.map(t => t.term), null, 2)}`;
+      const prompt = buildGlossaryExtractTermsPrompt(
+        projectContext,
+        JSON.stringify(glossary.map(t => t.term), null, 2)
+      );
 
       const response = await aiService.generateContent({
         prompt,
@@ -395,27 +378,7 @@ JSON配列形式で出力してください：
     try {
       const projectContext = getProjectContext();
 
-      const prompt = `以下の用語について、プロジェクトの世界観に合わせた説明文を生成してください。
-
-${projectContext}
-
-用語: ${formData.term}
-${formData.reading ? `読み方: ${formData.reading}` : ''}
-
-【指示】
-1. プロジェクトの世界観や設定に合わせた説明文を生成してください
-2. 説明文は100文字以上300文字程度で、具体的で分かりやすい内容にしてください
-3. 必要に応じて読み方も提案してください（未入力の場合）
-4. カテゴリも提案してください（character, location, concept, item, otherのいずれか）
-
-【出力形式】
-JSON形式で出力してください：
-{
-  "definition": "説明文",
-  "reading": "読み方（ひらがなまたはカタカナ）",
-  "category": "character|location|concept|item|other",
-  "notes": "追加情報（任意）"
-}`;
+      const prompt = buildGlossaryDescriptionPrompt(projectContext, formData.term, formData.reading);
 
       const response = await aiService.generateContent({
         prompt,
@@ -503,30 +466,10 @@ JSON形式で出力してください：
     try {
       const projectContext = getProjectContext();
 
-      const prompt = `以下の用語リストについて、プロジェクトの世界観に合わせた用語集エントリを生成してください。
-
-${projectContext}
-
-用語リスト:
-${terms.map((t, i) => `${i + 1}. ${t}`).join('\n')}
-
-【指示】
-各用語について、以下の情報を生成してください：
-1. 読み方（ひらがなまたはカタカナ）
-2. 説明（プロジェクトの世界観に合わせた説明、100文字以上300文字程度）
-3. カテゴリ（character: キャラクター, location: 場所・舞台, concept: 概念・用語, item: アイテム, other: その他）
-
-【出力形式】
-JSON配列形式で出力してください：
-[
-  {
-    "term": "用語名",
-    "reading": "読み方",
-    "definition": "説明",
-    "category": "character|location|concept|item|other"
-  },
-  ...
-]`;
+      const prompt = buildGlossaryBatchGeneratePrompt(
+        projectContext,
+        terms.map((t, i) => `${i + 1}. ${t}`).join('\n')
+      );
 
       const response = await aiService.generateContent({
         prompt,

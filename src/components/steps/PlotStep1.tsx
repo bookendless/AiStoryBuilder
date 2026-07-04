@@ -3,6 +3,7 @@ import { Check, Loader2, BookOpen, ChevronRight, FileText, AlertCircle, RefreshC
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { buildPlotFieldSuggestPrompt } from '../../services/prompts/plot';
 import { useToast } from '../Toast';
 import { useAutoSave } from '../common/hooks/useAutoSave';
 import { StepNavigation } from '../common/StepNavigation';
@@ -517,42 +518,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
 （注：あらすじは参考情報としてのみ使用し、他の設定と矛盾する場合は他の設定を優先してください）`
         : '';
 
-      const prompt = `あなたは物語プロット生成の専門AIです。以下の指示を厳密に守って、指定された形式のみで出力してください。
-
-【プロジェクト情報】
-作品タイトル: ${context.title}
-作品説明: ${context.description || '説明未設定'}
-メインジャンル: ${context.mainGenre || context.genre}
-サブジャンル: ${context.subGenre || '未設定'}
-ターゲット読者: ${context.targetReader}
-プロジェクトテーマ: ${context.projectTheme}
-
-【キャラクター情報】
-${charactersInfo}
-
-${existingContext ? `【既存の設定】
-${existingContext}
-
-` : ''}${synopsisInfo}【生成する項目】
-${config.label}: ${config.description}を${config.maxLength}文字以内で記述してください。
-
-【重要指示】
-1. 上記の形式以外は一切出力しないでください
-2. 説明文、コメント、マークダウンは一切不要です
-3. ${config.label}の内容のみを出力してください
-4. 文字数は${config.maxLength}文字以内で記述してください
-5. 日本語の内容のみで記述してください
-6. 既存の設定と一貫性のある内容にしてください
-7. キャラクター設定と整合性のある内容にしてください
-
-【出力例】
-${config.label === 'メインテーマ' ? '友情と成長をテーマにした青春物語' :
-          config.label === '舞台設定' ? '現代の高校を舞台に、主人公の日常と非日常が交錯する世界観' :
-            config.label === '物語の引き（冒頭の魅力）' ? '謎の転校生との出会いが引き起こす予想外の展開' :
-              config.label === '主人公の目標' ? '転校生の正体を突き止め、クラスメイトとの友情を深める' :
-                '転校生の秘密と、クラス内の対立関係'}
-
-上記の形式で出力してください。`;
+      const prompt = buildPlotFieldSuggestPrompt(context, charactersInfo, existingContext, synopsisInfo, config);
 
       const response = await aiService.generateContent({
         prompt,
