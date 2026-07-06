@@ -24,12 +24,9 @@ export const useAutoSave = <T>(
   const isInitialMount = useRef(true);
 
   // 初期マウント時は保存しない
+  // （lastValueRef は useRef(value) で初期値を保持済みのため、ここではフラグのみ倒す）
   useEffect(() => {
-    if (isInitialMount.current) {
-      lastValueRef.current = value;
-      isInitialMount.current = false;
-      return;
-    }
+    isInitialMount.current = false;
   }, []);
 
   // 値の比較関数（オブジェクトの深い比較に対応）

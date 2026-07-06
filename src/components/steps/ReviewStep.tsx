@@ -154,7 +154,8 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onNavigateToStep }) => {
     }, [chapters]);
 
     useEffect(() => {
-        if (!currentProject) return;
+        // currentProject そのものではなく projectId でガード（オブジェクト参照変化での再実行を避ける）
+        if (!projectId) return;
 
         if (targetType === 'synopsis') {
             setTargetContent(synopsis || '');

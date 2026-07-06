@@ -53,7 +53,7 @@ export const ChapterDraftSplitModal: React.FC<ChapterDraftSplitModalProps> = ({
 
     const lines = useMemo(() => text.split('\n'), [text]);
     const lineOffsets = useMemo(() => {
-        const offsets: number[] = new Array(lines.length);
+        const offsets: number[] = new Array<number>(lines.length);
         let acc = 0;
         for (let i = 0; i < lines.length; i++) {
             offsets[i] = acc;

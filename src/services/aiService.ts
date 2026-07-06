@@ -318,7 +318,9 @@ class AIService {
                 if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
                 if (line.startsWith('data: ')) {
                   try {
-                    const data = JSON.parse(line.slice(6));
+                    const data = JSON.parse(line.slice(6)) as {
+                      choices?: { delta?: { content?: string } }[];
+                    };
                     const content = data.choices?.[0]?.delta?.content || '';
                     if (content) {
                       fullContent += content;
@@ -549,7 +551,10 @@ class AIService {
                 if (dataStr === '[DONE]') continue;
 
                 try {
-                  const data = JSON.parse(dataStr);
+                  const data = JSON.parse(dataStr) as {
+                    type?: string;
+                    delta?: { text?: string };
+                  };
                   if (data.type === 'content_block_delta' && data.delta?.text) {
                     const content = data.delta.text;
                     fullContent += content;
@@ -799,7 +804,7 @@ class AIService {
                     // 行からJSONオブジェクトを抽出（簡易実装）
                     const jsonMatch = line.match(/\{[^}]*"text"[^}]*\}/);
                     if (jsonMatch) {
-                      const data = JSON.parse(jsonMatch[0]);
+                      const data = JSON.parse(jsonMatch[0]) as { text?: string };
                       const text = data.text || '';
                       if (text) {
                         fullContent += text;
@@ -812,7 +817,7 @@ class AIService {
                       while ((match = regex.exec(line)) !== null) {
                         try {
                           // JSON文字列のエスケープを解除
-                          const text = JSON.parse(`"${match[1]}"`);
+                          const text = JSON.parse(`"${match[1]}"`) as string;
                           fullContent += text;
                           request.onStream!(text);
                         } catch (e) {
@@ -838,7 +843,7 @@ class AIService {
             try {
               const jsonMatch = buffer.match(/\{[^}]*"text"[^}]*\}/);
               if (jsonMatch) {
-                const data = JSON.parse(jsonMatch[0]);
+                const data = JSON.parse(jsonMatch[0]) as { text?: string };
                 const text = data.text || '';
                 if (text) {
                   fullContent += text;
@@ -851,7 +856,7 @@ class AIService {
                 while ((match = regex.exec(buffer)) !== null) {
                   try {
                     // JSON文字列のエスケープを解除
-                    const text = JSON.parse(`"${match[1]}"`);
+                    const text = JSON.parse(`"${match[1]}"`) as string;
                     fullContent += text;
                     request.onStream!(text);
                   } catch (e) {
@@ -1245,7 +1250,9 @@ class AIService {
                 if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
                 if (line.startsWith('data: ')) {
                   try {
-                    const data = JSON.parse(line.slice(6));
+                    const data = JSON.parse(line.slice(6)) as {
+                      choices?: { delta?: { content?: string } }[];
+                    };
                     const content = data.choices?.[0]?.delta?.content || '';
                     if (content) {
                       fullContent += content;
@@ -1500,7 +1507,9 @@ class AIService {
                 if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
                 if (line.startsWith('data: ')) {
                   try {
-                    const data = JSON.parse(line.slice(6));
+                    const data = JSON.parse(line.slice(6)) as {
+                      choices?: { delta?: { content?: string } }[];
+                    };
                     const content = data.choices?.[0]?.delta?.content || '';
                     if (content) {
                       fullContent += content;

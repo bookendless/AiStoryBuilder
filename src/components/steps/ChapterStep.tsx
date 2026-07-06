@@ -477,9 +477,11 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
   };
 
   // 現在選択中の章の履歴をサービスから取得
+  // showHistoryModal はモーダルを開くたびに最新スナップショットを取り直すための意図的な依存
   const selectedChapterHistories = useMemo(() => {
     if (!currentProject || !selectedChapterId) return [];
     return getChapterSnapshots(currentProject.id, selectedChapterId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject, selectedChapterId, showHistoryModal]);
 
   // AI強化モーダルを開く

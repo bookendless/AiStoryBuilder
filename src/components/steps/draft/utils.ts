@@ -23,15 +23,17 @@ export const formatTimestamp = (timestamp: number) => {
 
 export const parseAISuggestions = (raw: string): AISuggestion[] => {
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as {
+      suggestions?: { title?: string; body?: string }[];
+    } | null;
     if (parsed && Array.isArray(parsed.suggestions)) {
       return parsed.suggestions
-        .map((item: { title?: string; body?: string }, index: number) => ({
+        .map((item, index) => ({
           id: `parsed-${Date.now()}-${index}`,
           title: item?.title?.trim() || `提案 ${index + 1}`,
           body: item?.body?.trim() || '',
         }))
-        .filter((item: AISuggestion) => item.body);
+        .filter((item) => item.body);
     }
   } catch {
     // フォールバック処理へ

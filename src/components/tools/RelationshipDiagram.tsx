@@ -320,7 +320,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       }
 
       try {
-        const parsed = JSON.parse(potential);
+        const parsed: unknown = JSON.parse(potential);
         if (Array.isArray(parsed)) {
           return potential;
         }
@@ -733,7 +733,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                 .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
             }
 
-            inferredRelationships = JSON.parse(processedJsonText);
+            inferredRelationships = JSON.parse(processedJsonText) as typeof inferredRelationships;
 
             // 配列でない場合は配列に変換
             if (!Array.isArray(inferredRelationships)) {
@@ -924,7 +924,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                 .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":'); // クォートされていないキーをクォートで囲む
             }
 
-            suggestedRelationships = JSON.parse(processedJsonText);
+            suggestedRelationships = JSON.parse(processedJsonText) as typeof suggestedRelationships;
 
             // 配列でない場合は配列に変換
             if (!Array.isArray(suggestedRelationships)) {

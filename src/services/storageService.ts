@@ -125,7 +125,11 @@ const getApiKeysFromLocalStorage = (): Record<string, string> | null => {
     const saved = localStorage.getItem('ai-settings');
     if (!saved) return null;
 
-    const parsed = JSON.parse(saved);
+    const parsed = JSON.parse(saved) as {
+      apiKeys?: Record<string, string>;
+      apiKey?: string;
+      provider?: string;
+    };
     // apiKeysがあればそれを返す、なければapiKeyから構築
     if (parsed.apiKeys && Object.keys(parsed.apiKeys).length > 0) {
       return parsed.apiKeys;
@@ -146,7 +150,7 @@ const getApiKeysFromLocalStorage = (): Record<string, string> | null => {
 const saveApiKeysToLocalStorage = (keys: Record<string, string>): void => {
   try {
     const saved = localStorage.getItem('ai-settings');
-    const current = saved ? JSON.parse(saved) : {};
+    const current = saved ? (JSON.parse(saved) as Record<string, unknown>) : {};
     current.apiKeys = keys;
     localStorage.setItem('ai-settings', JSON.stringify(current));
   } catch (error) {
@@ -162,7 +166,7 @@ const removeApiKeysFromLocalStorage = (): void => {
   try {
     const saved = localStorage.getItem('ai-settings');
     if (saved) {
-      const current = JSON.parse(saved);
+      const current = JSON.parse(saved) as Record<string, unknown>;
       // APIキー関連のフィールドのみ削除
       delete current.apiKeys;
       delete current.apiKey;

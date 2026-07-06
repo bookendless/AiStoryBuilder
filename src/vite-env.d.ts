@@ -4,6 +4,7 @@ interface ImportMetaEnv {
   readonly VITE_OPENAI_API_KEY: string
   readonly VITE_CLAUDE_API_KEY: string
   readonly VITE_GEMINI_API_KEY: string
+  readonly VITE_GROK_API_KEY: string
   readonly VITE_LOCAL_LLM_ENDPOINT: string
   readonly VITE_APP_NAME: string
   readonly VITE_APP_VERSION: string

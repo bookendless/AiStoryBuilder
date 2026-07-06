@@ -41,15 +41,15 @@ export const PlotStep1AssistantPanel: React.FC = () => {
     // 実行中判定はマネージャから導出（アンマウント/再マウントでも維持される）
     const isGenerating = isKeyActive(taskKey);
 
-    // 現在のプロット設定を取得
-    const plotData = currentProject?.plot || {
+    // 現在のプロット設定を取得（フォールバックオブジェクトが毎レンダー変化しないようメモ化）
+    const plotData = useMemo(() => currentProject?.plot || {
         theme: '',
         setting: '',
         hook: '',
         protagonistGoal: '',
         mainObstacle: '',
         ending: '',
-    };
+    }, [currentProject?.plot]);
 
     // プロジェクトの詳細情報を取得する関数
     const getProjectContext = useCallback(() => {
@@ -267,7 +267,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
                             .trim();
 
                         try {
-                            const parsed = JSON.parse(jsonStr);
+                            const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
 
                             // 基本設定のキーが存在するかチェック
                             const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害', '物語の結末'];

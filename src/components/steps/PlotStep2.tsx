@@ -242,7 +242,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
           if (jsonString.endsWith('}}')) {
             jsonString = jsonString.slice(0, -1);
           }
-          const parsed = JSON.parse(jsonString);
+          const parsed = JSON.parse(jsonString) as Record<string, unknown>;
           // 型安全性の向上：文字列型であることを確認
           const improvedText = typeof parsed[fieldLabel] === 'string'
             ? parsed[fieldLabel]

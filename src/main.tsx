@@ -8,7 +8,8 @@ window.addEventListener('error', (event) => {
   // Extension context invalidated エラーは無視（ブラウザ拡張機能のリロード時に発生）
   const message = event.message || '';
   const filename = event.filename || '';
-  const errorString = event.error?.toString() || '';
+  const error: unknown = event.error;
+  const errorString = error == null ? '' : String(error);
   
   if (
     message.includes('Extension context invalidated') ||
@@ -29,9 +30,10 @@ window.addEventListener('error', (event) => {
 // 未処理のPromise拒否をハンドル
 window.addEventListener('unhandledrejection', (event) => {
   // Extension context invalidated エラーは無視
-  const reason = event.reason || {};
-  const reasonString = String(reason);
-  const reasonMessage = reason?.message || '';
+  const reason: unknown = event.reason;
+  const reasonString = reason == null ? '' : String(reason);
+  const rawMessage = (reason as { message?: unknown } | null | undefined)?.message;
+  const reasonMessage = typeof rawMessage === 'string' ? rawMessage : '';
   
   if (
     reasonMessage.includes('Extension context invalidated') ||

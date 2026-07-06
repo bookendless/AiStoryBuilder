@@ -875,7 +875,15 @@ class DatabaseService {
   // データインポート
   async importData(jsonData: string): Promise<void> {
     try {
-      const data = JSON.parse(jsonData);
+      // インポートデータの形状は信頼できないため、各フィールドをunknownとして検証しながら処理する
+      const data = JSON.parse(jsonData) as {
+        version?: unknown;
+        projects?: unknown;
+        backups?: unknown;
+        settings?: unknown;
+        histories?: unknown;
+        aiLogs?: unknown;
+      };
 
       // バージョン1のデータ（履歴・ログなし）とバージョン2のデータ（履歴・ログあり）に対応
       const isVersion2 = data.version === 2;
@@ -976,7 +984,7 @@ class DatabaseService {
       }
 
       if (data.settings && this.isArray(data.settings)) {
-        await db.settings.bulkPut(data.settings);
+        await db.settings.bulkPut(data.settings as AppSettings[]);
       }
 
       // バージョン2のデータの場合、履歴とAIログもインポート
@@ -1209,7 +1217,7 @@ class DatabaseService {
           const projectId = parts[0];
           const chapterId = parts.slice(1).join('_'); // chapterIdに_が含まれる場合に対応
 
-          const entries: ChapterHistoryEntry[] = JSON.parse(stored);
+          const entries = JSON.parse(stored) as ChapterHistoryEntry[];
 
           // 各エントリをIndexedDBに保存
           for (const entry of entries) {

@@ -51,9 +51,11 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
 
   // setTimeoutのクリーンアップ
   useEffect(() => {
+    // クリーンアップ時に最新のタイマーIDを参照するため、ref自体をローカルに退避
+    const timeoutRef = saveTimeoutRef;
     return () => {
-      if (saveTimeoutRef.current !== null) {
-        clearTimeout(saveTimeoutRef.current);
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
       }
     };
   }, []);

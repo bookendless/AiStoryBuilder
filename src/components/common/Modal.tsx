@@ -117,7 +117,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
                 previousActiveElement.current.focus();
             }
         };
-    }, [isOpen, handleKeyDown]);
+    }, [isOpen, handleKeyDown, modalRef]);
 
     if (!isOpen) return null;
 

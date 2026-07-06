@@ -235,7 +235,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
         setSelectedChapter(currentProject.chapters[0].id);
       }
     }
-  }, [currentProject]);
+  }, [currentProject, selectedChapter]);
 
   // DraftAssistantPanelからの章選択変更を監視して同期
   useEffect(() => {
@@ -413,10 +413,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   }, [chapterHistories, selectedChapter]);
 
   // 章選択ハンドラー
-  const handleChapterSelect = async (chapterId: string) => {
+  const handleChapterSelect = useCallback(async (chapterId: string) => {
     // 現在の章の内容を保存（章が選択されている場合）
     if (selectedChapter) {
-      await handleSaveChapterDraft(selectedChapter, draft);
+      await handleSaveChapterDraftFromHook(selectedChapter, draft);
     }
 
     // 選択された章を設定（草案はuseEffectで適切に初期化される）
@@ -428,7 +428,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
       // CustomEventを発火してDraftAssistantPanelに通知
       window.dispatchEvent(new CustomEvent('draftChapterSelected', { detail: { chapterId, projectId: currentProject.id, source: 'draftStep' } }));
     }
-  };
+  }, [selectedChapter, draft, currentProject, handleSaveChapterDraftFromHook]);
 
   const handleNavigateChapter = useCallback(
     async (direction: 'prev' | 'next') => {

@@ -617,7 +617,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
         const logText = copyLog(log);
         navigator.clipboard.writeText(logText);
         showSuccess('ログをクリップボードにコピーしました');
-    }, [aiLogs, copyLog, showSuccess]);
+    }, [copyLog, showSuccess]);
 
     // ログダウンロード機能
     const handleDownloadLogs = useCallback(async () => {

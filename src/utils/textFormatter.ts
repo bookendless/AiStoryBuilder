@@ -96,8 +96,8 @@ export function extractAndFormatTextFromJson(
 
   try {
     // JSONをパース
-    const parsed = JSON.parse(jsonString);
-    
+    const parsed = JSON.parse(jsonString) as Record<string, unknown>;
+
     // 指定されたキーからテキストを取得
     const text = parsed[key] || parsed[key.replace(/([A-Z])/g, '_$1').toLowerCase()] || '';
     

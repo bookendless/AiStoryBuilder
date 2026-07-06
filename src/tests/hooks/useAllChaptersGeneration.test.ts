@@ -153,7 +153,9 @@ describe('useAllChaptersGeneration', () => {
 
     // updateProjectが各章の草案付きで呼ばれること
     expect(updateProject).toHaveBeenCalled();
-    const lastCall = updateProject.mock.calls[updateProject.mock.calls.length - 1][0];
+    const lastCall = updateProject.mock.calls[updateProject.mock.calls.length - 1][0] as {
+      chapters: { draft: string }[];
+    };
     expect(lastCall.chapters[0].draft).toContain('第1章の本文');
     expect(lastCall.chapters[1].draft).toContain('第2章の本文');
     // 完了後はタスクが除去され、実行中フラグがfalse
@@ -192,7 +194,9 @@ describe('useAllChaptersGeneration', () => {
       await result.current.handleGenerateAllChapters();
     });
 
-    const lastCall = updateProject.mock.calls[updateProject.mock.calls.length - 1][0];
+    const lastCall = updateProject.mock.calls[updateProject.mock.calls.length - 1][0] as {
+      chapters: { draft: string }[];
+    };
     expect(lastCall.chapters[0].draft).toContain('第1章の本文');
     expect(lastCall.chapters[1].draft).toContain('第2章の本文');
     expect(onError).not.toHaveBeenCalled();

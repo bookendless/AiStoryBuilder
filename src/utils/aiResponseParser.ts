@@ -12,6 +12,37 @@ export interface ParsedResponse {
 }
 
 /**
+ * AI応答からJSONオブジェクト文字列を抽出する共通処理。
+ * コードブロック・二重波括弧・前後の余白を除去し、最長の {...} 候補を返す。
+ * 抽出できない場合はクリーニング済みの元文字列を返す（呼び出し側で startsWith('{') 判定を行う）。
+ */
+export const extractJsonObjectString = (content: string): string => {
+  let jsonContent = content.trim();
+
+  // コードブロック除去
+  if (jsonContent.startsWith('```')) {
+    const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch && jsonMatch[1]) {
+      jsonContent = jsonMatch[1].trim();
+    } else {
+      jsonContent = jsonContent.replace(/```json\s*|\s*```/g, '').trim();
+    }
+  }
+
+  // 二重波括弧の除去
+  jsonContent = jsonContent.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
+
+  // 最長の {...} 候補を選択
+  const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
+  let jsonString = jsonMatches && jsonMatches.length > 0
+    ? jsonMatches.reduce((a, b) => (a.length > b.length ? a : b))
+    : jsonContent;
+
+  jsonString = jsonString.trim().replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
+  return jsonString;
+};
+
+/**
  * AI応答を解析し、構造化されたデータを返す
  * @param content AIからの生の応答
  * @param expectedFormat 期待する形式（'json' | 'text' | 'auto'）
@@ -166,7 +197,7 @@ const parseJsonResponse = (content: string): ParsedResponse => {
 
   // JSON解析を試行
   try {
-    const parsed = JSON.parse(jsonString);
+    const parsed: unknown = JSON.parse(jsonString);
     return {
       success: true,
       data: parsed,

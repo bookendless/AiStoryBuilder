@@ -144,19 +144,22 @@ export const CharacterAssistantPanel: React.FC = () => {
                     jsonString = arrayMatch[0];
                 }
 
-                const parsed = JSON.parse(jsonString);
+                const parsed: unknown = JSON.parse(jsonString);
                 if (Array.isArray(parsed)) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    parsedSuggestions = parsed.map((item: any) => ({
-                        id: generateUUID(),
-                        name: item.name || item.名前 || '',
-                        role: item.role || item.役割 || '',
-                        appearance: item.appearance || item.外見 || '',
-                        personality: item.personality || item.性格 || '',
-                        background: item.background || item.背景 || '',
-                        reason: item.reason || item.reasonING || item.提案理由 || '',
-                        image: '',
-                    })).filter(c => c.name); // 名前がないものは除外
+                    const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+                    parsedSuggestions = parsed
+                        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+                        .map((item) => ({
+                            id: generateUUID(),
+                            name: str(item.name) || str(item.名前),
+                            role: str(item.role) || str(item.役割),
+                            appearance: str(item.appearance) || str(item.外見),
+                            personality: str(item.personality) || str(item.性格),
+                            background: str(item.background) || str(item.背景),
+                            reason: str(item.reason) || str(item.reasonING) || str(item.提案理由),
+                            image: '',
+                        }))
+                        .filter(c => c.name); // 名前がないものは除外
                     parseMethod = 'json';
                 }
             } catch (e) {

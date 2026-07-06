@@ -90,7 +90,7 @@ export function getRecoveryData(): RecoveryData | null {
         const dataString = sessionStorage.getItem(RECOVERY_KEY);
         if (!dataString) return null;
 
-        const recoveryData: RecoveryData = JSON.parse(dataString);
+        const recoveryData = JSON.parse(dataString) as RecoveryData;
 
         // 有効期限チェック
         if (Date.now() - recoveryData.timestamp > RECOVERY_EXPIRATION_MS) {
@@ -128,7 +128,7 @@ export function hasRecoveryData(): boolean {
         const dataString = sessionStorage.getItem(RECOVERY_KEY);
         if (!dataString) return false;
 
-        const recoveryData: RecoveryData = JSON.parse(dataString);
+        const recoveryData = JSON.parse(dataString) as RecoveryData;
 
         // 有効期限チェック
         if (Date.now() - recoveryData.timestamp > RECOVERY_EXPIRATION_MS) {

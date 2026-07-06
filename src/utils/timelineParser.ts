@@ -276,7 +276,7 @@ function tryParseJSON(content: string): TimelineParseResult {
             }
         }
 
-        const parsed = JSON.parse(jsonText);
+        const parsed: unknown = JSON.parse(jsonText);
 
         if (!Array.isArray(parsed)) {
             return {
@@ -581,7 +581,11 @@ export function parseConsistencyCheckResponse(content: string): ConsistencyCheck
             jsonText = jsonMatch[0];
         }
 
-        const parsed = JSON.parse(jsonText);
+        const parsed = JSON.parse(jsonText) as {
+            hasIssues?: unknown;
+            issues?: unknown;
+            suggestions?: unknown;
+        };
         return {
             hasIssues: Boolean(parsed.hasIssues),
             issues: Array.isArray(parsed.issues) ? parsed.issues.map(String) : [],

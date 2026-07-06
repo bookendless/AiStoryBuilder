@@ -34,10 +34,10 @@ export const DraggableSidebar: React.FC<DraggableSidebarProps> = ({
       try {
         const saved = localStorage.getItem(storageKey);
         if (saved) {
-          const parsed = JSON.parse(saved);
+          const parsed: unknown = JSON.parse(saved);
           // 保存された順序が現在のitemsと一致するか確認
           if (Array.isArray(parsed) && parsed.every(id => items.some(item => item.id === id))) {
-            return parsed;
+            return parsed as SidebarItemId[];
           }
         }
       } catch (error) {

@@ -20,6 +20,29 @@ export interface ParseResult {
 }
 
 /**
+ * AI応答内のキャラクター1件分の生データ。
+ * 日本語キー・英語キーの揺れに対応するため、すべて unknown として受けて文字列に強制する。
+ */
+interface RawCharacter {
+  name?: unknown;
+  名前?: unknown;
+  role?: unknown;
+  役割?: unknown;
+  基本設定?: unknown;
+  basic?: unknown;
+  appearance?: unknown;
+  外見?: unknown;
+  personality?: unknown;
+  性格?: unknown;
+  background?: unknown;
+  背景?: unknown;
+}
+
+/** unknown値を安全に文字列化する（文字列・数値以外は空文字） */
+const toStr = (value: unknown): string =>
+  typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
+
+/**
  * JSON形式からキャラクターを抽出
  */
 const parseJsonCharacters = (content: string): ParseResult => {
@@ -52,33 +75,38 @@ const parseJsonCharacters = (content: string): ParseResult => {
       jsonString = arrayMatch[0];
     }
 
-    const parsed = JSON.parse(jsonString);
+    const parsed: unknown = JSON.parse(jsonString);
 
     // 配列形式: [{name: "...", role: "...", ...}, ...]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let characterArray: any[] = [];
+    let characterArray: unknown[] = [];
     if (Array.isArray(parsed)) {
       characterArray = parsed;
-    } else if (parsed.characters && Array.isArray(parsed.characters)) {
-      characterArray = parsed.characters;
-    } else if (parsed.data && Array.isArray(parsed.data)) {
-      characterArray = parsed.data;
     } else {
-      result.errors.push('JSON形式が認識できませんでした。配列またはcharacters/dataプロパティが必要です。');
-      return result;
+      const obj = parsed && typeof parsed === 'object'
+        ? (parsed as { characters?: unknown; data?: unknown })
+        : {};
+      if (Array.isArray(obj.characters)) {
+        characterArray = obj.characters;
+      } else if (Array.isArray(obj.data)) {
+        characterArray = obj.data;
+      } else {
+        result.errors.push('JSON形式が認識できませんでした。配列またはcharacters/dataプロパティが必要です。');
+        return result;
+      }
     }
 
     // 各キャラクターを変換
-    for (const char of characterArray) {
-      if (!char || typeof char !== 'object') continue;
+    for (const raw of characterArray) {
+      if (!raw || typeof raw !== 'object') continue;
+      const char = raw as RawCharacter;
 
       const character: Character = {
         id: generateUUID(),
-        name: char.name || char.名前 || `AI生成キャラクター${result.characters.length + 1}`,
-        role: char.role || char.役割 || char.基本設定 || char.basic || '主要キャラクター',
-        appearance: (char.appearance || char.外見 || '').substring(0, TEXT_LIMITS.APPEARANCE_MAX),
-        personality: (char.personality || char.性格 || '').substring(0, TEXT_LIMITS.PERSONALITY_MAX),
-        background: (char.background || char.背景 || '').substring(0, TEXT_LIMITS.BACKGROUND_MAX),
+        name: toStr(char.name) || toStr(char.名前) || `AI生成キャラクター${result.characters.length + 1}`,
+        role: toStr(char.role) || toStr(char.役割) || toStr(char.基本設定) || toStr(char.basic) || '主要キャラクター',
+        appearance: (toStr(char.appearance) || toStr(char.外見)).substring(0, TEXT_LIMITS.APPEARANCE_MAX),
+        personality: (toStr(char.personality) || toStr(char.性格)).substring(0, TEXT_LIMITS.PERSONALITY_MAX),
+        background: (toStr(char.background) || toStr(char.背景)).substring(0, TEXT_LIMITS.BACKGROUND_MAX),
         image: '',
       };
 
@@ -389,19 +417,20 @@ export const extractCharactersFromContent = (
     try {
       const fallbackResult = parseAIResponse(trimmedContent, 'text');
       if (fallbackResult.success && fallbackResult.data) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = fallbackResult.data as any;
+        const data = fallbackResult.data as { type?: string; characters?: unknown[] };
         if (data.type === 'characters' && Array.isArray(data.characters)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const fallbackCharacters: Character[] = data.characters.map((char: any) => ({
-            id: generateUUID(),
-            name: char.name || `AI生成キャラクター${textResult.characters.length + 1}`,
-            role: char.role || '主要キャラクター',
-            appearance: (char.appearance || '').substring(0, TEXT_LIMITS.APPEARANCE_MAX),
-            personality: (char.personality || '').substring(0, TEXT_LIMITS.PERSONALITY_MAX),
-            background: (char.background || '').substring(0, TEXT_LIMITS.BACKGROUND_MAX),
-            image: '',
-          })).filter((char: Character) => char.name && char.name !== `AI生成キャラクター${textResult.characters.length + 1}`);
+          const fallbackCharacters: Character[] = data.characters
+            .filter((raw): raw is RawCharacter => !!raw && typeof raw === 'object')
+            .map((char) => ({
+              id: generateUUID(),
+              name: toStr(char.name) || `AI生成キャラクター${textResult.characters.length + 1}`,
+              role: toStr(char.role) || '主要キャラクター',
+              appearance: toStr(char.appearance).substring(0, TEXT_LIMITS.APPEARANCE_MAX),
+              personality: toStr(char.personality).substring(0, TEXT_LIMITS.PERSONALITY_MAX),
+              background: toStr(char.background).substring(0, TEXT_LIMITS.BACKGROUND_MAX),
+              image: '',
+            }))
+            .filter((char) => char.name && char.name !== `AI生成キャラクター${textResult.characters.length + 1}`);
 
           if (fallbackCharacters.length > 0) {
             return {

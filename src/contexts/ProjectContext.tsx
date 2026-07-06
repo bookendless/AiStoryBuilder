@@ -118,7 +118,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     } else {
       setCurrentProjectState(null);
     }
-  }, []);
+  }, [errorNotifier]);
 
   // 初期化時にプロジェクト一覧を読み込み
   useSafeEffect(() => {
@@ -283,14 +283,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
         }
       }, 500);
     }
-  }, [currentProject, setTimer, setCurrentProject, setLastSaved]);
+  }, [currentProject, setTimer, setCurrentProject, setLastSaved, errorNotifier]);
 
   // プロジェクト更新時にクラッシュリカバリーデータも保存（モバイル安定化）
   React.useEffect(() => {
     if (currentProject) {
       saveRecoveryData(currentProject);
     }
-  }, [currentProject?.updatedAt]);
+  }, [currentProject]);
 
   const createNewProject = useCallback((title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string): Project => {
     // デバッグ: あらすじの値を確認

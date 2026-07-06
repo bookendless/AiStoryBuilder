@@ -63,8 +63,15 @@ export const ForeshadowingPanel: React.FC<ForeshadowingPanelProps> = ({
   // ステータス変更用のドロップダウン表示管理
   const [statusDropdownId, setStatusDropdownId] = useState<string | null>(null);
 
-  const foreshadowings = currentProject?.foreshadowings || [];
-  const chapters = currentProject?.chapters || [];
+  // フォールバックの空配列で下流useMemoの依存が毎レンダー変化しないようメモ化
+  const foreshadowings = useMemo(
+    () => currentProject?.foreshadowings || [],
+    [currentProject?.foreshadowings]
+  );
+  const chapters = useMemo(
+    () => currentProject?.chapters || [],
+    [currentProject?.chapters]
+  );
 
   // 現在の章に関連する伏線を取得
   const relatedForeshadowings = useMemo(() => {

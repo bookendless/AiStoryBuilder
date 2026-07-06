@@ -323,11 +323,11 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                     if (jsonString.endsWith('}}')) {
                         jsonString = jsonString.slice(0, -1);
                     }
-                    const parsed = JSON.parse(jsonString);
+                    const parsed = JSON.parse(jsonString) as Record<string, unknown>;
 
                     // 創造ポイント（Phase C）: 同一JSON内の creativePoints キーを正規化（構成キーには非干渉）
                     const creativePoints = cpEnabled
-                        ? normalizeCreativePointsList((parsed as Record<string, unknown>).creativePoints)
+                        ? normalizeCreativePointsList(parsed.creativePoints)
                         : [];
 
                     const getStringValue = (key: string, defaultValue: string): string => {
@@ -462,7 +462,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
             completeTask(taskId);
         }
-    }, [isConfigured, currentProject, plotStructure, formData, settings, addLog, showError, showSuccess, updateProject, isGenerating, startTask, completeTask, structureKey, proposeResult]);
+    }, [isConfigured, currentProject, plotStructure, formData, settings, addLog, handleAPIError, updateProject, isGenerating, startTask, completeTask, structureKey, proposeResult]);
 
     // 一貫性チェック
     const checkConsistency = useCallback(async () => {
@@ -564,12 +564,16 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                     if (jsonString.endsWith('}}')) {
                         jsonString = jsonString.slice(0, -1);
                     }
-                    const parsed = JSON.parse(jsonString);
+                    const parsed = JSON.parse(jsonString) as {
+                        issues?: unknown;
+                        suggestions?: unknown;
+                        hasIssues?: unknown;
+                    };
                     const issues = Array.isArray(parsed.issues)
-                        ? parsed.issues.filter((issue: unknown) => typeof issue === 'string')
+                        ? parsed.issues.filter((issue): issue is string => typeof issue === 'string')
                         : [];
                     const suggestions = Array.isArray(parsed.suggestions)
-                        ? parsed.suggestions.filter((suggestion: unknown) => typeof suggestion === 'string')
+                        ? parsed.suggestions.filter((suggestion): suggestion is string => typeof suggestion === 'string')
                         : [];
                     const parsedCheck: ConsistencyCheck = {
                         hasIssues: typeof parsed.hasIssues === 'boolean' ? parsed.hasIssues : false,
@@ -642,7 +646,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
             completeTask(taskId);
         }
-    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, handleAPIError, showSuccess, isGenerating, startTask, completeTask, consistencyKey, proposeResult]);
+    }, [isConfigured, formData, plotStructure, currentProject, settings, addLog, handleAPIError, handleStructureAIGenerate, showError, showSuccess, isGenerating, startTask, completeTask, consistencyKey, proposeResult]);
 
     // 一貫性チェックから自動修正を適用
     const handleApplyConsistency = useCallback(async (checkOverride?: ConsistencyCheck) => {
@@ -846,7 +850,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                     if (jsonString.endsWith('}}')) {
                         jsonString = jsonString.slice(0, -1);
                     }
-                    const parsed = JSON.parse(jsonString);
+                    const parsed = JSON.parse(jsonString) as Record<string, unknown>;
 
                     const getStringValue = (key: string, defaultValue: string): string => {
                         const value = parsed[key];
@@ -945,7 +949,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
             // 成否・キャンセルに関わらずタスクを除去（キャンセル済みならno-op）
             completeTask(taskId);
         }
-    }, [isConfigured, formData, plotStructure, currentProject, consistencyCheck, settings, addLog, updateProject, handleAPIError, showSuccess, isGenerating, startTask, completeTask, applyConsistencyKey]);
+    }, [isConfigured, formData, plotStructure, currentProject, consistencyCheck, settings, addLog, updateProject, handleAPIError, isGenerating, startTask, completeTask, applyConsistencyKey]);
 
     // 保留結果(onApply)から最新の自動修正関数を呼べるように参照を更新
     applyConsistencyRef.current = handleApplyConsistency;
@@ -994,7 +998,7 @@ ${log.error}` : ''}`;
                 }
             );
         }
-    }, [showSuccess, showError]);
+    }, [showSuccess, handleAPIError]);
 
     // AIログをダウンロード
     const handleDownloadLogs = useCallback(async () => {
@@ -1049,7 +1053,7 @@ ${'='.repeat(80)}`;
                 }
             );
         }
-    }, [aiLogs, showSuccess, showError]);
+    }, [aiLogs, showSuccess, handleAPIError]);
 
     if (!currentProject) return null;
 

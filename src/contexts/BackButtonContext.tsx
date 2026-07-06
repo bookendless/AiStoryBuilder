@@ -96,8 +96,11 @@ export const BackButtonProvider: React.FC<{ children: ReactNode }> = ({ children
     useEffect(() => {
         const handlePopState = (event: PopStateEvent) => {
             const overlays = overlaysRef.current;
-            const state = event.state;
-            const overlayId = state?.[HISTORY_STATE_KEY];
+            const state: unknown = event.state;
+            const rawOverlayId = state && typeof state === 'object'
+                ? (state as Record<string, unknown>)[HISTORY_STATE_KEY]
+                : undefined;
+            const overlayId = typeof rawOverlayId === 'string' ? rawOverlayId : undefined;
 
             // オーバーレイが開いている場合
             if (overlays.size > 0) {
@@ -223,7 +226,6 @@ export function useOverlayBackHandler(
         const currentId = idRef.current;
         return () => {
             if (registeredRef.current) {
-                // eslint-disable-next-line react-hooks/exhaustive-deps
                 unregisterOverlay(currentId);
                 registeredRef.current = false;
             }

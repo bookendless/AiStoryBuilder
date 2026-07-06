@@ -445,7 +445,7 @@ export class OfflineQueueManager<T = unknown> {
         try {
             const stored = sessionStorage.getItem(this.storageKey);
             if (stored) {
-                const metadata = JSON.parse(stored);
+                const metadata = JSON.parse(stored) as unknown[];
                 console.log(`[OfflineQueue] ${metadata.length}件のキューメタデータを検出`);
                 // 注意: リクエスト関数は復元できないため、メタデータのみを保持
                 // 実際のリクエストは再登録が必要

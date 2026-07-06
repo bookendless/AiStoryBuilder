@@ -658,7 +658,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     }
   }, [viewerImageUrl]);
 
-  const handleCloseImageViewer = () => {
+  const handleCloseImageViewer = useCallback(() => {
     // Blob URLを解放
     if (viewerImageUrl && viewerImageUrl.startsWith('blob:')) {
       databaseService.revokeImageUrl(viewerImageUrl);
@@ -673,7 +673,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     setPanY(0);
     setIsDragging(false);
     setImageNaturalSize({ width: 0, height: 0 });
-  };
+  }, [viewerImageUrl]);
 
   const handleZoomIn = () => {
     setZoomLevel(prev => {
@@ -987,7 +987,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
       document.addEventListener('keydown', handleEscape);
       return () => document.removeEventListener('keydown', handleEscape);
     }
-  }, [showImageViewer]);
+  }, [showImageViewer, handleCloseImageViewer]);
 
   // グリッドコンテナの高さを計算
   useEffect(() => {
@@ -1014,10 +1014,11 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
   }, [thumbnailSize]);
 
   // フィルタリングとソート処理（Hooksは早期リターンの前に配置する必要がある）
+  const imageBoard = currentProject?.imageBoard;
   const filteredAndSortedImages = useMemo(() => {
-    if (!currentProject) return [];
+    if (!imageBoard) return [];
 
-    let filtered = currentProject.imageBoard;
+    let filtered = imageBoard;
 
     // カテゴリフィルタリング
     if (selectedCategory !== 'all') {
@@ -1054,7 +1055,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
     });
 
     return sorted;
-  }, [currentProject?.imageBoard, selectedCategory, searchQuery, sortOption]);
+  }, [imageBoard, selectedCategory, searchQuery, sortOption]);
 
   const filteredImages = filteredAndSortedImages;
 
@@ -1174,7 +1175,7 @@ export const ImageBoard: React.FC<ImageBoardProps> = ({ isOpen, onClose }) => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isSelectionMode, selectedImageIds.size, showImageViewer, showAddForm, showEditForm, filteredImages, selectedImage, currentProject, updateProject, showSuccess, showError, handleNavigateToPrevious, handleNavigateToNext]);
+  }, [isOpen, isSelectionMode, selectedImageIds, showImageViewer, showAddForm, showEditForm, filteredImages, selectedImage, currentProject, updateProject, showSuccess, showError, handleNavigateToPrevious, handleNavigateToNext]);
 
   // すべてのHooksの呼び出し後に早期リターンを配置
   if (!isOpen || !currentProject) return null;

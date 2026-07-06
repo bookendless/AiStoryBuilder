@@ -30,7 +30,10 @@ describe('PendingResultContext', () => {
     expect(result.current.pendingResults[0].label).toBe('構成');
     // 完了トースト（「確認する」アクション付き、自動で消える一時通知）
     expect(showSuccess).toHaveBeenCalledTimes(1);
-    const opts = showSuccess.mock.calls[0][2];
+    const opts = showSuccess.mock.calls[0][2] as {
+      persistent?: boolean;
+      action: { label: string };
+    };
     expect(opts.persistent).toBeFalsy();
     expect(opts.action.label).toBe('確認する');
   });

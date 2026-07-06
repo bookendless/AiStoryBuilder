@@ -96,7 +96,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       const envSettings = getDefaultSettings();
       const saved = localStorage.getItem('ai-settings');
       if (saved) {
-        const parsed = JSON.parse(saved);
+        const parsed = JSON.parse(saved) as Partial<AISettings>;
         const selectedProvider = AI_PROVIDERS.find(p => p.id === parsed.provider);
         const selectedModel = selectedProvider?.models.find(m => m.id === parsed.model);
         const modelMaxTokens = selectedModel?.maxTokens || 8192;
@@ -182,10 +182,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         try {
           const saved = localStorage.getItem('ai-settings');
           if (saved) {
-            const parsed = JSON.parse(saved);
+            const parsed = JSON.parse(saved) as Partial<AISettings>;
             const apiKeys = parsed.apiKeys || {};
             const currentApiKey = parsed.provider !== 'local' ?
-              apiKeys[parsed.provider] || parsed.apiKey || '' : '';
+              (parsed.provider ? apiKeys[parsed.provider] : undefined) || parsed.apiKey || '' : '';
             setSettings(prev => {
               const updated = {
                 ...prev,

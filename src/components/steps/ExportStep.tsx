@@ -14,6 +14,16 @@ interface ExportStepProps {
   onNavigateToStep?: (step: Step) => void;
 }
 
+// プロット構成形式の表示ラベル（レンダリング間で不変のためモジュールスコープに配置）
+const STRUCTURE_LABELS: Record<string, string> = {
+  'kishotenketsu': '起承転結',
+  'three-act': '三幕構成',
+  'four-act': '四幕構成',
+  'heroes-journey': 'ヒーローズ・ジャーニー',
+  'beat-sheet': 'ビートシート',
+  'mystery-suspense': 'ミステリー・サスペンス',
+};
+
 export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
   const { currentProject } = useProject();
   const { showSuccess, showError } = useToast();
@@ -424,15 +434,6 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
     }
   };
 
-
-  const STRUCTURE_LABELS: Record<string, string> = {
-    'kishotenketsu': '起承転結',
-    'three-act': '三幕構成',
-    'four-act': '四幕構成',
-    'heroes-journey': 'ヒーローズ・ジャーニー',
-    'beat-sheet': 'ビートシート',
-    'mystery-suspense': 'ミステリー・サスペンス',
-  };
 
   const generateTxtContent = useCallback(() => {
     if (!currentProject) return '';

@@ -60,7 +60,11 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
   const [deletingTermId, setDeletingTermId] = useState<string | null>(null);
   const { settings, isConfigured } = useAI();
 
-  const glossary = currentProject?.glossary || [];
+  // フォールバックの空配列で下流useMemoの依存が毎レンダー変化しないようメモ化
+  const glossary = useMemo(
+    () => currentProject?.glossary || [],
+    [currentProject?.glossary]
+  );
 
   // フィルタリング
   const filteredGlossary = useMemo(() => {

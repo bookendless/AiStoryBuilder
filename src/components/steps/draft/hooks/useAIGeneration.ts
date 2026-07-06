@@ -6,6 +6,7 @@ import { buildContinueEnhancedPrompt } from '../../../../services/prompts/draft'
 import { useGeneration } from '../../../../contexts/GenerationContext';
 import type { GenerationAction, ImprovementLog, WeaknessItem } from '../types';
 import { formatText } from '../../../../utils/textFormatter';
+import { extractJsonObjectString } from '../../../../utils/aiResponseParser';
 
 interface Chapter {
   id: string;
@@ -91,6 +92,64 @@ interface UseAIGenerationReturn {
   handleCancelGeneration: () => void;
 }
 
+/**
+ * プロンプト用にキャラクター情報を整形する（口調は最大100文字に切り詰め）
+ */
+const buildCharacterInfo = (characters: Character[]): string =>
+  characters
+    .map((char) => {
+      let charInfo = `${char.name}`;
+      if (char.role) {
+        charInfo += ` (${char.role})`;
+      }
+      if (char.personality) {
+        charInfo += `\n  性格: ${char.personality}`;
+      }
+      if (char.background) {
+        charInfo += `\n  背景: ${char.background}`;
+      }
+      // 口調設定は簡潔に、かつ安全な表現のみを含める
+      if (char.speechStyle) {
+        const speechStyle = char.speechStyle.trim();
+        const truncatedSpeechStyle = speechStyle.length > 100
+          ? speechStyle.substring(0, 100) + '...'
+          : speechStyle;
+        charInfo += `\n  口調: ${truncatedSpeechStyle}`;
+      }
+      return charInfo;
+    })
+    .join('\n\n');
+
+/**
+ * 文体の詳細指示ブロックを構築する。
+ * mode により文体見本の扱いが変わる（critique: 評価基準として併記 / revise: 維持すべき文体として注入）。
+ */
+const buildStyleDetails = (
+  project: Project | null,
+  mode: 'critique' | 'revise'
+): string => {
+  const ws = project?.writingStyle || {};
+  const parts: string[] = [];
+  if (ws.perspective || ws.formality || ws.rhythm || ws.metaphor || ws.dialogue || ws.emotion || ws.tone) {
+    parts.push('【文体の詳細指示】');
+    if (ws.perspective) parts.push(`- **人称**: ${ws.perspective}`);
+    if (ws.formality) parts.push(`- **硬軟**: ${ws.formality}`);
+    if (ws.rhythm) parts.push(`- **リズム**: ${ws.rhythm}`);
+    if (ws.metaphor) parts.push(`- **比喩表現**: ${ws.metaphor}`);
+    if (ws.dialogue) parts.push(`- **会話比率**: ${ws.dialogue}`);
+    if (ws.emotion) parts.push(`- **感情描写**: ${ws.emotion}`);
+    if (ws.tone) parts.push(`\n【参考となるトーン】\n${ws.tone}`);
+  }
+  if (project?.styleSample) {
+    parts.push(
+      mode === 'critique'
+        ? `\n【文体見本（この文体に沿っているかを評価する）】\n---\n${project.styleSample}\n---`
+        : `\n【文体見本（最重要・この文章の雰囲気・文体・語り口を維持する）】\n---\n${project.styleSample}\n---\n※見本の内容（出来事・人物）を流用せず、文体・リズム・語彙の傾向だけを真似てください。`
+    );
+  }
+  return parts.join('\n');
+};
+
 export const useAIGeneration = ({
   currentProject,
   currentChapter,
@@ -175,28 +234,7 @@ export const useAIGeneration = ({
       const chapterDetails = getChapterDetails(currentChapter);
 
       // プロジェクトのキャラクター情報を整理
-      const projectCharacters = currentProject.characters.map((char: Character) => {
-        let charInfo = `${char.name}`;
-        if (char.role) {
-          charInfo += ` (${char.role})`;
-        }
-        if (char.personality) {
-          charInfo += `\n  性格: ${char.personality}`;
-        }
-        if (char.background) {
-          charInfo += `\n  背景: ${char.background}`;
-        }
-        // 口調設定は簡潔に、かつ安全な表現のみを含める
-        if (char.speechStyle) {
-          // 口調設定を簡潔に（最大100文字）
-          const speechStyle = char.speechStyle.trim();
-          const truncatedSpeechStyle = speechStyle.length > 100
-            ? speechStyle.substring(0, 100) + '...'
-            : speechStyle;
-          charInfo += `\n  口調: ${truncatedSpeechStyle}`;
-        }
-        return charInfo;
-      }).join('\n\n');
+      const projectCharacters = buildCharacterInfo(currentProject.characters);
 
       // 前章までのあらすじを取得
       const currentChapterIndex = currentProject.chapters.findIndex((c) => c.id === currentChapter.id);
@@ -231,17 +269,15 @@ export const useAIGeneration = ({
         contextInfo,
       });
 
-      const abortController = { signal };
-
-      const response = await aiService.generateContent({
+const response = await aiService.generateContent({
         prompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -274,10 +310,12 @@ export const useAIGeneration = ({
     currentChapter,
     selectedChapter,
     settings,
-    draft,
     getChapterDetails,
     getProjectContextInfo,
     buildCustomPrompt,
+    startTask,
+    completeTask,
+    mainKey,
     applyDraftResult,
     onError,
     onWarning,
@@ -300,28 +338,7 @@ export const useAIGeneration = ({
 
     try {
       // プロジェクトのキャラクター情報を整理
-      const projectCharacters = currentProject.characters.map((char: Character) => {
-        let charInfo = `${char.name}`;
-        if (char.role) {
-          charInfo += ` (${char.role})`;
-        }
-        if (char.personality) {
-          charInfo += `\n  性格: ${char.personality}`;
-        }
-        if (char.background) {
-          charInfo += `\n  背景: ${char.background}`;
-        }
-        // 口調設定は簡潔に、かつ安全な表現のみを含める
-        if (char.speechStyle) {
-          // 口調設定を簡潔に（最大100文字）
-          const speechStyle = char.speechStyle.trim();
-          const truncatedSpeechStyle = speechStyle.length > 100
-            ? speechStyle.substring(0, 100) + '...'
-            : speechStyle;
-          charInfo += `\n  口調: ${truncatedSpeechStyle}`;
-        }
-        return charInfo;
-      }).join('\n\n');
+      const projectCharacters = buildCharacterInfo(currentProject.characters);
 
       // 設定情報の取得
       const contextInfo = getProjectContextInfo();
@@ -378,17 +395,15 @@ export const useAIGeneration = ({
       // 追加のコンテキスト情報・執筆指示をプロンプトに付加
       const enhancedPrompt = buildContinueEnhancedPrompt(prompt, contextInfo);
 
-      const abortController = { signal };
-
-      const response = await aiService.generateContent({
+const response = await aiService.generateContent({
         prompt: enhancedPrompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -424,6 +439,9 @@ export const useAIGeneration = ({
     currentChapter,
     settings,
     getProjectContextInfo,
+    startTask,
+    completeTask,
+    mainKey,
     applyDraftResult,
     onError,
     addLog,
@@ -441,17 +459,15 @@ export const useAIGeneration = ({
         currentText: draft,
       });
 
-      const abortController = { signal };
-
-      const response = await aiService.generateContent({
+const response = await aiService.generateContent({
         prompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -469,7 +485,7 @@ export const useAIGeneration = ({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, applyDraftResult, onError]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError]);
 
   // 文体調整
   const handleStyleAdjustment = useCallback(async () => {
@@ -484,17 +500,15 @@ export const useAIGeneration = ({
         currentLength: draft.length.toString(),
       });
 
-      const abortController = { signal };
-
-      const response = await aiService.generateContent({
+const response = await aiService.generateContent({
         prompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -512,7 +526,7 @@ export const useAIGeneration = ({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, applyDraftResult, onError]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError]);
 
   // 文章短縮
   const handleShortenText = useCallback(async () => {
@@ -526,17 +540,15 @@ export const useAIGeneration = ({
         currentText: draft,
       });
 
-      const abortController = { signal };
-
-      const response = await aiService.generateContent({
+const response = await aiService.generateContent({
         prompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -554,7 +566,7 @@ export const useAIGeneration = ({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, applyDraftResult, onError]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError]);
 
   // 章全体改善（描写強化＋文体調整の組み合わせ）
   const handleChapterImprovement = useCallback(async () => {
@@ -578,17 +590,15 @@ export const useAIGeneration = ({
         currentLength: draft.length.toString(),
       });
 
-      const abortController = { signal };
-
-      const response = await aiService.generateContent({
+const response = await aiService.generateContent({
         prompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
       // キャンセルされた場合は処理をスキップ
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -612,6 +622,9 @@ export const useAIGeneration = ({
     isConfigured,
     currentChapter,
     settings,
+    startTask,
+    completeTask,
+    mainKey,
     applyDraftResult,
     onError,
   ]);
@@ -632,24 +645,8 @@ export const useAIGeneration = ({
 
     try {
       // フェーズ1：批評フェーズ（弱点の特定と修正案の生成）
-      const writingStyleForCritique = currentProject?.writingStyle || {};
-      const critiqueStyle = writingStyleForCritique.style || '現代小説風';
-      const critiqueStyleDetailsArray: string[] = [];
-      if (writingStyleForCritique.perspective || writingStyleForCritique.formality || writingStyleForCritique.rhythm || writingStyleForCritique.metaphor || writingStyleForCritique.dialogue || writingStyleForCritique.emotion || writingStyleForCritique.tone) {
-        critiqueStyleDetailsArray.push('【文体の詳細指示】');
-        if (writingStyleForCritique.perspective) critiqueStyleDetailsArray.push(`- **人称**: ${writingStyleForCritique.perspective}`);
-        if (writingStyleForCritique.formality) critiqueStyleDetailsArray.push(`- **硬軟**: ${writingStyleForCritique.formality}`);
-        if (writingStyleForCritique.rhythm) critiqueStyleDetailsArray.push(`- **リズム**: ${writingStyleForCritique.rhythm}`);
-        if (writingStyleForCritique.metaphor) critiqueStyleDetailsArray.push(`- **比喩表現**: ${writingStyleForCritique.metaphor}`);
-        if (writingStyleForCritique.dialogue) critiqueStyleDetailsArray.push(`- **会話比率**: ${writingStyleForCritique.dialogue}`);
-        if (writingStyleForCritique.emotion) critiqueStyleDetailsArray.push(`- **感情描写**: ${writingStyleForCritique.emotion}`);
-        if (writingStyleForCritique.tone) critiqueStyleDetailsArray.push(`\n【参考となるトーン】\n${writingStyleForCritique.tone}`);
-      }
-      // 文体見本があれば評価基準として併記する（見本との文体の乖離を指摘させる）
-      if (currentProject?.styleSample) {
-        critiqueStyleDetailsArray.push(`\n【文体見本（この文体に沿っているかを評価する）】\n---\n${currentProject.styleSample}\n---`);
-      }
-      const critiqueStyleDetails = critiqueStyleDetailsArray.length > 0 ? critiqueStyleDetailsArray.join('\n') : '';
+      const critiqueStyle = currentProject?.writingStyle?.style || '現代小説風';
+      const critiqueStyleDetails = buildStyleDetails(currentProject, 'critique');
 
       const critiquePrompt = aiService.buildPrompt('draft', 'critique', {
         projectTitle: currentProject?.title || '未設定',
@@ -660,16 +657,14 @@ export const useAIGeneration = ({
         styleDetails: critiqueStyleDetails,
       });
 
-      const abortController = { signal };
-
-      const critiqueResponse = await aiService.generateContent({
+const critiqueResponse = await aiService.generateContent({
         prompt: critiquePrompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return null;
       }
 
@@ -680,50 +675,22 @@ export const useAIGeneration = ({
       // JSON形式の応答を抽出・パース
       let critiqueSummary = '';
       let weaknesses: WeaknessItem[] = []; // 型適用
-      let jsonContent = critiqueResponse.content.trim();
 
       try {
-        // コードブロック除去
-        if (jsonContent.startsWith('```')) {
-          const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-          if (jsonMatch && jsonMatch[1]) {
-            jsonContent = jsonMatch[1].trim();
-          } else {
-            jsonContent = jsonContent.replace(/```json\s*|\s*```/g, '').trim();
-          }
-        }
-
-        // クリーニング
-        jsonContent = jsonContent
-          .replace(/^\{\{/, '')
-          .replace(/\}\}$/, '')
-          .trim();
-
-        const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
-        let jsonString = '';
-        if (jsonMatches && jsonMatches.length > 0) {
-          jsonString = jsonMatches.reduce((a, b) => a.length > b.length ? a : b);
-        } else {
-          jsonString = jsonContent;
-        }
-
-        // 再度クリーニング
-        jsonString = jsonString
-          .replace(/^[\s\n\r]*/, '')
-          .replace(/[\s\n\r]*$/, '')
-          .replace(/^\{\{/, '')
-          .replace(/\}\}$/, '')
-          .trim();
+        const jsonString = extractJsonObjectString(critiqueResponse.content);
 
         if (jsonString && jsonString.startsWith('{')) {
-          const critiqueData = JSON.parse(jsonString);
+          const critiqueData = JSON.parse(jsonString) as {
+            summary?: string;
+            weaknesses?: WeaknessItem[];
+          };
 
           if (critiqueData.summary) {
             critiqueSummary = critiqueData.summary;
           }
 
           if (critiqueData.weaknesses && Array.isArray(critiqueData.weaknesses)) {
-            weaknesses = critiqueData.weaknesses.filter((w: WeaknessItem) => w && w.aspect && w.problem);
+            weaknesses = critiqueData.weaknesses.filter((w) => w && w.aspect && w.problem);
           }
         } else {
           // テキスト解析のフォールバック
@@ -759,6 +726,9 @@ export const useAIGeneration = ({
     currentProject,
     currentChapter,
     settings,
+    startTask,
+    completeTask,
+    mainKey,
     onError,
   ]);
 
@@ -781,24 +751,8 @@ export const useAIGeneration = ({
 
       const critiqueResult = JSON.stringify(filteredCritique, null, 2);
 
-      const writingStyleForRevise = currentProject?.writingStyle || {};
-      const reviseStyle = writingStyleForRevise.style || '現代小説風';
-      const reviseStyleDetailsArray: string[] = [];
-      if (writingStyleForRevise.perspective || writingStyleForRevise.formality || writingStyleForRevise.rhythm || writingStyleForRevise.metaphor || writingStyleForRevise.dialogue || writingStyleForRevise.emotion || writingStyleForRevise.tone) {
-        reviseStyleDetailsArray.push('【文体の詳細指示】');
-        if (writingStyleForRevise.perspective) reviseStyleDetailsArray.push(`- **人称**: ${writingStyleForRevise.perspective}`);
-        if (writingStyleForRevise.formality) reviseStyleDetailsArray.push(`- **硬軟**: ${writingStyleForRevise.formality}`);
-        if (writingStyleForRevise.rhythm) reviseStyleDetailsArray.push(`- **リズム**: ${writingStyleForRevise.rhythm}`);
-        if (writingStyleForRevise.metaphor) reviseStyleDetailsArray.push(`- **比喩表現**: ${writingStyleForRevise.metaphor}`);
-        if (writingStyleForRevise.dialogue) reviseStyleDetailsArray.push(`- **会話比率**: ${writingStyleForRevise.dialogue}`);
-        if (writingStyleForRevise.emotion) reviseStyleDetailsArray.push(`- **感情描写**: ${writingStyleForRevise.emotion}`);
-        if (writingStyleForRevise.tone) reviseStyleDetailsArray.push(`\n【参考となるトーン】\n${writingStyleForRevise.tone}`);
-      }
-      // 文体見本があれば「維持すべき文体」として注入する
-      if (currentProject?.styleSample) {
-        reviseStyleDetailsArray.push(`\n【文体見本（最重要・この文章の雰囲気・文体・語り口を維持する）】\n---\n${currentProject.styleSample}\n---\n※見本の内容（出来事・人物）を流用せず、文体・リズム・語彙の傾向だけを真似てください。`);
-      }
-      const reviseStyleDetails = reviseStyleDetailsArray.length > 0 ? reviseStyleDetailsArray.join('\n') : '';
+      const reviseStyle = currentProject?.writingStyle?.style || '現代小説風';
+      const reviseStyleDetails = buildStyleDetails(currentProject, 'revise');
 
       // 批評フェーズと同様に全文を渡す（切り詰めると末尾が消失し内容が薄くなるため）
       const revisionPrompt = aiService.buildPrompt('draft', 'revise', {
@@ -812,16 +766,14 @@ export const useAIGeneration = ({
         styleDetails: reviseStyleDetails,
       });
 
-      const abortController = { signal };
-
-      const revisionResponse = await aiService.generateContent({
+const revisionResponse = await aiService.generateContent({
         prompt: revisionPrompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
-      if (abortController.signal.aborted) return;
+      if (signal.aborted) return;
 
       if (!revisionResponse || !revisionResponse.content) {
         throw new Error('改訂フェーズの応答が取得できませんでした');
@@ -833,25 +785,16 @@ export const useAIGeneration = ({
       let phase2Changes: string[] = [];
 
       try {
-        let jsonContent = revisionResponse.content.trim();
-        if (jsonContent.startsWith('```')) {
-          const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-          if (jsonMatch) jsonContent = jsonMatch[1].trim();
-        }
-        jsonContent = jsonContent.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
-
-        const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
-        let jsonString = jsonMatches && jsonMatches.length > 0
-          ? jsonMatches.reduce((a, b) => a.length > b.length ? a : b)
-          : jsonContent;
-
-        jsonString = jsonString
-          .replace(/^[\s\n\r]*/, '')
-          .replace(/[\s\n\r]*$/, '')
-          .replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
+        const jsonString = extractJsonObjectString(revisionResponse.content);
 
         if (jsonString && jsonString.startsWith('{')) {
-          const parsed = JSON.parse(jsonString);
+          const parsed = JSON.parse(jsonString) as {
+            revisedText?: string;
+            revised_text?: string;
+            improvementSummary?: string;
+            improvement_summary?: string;
+            changes?: string[];
+          };
           const rawRevisedText = parsed.revisedText || parsed.revised_text || '';
           revisedText = formatText(rawRevisedText);
           improvementSummary = parsed.improvementSummary || parsed.improvement_summary || '';
@@ -936,6 +879,9 @@ export const useAIGeneration = ({
     currentProject,
     currentChapter,
     settings,
+    startTask,
+    completeTask,
+    mainKey,
     applyDraftResult,
     onError,
     setImprovementLogs,
@@ -974,16 +920,14 @@ export const useAIGeneration = ({
         currentLength: draft.length.toString(),
       });
 
-      const abortController = { signal };
-
-      const response = await aiService.generateContent({
+const response = await aiService.generateContent({
         prompt,
         type: 'draft',
         settings,
-        signal: abortController.signal,
+        signal,
       });
 
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -1006,6 +950,9 @@ export const useAIGeneration = ({
     draft,
     currentProject,
     settings,
+    startTask,
+    completeTask,
+    mainKey,
     applyDraftResult,
     onError,
   ]);

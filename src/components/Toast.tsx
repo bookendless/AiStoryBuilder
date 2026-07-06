@@ -132,10 +132,10 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
   const [isExiting, setIsExiting] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
-  const handleRemove = () => {
+  const handleRemove = useCallback(() => {
     setIsExiting(true);
     setTimeout(() => onRemove(toast.id), 300);
-  };
+  }, [onRemove, toast.id]);
 
   useEffect(() => {
     if (toast.duration && toast.duration > 0 && !toast.persistent) {
@@ -144,7 +144,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       }, toast.duration);
       return () => clearTimeout(timer);
     }
-  }, [toast.duration, toast.persistent]);
+  }, [toast.duration, toast.persistent, handleRemove]);
 
   const [showCheckmark, setShowCheckmark] = useState(false);
 

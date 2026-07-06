@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic, Library, FileUp } from 'lucide-react';
 import { Step } from '../App';
 import { useProject } from '../contexts/ProjectContext';
@@ -428,7 +428,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
   };
 
   // プロジェクト進捗を計算する関数（ProjectContextの関数を使用）
-  const getProjectProgress = (project: Project) => {
+  const getProjectProgress = useCallback((project: Project) => {
     const progress = calculateProjectProgress(project);
     return {
       percentage: progress.percentage,
@@ -436,7 +436,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
       totalSteps: progress.totalSteps,
       nextStep: progress.nextStep,
     };
-  };
+  }, [calculateProjectProgress]);
 
   // プロジェクトID → タイトルのマップ（続編バッジの前作名表示に使用）
   const projectTitleById = useMemo(() => {
@@ -541,7 +541,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
     });
 
     return sorted;
-  }, [projects, searchQuery, filterGenre, sortOption]);
+  }, [projects, searchQuery, filterGenre, sortOption, getProjectProgress]);
   return (
     <div className="min-h-screen bg-gradient-to-br from-unohana-50 via-unohana-100 to-unohana-200 dark:from-sumi-900 dark:via-sumi-800 dark:to-sumi-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

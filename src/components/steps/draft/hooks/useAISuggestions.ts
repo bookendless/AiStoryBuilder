@@ -211,6 +211,9 @@ export const useAISuggestions = ({
       mainEditorRef,
       selectedChapter,
       settings,
+      startTask,
+      completeTask,
+      suggestionKey,
       onError,
       addLog,
     ]

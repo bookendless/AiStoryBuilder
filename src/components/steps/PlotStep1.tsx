@@ -43,6 +43,16 @@ type PlotFormData = {
 
 type FieldKey = keyof PlotFormData;
 
+// フィールドの固定順序（論理的な順序・レンダリング間で不変のためモジュールスコープに配置）
+const fieldOrder: Array<{ key: FieldKey; label: string }> = [
+  { key: 'theme', label: 'メインテーマ' },
+  { key: 'setting', label: '舞台設定' },
+  { key: 'hook', label: '物語の引き（冒頭の魅力）' },
+  { key: 'protagonistGoal', label: '主人公の目標' },
+  { key: 'mainObstacle', label: '主要な障害' },
+  { key: 'ending', label: '物語の結末' },
+];
+
 export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject } = useProject();
   const { settings, isConfigured } = useAI();
@@ -62,16 +72,6 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const historyRef = useRef(false);
   const isInitialMountRef = useRef(true);
-
-  // フィールドの固定順序（論理的な順序）
-  const fieldOrder: Array<{ key: FieldKey; label: string }> = [
-    { key: 'theme', label: 'メインテーマ' },
-    { key: 'setting', label: '舞台設定' },
-    { key: 'hook', label: '物語の引き（冒頭の魅力）' },
-    { key: 'protagonistGoal', label: '主人公の目標' },
-    { key: 'mainObstacle', label: '主要な障害' },
-    { key: 'ending', label: '物語の結末' },
-  ];
 
   // モーダル表示用の状態
   const [openModal, setOpenModal] = useState<{ type: 'templates' | 'dependencies'; fieldKey: FieldKey } | null>(null);
@@ -451,7 +451,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
   };
 
   // プロジェクトの詳細情報を取得する関数
-  const getProjectContext = () => {
+  const getProjectContext = useCallback(() => {
     if (!currentProject) return null;
 
     return {
@@ -469,7 +469,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
         background: c.background
       }))
     };
-  };
+  }, [currentProject]);
 
   // 個別フィールドのAI提案関数
   const handleFieldAIGenerate = useCallback(async (fieldKey: FieldKey) => {
@@ -566,7 +566,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
     } finally {
       setGeneratingField(null);
     }
-  }, [isConfigured, formData, settings, showError, showWarning, showSuccess, saveToHistory, currentProject]);
+  }, [isConfigured, formData, settings, showError, showWarning, showSuccess, saveToHistory, currentProject, getProjectContext]);
 
 
   if (!currentProject) {

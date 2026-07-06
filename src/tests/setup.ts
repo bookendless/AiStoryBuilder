@@ -5,6 +5,7 @@
  */
 
 import '@testing-library/jest-dom';
+import { afterEach } from 'vitest';
 
 // グローバルモック設定
 
@@ -125,7 +126,6 @@ afterEach(() => {
 // グローバル型定義の拡張
 declare global {
     // vi はVitestが自動的に提供
-    // eslint-disable-next-line no-var
     var vi: typeof import('vitest')['vi'];
 }
 

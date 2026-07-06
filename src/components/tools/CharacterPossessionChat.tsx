@@ -59,9 +59,12 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
       const key = `possession_chat_${currentProject.id}_${characterId}`;
       const saved = localStorage.getItem(key);
       if (saved) {
-        const parsed = JSON.parse(saved);
+        const parsed = JSON.parse(saved) as {
+          messages?: PossessionMessage[];
+          sessionId?: string;
+        };
         // timestampをDateオブジェクトに変換
-        const messages = (parsed.messages || []).map((msg: PossessionMessage) => ({
+        const messages = (parsed.messages || []).map((msg) => ({
           ...msg,
           timestamp: msg.timestamp instanceof Date
             ? msg.timestamp
