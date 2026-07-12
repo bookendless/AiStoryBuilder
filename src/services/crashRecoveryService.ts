@@ -57,9 +57,10 @@ export function saveRecoveryData(project: Project): void {
         };
 
         // sessionStorageに保存（圧縮なし - sessionStorageは比較的小さい）
-        const dataString = JSON.stringify(recoveryData);
+        let dataString = JSON.stringify(recoveryData);
 
         // サイズチェック（sessionStorageは通常5MB程度）
+        // 超過時のみ縮小版を再シリアライズする（通常はstringify1回で済ませる）
         if (dataString.length > 4 * 1024 * 1024) {
             console.warn('[CrashRecovery] データサイズが大きすぎます。章データのみを保存します。');
             // 章データのみに縮小
@@ -69,9 +70,10 @@ export function saveRecoveryData(project: Project): void {
                 chapters: project.chapters,
                 updatedAt: project.updatedAt,
             };
+            dataString = JSON.stringify(recoveryData);
         }
 
-        sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(recoveryData));
+        sessionStorage.setItem(RECOVERY_KEY, dataString);
         sessionStorage.setItem(RECOVERY_TIMESTAMP_KEY, Date.now().toString());
         sessionStorage.setItem(RECOVERY_PROJECT_ID_KEY, project.id);
 

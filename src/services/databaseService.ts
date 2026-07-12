@@ -221,28 +221,9 @@ class DatabaseService {
         updatedAt: new Date(),
       };
 
-      // トランザクション内で保存と確認を行う（競合状態を防止）
-      await db.transaction('rw', db.projects, async () => {
-        // 既存のプロジェクトがあるかチェック
-        const existingProject = await db.projects.get(project.id);
-
-        if (existingProject) {
-          // 既存のプロジェクトを更新
-          await db.projects.update(project.id, {
-            ...storedProject,
-            id: project.id // IDは更新しない
-          });
-        } else {
-          // 新しいプロジェクトを追加
-          await db.projects.add(storedProject);
-        }
-
-        // トランザクション内で保存確認（原子性を保証）
-        const savedProject = await db.projects.get(project.id);
-        if (!savedProject) {
-          throw new DatabaseStorageError('保存後の確認でプロジェクトが見つかりません');
-        }
-      });
+      // putはupsert（存在すれば更新・なければ追加）を1操作で行い、失敗時は例外を投げる。
+      // 従来のget→update/add→検証getの3操作は不要
+      await db.projects.put(storedProject);
 
       // キャッシュを更新（トランザクション成功後）
       this.projectCache.set(project.id, storedProject);
@@ -271,28 +252,11 @@ class DatabaseService {
         });
       }
 
-      // ConstraintErrorの場合は再試行
-      if (error instanceof Error && error.name === 'ConstraintError') {
-        try {
-          await db.projects.update(project.id, {
-            ...project,
-            version: 1,
-            lastSaved: new Date(),
-            updatedAt: new Date(),
-          });
-          console.log(`プロジェクト "${project.title}" を更新しました`);
-        } catch (retryError) {
-          throw new DatabaseStorageError(
-            `プロジェクトの保存に失敗しました: ${(retryError as Error).message}`,
-            retryError
-          );
-        }
-      } else {
-        throw new DatabaseStorageError(
-          `プロジェクトの保存に失敗しました: ${(error as Error).message}`,
-          error
-        );
-      }
+      // putはupsertのためConstraintError再試行は不要
+      throw new DatabaseStorageError(
+        `プロジェクトの保存に失敗しました: ${(error as Error).message}`,
+        error
+      );
     }
   }
 

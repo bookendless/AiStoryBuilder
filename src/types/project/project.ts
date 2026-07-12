@@ -9,6 +9,8 @@ import { GlossaryTerm, TimelineEvent, WorldSetting } from './world';
 import { Foreshadowing } from './foreshadowing';
 import { SavedEvaluation } from '../evaluation';
 import { EmotionMap } from '../emotion';
+import { ConsistencyReport } from '../consistency';
+import { WhatIfScenario } from '../whatIf';
 
 /**
  * プロジェクト情報
@@ -139,6 +141,19 @@ export interface Project {
     currentStep?: Exclude<Step, 'home'>; // 最後に編集中だったステップ（'home'は除外）
     parentProjectId?: string; // 続編元（前作）のプロジェクトID。続編構成で生成された場合に設定
     sequelNumber?: number; // 続編の世代（1=直接続編, 2=続編の続編 ...）。オリジナルは未設定
+    /** 整合性ガードのスキャンレポート（新しい順、最大5件保持） */
+    consistencyReports?: ConsistencyReport[];
+    /** 平行世界ラボのWhat-ifシナリオ履歴（新しい順） */
+    whatIfScenarios?: WhatIfScenario[];
+    /** 平行世界ラボのサンドボックス分岐で生成された場合の分岐情報 */
+    branchInfo?: {
+        /** 分岐元プロジェクトID */
+        parentProjectId: string;
+        /** 分岐点の章ID（自由記述分岐の場合は未設定） */
+        branchChapterId?: string;
+        /** 分岐の前提（もし◯◯だったら） */
+        premise: string;
+    };
 }
 
 /**

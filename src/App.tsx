@@ -21,6 +21,7 @@ import { GenerationStatusIndicator } from './components/common/GenerationStatusI
 import { PendingResultProvider } from './contexts/PendingResultContext';
 import { PendingResultModal } from './components/common/PendingResultModal';
 import { PreemptiveGenerationManager } from './components/preemptive/PreemptiveGenerationManager';
+import { RecapGate } from './components/RecapGate';
 import { ToastProvider, useToast } from './components/Toast';
 import { OfflineNotifier } from './components/OfflineNotifier';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -507,6 +508,7 @@ const AppContent: React.FC = () => {
         <ProjectProvider errorNotifier={errorNotifier}>
           <StepChangeAutoSave currentStep={currentStep} />
           <PreemptiveGenerationManager currentStep={currentStep} />
+          <RecapGate />
           <OfflineNotifier />
           <GenerationStatusIndicator />
           <PendingResultModal />

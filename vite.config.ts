@@ -92,7 +92,8 @@ export default defineConfig({
           vendor: ['react', 'react-dom'],
           ui: ['lucide-react'],
           ai: ['openai', '@google/generative-ai'],
-          storage: ['dexie']
+          storage: ['dexie'],
+          charts: ['recharts'] // 執筆ダッシュボード専用（遅延読み込みチャンク）
         },
         assetFileNames: 'assets/[name]-[hash][extname]',
         chunkFileNames: 'assets/[name]-[hash].js',

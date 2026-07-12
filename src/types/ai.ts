@@ -33,6 +33,10 @@ export interface AISettings {
   creativePointsEnabled?: boolean;
   /** 先回りバックグラウンド生成（Phase D）を有効にするか。未設定/false は無効（OFF）扱い＝オプトイン。 */
   preemptiveGenerationEnabled?: boolean;
+  /** リキャップ（前回までのあらすじ）の表示条件。'gap'=前回から48時間以上空いたら / 'always'=毎回 / 'off'=表示しない。未設定は 'gap' 扱い。 */
+  recapMode?: 'always' | 'gap' | 'off';
+  /** リキャップのAIナレーションを自動生成するか。未設定/false は手動ボタン（API課金のためオプトイン）。 */
+  recapAutoNarrative?: boolean;
 }
 
 export interface AIRequest {

@@ -8,6 +8,8 @@ export const DEFAULT_FEATURE_FLAGS = {
   WORLD_SETTINGS: true,
   FORESHADOWINGS: true,
   EMOTION_MAP: false,
+  CONSISTENCY_GUARD: true,
+  WHAT_IF_LAB: true,
 } as const;
 
 export type FeatureKey = keyof typeof DEFAULT_FEATURE_FLAGS;
@@ -20,6 +22,8 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   WORLD_SETTINGS: '世界観',
   FORESHADOWINGS: '伏線トラッカー',
   EMOTION_MAP: '感情マップ',
+  CONSISTENCY_GUARD: '整合性ガード',
+  WHAT_IF_LAB: '平行世界ラボ',
 };
 
 function loadFlags(): Record<FeatureKey, boolean> {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic, Library, FileUp } from 'lucide-react';
+import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic, Library, FileUp, GitBranch } from 'lucide-react';
 import { Step } from '../App';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject, useSaveStatus } from '../contexts/ProjectContext';
 import { startAutoBackup, stopAutoBackup } from '../services/autoBackupService';
 import { AutoBackupStatus } from './common/AutoBackupStatus';
 import { NewProjectModal } from './NewProjectModal';
@@ -36,6 +36,8 @@ interface ProjectCardProps {
   onDelete: (e: React.MouseEvent, projectId: string) => void;
   isLoading: boolean;
   parentTitle?: string;
+  /** 平行世界ラボの分岐元プロジェクトのタイトル（分岐サンドボックスの場合のみ） */
+  branchParentTitle?: string;
 }
 
 const ProjectCard = React.memo<ProjectCardProps>(({
@@ -46,7 +48,8 @@ const ProjectCard = React.memo<ProjectCardProps>(({
   onDuplicate,
   onDelete,
   isLoading,
-  parentTitle
+  parentTitle,
+  branchParentTitle
 }) => {
   return (
     <Card
@@ -76,6 +79,15 @@ const ProjectCard = React.memo<ProjectCardProps>(({
           <span className="inline-flex items-center gap-1 mb-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 text-xs rounded-full font-['Noto_Sans_JP']">
             <Library className="h-3 w-3" />
             「{parentTitle}」の続編
+          </span>
+        )}
+        {branchParentTitle && (
+          <span
+            className="inline-flex items-center gap-1 mb-1 px-2 py-0.5 bg-fuchsia-100 dark:bg-fuchsia-900 text-fuchsia-600 dark:text-fuchsia-300 text-xs rounded-full font-['Noto_Sans_JP']"
+            title={project.branchInfo?.premise ? `もしも: ${project.branchInfo.premise}` : undefined}
+          >
+            <GitBranch className="h-3 w-3" />
+            「{branchParentTitle}」の分岐
           </span>
         )}
         <h3 className="text-xl font-bold text-sumi-900 dark:text-usuzumi-50 line-clamp-2 font-['Noto_Sans_JP']">
@@ -313,7 +325,8 @@ const WELCOME_MESSAGES = [
 ];
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
-  const { projects, currentProject, setCurrentProject, deleteProject, duplicateProject, isLoading, calculateProjectProgress, loadAllProjects } = useProject();
+  const { projects, currentProject, setCurrentProject, deleteProject, duplicateProject, calculateProjectProgress, loadAllProjects } = useProject();
+  const { isLoading } = useSaveStatus();
   const [isLoadingSample, setIsLoadingSample] = useState(false);
   const { showError, showSuccess } = useToast();
   const welcomeMessage = useMemo(
@@ -834,6 +847,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToStep }) => {
                     onDelete={handleDeleteProject}
                     isLoading={false}
                     parentTitle={project.parentProjectId ? projectTitleById[project.parentProjectId] : undefined}
+                    branchParentTitle={project.branchInfo ? (projectTitleById[project.branchInfo.parentProjectId] ?? '元作品') : undefined}
                   />
                 );
               })}

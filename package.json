@@ -52,6 +52,11 @@
     "tauri:android:init": "tauri android init",
     "android:create-keystore": "node scripts/create-android-keystore.js"
   },
+  "overrides": {
+    "react-markdown-editor-lite": {
+      "nanoid": "^5.0.9"
+    }
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@tauri-apps/api": "^2.11.0",

@@ -466,6 +466,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         if (char.appearance) content += `外見: ${char.appearance}\n`;
         if (char.personality) content += `性格: ${char.personality}\n`;
         if (char.background) content += `背景: ${char.background}\n`;
+        if (char.speechStyle) content += `口調: ${char.speechStyle}\n`;
         content += '\n';
       });
     }
@@ -762,6 +763,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         if (char.appearance) content += `**外見**: ${char.appearance}\n\n`;
         if (char.personality) content += `**性格**: ${char.personality}\n\n`;
         if (char.background) content += `**背景**: ${char.background}\n\n`;
+        if (char.speechStyle) content += `**口調**: ${char.speechStyle}\n\n`;
       });
     }
 
@@ -1276,6 +1278,8 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
         <p><strong>性格:</strong> ${escapeHtml(char.personality)}</p>`;
         if (char.background) content += `
         <p><strong>背景:</strong> ${escapeHtml(char.background)}</p>`;
+        if (char.speechStyle) content += `
+        <p><strong>口調:</strong> ${escapeHtml(char.speechStyle)}</p>`;
         content += `
     </div>`;
       });

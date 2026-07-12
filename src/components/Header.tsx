@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Moon, Sun, Home, Save, PanelLeftClose, PanelLeftOpen, Database, Settings, TrendingUp, ChevronRight, Check, HelpCircle, Menu, GraduationCap, MoreVertical, Circle, Wrench } from 'lucide-react';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject, useSaveStatus } from '../contexts/ProjectContext';
 import { useAI } from '../contexts/AIContext';
 import { DataManager } from './DataManager';
-import { WritingDashboardModal } from './WritingDashboardModal';
 import { AISettings } from './AISettings';
 import { useToast } from './Toast';
 import { getUserFriendlyError } from '../utils/errorHandler';
@@ -12,6 +11,12 @@ import { ContextHelp } from './ContextHelp';
 import { Step } from '../App';
 import { SearchBar } from './SearchBar';
 import { useBreakpoint } from '../hooks/useMediaQuery';
+
+// 執筆ダッシュボードは recharts（重量ライブラリ）を含むため遅延読み込みし、
+// メインチャンクへの混入を防ぐ（LazyComponents.tsx と同じパターン）
+const WritingDashboardModal = React.lazy(() =>
+  import('./WritingDashboardModal').then(m => ({ default: m.WritingDashboardModal }))
+);
 
 interface HeaderProps {
   isDarkMode: boolean;
@@ -43,7 +48,8 @@ export const Header: React.FC<HeaderProps> = ({
   onShowOnboarding,
 }) => {
   const breakpoint = useBreakpoint();
-  const { currentProject, saveProject, isLoading, lastSaved, calculateProjectProgress } = useProject();
+  const { currentProject, saveProject, calculateProjectProgress } = useProject();
+  const { isLoading, lastSaved } = useSaveStatus();
   const { isConfigured } = useAI();
   const { showError, showSuccess } = useToast();
   const [showDataManager, setShowDataManager] = useState(false);
@@ -484,11 +490,15 @@ export const Header: React.FC<HeaderProps> = ({
         onClose={() => setShowDataManager(false)}
       />
 
-      {/* 執筆ダッシュボード */}
-      <WritingDashboardModal
-        isOpen={showDashboard}
-        onClose={() => setShowDashboard(false)}
-      />
+      {/* 執筆ダッシュボード（開いた時のみチャンクを読み込む） */}
+      {showDashboard && (
+        <React.Suspense fallback={null}>
+          <WritingDashboardModal
+            isOpen={showDashboard}
+            onClose={() => setShowDashboard(false)}
+          />
+        </React.Suspense>
+      )}
 
       <AISettings
         isOpen={showAISettings}

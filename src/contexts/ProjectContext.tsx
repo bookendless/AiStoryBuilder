@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, ReactNode, useMemo, useCallback } from 'react';
 import { databaseService } from '../services/databaseService';
 import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
 import {
   startAutoRecovery,
   stopAutoRecovery,
   setupBeforeUnloadHandler,
-  saveRecoveryData,
 } from '../services/crashRecoveryService';
 import { getUserFriendlyError } from '../utils/errorHandler';
 
@@ -60,6 +59,8 @@ interface ProjectContextType {
   createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
   createSequelProject: (parent: Project, overrides: Partial<Project>) => Project;
   createImportedProject: (title: string, overrides: Partial<Project>) => Project;
+  /** 平行世界ラボ: 分岐点までを複製したサンドボックスプロジェクトを生成する（本編は変更しない） */
+  createBranchProject: (source: Project, options: { title: string; premise: string; branchChapterId?: string }) => Project;
   saveProject: () => Promise<void>;
   createManualBackup: (description?: string) => Promise<void>;
   loadProject: (id: string) => Promise<void>;
@@ -69,16 +70,33 @@ interface ProjectContextType {
   deleteChapter: (chapterId: string) => void;
   calculateProjectProgress: (project: Project | null) => ProjectProgress;
   getStepCompletion: (project: Project | null, step: string) => boolean;
+  /** setCurrentProjectがlastAccessedを上書きする前の最終アクセス日時を返す（リキャップの経過時間判定用） */
+  getPreviousAccess: (projectId: string) => Date | undefined;
+}
+
+// 保存ステータス（isLoading/lastSaved）は自動保存のたびに変化するため、
+// メインContextから分離して全消費者の再レンダリングを防ぐ
+interface SaveStatusContextType {
   isLoading: boolean;
   lastSaved: Date | null;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
+const SaveStatusContext = createContext<SaveStatusContextType | undefined>(undefined);
 
 export const useProject = () => {
   const context = useContext(ProjectContext);
   if (!context) {
     throw new Error('useProject must be used within a ProjectProvider');
+  }
+  return context;
+};
+
+/** 保存インジケータ等、保存ステータスのみ必要なコンポーネント用フック */
+export const useSaveStatus = () => {
+  const context = useContext(SaveStatusContext);
+  if (!context) {
+    throw new Error('useSaveStatus must be used within a ProjectProvider');
   }
   return context;
 };
@@ -90,32 +108,59 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const { setTimer } = useTimer();
 
+  // lastAccessed上書き前の値をプロジェクトIDごとに保持（リキャップの経過時間判定用）
+  const previousAccessRef = useRef<Record<string, Date | undefined>>({});
+
+  // コールバック関数内から最新のcurrentProjectを参照するためのref
+  // （setCurrentProject内でも同期更新し、同一tick内の連続呼び出しでも鮮度を保つ）
+  const currentProjectRef = useRef<Project | null>(currentProject);
+  React.useEffect(() => {
+    currentProjectRef.current = currentProject;
+  }, [currentProject]);
+
   // setCurrentProjectをラップしてlastAccessedを更新（メモ化）
+  // DBへの即時保存はプロジェクト切替時のみ行う。同一プロジェクトの内容更新は
+  // updateProjectのデバウンス保存が担当するため、ここで保存すると二重書込みになる
   const setCurrentProject = useCallback((project: Project | null) => {
     if (project) {
-      const now = new Date();
-      const updatedProject = {
-        ...project,
-        lastAccessed: now,
-      };
-      setCurrentProjectState(updatedProject);
-      // プロジェクト一覧も更新
-      setProjects(prev => prev.map(p =>
-        p.id === updatedProject.id ? updatedProject : p
-      ));
-      // データベースにも保存（非同期だがエラーは無視）
-      databaseService.saveProject(updatedProject).catch(err => {
-        console.error('lastAccessed更新エラー:', err);
-        // エラー通知（オプショナル）
-        if (errorNotifier) {
-          const errorInfo = getUserFriendlyError(err);
-          errorNotifier.notifyError(err, '最終アクセス時刻の更新', {
-            title: errorInfo.title,
-            duration: 5000,
-          });
-        }
-      });
+      const isProjectSwitch = currentProjectRef.current?.id !== project.id;
+      if (isProjectSwitch) {
+        // 上書き前の最終アクセス日時を退避（IndexedDB経由で文字列化されている可能性に備えDate化）
+        previousAccessRef.current[project.id] = project.lastAccessed
+          ? new Date(project.lastAccessed)
+          : undefined;
+        const updatedProject = {
+          ...project,
+          lastAccessed: new Date(),
+        };
+        currentProjectRef.current = updatedProject;
+        setCurrentProjectState(updatedProject);
+        // プロジェクト一覧も更新
+        setProjects(prev => prev.map(p =>
+          p.id === updatedProject.id ? updatedProject : p
+        ));
+        // 切替時はlastAccessedをDBにも保存（非同期だがエラーは無視）
+        databaseService.saveProject(updatedProject).catch(err => {
+          console.error('lastAccessed更新エラー:', err);
+          // エラー通知（オプショナル）
+          if (errorNotifier) {
+            const errorInfo = getUserFriendlyError(err);
+            errorNotifier.notifyError(err, '最終アクセス時刻の更新', {
+              title: errorInfo.title,
+              duration: 5000,
+            });
+          }
+        });
+      } else {
+        currentProjectRef.current = project;
+        setCurrentProjectState(project);
+        // プロジェクト一覧も更新
+        setProjects(prev => prev.map(p =>
+          p.id === project.id ? project : p
+        ));
+      }
     } else {
+      currentProjectRef.current = null;
       setCurrentProjectState(null);
     }
   }, [errorNotifier]);
@@ -145,12 +190,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
   }, [errorNotifier]);
 
   // 現在のプロジェクトが変更されたら自動保存を開始
-  // useRefを使用して、コールバック関数内から最新のcurrentProjectを参照する
-  const currentProjectRef = React.useRef<Project | null>(currentProject);
-  React.useEffect(() => {
-    currentProjectRef.current = currentProject;
-  }, [currentProject]);
-
   useSafeEffect(() => {
     if (currentProject) {
       const initAutoSave = async () => {
@@ -233,8 +272,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
       updatedAt: new Date(),
     };
 
+    // setCurrentProject内でprojects一覧も更新される
     setCurrentProject(updatedProject);
-    setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
 
     if (immediate) {
       // 即座に保存（手動保存時など）
@@ -262,11 +301,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
       setTimer(async () => {
         setIsLoading(true);
         try {
-          // 最新のプロジェクト状態を取得
-          const latestProject = updatedProject;
-          await databaseService.saveProject(latestProject);
+          // state一覧はsetCurrentProject側で更新済みのためDB保存のみ行う
+          await databaseService.saveProject(updatedProject);
           setLastSaved(new Date());
-          setProjects(prev => prev.map(p => p.id === latestProject.id ? latestProject : p));
           setIsLoading(false);
         } catch (error) {
           console.error('プロジェクト保存エラー:', error);
@@ -285,12 +322,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     }
   }, [currentProject, setTimer, setCurrentProject, setLastSaved, errorNotifier]);
 
-  // プロジェクト更新時にクラッシュリカバリーデータも保存（モバイル安定化）
-  React.useEffect(() => {
-    if (currentProject) {
-      saveRecoveryData(currentProject);
-    }
-  }, [currentProject]);
+  // クラッシュリカバリーデータの保存は startAutoRecovery の定期タイマーと
+  // beforeunload ハンドラに一本化（毎更新の全量シリアライズはメインスレッドを塞ぐため廃止）
 
   const createNewProject = useCallback((title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string): Project => {
     // デバッグ: あらすじの値を確認
@@ -499,6 +532,64 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     return imported;
   }, [setCurrentProject]);
 
+  // 平行世界ラボから呼び出し: 分岐点までを複製したサンドボックスプロジェクトを生成する。
+  // 本編（source）は一切変更しない一方向コピー。分岐章より後の章は含めない
+  // （自由記述分岐は全章を含める）。共有参照による本編破壊を防ぐため structuredClone で深い複製を行う。
+  const createBranchProject = useCallback((
+    source: Project,
+    options: { title: string; premise: string; branchChapterId?: string }
+  ): Project => {
+    const now = new Date();
+    const branchIndex = options.branchChapterId
+      ? source.chapters.findIndex(c => c.id === options.branchChapterId)
+      : -1;
+    const chapters = branchIndex >= 0 ? source.chapters.slice(0, branchIndex + 1) : source.chapters;
+
+    const branch: Project = {
+      id: Date.now().toString(),
+      title: options.title,
+      description: `『${source.title}』の平行世界: ${options.premise}`,
+      genre: source.genre,
+      mainGenre: source.mainGenre,
+      subGenre: source.subGenre,
+      coverImage: source.coverImage,
+      targetReader: source.targetReader,
+      projectTheme: source.projectTheme,
+      customMainGenre: source.customMainGenre ?? '',
+      customSubGenre: source.customSubGenre ?? '',
+      customTargetReader: source.customTargetReader ?? '',
+      customTheme: source.customTheme ?? '',
+      theme: source.theme ?? '',
+      imageBoard: [],
+      progress: { ...source.progress },
+      characters: structuredClone(source.characters ?? []),
+      plot: structuredClone(source.plot),
+      synopsis: source.synopsis ?? '',
+      chapters: structuredClone(chapters),
+      draft: '', // 分岐点より後の内容が混入しないよう全体草案は引き継がない（章ごとの草案は複製済み）
+      createdAt: now,
+      updatedAt: now,
+      lastAccessed: now,
+      glossary: structuredClone(source.glossary ?? []),
+      relationships: structuredClone(source.relationships ?? []),
+      timeline: structuredClone(source.timeline ?? []),
+      worldSettings: structuredClone(source.worldSettings ?? []),
+      foreshadowings: structuredClone(source.foreshadowings ?? []),
+      writingStyle: source.writingStyle ? structuredClone(source.writingStyle) : undefined,
+      styleSample: source.styleSample,
+      branchInfo: {
+        parentProjectId: source.id,
+        branchChapterId: options.branchChapterId,
+        premise: options.premise,
+      },
+    };
+
+    setProjects(prev => [...prev, branch]);
+    setCurrentProject(branch); // setCurrentProject 内でDBにも保存される
+
+    return branch;
+  }, [setCurrentProject]);
+
   const saveProject = useCallback(async (): Promise<void> => {
     if (!currentProject) return;
 
@@ -576,13 +667,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
             updatedAt: ws.updatedAt instanceof Date ? ws.updatedAt : new Date(ws.updatedAt)
           })) || []
         };
+        // setCurrentProject内でprojects一覧の更新とlastAccessedのDB保存が行われる（プロジェクト切替時）
         setCurrentProject(normalizedProject);
-        // プロジェクト一覧のlastAccessedも更新
-        setProjects(prev => prev.map(p =>
-          p.id === normalizedProject.id ? normalizedProject : p
-        ));
-        // データベースにも保存
-        await databaseService.saveProject(normalizedProject);
         setIsLoading(false); // 成功時にもローディング状態を解除
       } else {
         setIsLoading(false);
@@ -795,6 +881,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     };
   }, [getStepCompletion]);
 
+  // lastAccessed上書き前の最終アクセス日時を返す（リキャップの経過時間判定用）
+  const getPreviousAccess = useCallback(
+    (projectId: string): Date | undefined => previousAccessRef.current[projectId],
+    []
+  );
+
   // コンテキストの値をメモ化（不要な再レンダリングを防止）
   // setProjectsはReactのstate setterなので既に安定した参照を持っている
   const contextValue = useMemo(() => ({
@@ -806,6 +898,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     createNewProject,
     createSequelProject,
     createImportedProject,
+    createBranchProject,
     saveProject,
     createManualBackup,
     loadProject,
@@ -815,8 +908,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     deleteChapter,
     calculateProjectProgress,
     getStepCompletion,
-    isLoading,
-    lastSaved,
+    getPreviousAccess,
   }), [
     currentProject,
     projects,
@@ -825,6 +917,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     createNewProject,
     createSequelProject,
     createImportedProject,
+    createBranchProject,
     saveProject,
     createManualBackup,
     loadProject,
@@ -834,13 +927,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     deleteChapter,
     calculateProjectProgress,
     getStepCompletion,
-    isLoading,
-    lastSaved,
+    getPreviousAccess,
   ]);
 
+  // 保存ステータスは別Contextで配信（自動保存毎の全消費者再レンダリングを防止）
+  const saveStatusValue = useMemo(() => ({
+    isLoading,
+    lastSaved,
+  }), [isLoading, lastSaved]);
+
   return (
-    <ProjectContext.Provider value={contextValue}>
-      {children}
-    </ProjectContext.Provider>
+    <SaveStatusContext.Provider value={saveStatusValue}>
+      <ProjectContext.Provider value={contextValue}>
+        {children}
+      </ProjectContext.Provider>
+    </SaveStatusContext.Provider>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Key, Server, Zap, Lightbulb } from 'lucide-react';
+import { Settings, Key, Server, Zap, Lightbulb, BookOpen } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
 import { AI_PROVIDERS, AVAILABLE_PROVIDERS } from '../services/providers';
 import { useToast } from './Toast';
@@ -765,6 +765,53 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             </span>
           </span>
         </label>
+
+        {/* リキャップ（前回までのあらすじ） */}
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200 font-['Noto_Sans_JP']">
+            <BookOpen className="h-4 w-4 text-indigo-500" />
+            「前回までのあらすじ」リキャップ
+          </span>
+          <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+            プロジェクトを開いた時、執筆の中断地点や未回収の伏線とともに「前回までのあらすじ」を表示して、執筆再開を後押しします。
+          </p>
+          <div className="flex flex-wrap gap-4 text-sm font-['Noto_Sans_JP']">
+            {([
+              { value: 'gap', label: '2日以上空いたら表示' },
+              { value: 'always', label: '毎回表示' },
+              { value: 'off', label: '表示しない' },
+            ] as const).map(option => (
+              <label key={option.value} className="flex items-center gap-1.5 cursor-pointer text-gray-700 dark:text-gray-300">
+                <input
+                  type="radio"
+                  name="recapMode"
+                  value={option.value}
+                  checked={(formData.recapMode ?? 'gap') === option.value}
+                  onChange={() => setFormData({ ...formData, recapMode: option.value })}
+                  className="h-4 w-4 border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.recapAutoNarrative === true}
+              disabled={(formData.recapMode ?? 'gap') === 'off'}
+              onChange={(e) => setFormData({ ...formData, recapAutoNarrative: e.target.checked })}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+            />
+            <span className="font-['Noto_Sans_JP']">
+              <span className="block text-sm text-gray-800 dark:text-gray-200">
+                あらすじナレーションを自動生成する
+              </span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                オフの場合はリキャップ内のボタンから手動で生成します。<span className="text-amber-600 dark:text-amber-400">※自動でAPI課金が発生します（内容が変わった時のみ）。</span>
+              </span>
+            </span>
+          </label>
+        </div>
 
         {/* Connection Test */}
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">

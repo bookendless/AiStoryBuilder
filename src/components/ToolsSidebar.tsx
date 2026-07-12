@@ -14,6 +14,8 @@ import {
   Wrench,
   HelpCircle,
   Settings,
+  ShieldCheck,
+  FlaskConical,
 } from 'lucide-react';
 import { getAllFeatureFlags, setFeatureEnabled, FEATURE_LABELS, FeatureKey } from '../constants/features';
 import { useProject } from '../contexts/ProjectContext';
@@ -26,6 +28,8 @@ import { ChatAssistant } from './tools/ChatAssistant';
 import { WorldSettingsManager } from './tools/WorldSettingsManager';
 import { ForeshadowingTracker } from './tools/ForeshadowingTracker';
 import { EmotionMapVisualizer } from './tools/EmotionMapVisualizer';
+import { ConsistencyGuardPanel } from './tools/ConsistencyGuardPanel';
+import { WhatIfLabPanel } from './tools/WhatIfLabPanel';
 import { CharacterAssistantPanel } from './tools/CharacterAssistantPanel';
 import { SynopsisAssistantPanel } from './tools/SynopsisAssistantPanel';
 import { PlotStep1AssistantPanel } from './tools/PlotStep1AssistantPanel';
@@ -113,6 +117,8 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
   const [showWorldSettings, setShowWorldSettings] = useState(false);
   const [showForeshadowings, setShowForeshadowings] = useState(false);
   const [showEmotionMap, setShowEmotionMap] = useState(false);
+  const [showConsistencyGuard, setShowConsistencyGuard] = useState(false);
+  const [showWhatIfLab, setShowWhatIfLab] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showFeatureSettings, setShowFeatureSettings] = useState(false);
   const [featureFlags, setFeatureFlags] = useState(getAllFeatureFlags);
@@ -125,6 +131,8 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
     worldSettings: 'WORLD_SETTINGS',
     foreshadowings: 'FORESHADOWINGS',
     emotionMap: 'EMOTION_MAP',
+    consistencyGuard: 'CONSISTENCY_GUARD',
+    whatIfLab: 'WHAT_IF_LAB',
   };
 
   // メモ状態
@@ -238,6 +246,22 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       icon: TrendingUp,
       onClick: () => setShowEmotionMap(true),
       color: 'text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20',
+      available: !!currentProject,
+    },
+    {
+      id: 'consistencyGuard',
+      label: '整合性ガード',
+      icon: ShieldCheck,
+      onClick: () => setShowConsistencyGuard(true),
+      color: 'text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20',
+      available: !!currentProject,
+    },
+    {
+      id: 'whatIfLab',
+      label: '平行世界ラボ',
+      icon: FlaskConical,
+      onClick: () => setShowWhatIfLab(true),
+      color: 'text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20',
       available: !!currentProject,
     },
   ];
@@ -530,6 +554,16 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       <EmotionMapVisualizer
         isOpen={showEmotionMap}
         onClose={() => setShowEmotionMap(false)}
+      />
+
+      <ConsistencyGuardPanel
+        isOpen={showConsistencyGuard}
+        onClose={() => setShowConsistencyGuard(false)}
+      />
+
+      <WhatIfLabPanel
+        isOpen={showWhatIfLab}
+        onClose={() => setShowWhatIfLab(false)}
       />
 
       <ChatAssistant
