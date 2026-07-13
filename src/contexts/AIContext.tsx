@@ -30,11 +30,11 @@ const getDefaultSettings = (): AISettings => {
 
   // 利用可能なAPIキーに基づいてデフォルトプロバイダーを決定
   let defaultProvider = 'openai';
-  let defaultModel = 'gpt-4.1-mini';
+  let defaultModel = 'gpt-5.4-mini';
 
   if (openaiKey) {
     defaultProvider = 'openai';
-    defaultModel = 'gpt-4.1-mini';
+    defaultModel = 'gpt-5.4-mini';
   } else if (claudeKey) {
     defaultProvider = 'claude';
     defaultModel = 'claude-haiku-4-5-20251001';

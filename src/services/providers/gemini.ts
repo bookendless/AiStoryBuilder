@@ -1,15 +1,15 @@
 import { AIProvider } from '../../types/ai';
 
-// Geminiモデル定義
+// Geminiモデル定義（2026年7月13日時点の公式情報を反映）
 const GEMINI_MODELS = [
-  // --- Gemini 3.5 Series (Latest) ---
+  // --- Gemini 3.5 Series (Latest, GA) ---
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
-    description: '2026年5月登場の最新モデル。高速・高性能なマルチモーダル処理。1Mトークンコンテキスト対応。',
+    description: '2026年5月登場、現在GA。エージェント・コーディングでフロンティア級性能を持続する最上位Flash。1Mトークンコンテキスト、最大65k出力。',
     maxTokens: 1048576,
-    capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', 'コード実行'],
-    recommendedUse: '高速マルチモーダル処理、リアルタイム応答、コスト効率の高いタスク',
+    capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
+    recommendedUse: '高速マルチモーダル処理、エージェントワークフロー、コスト効率の高いタスク',
     latencyClass: 'fast' as const,
   },
 
@@ -17,7 +17,7 @@ const GEMINI_MODELS = [
   {
     id: 'gemini-3.1-pro-preview',
     name: 'Gemini 3.1 Pro (Preview)',
-    description: '2026年2月登場の最新プレビュー版。高度な推論・コーディング・長大マルチモーダル処理に対応',
+    description: '2026年2月登場のプレビュー版Pro。高度な推論・コーディング・長大マルチモーダル処理に対応（3.5 Proは未提供）',
     maxTokens: 1048576,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: 'エージェントワークフロー、複雑なプログラミングタスク、高度なデータ分析',

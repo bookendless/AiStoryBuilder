@@ -1,12 +1,41 @@
 import { AIProvider } from '../../types/ai';
 
-// OpenAIモデル定義
+// OpenAIモデル定義（2026年7月13日時点の公式情報を反映）
 const OPENAI_MODELS = [
-  // --- GPT-5.4 Series (Current Generation) ---
+  // --- GPT-5.6 Series (Current Generation, 2026-07-09 GA) ---
+  {
+    id: 'gpt-5.6-sol',
+    name: 'GPT-5.6 Sol',
+    description: '2026年7月9日GAの最新フラッグシップ。GPT-5.6ファミリー最上位。1.05Mトークンコンテキスト、最大128k出力。',
+    maxTokens: 1050000,
+    capabilities: ['テキスト', 'ビジョン', 'コード', 'エージェント', '高度推論'],
+    recommendedUse: '最も複雑な実装・分析・エージェントタスク',
+    latencyClass: 'standard' as const,
+  },
+  {
+    id: 'gpt-5.6-terra',
+    name: 'GPT-5.6 Terra',
+    description: '2026年7月9日GA。性能とコストのバランスに優れた中位モデル。1.05Mトークンコンテキスト、最大128k出力。',
+    maxTokens: 1050000,
+    capabilities: ['テキスト', 'ビジョン', 'コード', 'エージェント', '高度推論'],
+    recommendedUse: '日常的な執筆・分析の主力、エージェントタスク',
+    latencyClass: 'standard' as const,
+  },
+  {
+    id: 'gpt-5.6-luna',
+    name: 'GPT-5.6 Luna',
+    description: '2026年7月9日GA。GPT-5.6ファミリーの低コスト版。1.05Mトークンコンテキスト、最大128k出力。',
+    maxTokens: 1050000,
+    capabilities: ['テキスト', 'ビジョン', 'コード', '高度推論'],
+    recommendedUse: '高速な文章生成、コスト効率重視のタスク',
+    latencyClass: 'fast' as const,
+  },
+
+  // --- GPT-5.5 / 5.4 Series (Previous Generation) ---
   {
     id: 'gpt-5.5',
     name: 'GPT-5.5',
-    description: '2026年4月下旬登場の最新フラッグシップ。1.05Mトークンコンテキスト。最も複雑な専門業務に対応する最新の最先端モデル。',
+    description: '2026年4月下旬登場の旧フラッグシップ（gpt-5.6-solへの移行を推奨）。1.05Mトークンコンテキスト。',
     maxTokens: 1050000,
     capabilities: ['テキスト', 'ビジョン', 'コード', 'エージェント', '高度推論'],
     recommendedUse: '複雑な実装、リファクタリング、分析、エージェントタスク',
@@ -15,7 +44,7 @@ const OPENAI_MODELS = [
   {
     id: 'gpt-5.4',
     name: 'GPT-5.4',
-    description: '2026年3月登場。1.05Mトークンコンテキスト。複雑な分析・エージェントに最適。',
+    description: '2026年3月登場。1.05Mトークンコンテキスト。複雑な分析・エージェントに最適（最新はgpt-5.6系）。',
     maxTokens: 1050000,
     capabilities: ['テキスト', 'ビジョン', 'コード', 'エージェント', '高度推論'],
     recommendedUse: '複雑な実装、リファクタリング、分析、エージェントタスク',
@@ -104,7 +133,7 @@ export const openaiProvider: AIProvider = {
   id: 'openai',
   name: 'OpenAI GPT',
   requiresApiKey: true,
-  description: 'OpenAI Responses / Chat Completions API。gpt-5.4系・o3系・o4-miniの最新モデルを利用できます。',
+  description: 'OpenAI Responses / Chat Completions API。gpt-5.6系（Sol/Terra/Luna）・gpt-5.4系・o3系・o4-miniを利用できます。',
   apiDocsUrl: 'https://platform.openai.com/docs/api-reference/responses',
   recommendedUses: [
     '高品質な文章生成と草案執筆',

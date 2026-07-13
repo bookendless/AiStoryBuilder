@@ -18,20 +18,26 @@ export type AIProvider = 'openai' | 'claude' | 'gemini' | 'grok' | 'local';
 /**
  * モデルIDのパターン（前方一致・部分一致）と概算単価の対応。
  * 上から順に最初にマッチしたものを採用するため、より限定的なパターンを先に置く。
- * 単価は目安（2026年時点の想定値）。
+ * 単価は目安（2026年7月時点の想定値）。
  */
 const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean; price: ModelPrice }>> = {
   openai: [
     { match: m => m.includes('nano'), price: { input: 0.05, output: 0.4 } },
     { match: m => m.includes('mini'), price: { input: 0.25, output: 2 } },
+    { match: m => m.includes('gpt-5.6-sol'), price: { input: 5, output: 30 } },
+    { match: m => m.includes('gpt-5.6-terra'), price: { input: 2.5, output: 15 } },
+    { match: m => m.includes('gpt-5.6-luna'), price: { input: 1, output: 6 } },
+    { match: m => m.includes('gpt-5.5'), price: { input: 5, output: 30 } },
+    { match: m => m.includes('gpt-5.4'), price: { input: 2.5, output: 15 } },
     { match: m => m.startsWith('gpt-5'), price: { input: 1.25, output: 10 } },
     { match: m => m.startsWith('o3') || m.startsWith('o4'), price: { input: 2, output: 8 } },
     { match: m => m.includes('gpt-4o'), price: { input: 2.5, output: 10 } },
   ],
   claude: [
-    { match: m => m.includes('haiku'), price: { input: 0.8, output: 4 } },
+    { match: m => m.includes('fable') || m.includes('mythos'), price: { input: 10, output: 50 } },
+    { match: m => m.includes('haiku'), price: { input: 1, output: 5 } },
     { match: m => m.includes('sonnet'), price: { input: 3, output: 15 } },
-    { match: m => m.includes('opus'), price: { input: 15, output: 75 } },
+    { match: m => m.includes('opus'), price: { input: 5, output: 25 } },
   ],
   gemini: [
     { match: m => m.includes('flash-lite'), price: { input: 0.1, output: 0.4 } },
@@ -39,7 +45,8 @@ const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean;
     { match: m => m.includes('pro'), price: { input: 1.25, output: 10 } },
   ],
   grok: [
-    { match: () => true, price: { input: 3, output: 15 } },
+    { match: m => m.includes('grok-4.5'), price: { input: 2, output: 6 } },
+    { match: () => true, price: { input: 1.25, output: 2.5 } },
   ],
   local: [
     { match: () => true, price: { input: 0, output: 0 } },
@@ -51,7 +58,7 @@ const DEFAULT_PRICE: Record<AIProvider, ModelPrice> = {
   openai: { input: 1, output: 8 },
   claude: { input: 3, output: 15 },
   gemini: { input: 0.3, output: 2.5 },
-  grok: { input: 3, output: 15 },
+  grok: { input: 1.25, output: 2.5 },
   local: { input: 0, output: 0 },
 };
 

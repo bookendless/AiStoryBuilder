@@ -3,10 +3,13 @@ import { getModelPrice, estimateCost, formatUsd } from '../../utils/aiPricingUti
 
 describe('getModelPrice', () => {
   it('Claude Opusは高単価', () => {
-    expect(getModelPrice('claude', 'claude-opus-4-8')).toEqual({ input: 15, output: 75 });
+    expect(getModelPrice('claude', 'claude-opus-4-8')).toEqual({ input: 5, output: 25 });
+  });
+  it('Claude Fable 5はOpusより高単価', () => {
+    expect(getModelPrice('claude', 'claude-fable-5')).toEqual({ input: 10, output: 50 });
   });
   it('Claude Haikuは低単価', () => {
-    expect(getModelPrice('claude', 'claude-haiku-4-5-20251001')).toEqual({ input: 0.8, output: 4 });
+    expect(getModelPrice('claude', 'claude-haiku-4-5-20251001')).toEqual({ input: 1, output: 5 });
   });
   it('OpenAI nanoはminiより先にマッチする', () => {
     expect(getModelPrice('openai', 'gpt-5.4-nano')).toEqual({ input: 0.05, output: 0.4 });
@@ -21,7 +24,7 @@ describe('getModelPrice', () => {
     expect(getModelPrice('local', 'local-model')).toEqual({ input: 0, output: 0 });
   });
   it('モデルIDの大文字表記も同じ単価にマッチする', () => {
-    expect(getModelPrice('claude', 'Claude-3-OPUS')).toEqual({ input: 15, output: 75 });
+    expect(getModelPrice('claude', 'Claude-3-OPUS')).toEqual({ input: 5, output: 25 });
   });
   it('未知プロバイダーはOpenAI既定単価にフォールバックする', () => {
     expect(getModelPrice('unknown', 'whatever')).toEqual({ input: 1, output: 8 });
@@ -30,9 +33,9 @@ describe('getModelPrice', () => {
 
 describe('estimateCost', () => {
   it('入出力トークンから概算コストを計算する', () => {
-    // opus: input 15/1M, output 75/1M
-    // 1M input + 1M output = 15 + 75 = 90
-    expect(estimateCost('claude', 'claude-opus-4-8', 1_000_000, 1_000_000)).toBeCloseTo(90);
+    // opus: input 5/1M, output 25/1M
+    // 1M input + 1M output = 5 + 25 = 30
+    expect(estimateCost('claude', 'claude-opus-4-8', 1_000_000, 1_000_000)).toBeCloseTo(30);
   });
   it('ローカルは常に0', () => {
     expect(estimateCost('local', 'local-model', 1_000_000, 1_000_000)).toBe(0);

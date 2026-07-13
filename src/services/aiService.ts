@@ -10,14 +10,14 @@ import { getUserFriendlyError } from '../utils/errorHandler';
 
 /**
  * モデルが temperature パラメータをサポートするか判定する。
- * Claude の opus 4.7 / 4.8 など一部の新しいモデルは temperature が非対応で、
- * 指定すると「`temperature` is deprecated for this model」エラーになるため、
+ * Claude の opus 4.7 / 4.8、sonnet 5、fable 5 など一部の新しいモデルは
+ * temperature が非対応（指定すると 400 エラー）のため、
  * これらにはリクエストボディから temperature を省略する。
  */
 const modelSupportsTemperature = (model: string): boolean => {
   if (!model) return true;
-  // opus 4.7 / 4.8 / 4.9 系は temperature 非対応
-  return !/opus-4-[789]/.test(model);
+  // opus 4.7 / 4.8 / 4.9 系、sonnet-5 / fable-5 / mythos-5 系は temperature 非対応
+  return !/opus-4-[789]|sonnet-5|fable-5|mythos-5/.test(model);
 };
 
 // プロンプトテンプレートを外部ファイルからインポート
@@ -29,8 +29,8 @@ class AIService {
   private isNewModel(model: string): boolean {
     // GPT-5系モデル
     if (model.startsWith('gpt-5')) return true;
-    // OpenAIのo1/o3系モデル（例: o1-preview, o3-mini）
-    if (model.startsWith('o1-') || model.startsWith('o3-')) return true;
+    // OpenAIのo1/o3/o4系モデル（例: o1-preview, o3-mini, o4-mini）
+    if (model.startsWith('o1-') || model.startsWith('o3') || model.startsWith('o4')) return true;
     return false;
   }
 
