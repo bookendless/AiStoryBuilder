@@ -71,7 +71,7 @@ function setupEnvironment() {
     // 基本的な環境設定を作成
     const basicEnv = `# AI Story Builder 環境設定
 VITE_APP_NAME=AI Story Builder
-VITE_APP_VERSION=2.2.1
+VITE_APP_VERSION=2.2.2
 VITE_DEBUG_MODE=true
 VITE_LOCAL_LLM_ENDPOINT=http://localhost:1234/v1/chat/completions
 `;

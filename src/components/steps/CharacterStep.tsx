@@ -16,6 +16,7 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { StepNavigation } from '../common/StepNavigation';
 import { Step } from '../../App';
 import { ReorderModal } from './character/ReorderModal';
+import { EnhanceReviewModal, EnhanceProposal, EnhanceField } from './character/EnhanceReviewModal';
 
 interface CharacterStepProps {
   onNavigateToStep?: (step: Step) => void;
@@ -55,6 +56,11 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
     imageUrl: '',
     characterName: ''
   });
+  const [reviewState, setReviewState] = useState<{
+    characterId: string;
+    characterName: string;
+    proposals: EnhanceProposal[];
+  } | null>(null);
 
   // モーダルを開く（新規追加）
   const handleOpenAddModal = () => {
@@ -325,43 +331,60 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
         return;
       }
 
-      // AIの回答を解析して既存のキャラクター情報を更新
-      const updatedCharacters = currentProject!.characters.map(c => {
-        if (c.id === character.id) {
-          const content = response.content;
-          let updatedAppearance = c.appearance;
-          let updatedPersonality = c.personality;
-          let updatedBackground = c.background;
+      // AIの回答を解析して項目ごとの提案を作成（採用はレビューモーダルでユーザーが選択）
+      const content = response.content;
+      const sections: Array<{ field: EnhanceField; label: string; pattern: RegExp; currentValue: string }> = [
+        {
+          field: 'appearance',
+          label: '外見',
+          pattern: /【外見の詳細】\s*([\s\S]*?)(?=【性格の詳細】|$)/,
+          currentValue: character.appearance,
+        },
+        {
+          field: 'personality',
+          label: '性格',
+          pattern: /【性格の詳細】\s*([\s\S]*?)(?=【背景の補完】|$)/,
+          currentValue: character.personality,
+        },
+        {
+          field: 'background',
+          label: '背景',
+          pattern: /【背景の補完】\s*([\s\S]*?)(?=【|$)/,
+          currentValue: character.background,
+        },
+        {
+          field: 'speechStyle',
+          label: '口調・話し方',
+          pattern: /【口調・話し方】\s*([\s\S]*?)(?=【|$)/,
+          currentValue: character.speechStyle ?? '',
+        },
+      ];
 
-          // 【外見の詳細】セクションを抽出
-          const appearanceMatch = content.match(/【外見の詳細】\s*([\s\S]*?)(?=【性格の詳細】|$)/);
-          if (appearanceMatch) {
-            updatedAppearance = appearanceMatch[1].trim();
-          }
-
-          // 【性格の詳細】セクションを抽出（簡潔な形式に対応）
-          const personalityMatch = content.match(/【性格の詳細】\s*([\s\S]*?)(?=【背景の補完】|$)/);
-          if (personalityMatch) {
-            updatedPersonality = personalityMatch[1].trim();
-          }
-
-          // 【背景の補完】セクションを抽出（簡潔な形式に対応）
-          const backgroundMatch = content.match(/【背景の補完】\s*([\s\S]*?)(?=【|$)/);
-          if (backgroundMatch) {
-            updatedBackground = backgroundMatch[1].trim();
-          }
-
-          return {
-            ...c,
-            appearance: updatedAppearance,
-            personality: updatedPersonality,
-            background: updatedBackground,
-          };
+      const proposals: EnhanceProposal[] = [];
+      for (const section of sections) {
+        const match = content.match(section.pattern);
+        const proposedValue = match?.[1].trim() ?? '';
+        // 抽出できなかった項目・現在値と同一の項目は提示不要
+        if (proposedValue && proposedValue !== section.currentValue) {
+          proposals.push({
+            field: section.field,
+            label: section.label,
+            currentValue: section.currentValue,
+            proposedValue,
+          });
         }
-        return c;
-      });
+      }
 
-      updateProject({ characters: updatedCharacters });
+      if (proposals.length === 0) {
+        showError('AIの応答から補完内容を取得できませんでした');
+        return;
+      }
+
+      setReviewState({
+        characterId: character.id,
+        characterName: character.name,
+        proposals,
+      });
 
     } catch (_error) {
       showError('AI生成中にエラーが発生しました');
@@ -369,6 +392,26 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
       setEnhancingId(null);
     }
   };
+
+  // レビューモーダルで選択された項目のみキャラクターに反映
+  const handleApplyEnhance = useCallback((fields: EnhanceField[]) => {
+    if (!currentProject || !reviewState) return;
+    updateProject({
+      characters: currentProject.characters.map(c => {
+        if (c.id !== reviewState.characterId) return c;
+        const patch: Partial<Character> = {};
+        for (const field of fields) {
+          const proposal = reviewState.proposals.find(p => p.field === field);
+          if (proposal) {
+            patch[field] = proposal.proposedValue;
+          }
+        }
+        return { ...c, ...patch };
+      }),
+    });
+    showSuccess('選択した項目を反映しました');
+    setReviewState(null);
+  }, [currentProject, reviewState, updateProject, showSuccess]);
 
   if (!currentProject) {
     return <div>プロジェクトを選択してください</div>;
@@ -586,17 +629,28 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
         title={
           confirmDialogState.type === 'delete'
             ? 'キャラクターを削除しますか？'
-            : 'AI支援で詳細を補完しますか？'
+            : 'AI支援で詳細の提案を生成しますか？'
         }
         message={
           confirmDialogState.type === 'delete'
             ? `「${confirmDialogState.characterName}」を削除します。\nこの操作は取り消せません。`
-            : `「${confirmDialogState.characterName}」の詳細情報をAIで補完します。\n既存の情報が更新される可能性があります。`
+            : `「${confirmDialogState.characterName}」の詳細情報の提案をAIで生成します。\n生成後、採用する項目を選択できます。`
         }
-        type={confirmDialogState.type === 'delete' ? 'danger' : 'warning'}
-        confirmLabel={confirmDialogState.type === 'delete' ? '削除' : '実行'}
+        type={confirmDialogState.type === 'delete' ? 'danger' : 'info'}
+        confirmLabel={confirmDialogState.type === 'delete' ? '削除' : '生成'}
         cancelLabel="キャンセル"
       />
+
+      {/* AI補完レビューモーダル */}
+      {reviewState && (
+        <EnhanceReviewModal
+          isOpen
+          onClose={() => setReviewState(null)}
+          characterName={reviewState.characterName}
+          proposals={reviewState.proposals}
+          onApply={handleApplyEnhance}
+        />
+      )}
     </div>
   );
 };
