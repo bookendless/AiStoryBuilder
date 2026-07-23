@@ -27,4 +27,6 @@ export interface CharacterRelationship {
     strength: number;
     description?: string;
     notes?: string;
+    fromCallsTo?: string; // fromがtoをどう呼ぶか（例: "花子さん"）
+    toCallsFrom?: string; // toがfromをどう呼ぶか（例: "兄貴"）
 }

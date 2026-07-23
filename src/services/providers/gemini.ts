@@ -1,8 +1,19 @@
 import { AIProvider } from '../../types/ai';
 
-// Geminiモデル定義（2026年7月13日時点の公式情報を反映）
+// Geminiモデル定義（2026年7月22日時点の公式情報を反映）
 const GEMINI_MODELS = [
-  // --- Gemini 3.5 Series (Latest, GA) ---
+  // --- Gemini 3.6 Series (Latest, GA) ---
+  {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    description: '2026年7月GA。フロンティア級性能を高速・低コストで持続するエージェント向け最新Flash。コード生成・空間推論に強み。1Mトークン入力/最大65k出力。',
+    maxTokens: 1048576,
+    capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
+    recommendedUse: '複雑なコーディングサイクルを伴う高速エージェントループ、エージェント実行タスク',
+    latencyClass: 'fast' as const,
+  },
+
+  // --- Gemini 3.5 Series (GA) ---
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
@@ -10,6 +21,16 @@ const GEMINI_MODELS = [
     maxTokens: 1048576,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '高速マルチモーダル処理、エージェントワークフロー、コスト効率の高いタスク',
+    latencyClass: 'fast' as const,
+  },
+
+  {
+    id: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash-Lite',
+    description: '2026年7月GA。3.5世代最速・最安価な高スループット向けモデル。サブエージェントタスクやドキュメント解析に最適。1Mトークン入力/最大65k出力。',
+    maxTokens: 1048576,
+    capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
+    recommendedUse: '大量エージェントワークフロー、単純なデータ抽出、レイテンシ・コスト最優先タスク',
     latencyClass: 'fast' as const,
   },
 

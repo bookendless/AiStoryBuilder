@@ -183,7 +183,10 @@ export const DraftAssistantPanel: React.FC = () => {
                 ? (currentProject.relationships || []).map(r => {
                     const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
                     const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
-                    return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
+                    const callNote = (r.fromCallsTo || r.toCallsFrom)
+                        ? ` / 呼び方: ${fromChar}は${toChar}を「${r.fromCallsTo || '未設定'}」、${toChar}は${fromChar}を「${r.toCallsFrom || '未設定'}」と呼ぶ`
+                        : '';
+                    return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})${callNote}`;
                 }).join('\n')
                 : '特になし'
             : '';
@@ -270,7 +273,10 @@ export const DraftAssistantPanel: React.FC = () => {
         const relationshipsText = (currentProject.relationships || []).map(r => {
             const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
             const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
-            return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})`;
+            const callNote = (r.fromCallsTo || r.toCallsFrom)
+                ? ` / 呼び方: ${fromChar}は${toChar}を「${r.fromCallsTo || '未設定'}」、${toChar}は${fromChar}を「${r.toCallsFrom || '未設定'}」と呼ぶ`
+                : '';
+            return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})${callNote}`;
         }).join('\n');
         const worldSettingsText = (currentProject.worldSettings || []).map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n');
         const timelineText = [...(currentProject.timeline || [])]

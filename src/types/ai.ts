@@ -37,6 +37,12 @@ export interface AISettings {
   recapMode?: 'always' | 'gap' | 'off';
   /** リキャップのAIナレーションを自動生成するか。未設定/false は手動ボタン（API課金のためオプトイン）。 */
   recapAutoNarrative?: boolean;
+  /** 関連情報検索（RAG）を有効にするか。未設定/false は無効（OFF）扱い＝オプトイン。 */
+  ragEnabled?: boolean;
+  /** 埋め込みベクトルのプロバイダ（Phase 2）。'auto'=チャットプロバイダに追随。未設定は 'auto' 扱い。 */
+  ragEmbeddingProvider?: 'auto' | 'openai' | 'gemini' | 'local' | 'none';
+  /** ローカルLLMの埋め込みモデル名（Phase 2、例: nomic-embed-text）。 */
+  ragLocalEmbeddingModel?: string;
 }
 
 export interface AIRequest {

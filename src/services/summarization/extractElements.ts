@@ -38,7 +38,12 @@ function formatRelationships(project: Project): string {
     if (!rels || rels.length === 0) return '（相関情報なし）';
     const nameOf = (id: string) => project.characters?.find(c => c.id === id)?.name || id;
     return rels
-        .map(r => `- ${nameOf(r.from)} → ${nameOf(r.to)}（${r.type}, 強度${r.strength}）${r.description ? ': ' + r.description : ''}`)
+        .map(r => {
+            const callNote = (r.fromCallsTo || r.toCallsFrom)
+                ? ` / 呼び方: ${nameOf(r.from)}は${nameOf(r.to)}を「${r.fromCallsTo || '未設定'}」、${nameOf(r.to)}は${nameOf(r.from)}を「${r.toCallsFrom || '未設定'}」と呼ぶ`
+                : '';
+            return `- ${nameOf(r.from)} → ${nameOf(r.to)}（${r.type}, 強度${r.strength}）${r.description ? ': ' + r.description : ''}${callNote}`;
+        })
         .join('\n');
 }
 

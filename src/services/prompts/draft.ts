@@ -345,9 +345,12 @@ export function buildContinueEnhancedPrompt(
     glossary: string;
     relationships: string;
     timeline: string;
+    /** 関連情報検索（RAG）で選抜した過去章の抜粋・関連伏線（有効時のみ） */
+    pastExcerpts?: string;
   }
 ): string {
   const contextSections = [
+    contextInfo.pastExcerpts ? dataBlock('関連する過去章の抜粋・伏線', contextInfo.pastExcerpts) : '',
     contextInfo.relationships ? dataBlock('キャラクター相関図', contextInfo.relationships) : '',
     contextInfo.worldSettings ? dataBlock('設定資料・世界観', contextInfo.worldSettings) : '',
     contextInfo.glossary ? dataBlock('重要用語集', contextInfo.glossary) : '',
@@ -356,7 +359,7 @@ export function buildContinueEnhancedPrompt(
 
   return `${basePrompt}
 ${contextSections ? `\n【追加コンテキスト情報（参考）】\n${contextSections}\n` : ''}
-【追加の執筆指示】${contextInfo.worldSettings || contextInfo.glossary ? '\n- 「設定資料・世界観」や「重要用語集」の内容と矛盾させない' : ''}${contextInfo.relationships ? '\n- 「キャラクター相関図」の関係性に基づいた会話や態度を描写する' : ''}${contextInfo.timeline ? '\n- 「タイムライン」の時系列に矛盾させない' : ''}
+【追加の執筆指示】${contextInfo.pastExcerpts ? '\n- 「関連する過去章の抜粋・伏線」の出来事・描写と矛盾させず、必要に応じて呼応させる' : ''}${contextInfo.worldSettings || contextInfo.glossary ? '\n- 「設定資料・世界観」や「重要用語集」の内容と矛盾させない' : ''}${contextInfo.relationships ? '\n- 「キャラクター相関図」の関係性に基づいた会話や態度を描写する\n- 「キャラクター相関図」に呼び方が指定されている場合は、地の文・会話文で必ずその呼称を使用し、呼び方がブレないよう統一する' : ''}${contextInfo.timeline ? '\n- 「タイムライン」の時系列に矛盾させない' : ''}
 - 会話を重視し、臨場感のある描写を心がける
 - 章の目的に沿った内容で物語を前進させる
 - 適度な改行と段落分けを行う（改行は通常の改行文字で表現する）`;

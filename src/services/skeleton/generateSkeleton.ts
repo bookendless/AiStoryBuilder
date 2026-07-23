@@ -73,6 +73,7 @@ function parseCharacters(raw: string): Character[] {
             appearance: str(c.appearance),
             personality: str(c.personality),
             background: str(c.background),
+            ...(str(c.speechStyle) ? { speechStyle: str(c.speechStyle) } : {}),
         }))
         // 名前が無いものは無効として除外
         .filter((c) => c.name.length > 0)

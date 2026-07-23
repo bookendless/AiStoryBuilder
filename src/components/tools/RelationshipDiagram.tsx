@@ -82,6 +82,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
     strength: 3,
     description: '',
     notes: '',
+    fromCallsTo: '',
+    toCallsFrom: '',
   });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiMode, setAiMode] = useState<'infer' | 'suggest' | 'check' | 'generate'>('infer');
@@ -241,6 +243,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       strength: formData.strength || 3,
       description: formData.description || undefined,
       notes: formData.notes || undefined,
+      fromCallsTo: formData.fromCallsTo || undefined,
+      toCallsFrom: formData.toCallsFrom || undefined,
     };
 
     if (editingRelationship) {
@@ -283,6 +287,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       strength: 3,
       description: '',
       notes: '',
+      fromCallsTo: '',
+      toCallsFrom: '',
     });
   };
 
@@ -345,6 +351,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
     strength: number;
     description?: string;
     notes?: string;
+    fromCallsTo?: string;
+    toCallsFrom?: string;
   }> | null => {
     const relationships: Array<{
       fromName: string;
@@ -353,6 +361,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       strength: number;
       description?: string;
       notes?: string;
+      fromCallsTo?: string;
+      toCallsFrom?: string;
     }> = [];
 
     // 関係性タイプのマッピング
@@ -385,6 +395,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       strength: number;
       description?: string;
       notes?: string;
+      fromCallsTo?: string;
+      toCallsFrom?: string;
     } | null = null;
     let collectingDescription = false;
     let collectingNotes = false;
@@ -650,6 +662,9 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
         if (rel.description) {
           context += `\n  説明: ${rel.description}`;
         }
+        if (rel.fromCallsTo || rel.toCallsFrom) {
+          context += `\n  呼び方: ${fromChar?.name || '不明'}は${toChar?.name || '不明'}を「${rel.fromCallsTo || '未設定'}」、${toChar?.name || '不明'}は${fromChar?.name || '不明'}を「${rel.toCallsFrom || '未設定'}」と呼ぶ`;
+        }
         context += '\n';
       });
       context += '\n';
@@ -715,6 +730,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
             strength: number;
             description?: string;
             notes?: string;
+            fromCallsTo?: string;
+            toCallsFrom?: string;
           }>;
 
           if (jsonText) {
@@ -815,6 +832,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                 strength: Math.max(1, Math.min(5, rel.strength || 3)),
                 description: rel.description,
                 notes: rel.notes,
+                fromCallsTo: rel.fromCallsTo,
+                toCallsFrom: rel.toCallsFrom,
               } as Partial<CharacterRelationship>;
             })
             .filter((rel): rel is Partial<CharacterRelationship> => rel !== null);
@@ -906,6 +925,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
             strength: number;
             description?: string;
             notes?: string;
+            fromCallsTo?: string;
+            toCallsFrom?: string;
           }>;
 
           if (jsonText) {
@@ -1006,6 +1027,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                 strength: Math.max(1, Math.min(5, rel.strength || 3)),
                 description: rel.description,
                 notes: rel.notes,
+                fromCallsTo: rel.fromCallsTo,
+                toCallsFrom: rel.toCallsFrom,
               } as Partial<CharacterRelationship>;
             })
             .filter((rel): rel is Partial<CharacterRelationship> => rel !== null);
@@ -1065,7 +1088,10 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       const relationshipsText = relationships.map(rel => {
         const fromChar = characters.find(c => c.id === rel.from);
         const toChar = characters.find(c => c.id === rel.to);
-        return `- ${fromChar?.name || '不明'} → ${toChar?.name || '不明'}: ${getRelationshipType(rel.type).label} (強度: ${rel.strength}/5)${rel.description ? `\n  説明: ${rel.description}` : ''}`;
+        const callNote = (rel.fromCallsTo || rel.toCallsFrom)
+          ? `\n  呼び方: ${fromChar?.name || '不明'}は${toChar?.name || '不明'}を「${rel.fromCallsTo || '未設定'}」、${toChar?.name || '不明'}は${fromChar?.name || '不明'}を「${rel.toCallsFrom || '未設定'}」と呼ぶ`
+          : '';
+        return `- ${fromChar?.name || '不明'} → ${toChar?.name || '不明'}: ${getRelationshipType(rel.type).label} (強度: ${rel.strength}/5)${rel.description ? `\n  説明: ${rel.description}` : ''}${callNote}`;
       }).join('\n');
 
       const prompt = buildRelationshipConsistencyCheckPrompt(projectContext, relationshipsText);
@@ -1205,6 +1231,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
             type?: CharacterRelationship['type'];
             strength?: number;
             notes?: string;
+            fromCallsTo?: string;
+            toCallsFrom?: string;
           };
 
           setFormData(prev => ({
@@ -1213,6 +1241,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
             type: generated.type || prev.type,
             strength: generated.strength || prev.strength,
             notes: generated.notes || prev.notes,
+            fromCallsTo: generated.fromCallsTo || prev.fromCallsTo,
+            toCallsFrom: generated.toCallsFrom || prev.toCallsFrom,
           }));
         } catch (parseError) {
           console.error('JSON解析エラー:', parseError);
@@ -1254,6 +1284,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
         strength: rel.strength || 3,
         description: rel.description,
         notes: rel.notes,
+        fromCallsTo: rel.fromCallsTo,
+        toCallsFrom: rel.toCallsFrom,
       }));
 
     if (relationshipsToAdd.length === 0) {
@@ -1434,6 +1466,11 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                             {rel.notes && (
                               <p className="text-sm text-gray-600 dark:text-gray-400 italic font-['Noto_Sans_JP'] break-words">
                                 {rel.notes}
+                              </p>
+                            )}
+                            {(rel.fromCallsTo || rel.toCallsFrom) && (
+                              <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1 font-['Noto_Sans_JP'] break-words">
+                                呼び方: {getCharacterName(rel.from)}は{getCharacterName(rel.to)}を「{rel.fromCallsTo || '未設定'}」、{getCharacterName(rel.to)}は{getCharacterName(rel.from)}を「{rel.toCallsFrom || '未設定'}」と呼ぶ
                               </p>
                             )}
                           </div>
@@ -1768,6 +1805,33 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
               <span>弱い</span>
               <span>普通</span>
               <span>強い</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                {getCharacterName(formData.from || '')}は{getCharacterName(formData.to || '')}をどう呼ぶか
+              </label>
+              <input
+                type="text"
+                value={formData.fromCallsTo || ''}
+                onChange={(e) => setFormData({ ...formData, fromCallsTo: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
+                placeholder="例: 花子さん"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                {getCharacterName(formData.to || '')}は{getCharacterName(formData.from || '')}をどう呼ぶか
+              </label>
+              <input
+                type="text"
+                value={formData.toCallsFrom || ''}
+                onChange={(e) => setFormData({ ...formData, toCallsFrom: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-['Noto_Sans_JP']"
+                placeholder="例: 兄貴"
+              />
             </div>
           </div>
 
@@ -2148,6 +2212,11 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                             {rel.notes && (
                               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic font-['Noto_Sans_JP']">
                                 {rel.notes}
+                              </p>
+                            )}
+                            {(rel.fromCallsTo || rel.toCallsFrom) && (
+                              <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1 font-['Noto_Sans_JP']">
+                                呼び方: {fromChar?.name || '不明'}は{toChar?.name || '不明'}を「{rel.fromCallsTo || '未設定'}」、{toChar?.name || '不明'}は{fromChar?.name || '不明'}を「{rel.toCallsFrom || '未設定'}」と呼ぶ
                               </p>
                             )}
                           </div>

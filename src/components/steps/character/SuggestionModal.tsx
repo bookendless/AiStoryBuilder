@@ -116,6 +116,12 @@ export const SuggestionModal: React.FC<SuggestionModalProps> = ({
                                         <span className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-0.5">背景</span>
                                         <p className="text-gray-700 dark:text-gray-300 line-clamp-2">{char.background}</p>
                                     </div>
+                                    {char.speechStyle && (
+                                        <div className="md:col-span-2">
+                                            <span className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-0.5">口調</span>
+                                            <p className="text-gray-700 dark:text-gray-300 line-clamp-2">{char.speechStyle}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

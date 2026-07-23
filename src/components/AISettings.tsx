@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Key, Server, Zap, Lightbulb, BookOpen } from 'lucide-react';
+import { Settings, Key, Server, Zap, Lightbulb, BookOpen, Search, RefreshCw } from 'lucide-react';
 import { useAI } from '../contexts/AIContext';
+import { useProject } from '../contexts/ProjectContext';
+import { ragStore, reindexProject } from '../services/rag';
 import { AI_PROVIDERS, AVAILABLE_PROVIDERS } from '../services/providers';
 import { useToast } from './Toast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
@@ -22,7 +24,42 @@ const LATENCY_LABELS: Record<'standard' | 'fast' | 'reasoning', string> = {
 
 export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings } = useAI();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
+  const { currentProject } = useProject();
+
+  // RAG インデックスの状態表示・手動再構築
+  const [ragStatus, setRagStatus] = useState<{ chunkCount: number; lastIndexedAt: number } | null>(null);
+  const [isReindexing, setIsReindexing] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !currentProject) {
+      setRagStatus(null);
+      return;
+    }
+    let cancelled = false;
+    ragStore.getMeta(currentProject.id).then((meta) => {
+      if (!cancelled) {
+        setRagStatus(meta ? { chunkCount: meta.chunkCount, lastIndexedAt: meta.lastIndexedAt } : null);
+      }
+    }).catch(() => {
+      if (!cancelled) setRagStatus(null);
+    });
+    return () => { cancelled = true; };
+  }, [isOpen, currentProject, isReindexing]);
+
+  const handleReindex = useCallback(async () => {
+    if (!currentProject || isReindexing) return;
+    setIsReindexing(true);
+    try {
+      const result = await reindexProject(currentProject);
+      showSuccess(`インデックスを再構築しました（${result.chunkCount}チャンク）`);
+    } catch (error) {
+      console.error('RAGインデックス再構築エラー:', error);
+      showError('インデックスの再構築に失敗しました');
+    } finally {
+      setIsReindexing(false);
+    }
+  }, [currentProject, isReindexing, showSuccess, showError]);
 
   const buildInitialFormData = useCallback(() => {
     const initialData = { ...settings };
@@ -765,6 +802,45 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             </span>
           </span>
         </label>
+
+        {/* 関連情報検索（RAG） */}
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.ragEnabled === true}
+              onChange={(e) => setFormData({ ...formData, ragEnabled: e.target.checked })}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <span className="font-['Noto_Sans_JP']">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
+                <Search className="h-4 w-4 text-emerald-500" />
+                関連情報検索（RAG）を有効にする
+              </span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                草案生成時に、全キャラクター・全章あらすじをそのまま渡す代わりに、生成中の章に関連する情報（過去章の抜粋・登場キャラクター・世界観設定・用語・伏線）を検索して優先的に渡します。長編でプロンプト上限による情報の欠落を防ぎます。プロジェクトが小さい場合は従来通り全情報が渡されます。
+              </span>
+            </span>
+          </label>
+          {formData.ragEnabled === true && currentProject && (
+            <div className="flex items-center justify-between gap-3 pl-7 text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+              <span>
+                {ragStatus
+                  ? `インデックス: ${ragStatus.chunkCount}チャンク / 最終更新 ${new Date(ragStatus.lastIndexedAt).toLocaleString('ja-JP')}`
+                  : 'インデックス未作成（次回の草案生成時に自動作成されます）'}
+              </span>
+              <button
+                type="button"
+                onClick={handleReindex}
+                disabled={isReindexing}
+                className="flex items-center gap-1 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors shrink-0"
+              >
+                <RefreshCw className={`h-3 w-3 ${isReindexing ? 'animate-spin' : ''}`} />
+                {isReindexing ? '再構築中…' : '再構築'}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* リキャップ（前回までのあらすじ） */}
         <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">

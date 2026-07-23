@@ -4,6 +4,7 @@ import { DataCache } from '../utils/performanceUtils';
 import { ChapterHistoryEntry } from '../components/steps/draft/types';
 import { AILogEntry } from '../components/common/types';
 import { DatabaseError, DatabaseValidationError, DatabaseNotFoundError, DatabaseStorageError } from '../types/errors';
+import { RagChunk, RagMeta } from './rag/types';
 
 export interface StoredProject extends Project {
   version: number;
@@ -89,6 +90,8 @@ class StoryBuilderDatabase extends Dexie {
   aiLogs!: Table<StoredAILogEntry>;
   images!: Table<StoredImage>;
   secureApiKeys!: Table<SecureApiKeys>;
+  ragChunks!: Table<RagChunk>;
+  ragMeta!: Table<RagMeta>;
 
   constructor() {
     super('StoryBuilderDB');
@@ -146,6 +149,21 @@ class StoryBuilderDatabase extends Dexie {
         secureApiKeys: 'id, updatedAt'
       }).upgrade(async () => {
         console.log('データベースをバージョン6にアップグレードしました（セキュアAPIキーストレージ追加）');
+      });
+
+      // バージョン7: RAG（関連情報検索）のチャンク/メタテーブルを追加
+      this.version(7).stores({
+        projects: 'id, title, createdAt, updatedAt, lastSaved, version',
+        backups: 'id, projectId, createdAt, description, type',
+        settings: 'id',
+        chapterHistories: 'id, projectId, chapterId, [projectId+chapterId], timestamp, type',
+        aiLogs: 'id, projectId, chapterId, [projectId+chapterId], timestamp, type',
+        images: 'id, createdAt, lastAccessed, referenceCount',
+        secureApiKeys: 'id, updatedAt',
+        ragChunks: 'id, projectId, [projectId+sourceKey]',
+        ragMeta: 'projectId'
+      }).upgrade(async () => {
+        console.log('データベースをバージョン7にアップグレードしました（RAGインデックス追加）');
       });
     } catch (error) {
       console.error('データベース初期化エラー:', error);
@@ -402,7 +420,7 @@ class DatabaseService {
       }
 
       // トランザクションで削除（原子性を保証）
-      await db.transaction('rw', db.projects, db.backups, db.chapterHistories, db.aiLogs, async () => {
+      await db.transaction('rw', db.projects, db.backups, db.chapterHistories, db.aiLogs, db.ragChunks, db.ragMeta, async () => {
         await db.projects.delete(id);
         // 関連するバックアップも削除
         await db.backups.where('projectId').equals(id).delete();
@@ -410,6 +428,9 @@ class DatabaseService {
         await db.chapterHistories.where('projectId').equals(id).delete();
         // 関連するAIログも削除
         await db.aiLogs.where('projectId').equals(id).delete();
+        // RAGインデックス（派生データ）も削除
+        await db.ragChunks.where('projectId').equals(id).delete();
+        await db.ragMeta.delete(id);
       });
 
       // キャッシュからも削除

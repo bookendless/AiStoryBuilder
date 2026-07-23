@@ -492,6 +492,7 @@ interface Character {
   appearance: string;
   personality: string;
   background: string;
+  speechStyle?: string;
 }
 
 const parseCharacterInfo = (content: string): ParsedResponse => {
@@ -527,6 +528,8 @@ const parseCharacterInfo = (content: string): ParsedResponse => {
         currentCharacter.personality = trimmedLine.replace(/性格[：:]\s*/, '').trim();
       } else if (trimmedLine.includes('背景') || trimmedLine.includes('背景：')) {
         currentCharacter.background = trimmedLine.replace(/背景[：:]\s*/, '').trim();
+      } else if (trimmedLine.includes('口調') || trimmedLine.includes('口調：')) {
+        currentCharacter.speechStyle = trimmedLine.replace(/口調(?:・話し方)?[：:]\s*/, '').trim();
       }
     }
   }

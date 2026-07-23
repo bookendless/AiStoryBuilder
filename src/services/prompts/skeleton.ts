@@ -78,7 +78,8 @@ ${buildSeedBlock(seed)}
     "role": "基本設定（年齢・性別・役割など）",
     "appearance": "外見の詳細（2-3行）",
     "personality": "性格や行動原理（2-3行）",
-    "background": "生い立ちや背景（2-3行）"
+    "background": "生い立ちや背景（2-3行）",
+    "speechStyle": "口調・話し方（一人称・語尾・話し方の特徴・口癖など、1-2行）"
   }
 ]`;
 }

@@ -156,6 +156,7 @@ export const CharacterAssistantPanel: React.FC = () => {
                             appearance: str(item.appearance) || str(item.外見),
                             personality: str(item.personality) || str(item.性格),
                             background: str(item.background) || str(item.背景),
+                            speechStyle: str(item.speechStyle) || str(item.口調),
                             reason: str(item.reason) || str(item.reasonING) || str(item.提案理由),
                             image: '',
                         }))

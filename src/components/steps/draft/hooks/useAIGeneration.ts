@@ -7,6 +7,8 @@ import { useGeneration } from '../../../../contexts/GenerationContext';
 import type { GenerationAction, ImprovementLog, WeaknessItem } from '../types';
 import { formatText } from '../../../../utils/textFormatter';
 import { extractJsonObjectString } from '../../../../utils/aiResponseParser';
+import { ensureIndexFresh, retrieveForDraft, retrieveForContinue, buildDraftContext } from '../../../../services/rag';
+import { getInputCharBudget } from '../../../../services/summarization/tokenBudget';
 
 interface Chapter {
   id: string;
@@ -234,11 +236,11 @@ export const useAIGeneration = ({
       const chapterDetails = getChapterDetails(currentChapter);
 
       // プロジェクトのキャラクター情報を整理
-      const projectCharacters = buildCharacterInfo(currentProject.characters);
+      let projectCharacters = buildCharacterInfo(currentProject.characters);
 
       // 前章までのあらすじを取得
       const currentChapterIndex = currentProject.chapters.findIndex((c) => c.id === currentChapter.id);
-      const previousStory = currentProject.chapters
+      let previousStory = currentProject.chapters
         .slice(0, currentChapterIndex)
         .map((c, index: number) => `第${index + 1}章「${c.title}」\nあらすじ: ${c.summary || '（あらすじなし）'}`)
         .join('\n\n');
@@ -257,7 +259,34 @@ export const useAIGeneration = ({
       }
 
       // 設定情報の取得
-      const contextInfo = getProjectContextInfo();
+      let contextInfo = getProjectContextInfo();
+
+      // 関連情報検索（RAG）: 有効時は全量ダンプを関連チャンクの選択注入に置き換える。
+      // 失敗時・小規模プロジェクト（全量が予算内）では従来コンテキストのまま生成する。
+      if (settings.ragEnabled) {
+        try {
+          await ensureIndexFresh(currentProject, undefined, signal);
+          const retrieved = await retrieveForDraft(currentProject, currentChapter);
+          const ragContext = buildDraftContext({
+            project: currentProject,
+            currentChapter,
+            retrieved,
+            budget: getInputCharBudget(settings),
+            previousChapterEndLength: previousChapterEnd.length,
+          });
+          if (ragContext) {
+            previousStory = ragContext.previousStory;
+            projectCharacters = ragContext.projectCharacters;
+            contextInfo = {
+              ...contextInfo,
+              worldSettings: ragContext.worldSettings,
+              glossary: ragContext.glossary,
+            };
+          }
+        } catch (ragError) {
+          console.warn('RAG検索に失敗したため従来のコンテキストで生成します:', ragError);
+        }
+      }
 
       // プロンプトを構築
       const prompt = buildCustomPrompt({
@@ -338,10 +367,39 @@ const response = await aiService.generateContent({
 
     try {
       // プロジェクトのキャラクター情報を整理
-      const projectCharacters = buildCharacterInfo(currentProject.characters);
+      let projectCharacters = buildCharacterInfo(currentProject.characters);
 
       // 設定情報の取得
-      const contextInfo = getProjectContextInfo();
+      let contextInfo = getProjectContextInfo();
+
+      // 関連情報検索（RAG）: 有効時は全量ダンプを関連チャンクの選択注入に置き換え、
+      // 過去章の抜粋・関連伏線を追加コンテキストとして付加する。失敗時は従来のまま生成。
+      let ragPastExcerpts: string | undefined;
+      if (settings.ragEnabled && currentChapter) {
+        try {
+          await ensureIndexFresh(currentProject, undefined, signal);
+          const retrieved = await retrieveForContinue(currentProject, currentChapter, draft);
+          const ragContext = buildDraftContext({
+            project: currentProject,
+            currentChapter,
+            retrieved,
+            budget: getInputCharBudget(settings),
+            // 草案全文が {currentText} として逐語で入るため固定費として控除する
+            previousChapterEndLength: draft.length,
+          });
+          if (ragContext) {
+            projectCharacters = ragContext.projectCharacters;
+            contextInfo = {
+              ...contextInfo,
+              worldSettings: ragContext.worldSettings,
+              glossary: ragContext.glossary,
+            };
+            ragPastExcerpts = ragContext.previousStory || undefined;
+          }
+        } catch (ragError) {
+          console.warn('RAG検索に失敗したため従来のコンテキストで生成します:', ragError);
+        }
+      }
 
       // 文体設定の取得（プロジェクト設定から、またはデフォルト値）
       const writingStyle = currentProject.writingStyle || {};
@@ -393,7 +451,7 @@ const response = await aiService.generateContent({
       });
 
       // 追加のコンテキスト情報・執筆指示をプロンプトに付加
-      const enhancedPrompt = buildContinueEnhancedPrompt(prompt, contextInfo);
+      const enhancedPrompt = buildContinueEnhancedPrompt(prompt, { ...contextInfo, pastExcerpts: ragPastExcerpts });
 
 const response = await aiService.generateContent({
         prompt: enhancedPrompt,

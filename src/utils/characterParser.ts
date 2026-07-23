@@ -36,6 +36,9 @@ interface RawCharacter {
   性格?: unknown;
   background?: unknown;
   背景?: unknown;
+  speechStyle?: unknown;
+  口調?: unknown;
+  '口調・話し方'?: unknown;
 }
 
 /** unknown値を安全に文字列化する（文字列・数値以外は空文字） */
@@ -100,6 +103,7 @@ const parseJsonCharacters = (content: string): ParseResult => {
       if (!raw || typeof raw !== 'object') continue;
       const char = raw as RawCharacter;
 
+      const speechStyle = (toStr(char.speechStyle) || toStr(char.口調) || toStr(char['口調・話し方'])).trim();
       const character: Character = {
         id: generateUUID(),
         name: toStr(char.name) || toStr(char.名前) || `AI生成キャラクター${result.characters.length + 1}`,
@@ -108,6 +112,7 @@ const parseJsonCharacters = (content: string): ParseResult => {
         personality: (toStr(char.personality) || toStr(char.性格)).substring(0, TEXT_LIMITS.PERSONALITY_MAX),
         background: (toStr(char.background) || toStr(char.背景)).substring(0, TEXT_LIMITS.BACKGROUND_MAX),
         image: '',
+        ...(speechStyle ? { speechStyle: speechStyle.substring(0, TEXT_LIMITS.SPEECH_STYLE_MAX) } : {}),
       };
 
       // 必須フィールドのチェック
@@ -273,8 +278,8 @@ const extractCharacterFromText = (content: string, index: number): Character | n
 
   // 外見の抽出（複数行対応）
   const appearancePatterns = [
-    /外見[：:]\s*([\s\S]*?)(?=性格[：:]|背景[：:]|$)/,
-    /appearance[：:]\s*([\s\S]*?)(?=personality[：:]|background[：:]|$)/i,
+    /外見[：:]\s*([\s\S]*?)(?=性格[：:]|背景[：:]|口調(?:・話し方)?[：:]|$)/,
+    /appearance[：:]\s*([\s\S]*?)(?=personality[：:]|background[：:]|speech_?style[：:]|$)/i,
   ];
 
   let appearance = '';
@@ -288,8 +293,8 @@ const extractCharacterFromText = (content: string, index: number): Character | n
 
   // 性格の抽出（複数行対応）
   const personalityPatterns = [
-    /性格[：:]\s*([\s\S]*?)(?=背景[：:]|$)/,
-    /personality[：:]\s*([\s\S]*?)(?=background[：:]|$)/i,
+    /性格[：:]\s*([\s\S]*?)(?=背景[：:]|口調(?:・話し方)?[：:]|$)/,
+    /personality[：:]\s*([\s\S]*?)(?=background[：:]|speech_?style[：:]|$)/i,
   ];
 
   let personality = '';
@@ -303,8 +308,8 @@ const extractCharacterFromText = (content: string, index: number): Character | n
 
   // 背景の抽出（複数行対応）
   const backgroundPatterns = [
-    /背景[：:]\s*([\s\S]*?)$/,
-    /background[：:]\s*([\s\S]*?)$/i,
+    /背景[：:]\s*([\s\S]*?)(?=口調(?:・話し方)?[：:]|提案理由[：:]|$)/,
+    /background[：:]\s*([\s\S]*?)(?=speech_?style[：:]|reason[：:]|$)/i,
   ];
 
   let background = '';
@@ -312,6 +317,21 @@ const extractCharacterFromText = (content: string, index: number): Character | n
     const match = content.match(pattern);
     if (match && match[1]) {
       background = match[1].trim();
+      break;
+    }
+  }
+
+  // 口調・話し方の抽出（複数行対応）
+  const speechStylePatterns = [
+    /口調(?:・話し方)?[：:]\s*([\s\S]*?)(?=提案理由[：:]|$)/,
+    /speech_?style[：:]\s*([\s\S]*?)(?=reason[：:]|$)/i,
+  ];
+
+  let speechStyle = '';
+  for (const pattern of speechStylePatterns) {
+    const match = content.match(pattern);
+    if (match && match[1]) {
+      speechStyle = match[1].trim();
       break;
     }
   }
@@ -329,6 +349,7 @@ const extractCharacterFromText = (content: string, index: number): Character | n
     personality: personality.substring(0, TEXT_LIMITS.PERSONALITY_MAX),
     background: background.substring(0, TEXT_LIMITS.BACKGROUND_MAX),
     image: '',
+    ...(speechStyle ? { speechStyle: speechStyle.substring(0, TEXT_LIMITS.SPEECH_STYLE_MAX) } : {}),
   };
 };
 
@@ -429,6 +450,9 @@ export const extractCharactersFromContent = (
               personality: toStr(char.personality).substring(0, TEXT_LIMITS.PERSONALITY_MAX),
               background: toStr(char.background).substring(0, TEXT_LIMITS.BACKGROUND_MAX),
               image: '',
+              ...(toStr(char.speechStyle).trim()
+                ? { speechStyle: toStr(char.speechStyle).trim().substring(0, TEXT_LIMITS.SPEECH_STYLE_MAX) }
+                : {}),
             }))
             .filter((char) => char.name && char.name !== `AI生成キャラクター${textResult.characters.length + 1}`);
 

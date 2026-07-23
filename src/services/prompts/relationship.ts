@@ -39,6 +39,7 @@ ${registeredCharactersGuard(characterNames)}
 - 既存の関係性は除外する
 ${RELATIONSHIP_TYPE_RULES}
 - 説明は100文字以上200文字程度で、具体的な根拠を含める
+- 呼び方（fromCallsTo/toCallsFrom）は、関係の種類・強度・役割・年齢差・親密度から自然な呼称を推測する（例: 家族なら「お兄ちゃん」、敵対なら苗字や蔑称、恋愛なら下の名前呼び捨てなど）。判断できない場合は空文字のままでよい
 
 【出力形式】
 以下のJSON配列形式で出力してください。関係性が見つからない場合は空配列[]を返してください：
@@ -49,7 +50,9 @@ ${RELATIONSHIP_TYPE_RULES}
     "type": "friend|enemy|family|romantic|mentor|rival|other",
     "strength": 1-5,
     "description": "関係性の説明（100-200文字、根拠を含む）",
-    "notes": "備考（任意）"
+    "notes": "備考（任意）",
+    "fromCallsTo": "起点キャラクターが相手をどう呼ぶか（任意、例: 「花子さん」）",
+    "toCallsFrom": "相手が起点キャラクターをどう呼ぶか（任意、例: 「兄貴」）"
   },
   ...
 ]
@@ -77,6 +80,7 @@ ${registeredCharactersGuard(characterNames)}
 ${RELATIONSHIP_TYPE_RULES}
 - 説明は100文字以上200文字程度で、なぜこの関係性が物語に必要かを具体的に説明する
 - 備考には、この関係性がどの章や場面で重要になるかを記述する（任意）
+- 呼び方（fromCallsTo/toCallsFrom）は、関係の種類・強度・役割・年齢差・親密度から自然な呼称を提案する。判断できない場合は空文字のままでよい
 
 【出力形式】
 以下のJSON配列形式で出力してください。提案がない場合は空配列[]を返してください：
@@ -87,7 +91,9 @@ ${RELATIONSHIP_TYPE_RULES}
     "type": "friend|enemy|family|romantic|mentor|rival|other",
     "strength": 1-5,
     "description": "関係性の説明（100-200文字、物語への重要性を含む）",
-    "notes": "備考（どの章や場面で重要か、任意）"
+    "notes": "備考（どの章や場面で重要か、任意）",
+    "fromCallsTo": "起点キャラクターが相手をどう呼ぶか（任意）",
+    "toCallsFrom": "相手が起点キャラクターをどう呼ぶか（任意）"
   },
   ...
 ]
@@ -110,6 +116,7 @@ ${dataBlock('現在の関係性', relationshipsText)}
 3. 孤立したキャラクターがないか
 4. 双方向の関係性が適切か
 5. プロット設定との整合性
+6. 呼び方（fromCallsTo/toCallsFrom）が関係の種類・強度・親密度と矛盾していないか（例：敵対関係なのに親密な呼び方、家族なのに他人行儀な呼び方など）
 
 問題があれば具体的に指摘し、改善提案をしてください。
 
@@ -150,6 +157,7 @@ ${dataBlock('プロジェクト情報', projectContext)}
 2. 説明文は100文字以上200文字程度で、具体的で分かりやすい内容にする
 3. 関係の種類や強度が未設定の場合は提案する
 4. 備考も提案する（任意）
+5. 呼び方（fromCallsTo/toCallsFrom）も、関係の種類・強度・役割・親密度から自然な呼称を提案する（任意）
 
 【出力形式】
 以下のJSON形式で出力してください：
@@ -157,7 +165,9 @@ ${dataBlock('プロジェクト情報', projectContext)}
   "description": "説明文",
   "type": "friend|enemy|family|romantic|mentor|rival|other",
   "strength": 1-5,
-  "notes": "備考（任意）"
+  "notes": "備考（任意）",
+  "fromCallsTo": "起点キャラクターが相手をどう呼ぶか（任意）",
+  "toCallsFrom": "相手が起点キャラクターをどう呼ぶか（任意）"
 }
 
 ${JSON_OUTPUT_RULES}`;
