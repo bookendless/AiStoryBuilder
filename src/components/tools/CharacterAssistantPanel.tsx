@@ -8,6 +8,7 @@ import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
+import { CHARACTER_PROMPT_CAP } from '../../services/prompts/character';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { extractCharactersFromContent, ParseResult } from '../../utils/characterParser';
@@ -110,6 +111,7 @@ export const CharacterAssistantPanel: React.FC = () => {
                 type: 'character',
                 settings,
                 signal,
+                maxPromptLength: CHARACTER_PROMPT_CAP,
             });
 
             if (signal.aborted) return;
@@ -292,6 +294,7 @@ export const CharacterAssistantPanel: React.FC = () => {
                 type: 'character',
                 settings,
                 signal,
+                maxPromptLength: CHARACTER_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ

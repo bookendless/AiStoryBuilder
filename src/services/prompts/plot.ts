@@ -4,6 +4,13 @@
 
 import { dataBlock, JSON_OUTPUT_RULES, textOnlyOutputRule } from './common';
 
+/**
+ * プロットプロンプトのサニタイズ上限（文字数）。
+ * 全キャラ・あらすじ全文・構成全項目が指示より前に無制限で挿入されるため、既定の10000文字では
+ * 末尾のJSON出力形式が黙って切り詰められる。maxPromptLength に渡して引き上げる。
+ */
+export const PLOT_PROMPT_CAP = 20000;
+
 export const PLOT_PROMPTS = {
   supplement: `あなたは物語のプロット設計を専門とするプロの編集者です。以下の情報に基づいて、{fieldLabel}の内容を補完・改善してください。
 

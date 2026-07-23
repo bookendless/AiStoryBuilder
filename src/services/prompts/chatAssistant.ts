@@ -4,6 +4,13 @@
 
 import { dataBlock } from './common';
 
+/**
+ * チャットアシスタントプロンプトのサニタイズ上限（文字数）。
+ * プロジェクト文脈＋会話履歴が無制限で挿入され、ユーザーの質問文が最末尾に置かれるため、
+ * 既定の10000文字では質問自体が黙って切り詰められる。maxPromptLength に渡して引き上げる。
+ */
+export const CHAT_PROMPT_CAP = 24000;
+
 /** チャットアシスタントの拡張システムプロンプトを構築 */
 export function buildChatAssistantSystemPrompt(
   projectContext: string | null | undefined,

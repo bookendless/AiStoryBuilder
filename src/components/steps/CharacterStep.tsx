@@ -3,6 +3,7 @@ import { Plus, User, Network, ArrowUpDown } from 'lucide-react';
 import { useProject, Character } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { CHARACTER_PROMPT_CAP } from '../../services/prompts/character';
 import { RelationshipDiagram } from '../tools/RelationshipDiagram';
 import { useToast } from '../Toast';
 import { EmptyState } from '../common/EmptyState';
@@ -315,6 +316,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
         type: 'character',
         settings,
         image: isCloudAI && hasImage ? character.image : undefined,
+        maxPromptLength: CHARACTER_PROMPT_CAP,
       });
 
       console.log('AI Response:', {

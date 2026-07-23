@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Project, Character } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
-import { buildContinueEnhancedPrompt } from '../../../../services/prompts/draft';
+import { buildContinueEnhancedPrompt, DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
 import { useGeneration } from '../../../../contexts/GenerationContext';
 import type { GenerationAction, ImprovementLog, WeaknessItem } from '../types';
 import { formatText } from '../../../../utils/textFormatter';
@@ -303,6 +303,7 @@ const response = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -458,6 +459,7 @@ const response = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -522,6 +524,7 @@ const response = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -563,6 +566,7 @@ const response = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -603,6 +607,7 @@ const response = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -653,6 +658,7 @@ const response = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -720,6 +726,7 @@ const critiqueResponse = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       if (signal.aborted) {
@@ -829,6 +836,7 @@ const revisionResponse = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       if (signal.aborted) return;
@@ -983,6 +991,7 @@ const response = await aiService.generateContent({
         type: 'draft',
         settings,
         signal,
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       if (signal.aborted) {

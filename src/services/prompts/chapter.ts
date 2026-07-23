@@ -4,6 +4,13 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * 章立てプロンプトのサニタイズ上限（文字数）。
+ * 全章一覧・全キャラが指示より前に無制限で挿入されるため、既定の10000文字では末尾の
+ * 出力形式（parseChapterList の契約）が黙って切り詰められ、章分割に失敗する。maxPromptLength に渡す。
+ */
+export const CHAPTER_PROMPT_CAP = 24000;
+
 // 共通の出力形式テンプレート（parseChapterList が依存する契約。文言変更禁止）
 const CHAPTER_OUTPUT_FORMAT = `【必須出力形式】（この形式を厳密に守ってください）
 第1章: [章タイトル]

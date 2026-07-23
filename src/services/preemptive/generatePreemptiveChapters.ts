@@ -12,6 +12,7 @@ import { Project } from '../../types/project';
 import { Chapter } from '../../types/project/chapter';
 import { PreemptiveChaptersResult } from '../../types/preemptive';
 import { parseChapterList } from '../chapter/parseChapterList';
+import { CHAPTER_PROMPT_CAP } from '../prompts/chapter';
 
 interface Options {
   run: AIRunner;
@@ -126,7 +127,7 @@ export async function generatePreemptiveChapters(
     existingChapters,
   });
 
-  const content = await run(prompt, { signal });
+  const content = await run(prompt, { signal, maxPromptLength: CHAPTER_PROMPT_CAP });
   const chapters = parseChapterList(content) as Chapter[];
   return { kind: 'chapter', chapters };
 }

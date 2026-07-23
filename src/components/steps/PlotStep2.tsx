@@ -3,6 +3,7 @@ import { Check, RotateCcw, Layers, ChevronDown, ChevronUp, AlertCircle, Clock, B
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { PLOT_PROMPT_CAP } from '../../services/prompts/plot';
 import { useToast } from '../Toast';
 import { useAILog } from '../common/hooks/useAILog';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -205,6 +206,7 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
         prompt,
         type: 'plot',
         settings,
+        maxPromptLength: PLOT_PROMPT_CAP,
       });
 
       // AIログに記録

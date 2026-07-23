@@ -8,6 +8,13 @@
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 import { EvaluationStrictness } from '../../types/evaluation';
 
+/**
+ * 評価プロンプトのサニタイズ上限（文字数）。
+ * 作品全文が指示より前に無制限で挿入されるため、既定の10000文字では末尾のJSON出力形式が
+ * 黙って切り詰められ、パース失敗時にscore 0へフォールバックする。maxPromptLength に渡して引き上げる。
+ */
+export const EVALUATION_PROMPT_CAP = 30000;
+
 /** 評価の厳しさレベル別の指示文 */
 export const STRICTNESS_INSTRUCTIONS: Record<EvaluationStrictness, string> = {
   gentle: "【評価方針】\n良い点を重視し、建設的なフィードバックを提供してください。改善点は控えめに、励ましの言葉と共に指摘してください。",

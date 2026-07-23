@@ -3,6 +3,7 @@ import { FileText, Save, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { useProject, Project } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { SYNOPSIS_PROMPT_CAP } from '../../services/prompts/synopsis';
 import { useToast } from '../Toast';
 import { getUserFriendlyError } from '../../utils/errorHandler';
 import { getCountColor, getCountBarWidth } from '../../utils/charCount';
@@ -214,6 +215,7 @@ export const SynopsisStep: React.FC<SynopsisStepProps> = ({ onNavigateToStep }) 
         prompt,
         type: 'synopsis',
         settings,
+        maxPromptLength: SYNOPSIS_PROMPT_CAP,
       });
       // コンソールにログ出力のみ
       console.log('AI Synopsis Generated');

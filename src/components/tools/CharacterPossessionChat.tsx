@@ -8,6 +8,7 @@ import { Modal } from '../common/Modal';
 import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
 import { PossessionMessage } from '../../types/characterPossession';
 import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
+import { CHARACTER_PROMPT_CAP } from '../../services/prompts/character';
 import { useToast } from '../Toast';
 
 interface CharacterPossessionChatProps {
@@ -173,13 +174,29 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
 
 
 
-  // 会話履歴をフォーマット
+  // 会話履歴の文字数予算（古いメッセージから落とし、直近の文脈と現在の質問を優先して残す）
+  const CONVERSATION_HISTORY_CHAR_BUDGET = 8000;
+
+  // 会話履歴をフォーマット（予算超過時は古い方から省略）
   const formatConversationHistory = (msgs: PossessionMessage[]): string => {
     if (msgs.length === 0) return 'まだ会話がありません。';
-    return msgs.map(msg => {
+    const lines = msgs.map(msg => {
       const role = msg.role === 'user' ? 'ユーザー' : character?.name || 'キャラクター';
       return `${role}: ${msg.content}`;
-    }).join('\n\n');
+    });
+    // 新しい行から詰めて予算内に収め、古い行を落とす
+    const kept: string[] = [];
+    let used = 0;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const cost = lines[i].length + 2; // 区切り '\n\n' 分
+      if (used + cost > CONVERSATION_HISTORY_CHAR_BUDGET && kept.length > 0) {
+        kept.unshift('（これ以前の会話は省略されました）');
+        break;
+      }
+      kept.unshift(lines[i]);
+      used += cost;
+    }
+    return kept.join('\n\n');
   };
 
   // メッセージ送信
@@ -259,6 +276,7 @@ export const CharacterPossessionChat: React.FC<CharacterPossessionChatProps> = (
         prompt,
         type: 'character',
         settings,
+        maxPromptLength: CHARACTER_PROMPT_CAP,
         signal: abortController.signal,
         onStream: (chunk) => {
           accumulatedContent += chunk;

@@ -3,7 +3,7 @@ import { Check, Loader2, BookOpen, ChevronRight, FileText, AlertCircle, RefreshC
 import { useProject } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
-import { buildPlotFieldSuggestPrompt } from '../../services/prompts/plot';
+import { buildPlotFieldSuggestPrompt, PLOT_PROMPT_CAP } from '../../services/prompts/plot';
 import { useToast } from '../Toast';
 import { useAutoSave } from '../common/hooks/useAutoSave';
 import { StepNavigation } from '../common/StepNavigation';
@@ -524,6 +524,7 @@ export const PlotStep1: React.FC<PlotStep1Props> = ({ onNavigateToStep }) => {
         prompt,
         type: 'plot',
         settings,
+        maxPromptLength: PLOT_PROMPT_CAP,
       });
 
       if (response.error) {

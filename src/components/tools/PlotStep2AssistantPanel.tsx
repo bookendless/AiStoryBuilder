@@ -8,6 +8,7 @@ import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
+import { PLOT_PROMPT_CAP } from '../../services/prompts/plot';
 import { buildCreativePointsJsonKeyInstruction } from '../../services/prompts/creativePoints';
 import { normalizeCreativePointsList } from '../../services/creativePoints/parseCreativePoints';
 import { buildBranchInstruction } from '../../services/creativePoints/buildBranchInstruction';
@@ -278,6 +279,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 type: 'plot',
                 settings,
                 signal,
+                maxPromptLength: PLOT_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -520,6 +522,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 type: 'plot',
                 settings,
                 signal,
+                maxPromptLength: PLOT_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -813,6 +816,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 type: 'plot',
                 settings,
                 signal,
+                maxPromptLength: PLOT_PROMPT_CAP,
             });
 
             if (signal.aborted) {

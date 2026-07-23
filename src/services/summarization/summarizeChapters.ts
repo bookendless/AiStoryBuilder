@@ -8,7 +8,7 @@
 import { Chapter } from '../../types/project';
 import { ChapterDigest, AIRunner, SequelProgress } from '../../types/sequel';
 import { AISettings } from '../../types/ai';
-import { getInputCharBudget } from './tokenBudget';
+import { getInputCharBudget, SUMMARIZATION_PROMPT_CAP } from './tokenBudget';
 import { buildChapterSummaryPrompt } from '../prompts/sequel';
 
 interface SummarizeOptions {
@@ -44,7 +44,7 @@ export async function summarizeChapters(
             // 本文が予算を超える場合は予算内に収めてから要約（章単体での簡易対策）
             const trimmedBody = body.length > budget ? body.substring(0, budget) : body;
             try {
-                const result = await run(buildChapterSummaryPrompt(chapter.title, trimmedBody), { signal });
+                const result = await run(buildChapterSummaryPrompt(chapter.title, trimmedBody), { signal, maxPromptLength: SUMMARIZATION_PROMPT_CAP });
                 digests.push({ id: chapter.id, title: chapter.title, summary: result.trim() || summary });
                 continue;
             } catch (error) {

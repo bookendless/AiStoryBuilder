@@ -105,13 +105,13 @@ export async function generateSkeleton(
     // 1. plot1 6項目
     onProgress?.({ phase: '基本設定を生成中', current: 1, total: TOTAL_PHASES });
     throwIfAborted(signal);
-    const plotRaw = await run(buildPlotSkeletonPrompt(seed), { signal });
+    const plotRaw = await run(buildPlotSkeletonPrompt(seed), { signal, maxPromptLength: INFER_STRUCTURE_PROMPT_CAP });
     const plot = parsePlot(plotRaw);
 
     // 2. 主要キャラクター
     onProgress?.({ phase: 'キャラクターを生成中', current: 2, total: TOTAL_PHASES });
     throwIfAborted(signal);
-    const charactersRaw = await run(buildCharacterSeedPrompt(seed, plot), { signal });
+    const charactersRaw = await run(buildCharacterSeedPrompt(seed, plot), { signal, maxPromptLength: INFER_STRUCTURE_PROMPT_CAP });
     const characters = parseCharacters(charactersRaw);
 
     // 3. 推奨構成テンプレート（失敗しても plot / characters は返す）

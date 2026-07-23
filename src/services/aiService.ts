@@ -2,7 +2,7 @@ import { AIRequest, AIResponse, AISettings, OpenAIRequestBody, OpenAIResponse, O
 import { EvaluationRequest, EvaluationResult } from '../types/evaluation';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
-import { decryptApiKeyAsync, sanitizeInputForPrompt } from '../utils/securityUtils';
+import { decryptApiKeyAsync, sanitizeInputForPrompt, sanitizeInputForPromptWithMeta, DEFAULT_PROMPT_MAX_LENGTH } from '../utils/securityUtils';
 import { httpService } from './httpService';
 import { APIError, ErrorCategory } from '../types/errors';
 import { logAPIError, logError } from '../utils/errorLogger';
@@ -21,7 +21,7 @@ const modelSupportsTemperature = (model: string): boolean => {
 };
 
 // プロンプトテンプレートを外部ファイルからインポート
-import { PROMPTS, SYSTEM_PROMPT, STRICTNESS_INSTRUCTIONS } from './prompts';
+import { PROMPTS, SYSTEM_PROMPT, STRICTNESS_INSTRUCTIONS, EVALUATION_PROMPT_CAP } from './prompts';
 
 
 class AIService {
@@ -1170,10 +1170,12 @@ class AIService {
         ? request.prompt.substring(0, maxPromptLength) + '\n\n[プロンプトが長すぎるため省略されました]'
         : request.prompt;
 
-      // 切り詰めが発生した場合はUIに通知（内容欠落をユーザーが認識できるように）
+      // 切り詰めが発生した場合はUIに通知（内容欠落をユーザーが認識できるように）。
+      // adjustable=true: この上限は「最大プロンプト長」設定（localContextLength）で調整可能なため、
+      // トーストで設定変更を案内する。
       if (isPromptTruncated && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('ai:prompt-truncated', {
-          detail: { originalLength: request.prompt.length, maxLength: maxPromptLength },
+          detail: { originalLength: request.prompt.length, maxLength: maxPromptLength, adjustable: true },
         }));
       }
 
@@ -1655,7 +1657,22 @@ class AIService {
       // 入力値のサニタイゼーション（プロンプトインジェクション対策を含む）
       // request.maxPromptLength が指定された場合はその上限を使用（インポート/要約など大入力パイプライン用）。
       // 未指定時は securityUtils 側の既定（10000）が適用され、従来通りのDoS対策が効く。
-      const sanitizedPrompt = sanitizeInputForPrompt(prompt, request.maxPromptLength);
+      const effectiveMaxPromptLength = request.maxPromptLength ?? DEFAULT_PROMPT_MAX_LENGTH;
+      const { text: sanitizedPrompt, truncated, contentLength } = sanitizeInputForPromptWithMeta(
+        prompt,
+        request.maxPromptLength
+      );
+
+      // 実際に中抜き切り詰めが起きた場合のみUIに通知（サニタイズで縮んだだけの誤検知を避ける）。
+      // securityUtils 側で中抜きしても末尾の出力形式指示は残るが、中間データの欠落は起こり得るため周知する。
+      // adjustable=false: この上限は機能側の固定cap（またはDoS対策の既定値）であり、
+      // 「最大プロンプト長」設定（localContextLength、ローカルLLM専用）では変えられないため、
+      // トースト文言で設定変更を案内しない（ローカルLLM経路の別通知は adjustable=true）。
+      if (truncated && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ai:prompt-truncated', {
+          detail: { originalLength: contentLength, maxLength: effectiveMaxPromptLength, adjustable: false },
+        }));
+      }
 
       // プロバイダーに応じたAPIキーを取得
       const apiKey = this.getApiKeyForProvider(settings);
@@ -1821,7 +1838,8 @@ class AIService {
       const aiRequest: AIRequest = {
         prompt,
         settings,
-        type: 'evaluation'
+        type: 'evaluation',
+        maxPromptLength: EVALUATION_PROMPT_CAP
       };
 
       const response = await this.generateContent(aiRequest);

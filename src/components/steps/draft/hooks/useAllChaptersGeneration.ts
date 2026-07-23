@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Project } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
+import { DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
 import { useGeneration } from '../../../../contexts/GenerationContext';
 
 interface Chapter {
@@ -224,6 +225,7 @@ export const useAllChaptersGeneration = ({
         settings,
         signal: abortController.signal,
         timeout: 600000, // 600秒 = 10分
+        maxPromptLength: DRAFT_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ

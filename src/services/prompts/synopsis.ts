@@ -4,6 +4,13 @@
 
 import { dataBlock } from './common';
 
+/**
+ * あらすじプロンプトのサニタイズ上限（文字数）。
+ * 全キャラ・構成詳細・全章一覧が指示より前に無制限で挿入されるため、既定の10000文字では
+ * 末尾の出力形式/創造ポイント指示が黙って切り詰められる。maxPromptLength に渡して引き上げる。
+ */
+export const SYNOPSIS_PROMPT_CAP = 20000;
+
 export const SYNOPSIS_PROMPTS = {
     generate: `あなたは小説のあらすじ作成を専門とするプロの編集者です。以下の情報から魅力的なあらすじを作成してください。
 

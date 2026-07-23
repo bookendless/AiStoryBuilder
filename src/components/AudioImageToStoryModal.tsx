@@ -6,6 +6,7 @@ import { compressImage } from '../utils/performanceUtils';
 import { useToast } from './Toast';
 import { useAI } from '../contexts/AIContext';
 import { aiService } from '../services/aiService';
+import { MEDIA_PROMPT_CAP } from '../services/prompts/media';
 import { parseStoryProposal, validateStoryProposal, StoryProposal } from '../utils/storyProposalParser';
 import { AILoadingIndicator } from './common/AILoadingIndicator';
 
@@ -187,6 +188,7 @@ export const AudioImageToStoryModal: React.FC<AudioImageToStoryModalProps> = ({
         image: imagePreviewUrl,
         audio: audioDataUrl,
         timeout: 180000, // 3分のタイムアウト（音声と画像の解析は時間がかかる可能性がある）
+        maxPromptLength: MEDIA_PROMPT_CAP,
       });
 
       if (response.error) {

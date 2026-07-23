@@ -5,6 +5,14 @@
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 import { SuggestionPromptPayload } from '../../types/draft';
 
+/**
+ * 草案プロンプトのサニタイズ上限（文字数）。
+ * 草案本文全文・全章要約・全キャラが指示より前に無制限で挿入されるため、
+ * 既定の10000文字では末尾のJSON出力形式/執筆指示が黙って切り詰められる（critique/revise/全章一括等）。
+ * generateContent の maxPromptLength に渡して引き上げる。
+ */
+export const DRAFT_PROMPT_CAP = 30000;
+
 // 共通の文体・改行ルール（改行指示はこのブロックに一本化する）
 const WRITING_FORMAT_RULES = `【文体と改行のルール】
 - 現代的な日本語小説の文体で書き、会話は「」で囲む

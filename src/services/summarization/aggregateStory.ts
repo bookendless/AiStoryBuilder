@@ -7,7 +7,7 @@
 
 import { ChapterDigest, AIRunner, SequelProgress } from '../../types/sequel';
 import { AISettings } from '../../types/ai';
-import { getInputCharBudget } from './tokenBudget';
+import { getInputCharBudget, SUMMARIZATION_PROMPT_CAP } from './tokenBudget';
 import { buildAggregatePrompt } from '../prompts/sequel';
 
 interface AggregateOptions {
@@ -50,7 +50,7 @@ export async function aggregateStory(
             // これ以上分割できないため、予算内に収まるよう末尾を切り詰めてから渡す。
             const safe = joined.length > budget ? joined.substring(0, budget) : joined;
             onProgress?.({ phase: '全体要約の集約', current: Math.min(done + 1, estimatedTotal), total: estimatedTotal });
-            const result = await run(buildAggregatePrompt(safe, isPartial), { signal });
+            const result = await run(buildAggregatePrompt(safe, isPartial), { signal, maxPromptLength: SUMMARIZATION_PROMPT_CAP });
             done++;
             return result.trim();
         }
@@ -65,7 +65,7 @@ export async function aggregateStory(
             { id: 'part-2', title: '後半', summary: right },
         ];
         onProgress?.({ phase: '全体要約の統合', current: estimatedTotal, total: estimatedTotal });
-        const result = await run(buildAggregatePrompt(formatDigests(merged), false), { signal });
+        const result = await run(buildAggregatePrompt(formatDigests(merged), false), { signal, maxPromptLength: SUMMARIZATION_PROMPT_CAP });
         return result.trim();
     };
 

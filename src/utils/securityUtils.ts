@@ -404,12 +404,77 @@ const detectPromptInjection = (input: string): {
 };
 
 /**
- * プロンプトインジェクション対策を含む強化された入力値のサニタイゼーション
- * AIプロンプトに使用する前に必ずこの関数を使用してください
+ * sanitizeInputForPrompt の既定の長さ上限。
+ * 呼び出し側が maxPromptLength を明示しない場合に適用される。
  */
-export const sanitizeInputForPrompt = (input: string, maxLength: number = 10000): string => {
+export const DEFAULT_PROMPT_MAX_LENGTH = 10000;
+
+/**
+ * 長さ超過プロンプトの切り詰めマーカー。
+ * 注意: sanitize は `<>` を除去するため、マーカーには `【】` を使う（`<中略>` は不可）。
+ */
+const PROMPT_TRUNCATION_MARKER = '\n\n【中略：プロンプトが長すぎるため中間部分を省略しました】\n\n';
+
+/**
+ * 末尾に確保する割合。多くのプロンプトは末尾に【指示】【出力形式】(JSONスキーマ)を置くため、
+ * 単純な末尾切りだと出力形式指示が黙って消える。中抜き方式で先頭と末尾の双方を残し、
+ * 末尾の指示ブロックを死守する。
+ */
+const PROMPT_TRUNCATION_TAIL_RATIO = 0.35;
+
+/**
+ * プロンプトを上限内に収める。単純な `slice(0, maxLength)`（末尾切り）ではなく、
+ * 先頭（役割・データ前半）＋マーカー＋末尾（指示・出力形式ブロック）を保持する中抜きにする。
+ * これにより上限を超えても末尾のJSON出力形式指示が失われない。
+ */
+const truncatePromptPreservingTail = (text: string, maxLength: number): string => {
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  if (typeof console !== 'undefined') {
+    console.warn(
+      `[securityUtils] プロンプトが上限を超えたため中抜きしました（元: ${text.length} / 上限: ${maxLength}）`
+    );
+  }
+
+  // 上限が極端に小さくマーカーすら入らない場合は、末尾（指示ブロック）を優先して残す
+  const budget = maxLength - PROMPT_TRUNCATION_MARKER.length;
+  if (budget <= 0) {
+    return text.slice(text.length - maxLength);
+  }
+
+  const tailLength = Math.floor(budget * PROMPT_TRUNCATION_TAIL_RATIO);
+  const headLength = budget - tailLength;
+  const head = text.slice(0, headLength);
+  const tail = text.slice(text.length - tailLength);
+  return head + PROMPT_TRUNCATION_MARKER + tail;
+};
+
+/**
+ * sanitizeInputForPrompt の結果に切り詰めメタ情報を付けたもの。
+ * UI通知（トースト）は「実際に切り詰めが起きたか」を正確に判定する必要があるため、
+ * サニタイズ後・切り詰め前の実コンテンツ長（contentLength）と truncated フラグを返す。
+ */
+export interface PromptSanitizeResult {
+  /** サニタイズ・切り詰め済みの最終文字列 */
+  text: string;
+  /** 中抜き切り詰めが実際に発生したか（生の入力長ではなくサニタイズ後の長さで判定） */
+  truncated: boolean;
+  /** サニタイズ後・切り詰め前のコンテンツ長（トースト表示用の「元の長さ」） */
+  contentLength: number;
+}
+
+/**
+ * プロンプトインジェクション対策を含む強化された入力値のサニタイゼーション（メタ情報付き）。
+ * 切り詰めが実際に発生したかを呼び出し側（UI通知など）が正確に判断できるよう、truncated を返す。
+ */
+export const sanitizeInputForPromptWithMeta = (
+  input: string,
+  maxLength: number = DEFAULT_PROMPT_MAX_LENGTH
+): PromptSanitizeResult => {
   if (typeof input !== 'string') {
-    return '';
+    return { text: '', truncated: false, contentLength: 0 };
   }
 
   let sanitized = input.trim();
@@ -470,8 +535,13 @@ export const sanitizeInputForPrompt = (input: string, maxLength: number = 10000)
     .replace(/^[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/, '')
     .replace(/[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+$/, '');
 
-  // 長さ制限
-  sanitized = sanitized.slice(0, maxLength);
+  // サニタイズ後・切り詰め前のコンテンツ長。切り詰め判定と「元の長さ」表示に使う
+  // （生の input.length ではなくここを使うことで、サニタイズで縮んだ分の誤検知を防ぐ）。
+  const contentLength = sanitized.length;
+  const truncated = contentLength > maxLength;
+
+  // 長さ制限（末尾の指示・出力形式ブロックを死守する中抜き方式）
+  sanitized = truncatePromptPreservingTail(sanitized, maxLength);
 
   // 最終的な検証: プロンプトインジェクションの検出
   const injectionCheck = detectPromptInjection(sanitized);
@@ -484,10 +554,18 @@ export const sanitizeInputForPrompt = (input: string, maxLength: number = 10000)
       const lineCheck = detectPromptInjection(line);
       return !lineCheck.detected;
     });
-    sanitized = safeLines.join('\n').slice(0, maxLength);
+    sanitized = truncatePromptPreservingTail(safeLines.join('\n'), maxLength);
   }
 
-  return sanitized;
+  return { text: sanitized, truncated, contentLength };
+};
+
+/**
+ * プロンプトインジェクション対策を含む強化された入力値のサニタイゼーション
+ * AIプロンプトに使用する前に必ずこの関数を使用してください
+ */
+export const sanitizeInputForPrompt = (input: string, maxLength: number = DEFAULT_PROMPT_MAX_LENGTH): string => {
+  return sanitizeInputForPromptWithMeta(input, maxLength).text;
 };
 
 /**

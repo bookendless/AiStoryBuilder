@@ -16,6 +16,7 @@ import {
     buildExtractPrompt,
     buildGenerateSynopsisPlotPrompt,
     buildUpdateCharactersPrompt,
+    SEQUEL_PROMPT_CAP,
 } from '../prompts/sequel';
 
 // ---- シリアライズヘルパー ----
@@ -71,7 +72,7 @@ export async function extractElements(
         formatRelationships(project)
     );
 
-    const raw = await run(prompt, { signal, temperature: 0.5 });
+    const raw = await run(prompt, { signal, temperature: 0.5, maxPromptLength: SEQUEL_PROMPT_CAP });
     const parsed = parseJsonLoose<Partial<SequelExtraction>>(raw);
 
     return {
@@ -126,7 +127,7 @@ export async function generateSequelElements(
             extraction.worldChanges,
             extraction.openThreads
         ),
-        { signal, temperature: 0.8 }
+        { signal, temperature: 0.8, maxPromptLength: SEQUEL_PROMPT_CAP }
     );
     const sp = parseJsonLoose<SynopsisPlotResult>(spRaw);
 
@@ -147,7 +148,7 @@ export async function generateSequelElements(
         try {
             const cuRaw = await run(
                 buildUpdateCharactersPrompt(formatCharacters(project), extraction.characterGrowth, synopsis),
-                { signal, temperature: 0.6 }
+                { signal, temperature: 0.6, maxPromptLength: SEQUEL_PROMPT_CAP }
             );
             const cu = parseJsonLoose<{ characters: CharacterUpdate[] }>(cuRaw);
             if (cu?.characters && Array.isArray(cu.characters)) {

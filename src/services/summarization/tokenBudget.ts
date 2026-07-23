@@ -25,6 +25,16 @@ const PROMPT_OVERHEAD = 1500;
 const SANITIZE_HARD_CAP = 10000;
 
 /**
+ * 要約・集約パイプライン（summarizeChapters / aggregateStory）が generateContent に渡す
+ * サニタイズ上限。入力データ自体は getInputCharBudget で予算内に収めるが、そこに固定長の
+ * テンプレート（出力形式指示など）が加わると組立後プロンプトが既定10000をわずかに超え、
+ * 末尾指示が黙って切り詰められうる。ここを引き上げてテンプレート末尾を死守する
+ * （入力はあくまで予算で制御されるため、この値までプロンプトが膨らむわけではない）。
+ * recap / whatIf / import / 続編 の共有経路で使うため、機能非依存の中立名にしている。
+ */
+export const SUMMARIZATION_PROMPT_CAP = 20000;
+
+/**
  * 1回のAI呼び出しで、可変データ（章要約や本文など）に割り当てられる
  * 安全な最大文字数を返す。
  *

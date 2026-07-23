@@ -7,6 +7,7 @@ import { usePendingResult } from '../../contexts/PendingResultContext';
 import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { aiService } from '../../services/aiService';
+import { SYNOPSIS_PROMPT_CAP } from '../../services/prompts/synopsis';
 import { buildCreativePointsInstruction } from '../../services/prompts/creativePoints';
 import { splitCreativePoints } from '../../services/creativePoints/parseCreativePoints';
 import { buildBranchInstruction } from '../../services/creativePoints/buildBranchInstruction';
@@ -272,6 +273,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 type: 'synopsis',
                 settings,
                 signal,
+                maxPromptLength: SYNOPSIS_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -408,6 +410,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 type: 'synopsis',
                 settings,
                 signal,
+                maxPromptLength: SYNOPSIS_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -532,6 +535,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 type: 'synopsis',
                 settings,
                 signal,
+                maxPromptLength: SYNOPSIS_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ

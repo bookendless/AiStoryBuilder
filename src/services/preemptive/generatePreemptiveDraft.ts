@@ -7,6 +7,7 @@
  */
 
 import { aiService } from '../aiService';
+import { DRAFT_PROMPT_CAP } from '../prompts/draft';
 import { AIRunner } from '../../types/sequel';
 import { Project, Character } from '../../types/project';
 import { Chapter } from '../../types/project/chapter';
@@ -170,7 +171,7 @@ export async function generatePreemptiveDraft(
     customPrompt: '',
   });
 
-  const content = await run(prompt, { signal });
+  const content = await run(prompt, { signal, maxPromptLength: DRAFT_PROMPT_CAP });
   return {
     kind: 'draft',
     chapterId: target.id,

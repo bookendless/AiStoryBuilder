@@ -4,6 +4,7 @@ import { useAI } from '../../contexts/AIContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useGeneration } from '../../contexts/GenerationContext';
 import { aiService } from '../../services/aiService';
+import { CHARACTER_PROMPT_CAP } from '../../services/prompts/character';
 import { CharacterDiaryEntry } from '../../types/characterPossession';
 import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
 import { Modal } from '../common/Modal';
@@ -200,6 +201,7 @@ export const CharacterDiary: React.FC<CharacterDiaryProps> = ({
         type: 'character',
         settings,
         signal,
+        maxPromptLength: CHARACTER_PROMPT_CAP,
       });
 
       // キャンセルされた場合は処理をスキップ

@@ -7,7 +7,7 @@ import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
-import { buildPlotBasicSettingsPrompt } from '../../services/prompts/plot';
+import { buildPlotBasicSettingsPrompt, PLOT_PROMPT_CAP } from '../../services/prompts/plot';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { exportFile } from '../../utils/mobileExportUtils';
@@ -208,6 +208,7 @@ export const PlotStep1AssistantPanel: React.FC = () => {
                 type: 'plot',
                 settings,
                 signal,
+                maxPromptLength: PLOT_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ

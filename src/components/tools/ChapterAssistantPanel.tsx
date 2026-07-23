@@ -8,6 +8,7 @@ import { useToast } from '../Toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';
+import { CHAPTER_PROMPT_CAP } from '../../services/prompts/chapter';
 import { parseChapterList } from '../../services/chapter/parseChapterList';
 import { buildCreativePointsInstruction } from '../../services/prompts/creativePoints';
 import { splitCreativePoints } from '../../services/creativePoints/parseCreativePoints';
@@ -298,6 +299,7 @@ export const ChapterAssistantPanel: React.FC = () => {
                 type: 'chapter',
                 settings,
                 signal,
+                maxPromptLength: CHAPTER_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -472,6 +474,7 @@ export const ChapterAssistantPanel: React.FC = () => {
                 type: 'chapter',
                 settings: settings,
                 signal,
+                maxPromptLength: CHAPTER_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ

@@ -59,6 +59,7 @@ export function useSequelComposer() {
                 },
                 signal: opts?.signal ?? signal,
                 timeout: opts?.timeout ?? 180000,
+                maxPromptLength: opts?.maxPromptLength,
             });
             // generateContent はエラー時に content='' / error=メッセージ を返す。
             // 黙って空文字を流すと抽出結果が空になるため、明示的に例外化してパイプラインを止める。

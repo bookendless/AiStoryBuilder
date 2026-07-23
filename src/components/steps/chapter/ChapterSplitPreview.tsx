@@ -13,6 +13,7 @@ import { useAI } from '../../../contexts/AIContext';
 import { useToast } from '../../Toast';
 import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { aiService } from '../../../services/aiService';
+import { CHAPTER_PROMPT_CAP } from '../../../services/prompts/chapter';
 import { parseAIResponse } from '../../../utils/aiResponseParser';
 
 // 分割結果の型定義
@@ -99,6 +100,7 @@ export const ChapterSplitPreview: React.FC<ChapterSplitPreviewProps> = ({
                 prompt,
                 type: 'chapter',
                 settings: aiSettings,
+                maxPromptLength: CHAPTER_PROMPT_CAP,
             });
 
             if (response.error) {

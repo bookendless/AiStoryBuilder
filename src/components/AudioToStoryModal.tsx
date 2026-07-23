@@ -5,6 +5,7 @@ import { useOverlayBackHandler } from '../contexts/BackButtonContext';
 import { useToast } from './Toast';
 import { useAI } from '../contexts/AIContext';
 import { aiService } from '../services/aiService';
+import { MEDIA_PROMPT_CAP } from '../services/prompts/media';
 import { parseStoryProposal, validateStoryProposal, StoryProposal } from '../utils/storyProposalParser';
 import { AILoadingIndicator } from './common/AILoadingIndicator';
 
@@ -145,6 +146,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
           settings,
           type: 'audioToStory',
           timeout: 180000, // 3分のタイムアウト
+          maxPromptLength: MEDIA_PROMPT_CAP,
         });
 
         if (response.error) {
@@ -207,6 +209,7 @@ export const AudioToStoryModal: React.FC<AudioToStoryModalProps> = ({
           type: 'audioToStory',
           audio: audioDataUrl,
           timeout: 180000, // 3分のタイムアウト（音声解析は時間がかかる可能性がある）
+          maxPromptLength: MEDIA_PROMPT_CAP,
         });
 
         if (response.error) {

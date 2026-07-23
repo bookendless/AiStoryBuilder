@@ -10,6 +10,7 @@ import { aiService } from '../aiService';
 import { AIRunner } from '../../types/sequel';
 import { Project } from '../../types/project';
 import { PreemptiveSynopsisResult } from '../../types/preemptive';
+import { SYNOPSIS_PROMPT_CAP } from '../prompts/synopsis';
 
 interface Options {
   run: AIRunner;
@@ -136,6 +137,6 @@ export async function generatePreemptiveSynopsis(
     detailedStructureInfo: buildDetailedStructureInfo(project.plot),
   });
 
-  const content = await run(prompt, { signal });
+  const content = await run(prompt, { signal, maxPromptLength: SYNOPSIS_PROMPT_CAP });
   return { kind: 'synopsis', synopsis: content.trim() };
 }

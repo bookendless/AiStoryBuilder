@@ -9,6 +9,13 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * 続編構成プロンプトのサニタイズ上限（文字数）。
+ * キャラクター・世界観・相関図の全文ダンプがJSON出力形式の指示より前に無制限で挿入されるため、
+ * 既定の10000文字では末尾のJSON出力形式が黙って切り詰められる。maxPromptLength に渡して引き上げる。
+ */
+export const SEQUEL_PROMPT_CAP = 30000;
+
 /** 1章分の本文を要約するプロンプト（詳細モードのみ使用） */
 export function buildChapterSummaryPrompt(title: string, body: string): string {
     return `あなたは小説の分析を専門とする編集者です。次の章の本文を、続編制作のための分析素材として簡潔に要約してください。

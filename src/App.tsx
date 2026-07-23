@@ -346,9 +346,14 @@ const AppContent: React.FC = () => {
       if (now - lastTruncationToastRef.current < 30000) return;
       lastTruncationToastRef.current = now;
 
-      const detail = (e as CustomEvent<{ originalLength: number; maxLength: number }>).detail;
+      const detail = (e as CustomEvent<{ originalLength: number; maxLength: number; adjustable?: boolean }>).detail;
+      // adjustable=true（ローカルLLMのコンテキスト長）は設定で調整可能なので案内する。
+      // adjustable=false（機能側の固定cap）は「最大プロンプト長」設定では変えられないため案内しない。
+      const adviceText = detail.adjustable
+        ? 'AI設定の「最大プロンプト長」で調整できます。'
+        : '長い章・多数のキャラクターなど、プロジェクトの情報量が上限を超えています。';
       showWarning(
-        `プロンプトが長いため${detail.maxLength}文字に切り詰められました（元: ${detail.originalLength}文字）。内容の一部が反映されていない可能性があります。AI設定の「最大プロンプト長」で調整できます。`,
+        `プロンプトが長いため${detail.maxLength}文字に切り詰められました（元: ${detail.originalLength}文字）。内容の一部が反映されていない可能性があります。${adviceText}`,
         9000,
         { title: 'プロンプトを切り詰めました' }
       );

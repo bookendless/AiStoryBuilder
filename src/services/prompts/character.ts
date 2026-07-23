@@ -4,6 +4,13 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * キャラクタープロンプトのサニタイズ上限（文字数）。
+ * 全キャラ一覧・全章・あらすじ全文・会話履歴が指示より前に無制限で挿入されるため、
+ * 既定の10000文字では末尾のJSON出力形式や質問文が黙って切り詰められる。maxPromptLength に渡す。
+ */
+export const CHARACTER_PROMPT_CAP = 24000;
+
 export const CHARACTER_PROMPTS = {
   enhance: `あなたはキャラクター設定を専門とする小説の編集者です。以下のキャラクター情報を簡潔に補完してください。
 

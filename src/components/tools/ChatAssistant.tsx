@@ -3,7 +3,7 @@ import { Send, Bot, User, Sparkles, BookOpen, Calendar, Network, Zap, CheckCircl
 import { useAI } from '../../contexts/AIContext';
 import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
 import { aiService } from '../../services/aiService';
-import { buildChatAssistantSystemPrompt } from '../../services/prompts/chatAssistant';
+import { buildChatAssistantSystemPrompt, CHAT_PROMPT_CAP } from '../../services/prompts/chatAssistant';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
@@ -272,10 +272,22 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
         return;
       }
 
-      // 会話履歴を構築
-      const conversationHistory = messages
-        .map(msg => `${msg.role === 'user' ? 'ユーザー' : 'アシスタント'}: ${msg.content}`)
-        .join('\n\n');
+      // 会話履歴を構築（古いメッセージから落とし、直近の文脈と現在の質問を優先して残す）
+      const CONVERSATION_HISTORY_CHAR_BUDGET = 8000;
+      const historyLines = messages
+        .map(msg => `${msg.role === 'user' ? 'ユーザー' : 'アシスタント'}: ${msg.content}`);
+      const keptHistory: string[] = [];
+      let usedHistoryChars = 0;
+      for (let i = historyLines.length - 1; i >= 0; i--) {
+        const cost = historyLines[i].length + 2; // 区切り '\n\n' 分
+        if (usedHistoryChars + cost > CONVERSATION_HISTORY_CHAR_BUDGET && keptHistory.length > 0) {
+          keptHistory.unshift('（これ以前の会話は省略されました）');
+          break;
+        }
+        keptHistory.unshift(historyLines[i]);
+        usedHistoryChars += cost;
+      }
+      const conversationHistory = keptHistory.join('\n\n');
 
       const projectContext = getProjectContext();
 
@@ -294,6 +306,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose })
         type: 'draft',
         settings,
         context: projectContext || undefined,
+        maxPromptLength: CHAT_PROMPT_CAP,
         signal: abortController.signal,
         onStream: (chunk) => {
           accumulatedContent += chunk;

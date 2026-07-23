@@ -23,6 +23,7 @@ import { useGeneration } from '../../../contexts/GenerationContext';
 import { useToast } from '../../Toast';
 import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
 import { aiService } from '../../../services/aiService';
+import { CHAPTER_PROMPT_CAP } from '../../../services/prompts/chapter';
 import { parseAIResponse } from '../../../utils/aiResponseParser';
 
 // 強化タイプの定義
@@ -297,6 +298,7 @@ export const ChapterEnhanceModal: React.FC<ChapterEnhanceModalProps> = ({
                 type: 'chapter',
                 settings: aiSettings,
                 signal,
+                maxPromptLength: CHAPTER_PROMPT_CAP,
             });
 
             // キャンセルされた場合は処理をスキップ

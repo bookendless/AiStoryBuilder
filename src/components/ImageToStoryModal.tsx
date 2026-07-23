@@ -7,6 +7,7 @@ import { compressImage } from '../utils/performanceUtils';
 import { useToast } from './Toast';
 import { useAI } from '../contexts/AIContext';
 import { aiService } from '../services/aiService';
+import { MEDIA_PROMPT_CAP } from '../services/prompts/media';
 import { parseStoryProposal, validateStoryProposal, StoryProposal } from '../utils/storyProposalParser';
 import { AILoadingIndicator } from './common/AILoadingIndicator';
 
@@ -127,6 +128,7 @@ export const ImageToStoryModal: React.FC<ImageToStoryModalProps> = ({
         type: 'imageToStory',
         image: previewUrl,
         timeout: 120000, // 2分のタイムアウト
+        maxPromptLength: MEDIA_PROMPT_CAP,
       });
 
       if (response.error) {

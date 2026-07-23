@@ -6,6 +6,13 @@
 
 import { JSON_OUTPUT_RULES } from './common';
 
+/**
+ * メディア→物語プロンプトのサニタイズ上限（文字数）。
+ * 音声（Whisper）経路は文字起こし全文が指示より前に無制限で挿入されるため、
+ * 既定の10000文字では末尾のJSON出力形式が黙って切り詰められる。maxPromptLength に渡して引き上げる。
+ */
+export const MEDIA_PROMPT_CAP = 30000;
+
 export const IMAGE_TO_STORY_PROMPTS = {
     analyze: `あなたは小説の企画立案を専門とするプロの編集者です。以下の画像を分析し、この画像からインスピレーションを得た物語プロジェクトを提案してください。
 {customPrompt}

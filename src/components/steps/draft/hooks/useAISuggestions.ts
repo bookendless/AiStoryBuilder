@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { Project } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
+import { DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
 import { useGeneration } from '../../../../contexts/GenerationContext';
 import { SUGGESTION_CONFIG, MAX_SUGGESTION_TEXT_LENGTH } from '../constants';
 import { parseAISuggestions } from '../utils';
@@ -164,6 +165,7 @@ export const useAISuggestions = ({
           type: 'draft',
           settings,
           signal: abortController.signal,
+          maxPromptLength: DRAFT_PROMPT_CAP,
         });
 
         // キャンセルされた場合は処理をスキップ
