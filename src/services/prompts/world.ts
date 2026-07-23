@@ -4,6 +4,14 @@
 
 import { dataBlock } from './common';
 
+/**
+ * 世界観設定プロンプトのサニタイズ上限（文字数）。
+ * 全キャラクターの外見/性格/背景全文＋既存の世界観設定一覧が指示より前に挿入される構造上、
+ * 既定の10000文字ではキャラ数・設定数が増えると末尾の出力形式指示が黙って切り詰められる。
+ * generateContent の maxPromptLength に渡して引き上げる。
+ */
+export const WORLD_PROMPT_CAP = 20000;
+
 export const WORLD_PROMPTS = {
     generate: `あなたは小説の世界観設計を専門とするプロの編集者です。以下の情報を基に、指定されたカテゴリに特化した世界観設定を生成してください。
 

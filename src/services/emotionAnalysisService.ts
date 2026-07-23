@@ -9,7 +9,7 @@ import {
   EmotionType,
 } from '../types/emotion';
 import { parseAIResponse } from '../utils/aiResponseParser';
-import { buildEmotionAnalysisPrompt as generateEmotionAnalysisPrompt } from './prompts/emotion';
+import { buildEmotionAnalysisPrompt as generateEmotionAnalysisPrompt, EMOTION_PROMPT_CAP } from './prompts/emotion';
 
 /**
  * 感情分析を実行
@@ -26,6 +26,7 @@ export const analyzeChapterEmotion = async (
       type: 'draft',
       settings,
       context: undefined,
+      maxPromptLength: EMOTION_PROMPT_CAP,
     });
 
     if (response.error) {

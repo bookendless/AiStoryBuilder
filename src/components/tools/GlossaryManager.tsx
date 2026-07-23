@@ -14,6 +14,7 @@ import {
   buildGlossaryExtractTermsPrompt,
   buildGlossaryDescriptionPrompt,
   buildGlossaryBatchGeneratePrompt,
+  GLOSSARY_PROMPT_CAP,
 } from '../../services/prompts/glossary';
 
 interface GlossaryManagerProps {
@@ -309,6 +310,7 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: GLOSSARY_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -389,6 +391,7 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: GLOSSARY_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -480,6 +483,7 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: GLOSSARY_PROMPT_CAP,
       });
 
       if (response.error) {

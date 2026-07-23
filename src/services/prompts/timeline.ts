@@ -4,6 +4,13 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * タイムラインプロンプトのサニタイズ上限（文字数）。
+ * projectContext が全章のdraft抜粋をslice無しで積む構造上、既定の10000文字では
+ * 末尾のJSON出力形式指示が黙って切り詰められる。generateContent の maxPromptLength に渡して引き上げる。
+ */
+export const TIMELINE_PROMPT_CAP = 24000;
+
 /** プロジェクト情報からの重要イベント自動抽出プロンプト */
 export function buildTimelineExtractEventsPrompt(projectContext: string, existingTimelineJson: string): string {
   return `あなたは物語の時系列を整理する編集者です。以下のプロジェクト情報から、タイムラインに追加すべき重要なイベントを抽出してください。

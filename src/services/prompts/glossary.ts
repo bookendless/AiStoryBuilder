@@ -4,6 +4,14 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * 用語集プロンプトのサニタイズ上限（文字数）。
+ * 既存の用語集全件が指示より前に無制限で挿入される構造上、用語が増えると
+ * 既定の10000文字では末尾のJSON出力形式指示が黙って切り詰められる。
+ * generateContent の maxPromptLength に渡して引き上げる。
+ */
+export const GLOSSARY_PROMPT_CAP = 20000;
+
 /** プロジェクト情報からの重要用語自動抽出プロンプト */
 export function buildGlossaryExtractTermsPrompt(projectContext: string, existingGlossaryJson: string): string {
   return `あなたは小説の設定資料を整理する用語集編集者です。以下のプロジェクト情報から、用語集に追加すべき重要な用語を抽出してください。

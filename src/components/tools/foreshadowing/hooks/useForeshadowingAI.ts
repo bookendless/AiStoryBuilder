@@ -3,6 +3,7 @@ import { useProject, Foreshadowing, ForeshadowingPoint } from '../../../../conte
 import { useAI } from '../../../../contexts/AIContext';
 import { useToast } from '../../../Toast';
 import { aiService } from '../../../../services/aiService';
+import { FORESHADOWING_PROMPT_CAP } from '../../../../services/prompts/foreshadowing';
 import { parseAIResponse } from '../../../../utils/aiResponseParser';
 import { statusConfig, categoryConfig, importanceConfig, pointTypeConfig } from '../config';
 import { syncForeshadowingToChapters } from './useForeshadowingCRUD';
@@ -129,7 +130,12 @@ export const useForeshadowingAI = () => {
 
   // AI応答の共通処理：生成してJSONパース
   const fetchAndParseAI = async <T>(prompt: string): Promise<T> => {
-    const response = await aiService.generateContent({ prompt, type: 'foreshadowing', settings: aiSettings });
+    const response = await aiService.generateContent({
+      prompt,
+      type: 'foreshadowing',
+      settings: aiSettings,
+      maxPromptLength: FORESHADOWING_PROMPT_CAP,
+    });
     if (response.error) throw new Error(response.error);
     if (!response.content) throw new Error('AIからの応答が空です');
     const parsed = parseAIJsonResponse(response.content) as T;

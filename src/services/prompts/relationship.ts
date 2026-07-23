@@ -4,6 +4,14 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * 相関図プロンプトのサニタイズ上限（文字数）。
+ * projectContext（あらすじ＋プロット＋全キャラ＋全章＋タイムライン＋既存の関係性）を
+ * 先頭に置く構造上、既定の10000文字では【出力形式】等の末尾指示が黙って切り詰められ、
+ * JSON抽出失敗や無関係な数値の混入を招く。generateContent の maxPromptLength に渡して引き上げる。
+ */
+export const RELATIONSHIP_PROMPT_CAP = 24000;
+
 // 関係性の種類と強度の共通定義
 const RELATIONSHIP_TYPE_RULES = `- 関係性の種類は以下のいずれかから選択：
   - friend: 友人関係（信頼できる仲間、協力関係）

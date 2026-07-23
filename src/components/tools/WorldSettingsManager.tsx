@@ -3,6 +3,7 @@ import { Globe, Plus, Search, Edit2, Trash2, X, Save, Tag, Sparkles, Loader2, Wa
 import { useProject, WorldSetting } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
+import { WORLD_PROMPT_CAP } from '../../services/prompts/world';
 import { getUserFriendlyErrorMessage } from '../../utils/apiUtils';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
@@ -333,6 +334,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
         prompt,
         type: 'world',
         settings,
+        maxPromptLength: WORLD_PROMPT_CAP,
       });
 
       if (response.error) {

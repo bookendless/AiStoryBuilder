@@ -8,6 +8,7 @@ import {
   buildRelationshipSuggestPrompt,
   buildRelationshipConsistencyCheckPrompt,
   buildRelationshipDescriptionPrompt,
+  RELATIONSHIP_PROMPT_CAP,
 } from '../../services/prompts/relationship';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
@@ -208,6 +209,28 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
 
   if (!isOpen || !currentProject) return null;
 
+  // 同一キャラクターペア（逆方向エッジ含む）の呼び方を一致させ、矛盾を防ぐ
+  const syncCallNamesAcrossPair = (
+    list: CharacterRelationship[],
+    from: string,
+    to: string,
+    fromCallsTo: string | undefined,
+    toCallsFrom: string | undefined,
+    excludeId: string
+  ): CharacterRelationship[] => {
+    if (!fromCallsTo && !toCallsFrom) return list;
+    return list.map(r => {
+      if (r.id === excludeId) return r;
+      if (r.from === from && r.to === to) {
+        return { ...r, fromCallsTo: fromCallsTo || r.fromCallsTo, toCallsFrom: toCallsFrom || r.toCallsFrom };
+      }
+      if (r.from === to && r.to === from) {
+        return { ...r, fromCallsTo: toCallsFrom || r.fromCallsTo, toCallsFrom: fromCallsTo || r.toCallsFrom };
+      }
+      return r;
+    });
+  };
+
   const handleAddRelationship = () => {
     if (!formData.from || !formData.to) {
       showWarning('両方のキャラクターを選択してください', 5000, {
@@ -247,14 +270,20 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
       toCallsFrom: formData.toCallsFrom || undefined,
     };
 
-    if (editingRelationship) {
-      const updatedRelationships = relationships.map(r =>
-        r.id === editingRelationship.id ? newRelationship : r
-      );
-      updateProject({ relationships: updatedRelationships });
-    } else {
-      updateProject({ relationships: [...relationships, newRelationship] });
-    }
+    const baseRelationships = editingRelationship
+      ? relationships.map(r => r.id === editingRelationship.id ? newRelationship : r)
+      : [...relationships, newRelationship];
+
+    const syncedRelationships = syncCallNamesAcrossPair(
+      baseRelationships,
+      newRelationship.from,
+      newRelationship.to,
+      newRelationship.fromCallsTo,
+      newRelationship.toCallsFrom,
+      newRelationship.id
+    );
+
+    updateProject({ relationships: syncedRelationships });
 
     handleCloseForm();
   };
@@ -706,6 +735,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: RELATIONSHIP_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -901,6 +931,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: RELATIONSHIP_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -1101,6 +1132,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: RELATIONSHIP_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -1208,6 +1240,7 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: RELATIONSHIP_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -1420,7 +1453,8 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                     return (
                       <div
                         key={rel.id}
-                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
+                        onDoubleClick={() => handleEditRelationship(rel)}
+                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                       >
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
                           <div className="flex-1">
@@ -1474,7 +1508,10 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center space-x-1 sm:space-x-2 mt-4 sm:mt-0 sm:ml-4 justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100 dark:border-gray-700">
+                          <div
+                            className="flex items-center space-x-1 sm:space-x-2 mt-4 sm:mt-0 sm:ml-4 justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100 dark:border-gray-700"
+                            onDoubleClick={(e) => e.stopPropagation()}
+                          >
                             <button
                               onClick={() => handleEditRelationship(rel)}
                               className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -1833,6 +1870,9 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
                 placeholder="例: 兄貴"
               />
             </div>
+            <p className="sm:col-span-2 text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+              ※ この二人の間に他の関係（友人・ライバルなど）が別途登録されていても、呼び方は自動的に同じ内容へ揃えられます
+            </p>
           </div>
 
           <div>

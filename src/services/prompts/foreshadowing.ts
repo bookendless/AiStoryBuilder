@@ -4,6 +4,15 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * 伏線プロンプトのサニタイズ上限（文字数）。
+ * aiService.buildPrompt は変数ごとに5万字まで許容してテンプレートへ埋め込むが、
+ * 埋め込み後の完成プロンプト全体は generateContent が既定10000文字で末尾を切り詰める。
+ * 章立て・既存伏線一覧が指示より前に無制限で挿入される構造上、末尾のJSON出力形式指示が
+ * 黙って失われるため、generateContent の maxPromptLength に渡して引き上げる。
+ */
+export const FORESHADOWING_PROMPT_CAP = 20000;
+
 export const FORESHADOWING_PROMPTS = {
   suggest: `あなたは物語構成のプロフェッショナルです。以下のプロジェクト情報を分析し、効果的な伏線を提案してください。
 

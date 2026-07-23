@@ -15,6 +15,7 @@ import {
   buildTimelineDescriptionPrompt,
   buildTimelineConsistencyCheckPrompt,
   buildTimelineSuggestPrompt,
+  TIMELINE_PROMPT_CAP,
 } from '../../services/prompts/timeline';
 
 interface TimelineViewerProps {
@@ -238,6 +239,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: TIMELINE_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -380,6 +382,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: TIMELINE_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -489,6 +492,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: TIMELINE_PROMPT_CAP,
       });
 
       if (response.error) {
@@ -606,6 +610,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
         type: 'draft',
         settings,
         context: projectContext,
+        maxPromptLength: TIMELINE_PROMPT_CAP,
       });
 
       if (response.error) {

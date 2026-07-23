@@ -5,6 +5,14 @@
 import { EmotionAnalysisRequest } from '../../types/emotion';
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * 感情分析プロンプトのサニタイズ上限（文字数）。
+ * 章の草案を全文そのままdataBlockへ入れる構造上、既定の10000文字では
+ * 末尾のJSON出力形式指示が黙って切り詰められ、解析失敗を招く。
+ * generateContent の maxPromptLength に渡して引き上げる。
+ */
+export const EMOTION_PROMPT_CAP = 30000;
+
 /** 章の感情分析プロンプトを生成 */
 export const buildEmotionAnalysisPrompt = (request: EmotionAnalysisRequest): string => {
   // 分析対象の決定

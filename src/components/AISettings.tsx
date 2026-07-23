@@ -74,6 +74,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   }, [settings]);
 
   const [formData, setFormData] = useState(buildInitialFormData);
+  const [activeTab, setActiveTab] = useState<'model' | 'system'>('model');
 
   // 非同期でAPIキーを復号化して設定
   const decryptAndSetApiKey = useCallback(async () => {
@@ -115,6 +116,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     if (isOpen) {
       setFormData(buildInitialFormData());
       decryptAndSetApiKey();
+      setActiveTab('model');
     }
   }, [isOpen, buildInitialFormData, decryptAndSetApiKey]);
 
@@ -459,7 +461,30 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       ref={modalRef}
     >
       {/* Content */}
-      <div className="space-y-6">
+      <div>
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6" role="tablist">
+          {([
+            { id: 'model' as const, label: 'モデル選択' },
+            { id: 'system' as const, label: 'システム設定' },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-semibold transition-colors font-['Noto_Sans_JP'] ${activeTab === tab.id
+                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-gray-900 dark:text-white'
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+      <div className={`space-y-6 ${activeTab === 'model' ? '' : 'hidden'}`} role="tabpanel">
         {/* Provider Selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 font-['Noto_Sans_JP']">
@@ -764,7 +789,9 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             />
           </div>
         </div>
+      </div>
 
+      <div className={`space-y-6 ${activeTab === 'system' ? '' : 'hidden'}`} role="tabpanel">
         {/* 創造ポイント（Phase C） */}
         <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
           <input
@@ -888,7 +915,9 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             </span>
           </label>
         </div>
+      </div>
 
+      <div className={`space-y-6 ${activeTab === 'model' ? '' : 'hidden'}`} role="tabpanel">
         {/* Connection Test */}
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
           <h4 className="font-semibold text-gray-900 dark:text-white mb-2 font-['Noto_Sans_JP']">
@@ -915,6 +944,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* Footer */}
