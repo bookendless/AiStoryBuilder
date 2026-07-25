@@ -2,7 +2,7 @@
  * 世界観設定関連プロンプトテンプレート
  */
 
-import { dataBlock } from './common';
+import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
 /**
  * 世界観設定プロンプトのサニタイズ上限（文字数）。
@@ -13,6 +13,50 @@ import { dataBlock } from './common';
 export const WORLD_PROMPT_CAP = 20000;
 
 export const WORLD_PROMPTS = {
+    generateFoundation: `あなたは小説の世界観設計を専門とするプロの編集者です。以下の情報を基に、作品世界の9つの基盤設定を「互いに矛盾しない一貫した1つの世界」として同時に生成してください。
+
+【プロジェクト基本情報】
+タイトル: {title}
+テーマ: {theme}
+メインジャンル: {mainGenre}
+サブジャンル: {subGenre}
+ターゲット読者: {targetReader}
+作品内容・概要: {description}
+
+${dataBlock('キャラクター情報', '{characters}')}
+
+【プロット基礎設定】
+{plotInfo}
+
+${dataBlock('既存の世界観情報', '{existingWorldInfo}')}
+
+【生成指示】
+{instruction}
+
+【重要】以下の点を厳守してください：
+1. 9つの基盤（地理・場所／社会・制度／文化・風習／技術・科学／魔法・超自然／歴史／政治・統治／経済／宗教）すべてを生成する
+2. **9つの基盤は同一の世界の異なる側面である。地理が歴史を、社会が経済を規定するように、互いに因果と整合性を持たせ、決して矛盾させない**
+3. 既存のキャラクター情報・プロット基礎設定・既存の世界観情報と矛盾しない
+4. メインジャンルとサブジャンルの特徴を活かし、作品テーマに沿った一貫性のある世界観にする
+5. 各基盤は物語執筆に直接役立つ簡潔な内容とし、**内容(content)は80〜120文字程度**に収める（基盤の種であり、詳細は後で個別に強化する前提）
+6. タイトル(title)はその基盤を端的に表す固有の名称にする
+
+${JSON_OUTPUT_RULES}
+
+【出力形式】
+以下のJSON形式のみを出力してください。9つのキーはすべて必須です：
+{{
+  "geography": {{ "title": "地理・場所の設定タイトル", "content": "..." }},
+  "society": {{ "title": "社会・制度の設定タイトル", "content": "..." }},
+  "culture": {{ "title": "文化・風習の設定タイトル", "content": "..." }},
+  "technology": {{ "title": "技術・科学の設定タイトル", "content": "..." }},
+  "magic": {{ "title": "魔法・超自然の設定タイトル", "content": "..." }},
+  "history": {{ "title": "歴史の設定タイトル", "content": "..." }},
+  "politics": {{ "title": "政治・統治の設定タイトル", "content": "..." }},
+  "economy": {{ "title": "経済の設定タイトル", "content": "..." }},
+  "religion": {{ "title": "宗教の設定タイトル", "content": "..." }}
+}}`,
+
     generate: `あなたは小説の世界観設計を専門とするプロの編集者です。以下の情報を基に、指定されたカテゴリに特化した世界観設定を生成してください。
 
 【プロジェクト基本情報】

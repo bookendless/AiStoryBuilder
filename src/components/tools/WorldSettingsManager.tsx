@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Globe, Plus, Search, Edit2, Trash2, X, Save, Tag, Sparkles, Loader2, Wand2, Zap, CheckCircle, AlertCircle } from 'lucide-react';
-import { useProject, WorldSetting } from '../../contexts/ProjectContext';
+import { Globe, Plus, Search, Edit2, Trash2, X, Save, Tag, Sparkles, Loader2, Wand2, Zap, CheckCircle, AlertCircle, Layers } from 'lucide-react';
+import { useProject, WorldSetting, Project } from '../../contexts/ProjectContext';
 import { useAI } from '../../contexts/AIContext';
 import { aiService } from '../../services/aiService';
 import { WORLD_PROMPT_CAP } from '../../services/prompts/world';
 import { getUserFriendlyErrorMessage } from '../../utils/apiUtils';
+import { parseAIResponse } from '../../utils/aiResponseParser';
+import { generateUUID } from '../../utils/securityUtils';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { useToast } from '../Toast';
@@ -16,6 +18,53 @@ interface WorldSettingsManagerProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+/** 世界観の9つの基盤カテゴリ（一括生成対象。'other'は含めない） */
+const FOUNDATION_CATEGORIES: WorldSetting['category'][] = [
+  'geography', 'society', 'culture', 'technology', 'magic', 'history', 'politics', 'economy', 'religion',
+];
+
+/** 一括生成結果の1件分 */
+interface FoundationItem {
+  category: WorldSetting['category'];
+  title: string;
+  content: string;
+  /** 適用対象に含めるか（ユーザーが個別に除外可能） */
+  selected: boolean;
+}
+
+/** プロンプトに載せる既存世界観設定の1件あたりの抜粋上限（文字数） */
+const WORLD_EXCERPT_LENGTH = 200;
+
+/**
+ * プロンプトに埋め込む既存コンテキスト（既存世界観・キャラクター・プロット基礎設定）を組み立てる。
+ * 新規生成／強化／展開／基盤一括生成で同一の書式を共有する。
+ */
+const buildPromptContext = (worldSettings: WorldSetting[], project: Project) => {
+  // 既存の世界観情報をまとめる（長文は抜粋。上限未満のものに省略記号は付けない）
+  const existingWorldInfo = worldSettings.length > 0
+    ? worldSettings.map(ws => {
+      const excerpt = ws.content.length > WORLD_EXCERPT_LENGTH
+        ? `${ws.content.substring(0, WORLD_EXCERPT_LENGTH)}...`
+        : ws.content;
+      return `【${ws.title}】\n${excerpt}`;
+    }).join('\n\n')
+    : 'なし';
+
+  // キャラクター情報をまとめる
+  const charactersInfo = project.characters && project.characters.length > 0
+    ? project.characters.map(char =>
+      `名前: ${char.name}\n役割: ${char.role}\n外見: ${char.appearance}\n性格: ${char.personality}\n背景: ${char.background}`
+    ).join('\n\n')
+    : 'なし';
+
+  // プロット基礎設定をまとめる
+  const plotInfo = project.plot
+    ? `テーマ: ${project.plot.theme || '未設定'}\n舞台設定: ${project.plot.setting || '未設定'}\nフック: ${project.plot.hook || '未設定'}\n主人公の目標: ${project.plot.protagonistGoal || '未設定'}\n主要な障害: ${project.plot.mainObstacle || '未設定'}${project.plot.ending ? `\n結末: ${project.plot.ending}` : ''}`
+    : 'なし';
+
+  return { existingWorldInfo, charactersInfo, plotInfo };
+};
 
 const categoryLabels: Record<WorldSetting['category'], { label: string; color: string }> = {
   geography: { label: '地理・場所', color: 'bg-blue-500' },
@@ -53,12 +102,13 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
   });
   const [tagInput, setTagInput] = useState('');
   const [showAIAssistant, setShowAIAssistant] = useState(false);
-  const [aiMode, setAiMode] = useState<'generate' | 'enhance' | 'expand'>('generate');
+  const [aiMode, setAiMode] = useState<'generate' | 'enhance' | 'expand' | 'foundation'>('generate');
   const [deletingSettingId, setDeletingSettingId] = useState<string | null>(null);
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const [aiInstruction, setAiInstruction] = useState('');
   const [aiCategory, setAiCategory] = useState<WorldSetting['category']>('other');
   const [aiResult, setAiResult] = useState<{ title: string; content: string } | null>(null);
+  const [foundationResults, setFoundationResults] = useState<FoundationItem[] | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [selectedSettingForAI, setSelectedSettingForAI] = useState<WorldSetting | null>(null);
   const { settings, isConfigured } = useAI();
@@ -108,7 +158,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
 
     const now = new Date();
     const newSetting: WorldSetting = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       title: formData.title,
       content: formData.content,
       category: formData.category || 'other',
@@ -261,22 +311,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
     try {
       let prompt = '';
 
-      // 既存の世界観情報をまとめる
-      const existingWorldInfo = worldSettings.length > 0
-        ? worldSettings.map(ws => `【${ws.title}】\n${ws.content.substring(0, 200)}...`).join('\n\n')
-        : 'なし';
-
-      // キャラクター情報をまとめる
-      const charactersInfo = currentProject.characters && currentProject.characters.length > 0
-        ? currentProject.characters.map(char =>
-          `名前: ${char.name}\n役割: ${char.role}\n外見: ${char.appearance}\n性格: ${char.personality}\n背景: ${char.background}`
-        ).join('\n\n')
-        : 'なし';
-
-      // プロット基礎設定をまとめる
-      const plotInfo = currentProject.plot
-        ? `テーマ: ${currentProject.plot.theme || '未設定'}\n舞台設定: ${currentProject.plot.setting || '未設定'}\nフック: ${currentProject.plot.hook || '未設定'}\n主人公の目標: ${currentProject.plot.protagonistGoal || '未設定'}\n主要な障害: ${currentProject.plot.mainObstacle || '未設定'}${currentProject.plot.ending ? `\n結末: ${currentProject.plot.ending}` : ''}`
-        : 'なし';
+      const { existingWorldInfo, charactersInfo, plotInfo } = buildPromptContext(worldSettings, currentProject);
 
       if (aiMode === 'generate') {
         // 新規生成
@@ -423,7 +458,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
 
     const now = new Date();
     const newSetting: WorldSetting = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       title: aiResult.title,
       content: aiResult.content,
       category: aiMode === 'expand' ? aiCategory : (selectedSettingForAI?.category || aiCategory),
@@ -442,6 +477,147 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
     setAiInstruction('');
     setShowAIAssistant(false);
     setSelectedSettingForAI(null);
+  };
+
+  // 9つの基盤を一貫した1つの世界として一括生成
+  const handleFoundationGenerate = async () => {
+    if (!isConfigured) {
+      showError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
+        title: 'AI設定が必要',
+      });
+      return;
+    }
+    if (!currentProject) return;
+
+    setIsAIGenerating(true);
+    setAiError(null);
+    setAiResult(null);
+    setFoundationResults(null);
+
+    try {
+      const { existingWorldInfo, charactersInfo, plotInfo } = buildPromptContext(worldSettings, currentProject);
+
+      const prompt = aiService.buildPrompt('world', 'generateFoundation', {
+        title: currentProject.title || '',
+        theme: currentProject.theme || currentProject.projectTheme || '',
+        mainGenre: currentProject.mainGenre || '',
+        subGenre: currentProject.subGenre || '',
+        targetReader: currentProject.targetReader || '',
+        description: currentProject.description || '',
+        characters: charactersInfo,
+        plotInfo: plotInfo,
+        existingWorldInfo,
+        instruction: aiInstruction || '作品に適した一貫性のある世界観の基盤を生成してください',
+      });
+
+      const response = await aiService.generateContent({
+        prompt,
+        type: 'world',
+        settings,
+        maxPromptLength: WORLD_PROMPT_CAP,
+      });
+
+      if (response.error) {
+        setAiError(getUserFriendlyErrorMessage(new Error(response.error), 'AI生成'));
+        return;
+      }
+
+      if (!response.content) {
+        setAiError('AIからの応答が空でした。もう一度お試しください。');
+        return;
+      }
+
+      // JSON形式（カテゴリIDをキーとするオブジェクト）を解析。
+      // parseAIResponse はJSON解析に失敗するとテキスト解析へフォールバックし success=true を返すため、
+      // success だけでは判定できない。カテゴリキーを1つ以上持つ素のオブジェクトかどうかで検証する。
+      const parsed = parseAIResponse(response.content, 'json');
+      const isFoundationObject =
+        parsed.success &&
+        typeof parsed.data === 'object' &&
+        parsed.data !== null &&
+        !Array.isArray(parsed.data) &&
+        FOUNDATION_CATEGORIES.some(category => category in (parsed.data as Record<string, unknown>));
+
+      if (!isFoundationObject) {
+        setAiError('AI応答をJSONとして解析できませんでした。出力が途中で打ち切られた可能性があります（出力トークン上限が低い場合は設定を見直してください）。もう一度お試しください。');
+        return;
+      }
+
+      const data = parsed.data as Record<string, unknown>;
+
+      // 9つの基盤カテゴリを順に取り出す（欠損・不正な項目はスキップして残りを活かす）
+      const items: FoundationItem[] = [];
+      for (const category of FOUNDATION_CATEGORIES) {
+        const entry = data[category] as { title?: unknown; content?: unknown } | undefined;
+        const content = entry && typeof entry.content === 'string' ? entry.content.trim() : '';
+        if (!content) continue; // 内容が無い基盤は採用しない
+        const title = entry && typeof entry.title === 'string' && entry.title.trim()
+          ? entry.title.trim()
+          : categoryLabels[category].label;
+        items.push({ category, title, content, selected: true });
+      }
+
+      if (items.length === 0) {
+        setAiError('基盤設定の内容が空でした。追加指示を具体的にして、もう一度お試しください。');
+        return;
+      }
+
+      setFoundationResults(items);
+      if (items.length < FOUNDATION_CATEGORIES.length) {
+        showWarning(`${items.length}件の基盤を生成しました（一部が取得できませんでした）`, 6000, {
+          title: '一部のみ生成',
+        });
+      } else {
+        showSuccess('9つの基盤設定の生成が完了しました');
+      }
+    } catch (error) {
+      console.error('AI一括生成エラー:', error);
+      setAiError(getUserFriendlyErrorMessage(error, 'AI生成'));
+    } finally {
+      setIsAIGenerating(false);
+    }
+  };
+
+  // 選択された基盤を世界観設定として一括追加
+  const handleApplyFoundation = () => {
+    if (!foundationResults) return;
+    const selected = foundationResults.filter(item => item.selected);
+    if (selected.length === 0) {
+      showWarning('適用する基盤を1つ以上選択してください', 5000, {
+        title: '選択エラー',
+      });
+      return;
+    }
+
+    const now = new Date();
+    const newSettings: WorldSetting[] = selected.map(item => ({
+      id: generateUUID(),
+      title: item.title,
+      content: item.content,
+      category: item.category,
+      tags: [],
+      createdAt: now,
+      updatedAt: now,
+      aiGenerated: true,
+    }));
+
+    updateProject({
+      worldSettings: [...worldSettings, ...newSettings],
+    });
+
+    showSuccess(`${newSettings.length}件の基盤設定を追加しました`);
+
+    // リセット
+    setFoundationResults(null);
+    setAiInstruction('');
+    setShowAIAssistant(false);
+    setSelectedSettingForAI(null);
+  };
+
+  const toggleFoundationItem = (category: WorldSetting['category']) => {
+    setFoundationResults(prev =>
+      prev ? prev.map(item => item.category === category ? { ...item, selected: !item.selected } : item) : prev
+    );
   };
 
   const handleEnhanceApply = () => {
@@ -837,15 +1013,31 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
               モード
             </label>
-            <div className="flex space-x-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setAiMode('foundation');
+                  setSelectedSettingForAI(null);
+                  setAiResult(null);
+                  setAiError(null);
+                }}
+                className={`col-span-2 flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'foundation'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+              >
+                <Layers className="h-4 w-4 inline mr-2" />
+                9つの基盤を一括生成
+              </button>
               <button
                 onClick={() => {
                   setAiMode('generate');
                   setSelectedSettingForAI(null);
                   setAiResult(null);
                   setAiError(null);
+                  setFoundationResults(null);
                 }}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'generate'
+                className={`px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'generate'
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
@@ -858,8 +1050,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                   setAiMode('enhance');
                   setAiResult(null);
                   setAiError(null);
+                  setFoundationResults(null);
                 }}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'enhance'
+                className={`px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'enhance'
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
@@ -873,8 +1066,9 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
                   setAiMode('expand');
                   setAiResult(null);
                   setAiError(null);
+                  setFoundationResults(null);
                 }}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'expand'
+                className={`col-span-2 px-4 py-2 rounded-lg font-medium transition-colors font-['Noto_Sans_JP'] ${aiMode === 'expand'
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
@@ -885,6 +1079,17 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
               </button>
             </div>
           </div>
+
+          {/* 基盤一括生成の説明 */}
+          {aiMode === 'foundation' && !foundationResults && (
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+              <p className="text-sm text-indigo-800 dark:text-indigo-200 font-['Noto_Sans_JP'] leading-relaxed">
+                地理・場所／社会・制度／文化・風習／技術・科学／魔法・超自然／歴史／政治・統治／経済／宗教の
+                <span className="font-semibold">9つの基盤</span>を、互いに矛盾しない一貫した1つの世界として一括生成します。
+                生成後、追加する基盤を選んでまとめて登録できます。
+              </p>
+            </div>
+          )}
 
           {/* 選択された設定表示（enhance/expandモード） */}
           {(aiMode === 'enhance' || aiMode === 'expand') && (
@@ -1032,6 +1237,77 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
               </div>
             </div>
           )}
+
+          {/* 基盤一括生成の結果表示 */}
+          {aiMode === 'foundation' && foundationResults && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <p className="text-sm font-medium text-green-800 dark:text-green-200 font-['Noto_Sans_JP']">
+                  {foundationResults.length}件の基盤設定を生成しました（追加する項目を選択してください）
+                </p>
+              </div>
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {foundationResults.map((item) => {
+                  const categoryInfo = categoryLabels[item.category];
+                  // 同カテゴリの設定が既にある場合は重複追加に気づけるよう明示する（選択状態は変更しない）
+                  const hasExistingInCategory = worldSettings.some(ws => ws.category === item.category);
+                  return (
+                    <label
+                      key={item.category}
+                      className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${item.selected
+                        ? 'bg-white dark:bg-gray-800 border-indigo-300 dark:border-indigo-700'
+                        : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 opacity-60'
+                        }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.selected}
+                        onChange={() => toggleFoundationItem(item.category)}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${categoryInfo.color}`}>
+                            {categoryInfo.label}
+                          </span>
+                          <span className="font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
+                            {item.title}
+                          </span>
+                          {hasExistingInCategory && (
+                            <span className="flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 font-['Noto_Sans_JP']">
+                              同カテゴリの設定あり
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-['Noto_Sans_JP']">
+                          {item.content}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleApplyFoundation}
+                  className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-['Noto_Sans_JP']"
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  <span>選択した基盤を追加（{foundationResults.filter(i => i.selected).length}件）</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setFoundationResults(null);
+                    setAiError(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-['Noto_Sans_JP']"
+                >
+                  やり直す
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* フッター */}
@@ -1040,6 +1316,7 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
             onClick={() => {
               setShowAIAssistant(false);
               setAiResult(null);
+              setFoundationResults(null);
               setAiError(null);
               setAiInstruction('');
               setSelectedSettingForAI(null);
@@ -1049,8 +1326,8 @@ export const WorldSettingsManager: React.FC<WorldSettingsManagerProps> = ({ isOp
             閉じる
           </button>
           <button
-            onClick={handleAIGenerate}
-            disabled={isAIGenerating || (aiMode === 'generate' && !aiCategory) || (aiMode !== 'generate' && !selectedSettingForAI)}
+            onClick={aiMode === 'foundation' ? handleFoundationGenerate : handleAIGenerate}
+            disabled={isAIGenerating || (aiMode === 'generate' && !aiCategory) || ((aiMode === 'enhance' || aiMode === 'expand') && !selectedSettingForAI)}
             className="flex items-center space-x-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
             title={aiMode === 'generate' && !aiCategory ? 'カテゴリを選択してください' : undefined}
           >
