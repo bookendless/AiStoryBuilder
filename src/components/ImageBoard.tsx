@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Image, Eye, Trash2, Tag, Upload, FileImage, Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Info, Edit3, Save, X, Search, ArrowUpDown, CheckSquare, Square, Grid3x3, Grid2x2, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
 import { ImageItem } from '../types/ai';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
-import { useToast } from './Toast';
+import { useToast } from './useToast';
 import { OptimizedImage } from './OptimizedImage';
 import { databaseService } from '../services/databaseService';
 import { optimizeImageToWebP } from '../utils/performanceUtils';
 import { EmptyState } from './common/EmptyState';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { exportFile } from '../utils/mobileExportUtils';
 
 // 画像カードコンポーネント（メモ化）

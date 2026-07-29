@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BookOpen, Image, Upload, X } from 'lucide-react';
 import { Step } from '../App';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
 import { useSkeletonGenerator } from './skeleton/useSkeletonGenerator';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { compressImage } from '../utils/performanceUtils';
-import { useToast } from './Toast';
+import { useToast } from './useToast';
 import {
   STYLE_OPTIONS,
   PERSPECTIVE_OPTIONS,

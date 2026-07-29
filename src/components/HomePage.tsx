@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, BookOpen, Calendar, TrendingUp, Edit3, Search, Filter, ArrowUpDown, Clock, CheckCircle2, HelpCircle, Sparkles, Image, Mic, Library, FileUp, GitBranch } from 'lucide-react';
 import { Step } from '../App';
-import { useProject, useSaveStatus } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
+import { useSaveStatus } from '../contexts/useSaveStatus';
 import { startAutoBackup, stopAutoBackup } from '../services/autoBackupService';
 import { AutoBackupStatus } from './common/AutoBackupStatus';
 import { NewProjectModal } from './NewProjectModal';
@@ -13,7 +14,7 @@ import { StoryProposalModal } from './StoryProposalModal';
 import { SequelComposerModal } from './sequel/SequelComposerModal';
 import { StoryImporterModal } from './import/StoryImporterModal';
 import { Project } from '../contexts/ProjectContext';
-import { useToast } from './Toast';
+import { useToast } from './useToast';
 import { getUserFriendlyError } from '../utils/errorHandler';
 import { useGlobalShortcuts } from '../hooks/useKeyboardNavigation';
 import { ContextHelp } from './ContextHelp';

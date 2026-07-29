@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { List, Plus, Search, X } from 'lucide-react';
-import { useProject, Chapter } from '../../contexts/ProjectContext';
-import { useToast } from '../Toast';
+import { Chapter } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useToast } from '../useToast';
 import { ChapterFormModal } from './chapter/ChapterFormModal';
 import { ChapterHistoryModal } from './chapter/ChapterHistoryModal';
 import { ChapterList } from './chapter/ChapterList';

@@ -17,11 +17,12 @@ import {
     Zap,
     FileText
 } from 'lucide-react';
-import { useProject, Chapter, Foreshadowing } from '../../../contexts/ProjectContext';
-import { useAI } from '../../../contexts/AIContext';
-import { useGeneration } from '../../../contexts/GenerationContext';
-import { useToast } from '../../Toast';
-import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
+import { Chapter, Foreshadowing } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
+import { useAI } from '../../../contexts/useAI';
+import { useGeneration } from '../../../contexts/useGeneration';
+import { useToast } from '../../useToast';
+import { useOverlayBackHandler } from '../../../contexts/useOverlayBackHandler';
 import { aiService } from '../../../services/aiService';
 import { CHAPTER_PROMPT_CAP } from '../../../services/prompts/chapter';
 import { parseAIResponse } from '../../../utils/aiResponseParser';

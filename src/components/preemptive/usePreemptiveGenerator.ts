@@ -11,11 +11,11 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { useAI } from '../../contexts/AIContext';
-import { useProject } from '../../contexts/ProjectContext';
-import { useGeneration } from '../../contexts/GenerationContext';
-import { usePendingResult } from '../../contexts/PendingResultContext';
-import { useToast } from '../Toast';
+import { useAI } from '../../contexts/useAI';
+import { useProject } from '../../contexts/useProject';
+import { useGeneration } from '../../contexts/useGeneration';
+import { usePendingResult } from '../../contexts/usePendingResult';
+import { useToast } from '../useToast';
 import { AIRequest } from '../../types/ai';
 import { PreemptiveTargetStep, PreemptiveResult } from '../../types/preemptive';
 import { createPreemptiveRunner } from '../../services/preemptive/createPreemptiveRunner';

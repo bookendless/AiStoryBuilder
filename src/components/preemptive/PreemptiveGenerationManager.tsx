@@ -13,9 +13,9 @@
 
 import React, { useEffect, useRef } from 'react';
 import { Step } from '../../types/common';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
-import { useGeneration } from '../../contexts/GenerationContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
+import { useGeneration } from '../../contexts/useGeneration';
 import { PreemptiveTargetStep } from '../../types/preemptive';
 import { usePreemptiveGenerator } from './usePreemptiveGenerator';
 

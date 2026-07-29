@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Check, Loader2, BookOpen, ChevronRight, FileText, AlertCircle, RefreshCw, Clock, MoreVertical, Copy, Trash2 } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import { buildPlotFieldSuggestPrompt, PLOT_PROMPT_CAP } from '../../services/prompts/plot';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { useAutoSave } from '../common/hooks/useAutoSave';
 import { StepNavigation } from '../common/StepNavigation';
 import { AIGenerateButton } from '../common/AIGenerateButton';

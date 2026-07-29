@@ -3,7 +3,7 @@ import { Project } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
 import { DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
-import { useGeneration } from '../../../../contexts/GenerationContext';
+import { useGeneration } from '../../../../contexts/useGeneration';
 import { SUGGESTION_CONFIG, MAX_SUGGESTION_TEXT_LENGTH } from '../constants';
 import { parseAISuggestions } from '../utils';
 import type { AISuggestion, AISuggestionType } from '../types';

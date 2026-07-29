@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getChapterDetails as getChapterDetailsFn } from '../../utils/chapterUtils';
 import ReactDOM from 'react-dom';
-import { useProject } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
 import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save } from 'lucide-react';
 import { databaseService } from '../../services/databaseService';
 import {
@@ -27,7 +27,7 @@ import { useChapterDraft } from './draft/hooks/useChapterDraft';
 import { useExport } from './draft/hooks/useExport';
 // AI生成機能はToolsSidebarのDraftAssistantPanelに移行
 // テキスト選択機能は削除され、AI機能はToolsSidebarに移行
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 // AILoadingIndicator is used elsewhere
 import { StepNavigation } from '../common/StepNavigation';

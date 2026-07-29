@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Circle, Sparkles } from 'lucide-react';
 import { Step } from '../App';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
 import { Modal } from './common/Modal';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { StoryProposal } from '../utils/storyProposalParser';
-import { useToast } from './Toast';
+import { useToast } from './useToast';
 
 interface StoryProposalModalProps {
   isOpen: boolean;

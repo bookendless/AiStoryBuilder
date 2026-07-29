@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Send, Copy, Check } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useToast } from '../Toast';
+import { useProject } from '../../contexts/useProject';
+import { useToast } from '../useToast';
 import {
   WebNovelSite,
   WEB_NOVEL_SITE_LABELS,

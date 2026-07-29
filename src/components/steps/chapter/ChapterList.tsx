@@ -1,6 +1,7 @@
 import React, { RefObject, useMemo } from 'react';
 import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles, Scissors } from 'lucide-react';
-import { useProject, Chapter } from '../../../contexts/ProjectContext';
+import { Chapter } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
 import { EmptyState } from '../../common/EmptyState';
 
 interface ChapterListProps {

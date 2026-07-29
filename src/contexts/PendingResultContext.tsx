@@ -1,14 +1,19 @@
 import React, {
-  createContext,
-  useContext,
   useState,
   useCallback,
   useMemo,
   useRef,
   ReactNode,
 } from 'react';
-import { useToast } from '../components/Toast';
-import { CreativePoint, CreativePointSelection } from '../types/creativePoint';
+import { useToast } from '../components/useToast';
+import {
+  PendingResult,
+  PendingResultContext,
+  ProposeResultInput,
+} from './usePendingResult';
+
+// 型は後方互換性のため再エクスポート
+export type { PendingResult, ProposeResultInput, PendingResultContextType } from './usePendingResult';
 
 /**
  * PendingResultContext - 重いAI生成の「結果保留 → 確認 → 反映/破棄」をグローバル管理する。
@@ -20,56 +25,6 @@ import { CreativePoint, CreativePointSelection } from '../types/creativePoint';
  *   保留結果とその反映処理（onApply クロージャ）をグローバルに保持する。
  * - 完了はグローバルトーストで通知し、「確認する」アクションからモーダルを開ける。
  */
-
-export interface PendingResult {
-  id: string;
-  label: string; // 例: 「構成全体」
-  preview: ReactNode; // 確認モーダルに表示する要約・プレビュー
-  onApply: () => void | Promise<void>; // 反映処理（パネル側クロージャ。updateProject 等を捕捉）
-  applyLabel?: string; // 反映ボタンの表示（既定: 「反映する」）
-  applySuccessMessage?: string; // 反映完了トースト文言（既定: 「○○を反映しました」）
-  /** 創造ポイント（Phase C）。あれば確認モーダルにカードを表示する */
-  creativePoints?: CreativePoint[];
-  /** 別案再生成ハンドラ（Phase C）。選択した複数別案をまとめて1回再実行する */
-  onRegenerateWithSelections?: (selections: CreativePointSelection[]) => void | Promise<void>;
-}
-
-interface ProposeResultInput {
-  label: string;
-  preview: ReactNode;
-  onApply: () => void | Promise<void>;
-  applyLabel?: string;
-  applySuccessMessage?: string;
-  creativePoints?: CreativePoint[];
-  onRegenerateWithSelections?: (selections: CreativePointSelection[]) => void | Promise<void>;
-}
-
-interface PendingResultContextType {
-  pendingResults: PendingResult[];
-  activeResult: PendingResult | null;
-  /** 結果を保留に登録し、完了トースト（「確認する」アクション付き）を発火 */
-  proposeResult: (input: ProposeResultInput) => string;
-  /** 指定IDの結果を確認モーダルで開く */
-  openResult: (id: string) => void;
-  /** 反映（onApply実行）して保留から除去 */
-  applyResult: (id: string) => Promise<void>;
-  /** 破棄して保留から除去 */
-  discardResult: (id: string) => void;
-  /** トースト無しで保留から除去（別案再生成などで静かに差し替える場合） */
-  removeResult: (id: string) => void;
-  /** モーダルを閉じる（保留は残す） */
-  closeActive: () => void;
-}
-
-const PendingResultContext = createContext<PendingResultContextType | undefined>(undefined);
-
-export const usePendingResult = (): PendingResultContextType => {
-  const context = useContext(PendingResultContext);
-  if (!context) {
-    throw new Error('usePendingResult must be used within a PendingResultProvider');
-  }
-  return context;
-};
 
 const genId = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;

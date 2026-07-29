@@ -8,10 +8,11 @@ import {
     AlertTriangle,
     Lightbulb
 } from 'lucide-react';
-import { useProject, Chapter } from '../../../contexts/ProjectContext';
-import { useAI } from '../../../contexts/AIContext';
-import { useToast } from '../../Toast';
-import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
+import { Chapter } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
+import { useAI } from '../../../contexts/useAI';
+import { useToast } from '../../useToast';
+import { useOverlayBackHandler } from '../../../contexts/useOverlayBackHandler';
 import { aiService } from '../../../services/aiService';
 import { CHAPTER_PROMPT_CAP } from '../../../services/prompts/chapter';
 import { parseAIResponse } from '../../../utils/aiResponseParser';

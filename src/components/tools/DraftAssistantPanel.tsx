@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { getChapterDetails as getChapterDetailsFn } from '../../utils/chapterUtils';
 import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3, SlidersHorizontal } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
-import { useToast } from '../Toast';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
+import { useToast } from '../useToast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAIProviderFallback } from '../../hooks/useAIProviderFallback';
 import { AIProviderAlert } from '../common/AIProviderAlert';

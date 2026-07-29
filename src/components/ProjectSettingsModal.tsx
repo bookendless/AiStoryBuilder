@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Edit3, Save, Upload, Image } from 'lucide-react';
-import { useProject, Project } from '../contexts/ProjectContext';
-import { useToast } from './Toast';
+import { Project } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
+import { useToast } from './useToast';
 import { databaseService } from '../services/databaseService';
 import { OptimizedImage } from './OptimizedImage';
 import { Modal } from './common/Modal';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { compressImage } from '../utils/performanceUtils';
 
 

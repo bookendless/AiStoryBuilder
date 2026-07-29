@@ -1,32 +1,12 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
+import React, { useState, useCallback, useRef, useEffect, ReactNode } from 'react';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
+import { BackButtonContext, BackButtonContextValue, OverlayState } from './useBackButton';
 
-/**
- * オーバーレイ（モーダル/サイドバー）の状態を表すインターフェース
- */
-interface OverlayState {
-    /** 識別子 */
-    id: string;
-    /** 閉じる関数 */
-    onClose: () => void;
-    /** 優先度（高いほど先に閉じる）*/
-    priority?: number;
-}
-
-/**
- * Android戻るボタン対応Contextの値
- */
-interface BackButtonContextValue {
-    /** オーバーレイを登録 */
-    registerOverlay: (state: OverlayState) => void;
-    /** オーバーレイの登録を解除 */
-    unregisterOverlay: (id: string) => void;
-}
+// 型は後方互換性のため再エクスポート
+export type { BackButtonContextValue, OverlayState };
 
 // ヒストリーステートのマーカー
 const HISTORY_STATE_KEY = '__androidBackButton';
-
-const BackButtonContext = createContext<BackButtonContextValue | null>(null);
 
 /**
  * Android戻るボタン対応Providerコンポーネント
@@ -160,77 +140,3 @@ export const BackButtonProvider: React.FC<{ children: ReactNode }> = ({ children
         </BackButtonContext.Provider>
     );
 };
-
-/**
- * Android戻るボタン対応機能を使用するためのフック
- */
-export function useBackButton(): BackButtonContextValue {
-    const context = useContext(BackButtonContext);
-    if (!context) {
-        // Context外で使用された場合はダミー関数を返す（デスクトップ環境など）
-        return {
-            registerOverlay: () => { },
-            unregisterOverlay: () => { },
-        };
-    }
-    return context;
-}
-
-/**
- * オーバーレイコンポーネント用のヘルパーフック
- * モーダルやサイドバーで使用する
- */
-export function useOverlayBackHandler(
-    isOpen: boolean,
-    onClose: () => void,
-    id: string,
-    priority: number = 0
-) {
-    const { registerOverlay, unregisterOverlay } = useBackButton();
-    // 登録状態とID・priority・onCloseをrefで保持（依存関係から外す）
-    const registeredRef = useRef(false);
-    const idRef = useRef(id);
-    const priorityRef = useRef(priority);
-    const onCloseRef = useRef(onClose);
-
-    // 値を常に最新に保つ
-    idRef.current = id;
-    priorityRef.current = priority;
-    onCloseRef.current = onClose;
-
-    useEffect(() => {
-        if (isOpen && !registeredRef.current) {
-            // 登録
-            registerOverlay({
-                id: idRef.current,
-                onClose: () => onCloseRef.current(),
-                priority: priorityRef.current
-            });
-            registeredRef.current = true;
-        } else if (!isOpen && registeredRef.current) {
-            // 解除（isOpenがfalseになった時のみ）
-            unregisterOverlay(idRef.current);
-            registeredRef.current = false;
-        }
-
-        // クリーンアップ：コンポーネントがアンマウントされた時のみ
-        return () => {
-            // コンポーネントアンマウント時に登録されていれば解除
-            // ただし、isOpenの変更による再実行では実行しない
-            // （isOpenがtrueのまま再実行された場合は何もしない）
-        };
-    }, [isOpen, registerOverlay, unregisterOverlay]);
-
-    // コンポーネントの完全アンマウント時のクリーンアップ
-    useEffect(() => {
-        const currentId = idRef.current;
-        return () => {
-            if (registeredRef.current) {
-                unregisterOverlay(currentId);
-                registeredRef.current = false;
-            }
-        };
-        // 空の依存配列で、コンポーネントのアンマウント時のみ実行
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-}

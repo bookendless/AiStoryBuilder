@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useToast } from './Toast';
+import { useToast } from './useToast';
 import { useNetworkStatus, useOfflineQueueSize } from '../hooks/useNetworkStatus';
 import { getOfflineQueueManager } from '../utils/networkRetryUtils';
 

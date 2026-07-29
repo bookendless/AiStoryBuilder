@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FileText, Save, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
-import { useProject, Project } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { Project } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import { SYNOPSIS_PROMPT_CAP } from '../../services/prompts/synopsis';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { getUserFriendlyError } from '../../utils/errorHandler';
 import { getCountColor, getCountBarWidth } from '../../utils/charCount';
 import { useAutoSave } from '../common/hooks/useAutoSave';

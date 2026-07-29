@@ -12,7 +12,8 @@ import {
   Copy,
   X,
 } from 'lucide-react';
-import { useProject, Foreshadowing, ForeshadowingPoint } from '../../../contexts/ProjectContext';
+import { Foreshadowing, ForeshadowingPoint } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
 
 interface ForeshadowingPanelProps {
   currentChapterId: string | null;

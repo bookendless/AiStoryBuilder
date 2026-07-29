@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sparkles, Check, FileText, BookOpen, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
-import { useProject, Chapter } from '../../../contexts/ProjectContext';
+import { Chapter } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
 import { AILogPanel } from '../../common/AILogPanel';
 import { AILogEntry } from '../../common/types';
 import { SidebarSectionId, StructureProgress } from './types';

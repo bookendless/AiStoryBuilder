@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { X, Scissors, Loader2, Check, Plus, Trash2, Sparkles, RefreshCw, Search } from 'lucide-react';
 import { Chapter } from '../../../contexts/ProjectContext';
-import { useAI } from '../../../contexts/AIContext';
-import { useToast } from '../../Toast';
-import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
+import { useAI } from '../../../contexts/useAI';
+import { useToast } from '../../useToast';
+import { useOverlayBackHandler } from '../../../contexts/useOverlayBackHandler';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import { normalizeLineEndings } from '../../../utils/textEncoding';
 import { detectHeadings } from '../../../services/chapterSplit/detectHeadings';

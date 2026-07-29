@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Check, X, Sparkles } from 'lucide-react';
 import { Modal } from './Modal';
-import { usePendingResult } from '../../contexts/PendingResultContext';
+import { usePendingResult } from '../../contexts/usePendingResult';
 import { CreativePointCards } from './CreativePointCards';
 import { CreativePointSelection } from '../../types/creativePoint';
 

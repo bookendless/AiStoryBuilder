@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo } from 'react';
 import { Sparkles, Loader, FileText, CheckCircle } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
-import { useGeneration } from '../../contexts/GenerationContext';
-import { useToast } from '../Toast';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
+import { useGeneration } from '../../contexts/useGeneration';
+import { useToast } from '../useToast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useAILog } from '../common/hooks/useAILog';
 import { aiService } from '../../services/aiService';

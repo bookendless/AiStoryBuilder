@@ -11,10 +11,10 @@ import {
     XCircle,
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
-import { useGeneration } from '../../contexts/GenerationContext';
-import { useToast } from '../Toast';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
+import { useGeneration } from '../../contexts/useGeneration';
+import { useToast } from '../useToast';
 import {
     ConsistencyCategory,
     ConsistencyIssue,

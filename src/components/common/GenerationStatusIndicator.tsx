@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Loader2, X, ChevronUp, ChevronDown, Check, ClipboardCheck } from 'lucide-react';
-import { useGeneration, GenerationTask } from '../../contexts/GenerationContext';
-import { usePendingResult } from '../../contexts/PendingResultContext';
+import { GenerationTask } from '../../contexts/GenerationContext';
+import { useGeneration } from '../../contexts/useGeneration';
+import { usePendingResult } from '../../contexts/usePendingResult';
 
 /**
  * GenerationStatusIndicator - 実行中AI生成 ＆ 反映待ち結果の常駐インジケータ

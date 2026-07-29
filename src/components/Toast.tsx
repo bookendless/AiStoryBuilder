@@ -1,44 +1,10 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import { CheckmarkAnimation } from './common/MicroInteractions';
+import { Toast, ToastAction, ToastContext, ToastType } from './useToast';
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning';
-
-export interface ToastAction {
-  label: string;
-  onClick: () => void;
-  variant?: 'primary' | 'secondary';
-}
-
-export interface Toast {
-  id: string;
-  message: string;
-  type: ToastType;
-  duration?: number;
-  title?: string;
-  details?: string;
-  action?: ToastAction;
-  persistent?: boolean; // 自動的に消えない
-}
-
-interface ToastContextType {
-  showToast: (message: string, type?: ToastType, duration?: number, options?: Partial<Toast>) => void;
-  showError: (message: string, duration?: number, options?: Partial<Toast>) => void;
-  showSuccess: (message: string, duration?: number, options?: Partial<Toast>) => void;
-  showInfo: (message: string, duration?: number, options?: Partial<Toast>) => void;
-  showWarning: (message: string, duration?: number, options?: Partial<Toast>) => void;
-  showErrorWithDetails: (title: string, message: string, details?: string, action?: ToastAction) => void;
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
-
-export const useToast = () => {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within ToastProvider');
-  }
-  return context;
-};
+// 型は後方互換性のため再エクスポート
+export type { Toast, ToastAction, ToastContextType, ToastType } from './useToast';
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);

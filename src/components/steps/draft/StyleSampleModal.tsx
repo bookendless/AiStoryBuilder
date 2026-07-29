@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Wand2, Trash2, Save } from 'lucide-react';
 import { Modal } from '../../common/Modal';
-import { useProject } from '../../../contexts/ProjectContext';
-import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
+import { useProject } from '../../../contexts/useProject';
+import { useOverlayBackHandler } from '../../../contexts/useOverlayBackHandler';
 import { extractStyleSample } from '../../../services/import/classifyStyle';
 import { STYLE_SAMPLE_MAX_CHARS } from '../../../constants/writingStyle';
 

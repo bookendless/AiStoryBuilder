@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useAI } from '../../../contexts/AIContext';
+import { useAI } from '../../../contexts/useAI';
 import { AIRunner } from '../../../types/sequel';
 import {
     ImportResult,

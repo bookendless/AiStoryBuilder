@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useProject, Foreshadowing, ForeshadowingPoint } from '../../../../contexts/ProjectContext';
-import { useAI } from '../../../../contexts/AIContext';
-import { useToast } from '../../../Toast';
+import { Foreshadowing, ForeshadowingPoint } from '../../../../contexts/ProjectContext';
+import { useProject } from '../../../../contexts/useProject';
+import { useAI } from '../../../../contexts/useAI';
+import { useToast } from '../../../useToast';
 import { aiService } from '../../../../services/aiService';
 import { FORESHADOWING_PROMPT_CAP } from '../../../../services/prompts/foreshadowing';
 import { parseAIResponse } from '../../../../utils/aiResponseParser';

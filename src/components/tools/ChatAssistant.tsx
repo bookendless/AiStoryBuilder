@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, BookOpen, Calendar, Network, Zap, CheckCircle, Lightbulb, StopCircle } from 'lucide-react';
-import { useAI } from '../../contexts/AIContext';
-import { useProject, CharacterRelationship } from '../../contexts/ProjectContext';
+import { useAI } from '../../contexts/useAI';
+import { CharacterRelationship } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
 import { aiService } from '../../services/aiService';
 import { buildChatAssistantSystemPrompt, CHAT_PROMPT_CAP } from '../../services/prompts/chatAssistant';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 
 interface Message {
   id: string;

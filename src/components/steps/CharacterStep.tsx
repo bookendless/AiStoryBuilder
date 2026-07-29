@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { Plus, User, Network, ArrowUpDown } from 'lucide-react';
-import { useProject, Character } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { Character } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import { CHARACTER_PROMPT_CAP } from '../../services/prompts/character';
 import { RelationshipDiagram } from '../tools/RelationshipDiagram';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { EmptyState } from '../common/EmptyState';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { ImageViewerModal } from './character/ImageViewerModal';

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useProject, Chapter, Foreshadowing, ForeshadowingPoint } from '../../../../contexts/ProjectContext';
-import { useToast } from '../../../Toast';
+import { Chapter, Foreshadowing, ForeshadowingPoint } from '../../../../contexts/ProjectContext';
+import { useProject } from '../../../../contexts/useProject';
+import { useToast } from '../../../useToast';
 import type { DeletingPointInfo } from '../types';
 
 // 伏線ポイントのタイプに応じたプレフィックスを返す

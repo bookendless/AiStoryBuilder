@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, Download, Loader2 } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useToast } from '../Toast';
+import { useProject } from '../../contexts/useProject';
+import { useToast } from '../useToast';
 import { generateEpub, canGenerateEpub } from '../../services/epubService';
 import { exportFile } from '../../utils/mobileExportUtils';
 import { sanitizeFileName } from '../../utils/securityUtils';

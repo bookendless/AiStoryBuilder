@@ -14,7 +14,8 @@ import {
   ReviewStepWithSuspense as ReviewStep,
   ExportStepWithSuspense as ExportStep,
 } from './components/LazyComponents';
-import { ProjectProvider, useProject, Step, ProjectErrorNotifier } from './contexts/ProjectContext';
+import { ProjectProvider, Step, ProjectErrorNotifier } from './contexts/ProjectContext';
+import { useProject } from './contexts/useProject';
 import { AIProvider } from './contexts/AIContext';
 import { GenerationProvider } from './contexts/GenerationContext';
 import { GenerationStatusIndicator } from './components/common/GenerationStatusIndicator';
@@ -22,7 +23,8 @@ import { PendingResultProvider } from './contexts/PendingResultContext';
 import { PendingResultModal } from './components/common/PendingResultModal';
 import { PreemptiveGenerationManager } from './components/preemptive/PreemptiveGenerationManager';
 import { RecapGate } from './components/RecapGate';
-import { ToastProvider, useToast } from './components/Toast';
+import { ToastProvider } from './components/Toast';
+import { useToast } from './components/useToast';
 import { OfflineNotifier } from './components/OfflineNotifier';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
@@ -37,7 +39,8 @@ import { useBreakpoint } from './hooks/useMediaQuery';
 import { useMemoryWarning } from './hooks/useMemoryMonitor';
 import { RecoveryDialog } from './components/RecoveryDialog';
 import { hasRecoveryData, RecoveryData, mergeRecoveryData } from './services/crashRecoveryService';
-import { BackButtonProvider, useOverlayBackHandler } from './contexts/BackButtonContext';
+import { BackButtonProvider } from './contexts/BackButtonContext';
+import { useOverlayBackHandler } from './contexts/useOverlayBackHandler';
 
 // Step型はProjectContextから再エクスポート（後方互換性のため）
 export type { Step };

@@ -18,7 +18,7 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import { getAllFeatureFlags, setFeatureEnabled, FEATURE_LABELS, FeatureKey } from '../constants/features';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
 import { Step } from '../App';
 import { ImageBoard } from './ImageBoard';
 import { GlossaryManager } from './tools/GlossaryManager';

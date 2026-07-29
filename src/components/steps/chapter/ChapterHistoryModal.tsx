@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, History, RotateCcw } from 'lucide-react';
-import { useProject } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
 import { ChapterHistory } from './types';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import { CHAPTER_HISTORY_SOURCE_LABELS, ChapterHistorySource } from '../../../services/chapterHistoryService';

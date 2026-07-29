@@ -3,7 +3,7 @@ import { Project, Character } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
 import { buildContinueEnhancedPrompt, DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
-import { useGeneration } from '../../../../contexts/GenerationContext';
+import { useGeneration } from '../../../../contexts/useGeneration';
 import type { GenerationAction, ImprovementLog, WeaknessItem } from '../types';
 import { formatText } from '../../../../utils/textFormatter';
 import { extractJsonObjectString } from '../../../../utils/aiResponseParser';

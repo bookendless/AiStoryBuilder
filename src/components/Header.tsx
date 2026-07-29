@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Moon, Sun, Home, Save, PanelLeftClose, PanelLeftOpen, Database, Settings, TrendingUp, ChevronRight, Check, HelpCircle, Menu, GraduationCap, MoreVertical, Circle, Wrench } from 'lucide-react';
-import { useProject, useSaveStatus } from '../contexts/ProjectContext';
-import { useAI } from '../contexts/AIContext';
+import { useProject } from '../contexts/useProject';
+import { useSaveStatus } from '../contexts/useSaveStatus';
+import { useAI } from '../contexts/useAI';
 import { DataManager } from './DataManager';
 import { AISettings } from './AISettings';
-import { useToast } from './Toast';
+import { useToast } from './useToast';
 import { getUserFriendlyError } from '../utils/errorHandler';
 import { useGlobalShortcuts } from '../hooks/useKeyboardNavigation';
 import { ContextHelp } from './ContextHelp';

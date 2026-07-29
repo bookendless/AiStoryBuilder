@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, ReactNode, useMemo, useCallback } from 'react';
+import React, { useState, useRef, ReactNode, useMemo, useCallback } from 'react';
 import { databaseService } from '../services/databaseService';
 import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
 import {
@@ -23,8 +23,12 @@ import {
   StepProgress,
   ProjectProgress,
 } from '../types/project';
+import { ProjectContext } from './useProject';
+import { SaveStatusContext } from './useSaveStatus';
 
 // 型を再エクスポート（後方互換性のため）
+export type { ProjectContextType } from './useProject';
+export type { SaveStatusContextType } from './useSaveStatus';
 export type { Step };
 export type {
   Character,
@@ -49,57 +53,6 @@ export interface ProjectErrorNotifier {
     onRetry?: () => void;
   }) => void;
 }
-
-interface ProjectContextType {
-  currentProject: Project | null;
-  setCurrentProject: (project: Project | null) => void;
-  projects: Project[];
-  setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
-  updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
-  createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
-  createSequelProject: (parent: Project, overrides: Partial<Project>) => Project;
-  createImportedProject: (title: string, overrides: Partial<Project>) => Project;
-  /** 平行世界ラボ: 分岐点までを複製したサンドボックスプロジェクトを生成する（本編は変更しない） */
-  createBranchProject: (source: Project, options: { title: string; premise: string; branchChapterId?: string }) => Project;
-  saveProject: () => Promise<void>;
-  createManualBackup: (description?: string) => Promise<void>;
-  loadProject: (id: string) => Promise<void>;
-  deleteProject: (id: string) => Promise<void>;
-  duplicateProject: (id: string) => Promise<void>;
-  loadAllProjects: () => Promise<void>;
-  deleteChapter: (chapterId: string) => void;
-  calculateProjectProgress: (project: Project | null) => ProjectProgress;
-  getStepCompletion: (project: Project | null, step: string) => boolean;
-  /** setCurrentProjectがlastAccessedを上書きする前の最終アクセス日時を返す（リキャップの経過時間判定用） */
-  getPreviousAccess: (projectId: string) => Date | undefined;
-}
-
-// 保存ステータス（isLoading/lastSaved）は自動保存のたびに変化するため、
-// メインContextから分離して全消費者の再レンダリングを防ぐ
-interface SaveStatusContextType {
-  isLoading: boolean;
-  lastSaved: Date | null;
-}
-
-const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
-const SaveStatusContext = createContext<SaveStatusContextType | undefined>(undefined);
-
-export const useProject = () => {
-  const context = useContext(ProjectContext);
-  if (!context) {
-    throw new Error('useProject must be used within a ProjectProvider');
-  }
-  return context;
-};
-
-/** 保存インジケータ等、保存ステータスのみ必要なコンポーネント用フック */
-export const useSaveStatus = () => {
-  const context = useContext(SaveStatusContext);
-  if (!context) {
-    throw new Error('useSaveStatus must be used within a ProjectProvider');
-  }
-  return context;
-};
 
 export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: ProjectErrorNotifier }> = ({ children, errorNotifier }) => {
   const [currentProject, setCurrentProjectState] = useState<Project | null>(null);

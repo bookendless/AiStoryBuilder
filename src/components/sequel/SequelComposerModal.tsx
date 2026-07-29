@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Sparkles, AlertCircle, CheckCircle2, ChevronRight, RotateCcw } from 'lucide-react';
 import { Step } from '../../App';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { Project } from '../../types/project';
 import { Modal } from '../common/Modal';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
-import { useToast } from '../Toast';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
+import { useToast } from '../useToast';
 import { useSequelComposer, getSequelSnapshot } from './hooks/useSequelComposer';
 
 interface SequelComposerModalProps {

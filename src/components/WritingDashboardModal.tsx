@@ -10,8 +10,8 @@ import {
 } from 'recharts';
 import { TrendingUp, Flame, Target, PenLine, Loader2, Check, Coins } from 'lucide-react';
 import { Modal } from './common/Modal';
-import { useProject } from '../contexts/ProjectContext';
-import { useToast } from './Toast';
+import { useProject } from '../contexts/useProject';
+import { useToast } from './useToast';
 import {
   getDailySamples,
   getWritingGoal,

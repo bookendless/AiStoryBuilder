@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BookOpen } from 'lucide-react';
-import { useProject } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
 import {
     STYLE_OPTIONS,
     PERSPECTIVE_OPTIONS,

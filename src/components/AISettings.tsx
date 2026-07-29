@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, Key, Server, Zap, Lightbulb, BookOpen, Search, RefreshCw } from 'lucide-react';
-import { useAI } from '../contexts/AIContext';
-import { useProject } from '../contexts/ProjectContext';
+import { useAI } from '../contexts/useAI';
+import { useProject } from '../contexts/useProject';
 import { ragStore, reindexProject } from '../services/rag';
 import { AI_PROVIDERS, AVAILABLE_PROVIDERS } from '../services/providers';
-import { useToast } from './Toast';
+import { useToast } from './useToast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { decryptApiKeyAsync } from '../utils/securityUtils';
 import { OpenAIRequestBody } from '../types/ai';
 

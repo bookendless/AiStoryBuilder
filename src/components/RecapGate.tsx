@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useProject } from '../contexts/ProjectContext';
-import { useAI } from '../contexts/AIContext';
-import { useGeneration } from '../contexts/GenerationContext';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useProject } from '../contexts/useProject';
+import { useAI } from '../contexts/useAI';
+import { useGeneration } from '../contexts/useGeneration';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { Project } from '../types/project';
 import { RecapAIContent, RecapAIState } from '../types/recap';
 import { RecapModal } from './RecapModal';

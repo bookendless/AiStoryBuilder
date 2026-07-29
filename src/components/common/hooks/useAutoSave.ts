@@ -19,7 +19,7 @@ export const useAutoSave = <T>(
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus['status']>('idle');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const saveTimeoutRef = useRef<number | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastValueRef = useRef<T>(value);
   const isInitialMount = useRef(true);
 
@@ -91,7 +91,7 @@ export const useAutoSave = <T>(
     // 遅延後に自動保存を実行
     saveTimeoutRef.current = setTimeout(async () => {
       await performSave(immediate);
-    }, delay) as unknown as number;
+    }, delay);
 
     // クリーンアップ
     return () => {

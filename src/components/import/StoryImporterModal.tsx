@@ -4,8 +4,8 @@ import {
     ArrowUp, ArrowDown, X, Plus, Trash2, Wand2,
 } from 'lucide-react';
 import { Step } from '../../App';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { Chapter, Character, Project } from '../../types/project';
 import { ImportSourceFile, ImportResult } from '../../types/import';
 import {
@@ -21,8 +21,8 @@ import {
 } from '../../constants/writingStyle';
 import { Modal } from '../common/Modal';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
-import { useToast } from '../Toast';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
+import { useToast } from '../useToast';
 import { getInputCharBudget } from '../../services/summarization/tokenBudget';
 import { IMPORT_PROMPT_HARD_CAP, STYLE_MIN_CHARS } from '../../services/import/constants';
 import { readTextFileSmart } from '../../utils/textEncoding';

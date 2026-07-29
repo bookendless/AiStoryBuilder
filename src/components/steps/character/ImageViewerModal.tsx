@@ -1,7 +1,7 @@
 import React from 'react';
 import { useModalNavigation } from '../../../hooks/useKeyboardNavigation';
 import { Modal } from '../../common/Modal';
-import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../../contexts/useOverlayBackHandler';
 import { OptimizedImage } from '../../OptimizedImage';
 
 interface ImageViewerModalProps {

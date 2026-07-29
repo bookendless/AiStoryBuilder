@@ -2,7 +2,7 @@ import React from 'react';
 import { HelpCircle, BookOpen, Users, FileText, List, PenTool, Download, Layers, Sparkles } from 'lucide-react';
 import { Step } from '../App';
 import { Modal } from './common/Modal';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 
 interface ContextHelpProps {
   step: Step;

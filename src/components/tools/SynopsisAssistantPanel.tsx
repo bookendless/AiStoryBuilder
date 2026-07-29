@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Sparkles, FileText, CheckCircle, BookOpen, Loader } from 'lucide-react';
-import { useProject, Project } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
-import { useGeneration } from '../../contexts/GenerationContext';
-import { usePendingResult } from '../../contexts/PendingResultContext';
-import { useToast } from '../Toast';
+import { Project } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
+import { useGeneration } from '../../contexts/useGeneration';
+import { usePendingResult } from '../../contexts/usePendingResult';
+import { useToast } from '../useToast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { aiService } from '../../services/aiService';
 import { SYNOPSIS_PROMPT_CAP } from '../../services/prompts/synopsis';

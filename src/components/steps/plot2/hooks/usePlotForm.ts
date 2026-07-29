@@ -138,7 +138,7 @@ export function usePlotForm({
 
   // 構成変更の保護タイマー（ユーザーがドロップダウンで変更した後、一定時間は外部からの上書きを防ぐ）
   const structureChangeProtectionRef = useRef<boolean>(false);
-  const structureChangeTimeoutRef = useRef<number | null>(null);
+  const structureChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 構成が変更されたときに保護を開始し、即座にcurrentProjectに反映
   const handleSetPlotStructure: React.Dispatch<React.SetStateAction<PlotStructureType>> = useCallback((action) => {
@@ -154,7 +154,7 @@ export function usePlotForm({
     structureChangeTimeoutRef.current = setTimeout(() => {
       structureChangeProtectionRef.current = false;
       structureChangeTimeoutRef.current = null;
-    }, 3000) as unknown as number;
+    }, 3000);
 
     // 新しい構成タイプを算出
     const newStructure = typeof action === 'function'

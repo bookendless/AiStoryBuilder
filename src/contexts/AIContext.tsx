@@ -1,15 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, ReactNode, useMemo, useCallback, useEffect } from 'react';
 import { AISettings } from '../types/ai';
 import { AI_PROVIDERS } from '../services/providers';
 import { encryptApiKey, encryptApiKeyAsync } from '../utils/securityUtils';
 import { storageService } from '../services/storageService';
-
-interface AIContextType {
-  settings: AISettings;
-  updateSettings: (settings: Partial<AISettings>) => void;
-  isConfigured: boolean;
-  isStorageReady: boolean; // ストレージの準備状態
-}
+import { AIContext } from './useAI';
 
 // ログ出力用: APIキー等の機密情報をマスクした設定オブジェクトを返す（CLAUDE.md: 機密はログに出さない）
 const redactSettings = (s: Partial<AISettings>): Record<string, unknown> => {
@@ -75,16 +69,6 @@ const getDefaultSettings = (): AISettings => {
 };
 
 const defaultSettings: AISettings = getDefaultSettings();
-
-const AIContext = createContext<AIContextType | undefined>(undefined);
-
-export const useAI = () => {
-  const context = useContext(AIContext);
-  if (!context) {
-    throw new Error('useAI must be used within an AIProvider');
-  }
-  return context;
-};
 
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isStorageReady, setIsStorageReady] = useState(false);
@@ -344,11 +328,6 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       console.log('Legacy API keys detected. Keys will be re-encrypted with AES-GCM on next update.');
     }
   }, [isStorageReady, settings.apiKeys]);
-
-  console.log('AI Context - Current settings:', redactSettings(settings));
-  console.log('AI Context - Is configured:', isConfigured);
-  console.log('AI Context - Provider:', settings.provider);
-  console.log('AI Context - LocalEndpoint:', settings.localEndpoint);
 
   // コンテキストの値をメモ化（不要な再レンダリングを防止）
   const contextValue = useMemo(() => ({

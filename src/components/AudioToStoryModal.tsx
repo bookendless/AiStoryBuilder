@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { Mic, Upload, X, Sparkles } from 'lucide-react';
 import { Modal } from './common/Modal';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
-import { useToast } from './Toast';
-import { useAI } from '../contexts/AIContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
+import { useToast } from './useToast';
+import { useAI } from '../contexts/useAI';
 import { aiService } from '../services/aiService';
 import { MEDIA_PROMPT_CAP } from '../services/prompts/media';
 import { parseStoryProposal, validateStoryProposal, StoryProposal } from '../utils/storyProposalParser';

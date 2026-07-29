@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Keyboard, Save, Home, Sidebar, FilePlus, Command } from 'lucide-react';
 import { Modal } from './common/Modal';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 
 interface ShortcutHelpModalProps {
   isOpen: boolean;

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Globe, Plus, Search, Edit2, Trash2, X, Save, Tag, Sparkles, Loader2, Wand2, Zap, CheckCircle, AlertCircle, Layers } from 'lucide-react';
-import { useProject, WorldSetting, Project } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { WorldSetting, Project } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import { WORLD_PROMPT_CAP } from '../../services/prompts/world';
 import { getUserFriendlyErrorMessage } from '../../utils/apiUtils';
@@ -9,10 +10,10 @@ import { parseAIResponse } from '../../utils/aiResponseParser';
 import { generateUUID } from '../../utils/securityUtils';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 
 interface WorldSettingsManagerProps {
   isOpen: boolean;

@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { renderHook, act } from '@testing-library/react';
-import { PendingResultProvider, usePendingResult } from '../../contexts/PendingResultContext';
+import { PendingResultProvider } from '../../contexts/PendingResultContext';
+import { usePendingResult } from '../../contexts/usePendingResult';
 
 // useToast をモック（プロバイダは showSuccess/showInfo/showError を利用する）
 const showSuccess = vi.fn();
 const showInfo = vi.fn();
 const showError = vi.fn();
-vi.mock('../../components/Toast', () => ({
+vi.mock('../../components/useToast', () => ({
   useToast: () => ({ showSuccess, showInfo, showError }),
 }));
 

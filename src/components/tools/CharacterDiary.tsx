@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BookOpen, Edit3, Trash2, Loader, Sparkles, Calendar, StopCircle, Download } from 'lucide-react';
-import { useAI } from '../../contexts/AIContext';
-import { useProject } from '../../contexts/ProjectContext';
-import { useGeneration } from '../../contexts/GenerationContext';
+import { useAI } from '../../contexts/useAI';
+import { useProject } from '../../contexts/useProject';
+import { useGeneration } from '../../contexts/useGeneration';
 import { aiService } from '../../services/aiService';
 import { CHARACTER_PROMPT_CAP } from '../../services/prompts/character';
 import { CharacterDiaryEntry } from '../../types/characterPossession';
 import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
 import { Modal } from '../common/Modal';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 
 interface CharacterDiaryProps {
   isOpen: boolean;

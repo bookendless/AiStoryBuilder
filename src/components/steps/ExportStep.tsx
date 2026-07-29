@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Download, FileText, File, Globe, Check, Copy, Search, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useToast } from '../Toast';
+import { useProject } from '../../contexts/useProject';
+import { useToast } from '../useToast';
 import { escapeHtml, sanitizeFileName } from '../../utils/securityUtils';
 import { rubyNotationToHtml } from '../../utils/rubyUtils';
 import { WebNovelExportPanel } from '../export/WebNovelExportPanel';

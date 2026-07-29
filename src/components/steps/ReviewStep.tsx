@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { EvaluationMode, EvaluationResult, SavedEvaluation, EvaluationStrictness } from '../../types/evaluation';
 import {
     BookOpen,

@@ -16,16 +16,16 @@ const settingsRef = { current: { preemptiveGenerationEnabled: true } as { preemp
 const isConfiguredRef = { current: true };
 const projectRef = { current: { id: 'p1' } as { id: string } | null };
 
-vi.mock('../../contexts/ProjectContext', () => ({
+vi.mock('../../contexts/useProject', () => ({
   useProject: () => ({
     currentProject: projectRef.current,
     getStepCompletion: (_p: unknown, step: string) => completedSet.has(step),
   }),
 }));
-vi.mock('../../contexts/AIContext', () => ({
+vi.mock('../../contexts/useAI', () => ({
   useAI: () => ({ settings: settingsRef.current, isConfigured: isConfiguredRef.current }),
 }));
-vi.mock('../../contexts/GenerationContext', () => ({
+vi.mock('../../contexts/useGeneration', () => ({
   useGeneration: () => ({ isKeyActive: () => isKeyActiveRef.current }),
 }));
 vi.mock('../../components/preemptive/usePreemptiveGenerator', () => ({

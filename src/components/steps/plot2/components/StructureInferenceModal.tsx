@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Wand2, Check, AlertTriangle } from 'lucide-react';
-import { useOverlayBackHandler } from '../../../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../../../contexts/useOverlayBackHandler';
 import { PLOT_STRUCTURE_CONFIGS } from '../constants';
 import type { StructureInference } from '../../../../services/plotStructure/inferStructure';
 

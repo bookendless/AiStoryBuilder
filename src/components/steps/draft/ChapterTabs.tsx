@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useProject } from '../../../contexts/ProjectContext';
+import { useProject } from '../../../contexts/useProject';
 
 interface Chapter {
   id: string;

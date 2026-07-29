@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronLeft, ArrowRight, X, Check, Compass, HelpCircle,
 } from 'lucide-react';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
-import { useOverlayBackHandler } from '../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { createPortal } from 'react-dom';
 import {
   GUIDE_PALETTE as P, GUIDE_GRADIENT as GRAD,

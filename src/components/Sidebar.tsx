@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Users, BookOpen, FileText, List, PenTool, Download, Check, Layers, ChevronLeft, ChevronRight, ArrowRight, Sparkles, Search } from 'lucide-react';
 import { Step } from '../App';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
 import { useBreakpoint } from '../hooks/useMediaQuery';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 

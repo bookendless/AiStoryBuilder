@@ -51,19 +51,19 @@ const proposeResult = vi.fn((input: ProposeInput) => {
 const removeResult = vi.fn();
 const showWarning = vi.fn();
 
-vi.mock('../../contexts/AIContext', () => ({
+vi.mock('../../contexts/useAI', () => ({
   useAI: () => ({ settings: settingsRef.current, isConfigured: isConfiguredRef.current }),
 }));
-vi.mock('../../contexts/ProjectContext', () => ({
+vi.mock('../../contexts/useProject', () => ({
   useProject: () => ({ updateProject, currentProject: currentProjectRef.current }),
 }));
-vi.mock('../../contexts/GenerationContext', () => ({
+vi.mock('../../contexts/useGeneration', () => ({
   useGeneration: () => ({ startTask, completeTask, updateTask: vi.fn() }),
 }));
-vi.mock('../../contexts/PendingResultContext', () => ({
+vi.mock('../../contexts/usePendingResult', () => ({
   usePendingResult: () => ({ proposeResult, removeResult }),
 }));
-vi.mock('../../components/Toast', () => ({
+vi.mock('../../components/useToast', () => ({
   useToast: () => ({ showWarning }),
 }));
 // 実生成サービスはモック（type別に結果を返す）

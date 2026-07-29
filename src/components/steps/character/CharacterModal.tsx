@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, FileImage, ZoomIn } from 'lucide-react';
 import { Character } from '../../../contexts/ProjectContext';
-import { useToast } from '../../Toast';
+import { useToast } from '../../useToast';
 import { useModalNavigation } from '../../../hooks/useKeyboardNavigation';
 import { Modal } from '../../common/Modal';
-import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../../contexts/useOverlayBackHandler';
 import { OptimizedImage } from '../../OptimizedImage';
 import { compressImage } from '../../../utils/performanceUtils';
 import { generateUUID } from '../../../utils/securityUtils';

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Network, Plus, Edit2, Trash2, Save, Users, Heart, UsersRound, Sword, GraduationCap, Zap, LayoutList, GitBranch, Sparkles, Loader2, Wand2, CheckCircle, AlertCircle, Lightbulb, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-import { useProject, CharacterRelationship, Character } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { CharacterRelationship, Character } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import {
   buildRelationshipInferPrompt,
@@ -12,10 +13,10 @@ import {
 } from '../../services/prompts/relationship';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 
 interface RelationshipDiagramProps {
   isOpen: boolean;

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useToast } from '../components/Toast';
+import { useToast } from '../components/useToast';
 import { getUserFriendlyError } from '../utils/errorHandler';
 import { AppError, APIError, DatabaseError } from '../types/errors';
 

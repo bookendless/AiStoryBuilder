@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Check, RotateCcw, Layers, ChevronDown, ChevronUp, AlertCircle, Clock, BookOpen, Info, Wand2, Loader2 } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import { PLOT_PROMPT_CAP } from '../../services/prompts/plot';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { useAILog } from '../common/hooks/useAILog';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 

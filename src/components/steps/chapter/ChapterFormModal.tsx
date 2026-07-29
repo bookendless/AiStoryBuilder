@@ -1,7 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { useProject } from '../../../contexts/ProjectContext';
-import { useOverlayBackHandler } from '../../../contexts/BackButtonContext';
+import { useProject } from '../../../contexts/useProject';
+import { useOverlayBackHandler } from '../../../contexts/useOverlayBackHandler';
 import { ChapterFormData } from './types';
 
 interface ChapterFormModalProps {

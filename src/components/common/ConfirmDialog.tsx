@@ -2,7 +2,7 @@ import React from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
 import { Modal } from './Modal';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 
 export type ConfirmDialogType = 'danger' | 'warning' | 'info';
 

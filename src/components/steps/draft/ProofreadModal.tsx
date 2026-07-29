@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SpellCheck, Sparkles, Loader2, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Modal } from '../../common/Modal';
-import { useAI } from '../../../contexts/AIContext';
-import { useToast } from '../../Toast';
+import { useAI } from '../../../contexts/useAI';
+import { useToast } from '../../useToast';
 import { aiService } from '../../../services/aiService';
 import { parseAIResponse } from '../../../utils/aiResponseParser';
 import { proofreadText, PROOFREAD_TYPE_LABELS, applyCorrections } from '../../../utils/proofreadUtils';

@@ -10,12 +10,12 @@ import {
   Calendar,
   BarChart3,
 } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 import { statusConfig, categoryConfig } from './foreshadowing/config';
 import { useForeshadowingCRUD } from './foreshadowing/hooks/useForeshadowingCRUD';
 import { useForeshadowingFilters } from './foreshadowing/hooks/useForeshadowingFilters';

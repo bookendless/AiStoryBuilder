@@ -8,13 +8,13 @@ import {
   X,
   Info,
 } from 'lucide-react';
-import { useProject } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import {
   EmotionMap,

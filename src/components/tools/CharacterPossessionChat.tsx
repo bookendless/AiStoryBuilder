@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, User, StopCircle, Sparkles, Download } from 'lucide-react';
-import { useAI } from '../../contexts/AIContext';
-import { useProject } from '../../contexts/ProjectContext';
+import { useAI } from '../../contexts/useAI';
+import { useProject } from '../../contexts/useProject';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 import { PossessionMessage } from '../../types/characterPossession';
 import { generateUUID, sanitizeFileName } from '../../utils/securityUtils';
 import { CHARACTER_PROMPT_CAP } from '../../services/prompts/character';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 
 interface CharacterPossessionChatProps {
   isOpen: boolean;

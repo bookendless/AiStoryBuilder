@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, ChevronRight, FileSearch, Replace } from 'lucide-react';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
 import { searchProject, SearchResult, getSearchResultTypeLabel } from '../utils/searchUtils';
 import { Step } from '../App';
 import { EmptyState } from './common/EmptyState';

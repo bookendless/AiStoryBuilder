@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { BookOpen, Plus, Search, Edit2, Trash2, Save, Download, Upload, Sparkles, Loader2, Wand2, Zap, CheckCircle, AlertCircle } from 'lucide-react';
-import { useProject, GlossaryTerm } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { GlossaryTerm } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 import { exportFile } from '../../utils/mobileExportUtils';
 import {
   buildGlossaryExtractTermsPrompt,

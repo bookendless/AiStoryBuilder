@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GitCompare, Plus, Minus, PencilLine, Loader2, CheckCircle2 } from 'lucide-react';
 import { Modal } from './common/Modal';
 import { databaseService } from '../services/databaseService';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/useProject';
 import { diffSnapshots, SectionDiff, ChangeKind } from '../utils/snapshotDiff';
 
 interface SnapshotCompareModalProps {

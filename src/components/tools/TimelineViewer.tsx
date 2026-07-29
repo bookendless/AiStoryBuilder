@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, Plus, Edit2, Trash2, Save, BookOpen, Users, Globe, Radio, Sparkles, Loader2, Wand2, Zap, CheckCircle, AlertCircle, Lightbulb } from 'lucide-react';
-import { useProject, TimelineEvent } from '../../contexts/ProjectContext';
-import { useAI } from '../../contexts/AIContext';
+import { TimelineEvent } from '../../contexts/ProjectContext';
+import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
 import { useModalNavigation } from '../../hooks/useKeyboardNavigation';
 import { Modal } from '../common/Modal';
-import { useToast } from '../Toast';
+import { useToast } from '../useToast';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { useOverlayBackHandler } from '../../contexts/BackButtonContext';
+import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 import { parseTimelineAIResponse, parseConsistencyCheckResponse } from '../../utils/timelineParser';
 import {
   buildTimelineExtractEventsPrompt,
