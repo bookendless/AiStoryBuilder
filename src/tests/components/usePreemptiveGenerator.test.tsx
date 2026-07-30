@@ -153,7 +153,8 @@ describe('usePreemptiveGenerator', () => {
     const { result, rerender } = renderHook(() => usePreemptiveGenerator());
     act(() => result.current.startPreempt('synopsis', 'p1'));
     await flush();
-    const onApply = lastProposed.input.onApply as () => Promise<void>;
+    expect(lastProposed.input).not.toBeNull();
+    const onApply = lastProposed.input!.onApply as () => Promise<void>;
 
     // 別プロジェクトを開いた状態に切替えて再レンダー（ref 更新）
     currentProjectRef.current = makeMockProject({ id: 'p2' });
@@ -168,7 +169,8 @@ describe('usePreemptiveGenerator', () => {
     const { result } = renderHook(() => usePreemptiveGenerator());
     act(() => result.current.startPreempt('synopsis', 'p1'));
     await flush();
-    const onApply = lastProposed.input.onApply as () => Promise<void>;
+    expect(lastProposed.input).not.toBeNull();
+    const onApply = lastProposed.input!.onApply as () => Promise<void>;
 
     await act(async () => { await onApply(); });
     expect(updateProject).toHaveBeenCalledWith({ synopsis: '先回りあらすじ' }, true);

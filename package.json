@@ -29,7 +29,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview --mode development",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "clean": "rm -rf dist",
     "prebuild": "npm run type-check",
     "test": "vitest",

@@ -56,6 +56,10 @@ Android実機またはエミュレーターでの動作確認に使用します�
 npm run tauri:dev:android
 ```
 
+> ⚠️ Tauri CLI のモバイル系コマンドは `android` が先です。`npm run tauri build android` のような語順では
+> デスクトップビルド扱いになり `error: unexpected argument 'android' found` で失敗します。
+> 詳細は [docs/TAURI_ANDROID_BUILD_STATUS.md](docs/TAURI_ANDROID_BUILD_STATUS.md) を参照してください。
+
 ## 🔑 環境変数の設定
 
 プロジェクトルートに `.env.local` ファイルを作成することで、APIキー等を自動読み込みできます。
@@ -99,14 +103,21 @@ npm run tauri:build
 ### Androidアプリとしてビルド
 
 ```bash
-# デバッグビルド（APKが必要な場合は -- --apk を付与）
+# リリースビルド（tauri android build はデフォルトがリリースモード）
 npm run tauri:build:android
 
-# リリース（署名付き）APK
-npm run tauri:build:android:release
+# デバッグビルド
+npm run tauri:build:android -- --debug
 ```
 
-※ 初回は `npm run tauri:android:init` で Android プロジェクトを生成してください。詳細は `docs/TAURI_ANDROID_BUILD_STATUS.md` を参照。
+- リリースAPK: `src-tauri/gen/android/app/build/outputs/apk/universal/release/`
+- デバッグAPK: `src-tauri/gen/android/app/build/outputs/apk/universal/debug/`
+
+※ 初回は `npm run tauri:android:init` で Android プロジェクトを生成してください。
+※ 署名付きリリースには `src-tauri/gen/android/keystore.properties` の設定が必要です（未設定だと未署名APKになります）。
+※ Windowsでシンボリックリンクが使えない環境では `npm run tauri:build:android:windows` を使用してください。
+
+前提環境・トラブルシューティングを含む詳細は [docs/TAURI_ANDROID_BUILD_STATUS.md](docs/TAURI_ANDROID_BUILD_STATUS.md) を参照。
 
 ## 🐛 デバッグとトラブルシューティング
 

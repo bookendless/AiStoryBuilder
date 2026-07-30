@@ -420,7 +420,7 @@ class DatabaseService {
       }
 
       // トランザクションで削除（原子性を保証）
-      await db.transaction('rw', db.projects, db.backups, db.chapterHistories, db.aiLogs, db.ragChunks, db.ragMeta, async () => {
+      await db.transaction('rw', [db.projects, db.backups, db.chapterHistories, db.aiLogs, db.ragChunks, db.ragMeta], async () => {
         await db.projects.delete(id);
         // 関連するバックアップも削除
         await db.backups.where('projectId').equals(id).delete();
@@ -935,7 +935,7 @@ class DatabaseService {
               createdAt: this.safeDateConversion(backup.createdAt),
               data: backupData,
               compressed: backup.compressed || false,
-            };
+            } as ProjectBackup;
           } else if (this.isObject(backupData)) {
             // 古い形式（オブジェクト）の場合はJSON文字列に変換
             const jsonData = JSON.stringify({
@@ -958,12 +958,12 @@ class DatabaseService {
               createdAt: this.safeDateConversion(backup.createdAt),
               data: jsonData,
               compressed: false,
-            };
+            } as ProjectBackup;
           } else {
             console.warn('無効なバックアップデータのdataフィールド:', backupData);
             return null;
           }
-        }).filter((backup: unknown): backup is ProjectBackup => backup !== null);
+        }).filter((backup): backup is ProjectBackup => backup !== null);
 
         await db.backups.bulkPut(processedBackups);
       }

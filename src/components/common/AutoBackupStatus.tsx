@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, AlertCircle } from 'lucide-react';
 import { getLastBackupTime, getLastBackupError } from '../../services/autoBackupService';
 
-export function AutoBackupStatus(): JSX.Element | null {
+export function AutoBackupStatus(): React.JSX.Element | null {
   const [lastTime, setLastTime] = useState<Date | null>(getLastBackupTime());
   const [error, setError] = useState<string | null>(getLastBackupError());
 
