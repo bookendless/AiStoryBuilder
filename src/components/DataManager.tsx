@@ -15,6 +15,10 @@ import { ClearAllDataConfirmModal } from './common/ClearAllDataConfirmModal';
 import { SnapshotCompareModal } from './SnapshotCompareModal';
 import { isTauriEnvironment, isAndroidEnvironment } from '../utils/platformUtils';
 
+// インポートはファイル全体をメモリ上で JSON.parse するため、上限を設けないと
+// 巨大ファイルでタブごと落ちる。実プロジェクトのエクスポートは数MB程度。
+const MAX_IMPORT_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
 interface DataManagerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -586,6 +590,19 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
 
   const handleConfirmImportData = async () => {
     if (!confirmDialogState.importFile) return;
+
+    // ファイル全体をメモリに読み込んで JSON.parse するため、上限がないと巨大ファイルで
+    // タブごとクラッシュする。読み込む前にサイズで弾く。
+    if (confirmDialogState.importFile.size > MAX_IMPORT_FILE_SIZE) {
+      const limitMB = Math.round(MAX_IMPORT_FILE_SIZE / (1024 * 1024));
+      const actualMB = (confirmDialogState.importFile.size / (1024 * 1024)).toFixed(1);
+      showError(`インポートファイルが大きすぎます（${actualMB}MB）。${limitMB}MB以下のファイルを選択してください。`, 7000, {
+        title: 'インポートエラー',
+      });
+      setConfirmDialogState({ isOpen: false, type: null });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const text = await confirmDialogState.importFile.text();

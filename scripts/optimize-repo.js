@@ -91,8 +91,18 @@ function removeFiles() {
 
 // Git履歴の最適化
 function optimizeGitHistory() {
+  // filter-branch による履歴書き換えと reflog 破棄は取り消せない。
+  // 誤実行でローカルの復旧手段まで消えるため、明示的な --yes がない限り実行しない。
+  if (!process.argv.includes('--yes')) {
+    console.log('\n⏭️  Git履歴の最適化をスキップしました（取り消し不可の操作のため）。');
+    console.log('   この処理は git filter-branch で全履歴を書き換え、reflog も破棄します。');
+    console.log('   実行前にリポジトリのバックアップを取り、以下のように明示的に指定してください:');
+    console.log('   npm run optimize-repo -- --yes\n');
+    return;
+  }
+
   console.log('\n📦 Git履歴を最適化中...');
-  
+
   try {
     // 不要なファイルをGit履歴から完全に削除
     execSync('git filter-branch --force --index-filter "git rm --cached --ignore-unmatch -r node_modules dist build coverage .cache .parcel-cache" --prune-empty --tag-name-filter cat -- --all', { stdio: 'inherit' });

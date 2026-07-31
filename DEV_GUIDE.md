@@ -129,6 +129,11 @@ npm run tauri:build:android -- --debug
 - **Ollama**: `http://localhost:11434`
 - **LM Studio**: `http://localhost:1234`
 
+エンドポイントは `securityUtils.ts` の `isAllowedLocalEndpoint()` で検証され、ループバックと
+私的アドレス（10.0.0.0/8、172.16.0.0/12、192.168.0.0/16）以外は拒否されます。
+ホスト名は `localhost` のみ許可で、それ以外は名前解決で外部へ出うるため IPアドレス指定が必要です。
+LAN上の別マシンでLLMを動かす場合は、そのマシンの私的IPを直接指定してください。
+
 ### Tauriビルドエラー
 
 Rust周りのエラーが発生した場合：

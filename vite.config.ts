@@ -9,7 +9,7 @@ export default defineConfig({
   // Tauri用の設定
   clearScreen: false,
   optimizeDeps: {
-    include: ['react', 'react-dom', 'dexie', 'axios', 'lucide-react']
+    include: ['react', 'react-dom', 'dexie', 'lucide-react']
   },
   server: {
     port: 5173,
@@ -91,7 +91,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           ui: ['lucide-react'],
-          ai: ['openai', '@google/generative-ai'],
+          // AI通信は各社SDKではなく httpService の fetch で行うため、専用チャンクは不要
           storage: ['dexie'],
           charts: ['recharts'] // 執筆ダッシュボード専用（遅延読み込みチャンク）
         },

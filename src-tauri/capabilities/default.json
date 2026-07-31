@@ -107,28 +107,44 @@
           "path": "$APPLOCALDATA/**"
         }
       ],
-      "deny": []
-    },
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [
+      "deny": [
         {
-          "path": "$HOME/**"
+          "path": "$HOME/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/**"
         },
         {
-          "path": "$DOWNLOAD/**"
+          "path": "$HOME/Library/LaunchAgents/**"
         },
         {
-          "path": "$DESKTOP/**"
+          "path": "$HOME/.config/autostart/**"
         },
         {
-          "path": "$DOCUMENT/**"
+          "path": "$HOME/.local/share/applications/**"
         },
         {
-          "path": "$APPLOCALDATA/**"
+          "path": "$HOME/.ssh/**"
+        },
+        {
+          "path": "$HOME/.aws/**"
+        },
+        {
+          "path": "$HOME/.gnupg/**"
+        },
+        {
+          "path": "$HOME/.bashrc"
+        },
+        {
+          "path": "$HOME/.bash_profile"
+        },
+        {
+          "path": "$HOME/.profile"
+        },
+        {
+          "path": "$HOME/.zshrc"
+        },
+        {
+          "path": "$HOME/.zprofile"
         }
-      ],
-      "deny": []
+      ]
     },
     {
       "identifier": "fs:allow-mkdir",

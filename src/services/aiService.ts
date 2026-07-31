@@ -2,36 +2,21 @@ import { AIRequest, AIResponse, AISettings, OpenAIRequestBody, OpenAIResponse, O
 import { EvaluationRequest, EvaluationResult } from '../types/evaluation';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
-import { decryptApiKeyAsync, sanitizeInputForPrompt, sanitizeInputForPromptWithMeta, DEFAULT_PROMPT_MAX_LENGTH } from '../utils/securityUtils';
+import { decryptApiKeyAsync, sanitizeInputForPrompt, sanitizeInputForPromptWithMeta, DEFAULT_PROMPT_MAX_LENGTH, isAllowedLocalEndpoint } from '../utils/securityUtils';
 import { httpService } from './httpService';
 import { APIError, ErrorCategory } from '../types/errors';
 import { logAPIError, logError } from '../utils/errorLogger';
 import { getUserFriendlyError } from '../utils/errorHandler';
 
-/**
- * モデルが temperature パラメータをサポートするか判定する。
- * Claude の opus 4.7 / 4.8、sonnet 5、fable 5 など一部の新しいモデルは
- * temperature が非対応（指定すると 400 エラー）のため、
- * これらにはリクエストボディから temperature を省略する。
- */
-const modelSupportsTemperature = (model: string): boolean => {
-  if (!model) return true;
-  // opus 4.7 / 4.8 / 4.9 系、sonnet-5 / fable-5 / mythos-5 系は temperature 非対応
-  return !/opus-4-[789]|sonnet-5|fable-5|mythos-5/.test(model);
-};
-
 // プロンプトテンプレートを外部ファイルからインポート
 import { PROMPTS, SYSTEM_PROMPT, STRICTNESS_INSTRUCTIONS, EVALUATION_PROMPT_CAP } from './prompts';
+import { modelSupportsTemperature, isOpenAIReasoningModel } from '../utils/modelCapabilities';
 
 
 class AIService {
   // モデル名に基づいてmax_tokensとmax_completion_tokensを切り替えるヘルパー関数
   private isNewModel(model: string): boolean {
-    // GPT-5系モデル
-    if (model.startsWith('gpt-5')) return true;
-    // OpenAIのo1/o3/o4系モデル（例: o1-preview, o3-mini, o4-mini）
-    if (model.startsWith('o1-') || model.startsWith('o3') || model.startsWith('o4')) return true;
-    return false;
+    return isOpenAIReasoningModel(model);
   }
 
   // ログ出力用のプロンプトマスキング（機密情報保護）
@@ -48,43 +33,27 @@ class AIService {
     return masked + '...';
   }
 
-  // ローカルエンドポイントの検証
+  // ローカルエンドポイントの検証（判定ロジックは securityUtils に集約）
   private validateLocalEndpoint(endpoint: string): boolean {
-    if (!endpoint || typeof endpoint !== 'string') {
-      return false;
+    return isAllowedLocalEndpoint(endpoint);
+  }
+
+  /**
+   * 保存済みAPIキーを復号する。復号できない場合は明示的なエラーにする。
+   *
+   * 鍵導出の種（localStorage の _enc_seed_v1 など）が保存時と変わると復号に失敗する。
+   * その状態で通信すると原因の分かりにくい 400/401 になるため、ここで再入力を促す
+   * メッセージに変換する。空文字のまま送信してはならない。
+   */
+  private async decryptApiKeyOrThrow(storedKey: string): Promise<string> {
+    const apiKey = await decryptApiKeyAsync(storedKey);
+    if (!apiKey) {
+      throw new APIError(
+        '保存されたAPIキーを復号できませんでした。AI設定でAPIキーを再入力してください。',
+        'api_key_invalid'
+      );
     }
-
-    try {
-      const url = new URL(endpoint);
-
-      // プロトコルの検証
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        return false;
-      }
-
-      // ホスト名の検証（localhost、ループバック、プライベートネットワークIP、Androidエミュレータを許可）
-      const hostname = url.hostname.toLowerCase();
-      const allowedHosts = ['localhost', '127.0.0.1', '::1', '[::1]', '10.0.2.2'];
-
-      if (!allowedHosts.includes(hostname)) {
-        // プライベートネットワークIP（192.168.x.x、10.x.x.x、172.16-31.x.x）を許可
-        const privateIpPattern = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|0\.0\.0\.0)/;
-        if (!privateIpPattern.test(hostname)) {
-          return false;
-        }
-      }
-
-      // ポート番号の検証（1-65535）
-      const port = url.port ? parseInt(url.port, 10) : (url.protocol === 'https:' ? 443 : 80);
-      if (isNaN(port) || port < 1 || port > 65535) {
-        return false;
-      }
-
-      return true;
-    } catch {
-      // URL解析に失敗した場合は無効
-      return false;
-    }
+    return apiKey;
   }
 
   /**
@@ -113,7 +82,7 @@ class AIService {
       formData.append('response_format', 'text'); // テキスト形式で返す
 
       // APIキーの復号化（AES-GCM暗号化対応）
-      const decryptedApiKey = await decryptApiKeyAsync(apiKey);
+      const decryptedApiKey = await this.decryptApiKeyOrThrow(apiKey);
 
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
@@ -242,7 +211,7 @@ class AIService {
     }
 
     // APIキーの復号化（AES-GCM暗号化対応）
-    const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
+    const apiKey = await this.decryptApiKeyOrThrow(apiKeyForProvider);
 
     // Tauri環境検出（Tauri 2対応）
     const isTauriEnv = typeof window !== 'undefined' &&
@@ -289,7 +258,11 @@ class AIService {
             content: userContent,
           },
         ],
-        temperature: request.settings.temperature,
+        // リーズニング系モデル（GPT-5系 / o1・o3・o4系）は temperature の変更を受け付けず、
+        // 指定すると 400 になるため省略する
+        ...(modelSupportsTemperature(request.settings.model)
+          ? { temperature: request.settings.temperature }
+          : {}),
         stream: !!request.onStream, // ストリーミング有効化
       };
 
@@ -450,7 +423,7 @@ class AIService {
     }
 
     // APIキーの復号化（AES-GCM暗号化対応）
-    const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
+    const apiKey = await this.decryptApiKeyOrThrow(apiKeyForProvider);
 
     // Tauri環境検出（Tauri 2対応）
     const isTauriEnv = typeof window !== 'undefined' &&
@@ -688,7 +661,7 @@ class AIService {
       }
 
       // APIキーの復号化（AES-GCM暗号化対応）
-      const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
+      const apiKey = await this.decryptApiKeyOrThrow(apiKeyForProvider);
 
       // Tauri環境検出（Tauri 2対応）
       const isTauriEnv = typeof window !== 'undefined' &&
@@ -1428,7 +1401,7 @@ class AIService {
     }
 
     // APIキーの復号化（AES-GCM暗号化対応）
-    const apiKey = await decryptApiKeyAsync(apiKeyForProvider);
+    const apiKey = await this.decryptApiKeyOrThrow(apiKeyForProvider);
 
     // Tauri環境検出（Tauri 2対応）
     const isTauriEnv = typeof window !== 'undefined' &&

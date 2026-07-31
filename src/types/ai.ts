@@ -90,7 +90,7 @@ export interface OpenAIRequestBody {
       image_url?: { url: string };
     }>;
   }>;
-  temperature: number;
+  temperature?: number; // リーズニング系モデル（GPT-5系 / o1・o3・o4系）は temperature 非対応のため省略可能
   stream?: boolean;
   max_tokens?: number;
   max_completion_tokens?: number;

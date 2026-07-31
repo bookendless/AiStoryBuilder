@@ -8,8 +8,13 @@ import { useToast } from './useToast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
 import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
-import { decryptApiKeyAsync } from '../utils/securityUtils';
+import { decryptApiKeyAsync, isEncryptedApiKey } from '../utils/securityUtils';
+import { modelSupportsTemperature, isOpenAIReasoningModel } from '../utils/modelCapabilities';
 import { OpenAIRequestBody } from '../types/ai';
+
+// 保存済みの鍵が復号できないとき（鍵導出の種が変わった場合など）に表示する。
+// このとき入力欄は空のままにする。暗号文を入れると外部APIへそのまま送信されてしまう。
+const API_KEY_DECRYPT_FAILED_MESSAGE = '保存されたAPIキーを復号できませんでした。お手数ですが再入力してください。';
 
 interface AISettingsProps {
   isOpen: boolean;
@@ -79,15 +84,17 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   // 非同期でAPIキーを復号化して設定
   const decryptAndSetApiKey = useCallback(async () => {
     if (settings.provider && settings.provider !== 'local') {
+      const storedKey = settings.apiKeys?.[settings.provider] || settings.apiKey || '';
       let decryptedKey = '';
       try {
-        if (settings.apiKeys?.[settings.provider]) {
-          decryptedKey = await decryptApiKeyAsync(settings.apiKeys[settings.provider]);
-        } else if (settings.apiKey) {
-          decryptedKey = await decryptApiKeyAsync(settings.apiKey);
+        if (storedKey) {
+          decryptedKey = await decryptApiKeyAsync(storedKey);
         }
       } catch (error) {
         console.error('Failed to decrypt API key:', error);
+      }
+      if (storedKey && !decryptedKey && isEncryptedApiKey(storedKey)) {
+        setApiKeyError(API_KEY_DECRYPT_FAILED_MESSAGE);
       }
       setFormData(prev => ({ ...prev, apiKey: decryptedKey }));
     }
@@ -185,6 +192,18 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   };
 
   const handleTestConnection = async () => {
+    // 復号できなかった鍵や暗号文をそのまま資格情報として送信しない
+    if (formData.provider !== 'local') {
+      if (!formData.apiKey) {
+        setTestResult({ success: false, message: 'APIキーが設定されていません。APIキーを入力してください。' });
+        return;
+      }
+      if (isEncryptedApiKey(formData.apiKey)) {
+        setTestResult({ success: false, message: API_KEY_DECRYPT_FAILED_MESSAGE });
+        return;
+      }
+    }
+
     setIsTesting(true);
     setTestResult(null);
 
@@ -200,8 +219,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
 
       if (formData.provider === 'openai') {
-        // モデル名に基づいて適切なパラメータを選択
-        const isNewModel = formData.model.startsWith('gpt-5') || formData.model.startsWith('o');
+        // モデル名に基づいて適切なパラメータを選択（生成時と同じ判定を使う）
+        const isNewModel = isOpenAIReasoningModel(formData.model);
         const requestBody: OpenAIRequestBody = {
           model: formData.model,
           messages: [
@@ -210,7 +229,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               content: testPrompt,
             },
           ],
-          temperature: formData.temperature,
+          // リーズニング系モデルは temperature の変更を受け付けない（指定すると400）
+          ...(modelSupportsTemperature(formData.model)
+            ? { temperature: formData.temperature }
+            : {}),
         };
 
         // GPT-5.1系やo系モデルはmax_completion_tokens、それ以外はmax_tokensを使用
@@ -295,7 +317,9 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
           ? '/api/gemini'
           : 'https://generativelanguage.googleapis.com';
 
-        const apiUrl = `${baseUrl}/v1beta/models/${formData.model}:generateContent${!isTauriEnv && import.meta.env.DEV ? '' : `?key=${formData.apiKey}`}`;
+        // APIキーはクエリ文字列に載せない（URLはエラーログ等に残るため）。
+        // 認証は下の x-goog-api-key ヘッダーのみで行う。
+        const apiUrl = `${baseUrl}/v1beta/models/${formData.model}:generateContent`;
 
         const response = await httpService.post(apiUrl, {
           contents: [{
@@ -499,17 +523,23 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   const newModelData = provider.models[0];
 
                   // プロバイダーに応じてapiKeysからAPIキーを取得（非同期復号化）
+                  // 後方互換性のため、apiKeysに無い場合はapiKeyからも取得を試みる
+                  const storedKey = provider.id !== 'local'
+                    ? (settings.apiKeys?.[provider.id] || settings.apiKey || '')
+                    : '';
                   let apiKeyForProvider = '';
                   try {
-                    if (provider.id !== 'local' && settings.apiKeys?.[provider.id]) {
-                      apiKeyForProvider = await decryptApiKeyAsync(settings.apiKeys[provider.id]);
-                    } else if (provider.id !== 'local' && settings.apiKey) {
-                      // 後方互換性のため、apiKeyからも取得を試みる
-                      apiKeyForProvider = await decryptApiKeyAsync(settings.apiKey);
+                    if (storedKey) {
+                      apiKeyForProvider = await decryptApiKeyAsync(storedKey);
                     }
                   } catch (error) {
                     console.error('Failed to decrypt API key:', error);
                   }
+                  setApiKeyError(
+                    storedKey && !apiKeyForProvider && isEncryptedApiKey(storedKey)
+                      ? API_KEY_DECRYPT_FAILED_MESSAGE
+                      : ''
+                  );
 
                   const updateData = {
                     ...formData,
@@ -766,13 +796,19 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               step="0.1"
               value={formData.temperature}
               onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-              className="w-full"
+              disabled={!modelSupportsTemperature(formData.model)}
+              className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
               <span>保守的 (0.0)</span>
               <span className="font-semibold">{formData.temperature}</span>
               <span>創造的 (1.0)</span>
             </div>
+            {!modelSupportsTemperature(formData.model) && (
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                このモデルはTemperatureの変更に対応していないため、設定は送信されません。
+              </p>
+            )}
           </div>
 
           <div>

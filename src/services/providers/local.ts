@@ -1,4 +1,5 @@
 import { AIProvider } from '../../types/ai';
+import { isAllowedLocalEndpoint } from '../../utils/securityUtils';
 
 // ローカルLLMモデル定義
 const LOCAL_MODELS = [
@@ -30,6 +31,12 @@ export const localProvider: AIProvider = {
 };
 
 export async function checkLocalLLMConnectivity(endpoint: string): Promise<boolean> {
+  // 接続先はユーザーが自由入力できるため、送信前に必ずローカル/私的アドレスか検証する。
+  // 検証を省くと、エラー時のフォールバック判定が任意の外部ホストへの通信になりうる。
+  if (!isAllowedLocalEndpoint(endpoint)) {
+    return false;
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 3000);
   try {

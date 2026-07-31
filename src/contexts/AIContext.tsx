@@ -316,9 +316,11 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   useEffect(() => {
     if (!isStorageReady || !settings.apiKeys) return;
 
+    // 現行形式は v3（永続ランダムシード）。v2 や平文はここで再暗号化対象として検出する。
+    // 以前は v2 以外をレガシー扱いしていたため、最新の v3 キーまで毎回警告が出ていた。
     let hasLegacyKeys = false;
     for (const [, encryptedKey] of Object.entries(settings.apiKeys)) {
-      if (encryptedKey && !encryptedKey.startsWith('v2:')) {
+      if (encryptedKey && !encryptedKey.startsWith('v3:')) {
         hasLegacyKeys = true;
         break;
       }

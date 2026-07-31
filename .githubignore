@@ -22,9 +22,11 @@ out/
 # 依存関係
 node_modules/
 
-# 環境変数
+# 環境変数（雛形 env.local.example 以外は追跡しない）
 .env
 .env.local
+.env.development
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local

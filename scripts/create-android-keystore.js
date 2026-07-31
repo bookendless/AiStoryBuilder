@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,13 +65,25 @@ console.log(`   - エイリアス: ${keyAlias}`);
 console.log(`   - 有効期限: ${validity}日\n`);
 
 try {
-  // keytoolコマンドを実行
-  // 注意: 実際の実行では対話的な入力が必要なため、ここではコマンドを表示するだけ
-  const command = `keytool -genkey -v -keystore "${keystorePath}" -alias ${keyAlias} -keyalg RSA -keysize 2048 -validity ${validity} -storepass ${keystorePassword} -keypass ${keystorePassword} -dname "CN=AI Story Builder, OU=Development, O=AI Story Builder Team, L=Unknown, ST=Unknown, C=JP"`;
-  
+  // シェルを介さず引数配列で渡す。文字列補間だと、パスワードに " ` $ ; & などが
+  // 含まれる場合にコマンドが壊れる（＝シェルインジェクションになる）。
+  const args = [
+    '-genkey', '-v',
+    '-keystore', keystorePath,
+    '-alias', keyAlias,
+    '-keyalg', 'RSA',
+    '-keysize', '2048',
+    '-validity', validity,
+    '-storepass', keystorePassword,
+    '-keypass', keystorePassword,
+    '-dname', 'CN=AI Story Builder, OU=Development, O=AI Story Builder Team, L=Unknown, ST=Unknown, C=JP',
+  ];
+
   console.log('🔨 キーストアを作成中...\n');
-  execSync(command, { stdio: 'inherit' });
-  
+  // 残余リスク: -storepass/-keypass は実行中プロセスの引数として
+  // 同一マシンの他ユーザーから見えうる。共有マシンでは keytool を対話実行すること。
+  execFileSync('keytool', args, { stdio: 'inherit' });
+
   console.log('\n✅ キーストアファイルが作成されました！\n');
   
   // keystore.propertiesファイルを更新

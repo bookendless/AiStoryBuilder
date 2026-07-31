@@ -9,8 +9,12 @@ dist/
 build/
 
 # Environment variables
+# APIキーを書き込む可能性のあるファイルは、雛形（env.local.example）以外すべて追跡しない。
+# VITE_* はビルド時にバンドルへ平文で埋め込まれるため、誤コミットの影響が大きい。
 .env
 .env.local
+.env.development
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local

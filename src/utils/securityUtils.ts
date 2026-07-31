@@ -21,6 +21,10 @@ const PERSISTENT_SEED_KEY = '_enc_seed_v1'; // localStorageのキー
  * 永続ランダムシードを取得または生成
  * localStorageに保存することでデバイス設定変更後も復号可能にする
  * フォールバックはデバイスフィンガープリント
+ *
+ * 脅威モデルの限界: シードは暗号文（IndexedDB / Tauri Store）と同じ端末の localStorage にある。
+ * そのため保護されるのは「DBファイル単体を覗かれた場合」までで、端末上でコードを実行できる
+ * 攻撃者（マルウェア、XSS）に対しては保護にならない。恒久対策はOSキーチェーン統合。
  */
 const getOrCreatePersistentSeed = (): string => {
   try {
@@ -195,62 +199,74 @@ export const encryptApiKeyAsync = async (key: string): Promise<string> => {
  * AES-GCM復号化（非同期版）
  * Web Crypto APIを使用した復号化
  */
+export const isEncryptedApiKey = (value: string): boolean => {
+  if (!value || typeof value !== 'string') return false;
+  return value.startsWith(`${ENCRYPTION_VERSION}:`) || value.startsWith(`${ENCRYPTION_VERSION_V2}:`);
+};
+
+/**
+ * 復号結果がAPIキーとして送信できる見た目かを検証する。
+ * 復号に失敗したバイト列は制御文字や非ASCIIを含むため、それを検出して弾く。
+ */
+const looksLikeApiKey = (value: string): boolean => {
+  return value.length >= 8 && value.length <= 1024 && /^[\x21-\x7E]+$/.test(value);
+};
+
 export const decryptApiKeyAsync = async (encryptedKey: string): Promise<string> => {
   if (!encryptedKey) return '';
 
+  const isV3 = encryptedKey.startsWith(`${ENCRYPTION_VERSION}:`);
+  const isV2 = encryptedKey.startsWith(`${ENCRYPTION_VERSION_V2}:`);
+
+  // 暗号文ではない値（平文で保存された鍵、またはレガシーXOR形式）
+  if (!isV3 && !isV2) {
+    if (!isEncryptionEnabled()) {
+      return encryptedKey;
+    }
+    return decryptApiKeyLegacy(encryptedKey);
+  }
+
+  // ここから先は保存値が暗号文であることが確定している。
+  // 復号できない場合に暗号文をそのまま返してはならない（後述のコメント参照）。
+  if (!isWebCryptoAvailable()) {
+    console.error('Web Crypto API is required to decrypt this key');
+    return '';
+  }
+
   try {
-    const encryptionEnabled = isEncryptionEnabled();
-    if (!encryptionEnabled) {
-      return encryptedKey;
-    }
+    const prefix = isV3 ? ENCRYPTION_VERSION : ENCRYPTION_VERSION_V2;
+    const base64Data = encryptedKey.substring(prefix.length + 1);
+    const combined = base64ToUint8Array(base64Data);
 
-    // バージョンをチェック
-    const isV3 = encryptedKey.startsWith(`${ENCRYPTION_VERSION}:`);
-    const isV2 = encryptedKey.startsWith(`${ENCRYPTION_VERSION_V2}:`);
+    // salt, iv, encryptedDataを分離
+    const salt = combined.slice(0, 16);
+    const iv = combined.slice(16, 16 + AES_IV_LENGTH);
+    const encryptedData = combined.slice(16 + AES_IV_LENGTH);
 
-    if (isV3 || isV2) {
-      // AES-GCM形式（v2: フィンガープリントシード, v3: 永続ランダムシード）
-      if (!isWebCryptoAvailable()) {
-        console.error('Web Crypto API is required to decrypt this key');
-        return encryptedKey;
-      }
+    // バージョンに応じたキー導出関数を使用
+    const cryptoKey = isV3 ? await deriveKey(salt) : await deriveKeyV2(salt);
 
-      const prefix = isV3 ? ENCRYPTION_VERSION : ENCRYPTION_VERSION_V2;
-      const base64Data = encryptedKey.substring(prefix.length + 1);
-      const combined = base64ToUint8Array(base64Data);
+    // データを復号化
+    const decryptedData = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv,
+        tagLength: AES_TAG_LENGTH
+      },
+      cryptoKey,
+      encryptedData
+    );
 
-      // salt, iv, encryptedDataを分離
-      const salt = combined.slice(0, 16);
-      const iv = combined.slice(16, 16 + AES_IV_LENGTH);
-      const encryptedData = combined.slice(16 + AES_IV_LENGTH);
-
-      // バージョンに応じたキー導出関数を使用
-      const cryptoKey = isV3 ? await deriveKey(salt) : await deriveKeyV2(salt);
-
-      // データを復号化
-      const decryptedData = await crypto.subtle.decrypt(
-        {
-          name: 'AES-GCM',
-          iv: iv,
-          tagLength: AES_TAG_LENGTH
-        },
-        cryptoKey,
-        encryptedData
-      );
-
-      return uint8ArrayToString(new Uint8Array(decryptedData));
-    } else {
-      // レガシーXOR形式（後方互換性のため）
-      return decryptApiKeyLegacy(encryptedKey);
-    }
+    return uint8ArrayToString(new Uint8Array(decryptedData));
   } catch (error) {
-    console.error('API key decryption error:', error);
-    // 復号化に失敗した場合、レガシー形式を試みる
-    try {
-      return decryptApiKeyLegacy(encryptedKey);
-    } catch {
-      return encryptedKey;
-    }
+    // OperationError は認証タグの不一致、すなわち鍵導出の種が保存時と変わったことを意味する
+    // （localStorage の _enc_seed_v1 が消えた、v2はデバイス情報が変化した等）。この鍵は復元できない。
+    //
+    // 以前はここで暗号文をそのまま返していたため、復号できない鍵が「復号済みの鍵」として
+    // 設定画面に入り、Authorization ヘッダーで外部APIへ送信されていた（400/401の原因）。
+    // さらにその状態で保存すると暗号文が再暗号化され、元の鍵が失われていた。
+    console.error('保存されたAPIキーを復号できませんでした。設定画面で再入力してください:', error);
+    return '';
   }
 };
 
@@ -291,9 +307,13 @@ const decryptApiKeyLegacy = (encryptedKey: string): string => {
       String.fromCharCode(char.charCodeAt(0) ^ (salt.charCodeAt(index % salt.length) ^ (index % 256)))
     ).join('');
 
-    return atob(decrypted);
-  } catch (error) {
-    console.error('Legacy API key decryption error:', error);
+    const result = atob(decrypted);
+
+    // XOR形式として辻褄が合わない場合は、そもそも暗号文ではなく平文の鍵だったと判断する
+    return looksLikeApiKey(result) ? result : encryptedKey;
+  } catch {
+    // base64として読めない = XOR暗号文ではなく平文で保存された鍵。
+    // これは正常な経路なのでエラーログは出さない（従来はここで大量のログが出ていた）。
     return encryptedKey;
   }
 };
@@ -349,59 +369,6 @@ export const decryptApiKey = (encryptedKey: string): string => {
   }
 };
 
-
-/**
- * プロンプトインジェクション攻撃のパターンを検出
- */
-const detectPromptInjection = (input: string): {
-  detected: boolean;
-  patterns: string[];
-} => {
-  const patterns: string[] = [];
-
-  // プロンプトインジェクションの一般的なパターン
-  const injectionPatterns = [
-    // システムプロンプトの上書き試行
-    /(?:ignore|forget|disregard)\s+(?:previous|prior|all|above|earlier)\s+(?:instructions?|prompts?|commands?|rules?)/gi,
-    /(?:system|assistant|user):\s*(?:ignore|forget|disregard)/gi,
-    /(?:you are|you're|act as|pretend to be|roleplay as)/gi,
-    /(?:new instructions?|override|replace)\s+(?:previous|prior|all|above|earlier)/gi,
-
-    // プロンプトの終了と新しい指示の挿入
-    /(?:end of prompt|stop here|ignore above|forget everything)/gi,
-    /(?:now|next|then|after this)\s+(?:you|assistant|system)\s+(?:should|must|will|need to)/gi,
-
-    // 特殊な区切り文字の使用
-    /(?:---|===|###|```)\s*(?:new|override|ignore|system|assistant)/gi,
-    /(?:\[|\(|\{)\s*(?:system|assistant|user|ignore|override)/gi,
-
-    // エスケープシーケンスの使用
-    /(?:\\n|\\r|\\t)\s*(?:system|assistant|ignore|override)/gi,
-
-    // 指示の強制
-    /(?:must|should|will|need to|required to)\s+(?:ignore|forget|disregard|override)/gi,
-    /(?:important|critical|urgent)\s*:\s*(?:ignore|forget|disregard|override)/gi,
-
-    // プロンプトの構造を壊す試行
-    /(?:<|\[|\{)\s*(?:system|assistant|user|prompt|instruction)/gi,
-    /(?:system|assistant|user)\s*(?:>|\]|\})/gi,
-
-    // 多言語でのインジェクション試行
-    /(?:無視|忘れる|上書き|置き換え|新しい指示)/gi,
-    /(?:前の|以前の|すべての)\s*(?:指示|プロンプト|コマンド|ルール)\s*(?:を|を無視|を忘れる)/gi,
-  ];
-
-  injectionPatterns.forEach((pattern, index) => {
-    if (pattern.test(input)) {
-      patterns.push(`パターン${index + 1}`);
-    }
-  });
-
-  return {
-    detected: patterns.length > 0,
-    patterns
-  };
-};
 
 /**
  * sanitizeInputForPrompt の既定の長さ上限。
@@ -491,37 +458,14 @@ export const sanitizeInputForPromptWithMeta = (
     .replace(/<object[^>]*>.*?<\/object>/gi, '') // objectタグの除去
     .replace(/<embed[^>]*>.*?<\/embed>/gi, ''); // embedタグの除去
 
-  // プロンプトインジェクション対策: 危険なパターンの除去
+  // 制御文字と過剰な空白の正規化のみを行う。
+  //
+  // かつてここでプロンプトインジェクション対策として「無視」「忘れる」「上書き」や
+  // "you are 〜"（以降100文字）などを削除していたが、これらは日本語の小説本文に
+  // 日常的に現れる語であり、著者の原稿を無断で書き換えていた。ユーザー自身の原稿を
+  // ユーザー自身のAPIキーで送るローカル専用アプリという構造上、この種の語句削除は
+  // 防御として機能せず原稿品質だけを損なうため撤廃した。
   sanitized = sanitized
-    // システムプロンプトの上書き試行を除去
-    .replace(/(?:ignore|forget|disregard)\s+(?:previous|prior|all|above|earlier)\s+(?:instructions?|prompts?|commands?|rules?)/gi, '')
-    .replace(/(?:system|assistant|user):\s*(?:ignore|forget|disregard)/gi, '')
-    .replace(/(?:you are|you're|act as|pretend to be|roleplay as)\s+[^\n]{0,100}/gi, '')
-    .replace(/(?:new instructions?|override|replace)\s+(?:previous|prior|all|above|earlier)/gi, '')
-
-    // プロンプトの終了と新しい指示の挿入を除去
-    .replace(/(?:end of prompt|stop here|ignore above|forget everything)/gi, '')
-    .replace(/(?:now|next|then|after this)\s+(?:you|assistant|system)\s+(?:should|must|will|need to)/gi, '')
-
-    // 特殊な区切り文字の使用を除去
-    .replace(/(?:---|===|###|```)\s*(?:new|override|ignore|system|assistant)/gi, '')
-    .replace(/(?:\[|\(|\{)\s*(?:system|assistant|user|ignore|override)/gi, '')
-
-    // エスケープシーケンスの使用を除去
-    .replace(/(?:\\n|\\r|\\t)\s*(?:system|assistant|ignore|override)/gi, '')
-
-    // 指示の強制を除去
-    .replace(/(?:must|should|will|need to|required to)\s+(?:ignore|forget|disregard|override)/gi, '')
-    .replace(/(?:important|critical|urgent)\s*:\s*(?:ignore|forget|disregard|override)/gi, '')
-
-    // プロンプトの構造を壊す試行を除去
-    .replace(/(?:<|\[|\{)\s*(?:system|assistant|user|prompt|instruction)/gi, '')
-    .replace(/(?:system|assistant|user)\s*(?:>|\]|\})/gi, '')
-
-    // 多言語でのインジェクション試行を除去
-    .replace(/(?:無視|忘れる|上書き|置き換え|新しい指示)/gi, '')
-    .replace(/(?:前の|以前の|すべての)\s*(?:指示|プロンプト|コマンド|ルール)\s*(?:を|を無視|を忘れる)/gi, '')
-
     // 制御文字の除去（改行とタブ以外）
     .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
 
@@ -529,11 +473,7 @@ export const sanitizeInputForPromptWithMeta = (
     .replace(/\n{3,}/g, '\n\n')
 
     // 連続する空白の制限（5つ以上を1つに）
-    .replace(/ {5,}/g, ' ')
-
-    // 先頭・末尾の特殊文字の除去
-    .replace(/^[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/, '')
-    .replace(/[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+$/, '');
+    .replace(/ {5,}/g, ' ');
 
   // サニタイズ後・切り詰め前のコンテンツ長。切り詰め判定と「元の長さ」表示に使う
   // （生の input.length ではなくここを使うことで、サニタイズで縮んだ分の誤検知を防ぐ）。
@@ -543,19 +483,9 @@ export const sanitizeInputForPromptWithMeta = (
   // 長さ制限（末尾の指示・出力形式ブロックを死守する中抜き方式）
   sanitized = truncatePromptPreservingTail(sanitized, maxLength);
 
-  // 最終的な検証: プロンプトインジェクションの検出
-  const injectionCheck = detectPromptInjection(sanitized);
-  if (injectionCheck.detected) {
-    // 検出された場合は、さらに厳格なサニタイゼーションを適用
-    console.warn('プロンプトインジェクションの可能性が検出されました:', injectionCheck.patterns);
-    // 危険なパターンを含む行を除去
-    const lines = sanitized.split('\n');
-    const safeLines = lines.filter(line => {
-      const lineCheck = detectPromptInjection(line);
-      return !lineCheck.detected;
-    });
-    sanitized = truncatePromptPreservingTail(safeLines.join('\n'), maxLength);
-  }
+  // 注意: ここでインジェクション語句を含む「行」を丸ごと削除する処理があったが、
+  // 「無視」「忘れる」等を含む地の文が1行単位で消えるため原稿破壊の原因になっていた。
+  // 上記の語句削除と同じ理由で撤廃している。
 
   return { text: sanitized, truncated, contentLength };
 };
@@ -652,10 +582,17 @@ export const sanitizeFileName = (fileName: string): string => {
  */
 export const generateSecureRandomString = (length: number = 32): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  // 剰余バイアスを避けるため、文字数の整数倍（62 * 4 = 248）を超えたバイトは捨てて引き直す
+  const limit = Math.floor(256 / chars.length) * chars.length;
   let result = '';
 
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  while (result.length < length) {
+    const buffer = new Uint8Array(length - result.length);
+    crypto.getRandomValues(buffer);
+    for (const byte of buffer) {
+      if (byte >= limit) continue;
+      result += chars.charAt(byte % chars.length);
+    }
   }
 
   return result;
@@ -666,6 +603,107 @@ export const generateSecureRandomString = (length: number = 32): string => {
  */
 export const generateSessionId = (): string => {
   return generateSecureRandomString(64);
+};
+
+/**
+ * 永続化・書き出しするテキストからAPIキー等の機密情報をマスクする。
+ *
+ * ログ本文は後からファイルへ書き出せる（AIログのダウンロード、データエクスポート）ため、
+ * 保存前に必ず通す。プロンプト本文は残したいので切り詰めは行わない。
+ */
+export const maskSecretsInText = (text: string): string => {
+  if (!text || typeof text !== 'string') {
+    return text;
+  }
+
+  return text
+    .replace(/sk-ant-[A-Za-z0-9_-]{8,}/g, 'sk-ant-***')
+    .replace(/sk-[A-Za-z0-9_-]{16,}/g, 'sk-***')
+    .replace(/AIza[A-Za-z0-9_-]{20,}/g, 'AIza***')
+    .replace(/xai-[A-Za-z0-9_-]{16,}/g, 'xai-***')
+    .replace(/((?:api[_-]?key|access[_-]?token|password)\s*[:=]\s*)\S+/gi, '$1***');
+};
+
+/**
+ * ホスト名を厳密なIPv4として解析する。IPv4でなければ null。
+ *
+ * WHATWG URL は host を正規化するため（例: `http://010.0.0.1` → `8.0.0.1`、
+ * `http://2130706433` → `127.0.0.1`）、url.hostname は既に十進ドット表記になっている。
+ */
+const parseIPv4 = (hostname: string): [number, number, number, number] | null => {
+  const parts = hostname.split('.');
+  if (parts.length !== 4) return null;
+
+  const octets: number[] = [];
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) return null;
+    const value = Number(part);
+    if (value > 255) return null;
+    octets.push(value);
+  }
+
+  return octets as [number, number, number, number];
+};
+
+/**
+ * ローカルLLM（LM Studio / Ollama など）の接続先として許可するエンドポイントか判定する。
+ *
+ * 重要: hostname はIPアドレスではなく文字列であるため、前方一致（例 /^10\./）で判定すると
+ * `10.evil.com` や `192.168.attacker.tld` のような公開ホストが通過してしまう。
+ * これらはDNSで外部に解決されるため、原稿全文の送信先として悪用されうる。
+ * そのため必ずIPv4として解析し、オクテット単位で私的アドレス範囲を判定する。
+ *
+ * 許可: ループバック表記（localhost / ::1）、127.0.0.0/8、10.0.0.0/8（Androidエミュレータの
+ * 10.0.2.2 を含む）、172.16.0.0/12、192.168.0.0/16、および 0.0.0.0。
+ * 上記以外のホスト名は、たとえ私的アドレスに見える文字列でも拒否する。
+ */
+export const isAllowedLocalEndpoint = (endpoint: string): boolean => {
+  if (!endpoint || typeof endpoint !== 'string') {
+    return false;
+  }
+
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    // URL解析に失敗した場合は無効
+    return false;
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return false;
+  }
+
+  // ポート番号の検証（1-65535）。URL側で正規化されるため空の場合は既定ポート扱い。
+  if (url.port) {
+    const port = Number(url.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return false;
+    }
+  }
+
+  const hostname = url.hostname.toLowerCase();
+
+  // ループバックのホスト名・IPv6表記
+  if (hostname === 'localhost' || hostname === '[::1]' || hostname === '::1') {
+    return true;
+  }
+
+  const octets = parseIPv4(hostname);
+  if (!octets) {
+    // ホスト名形式・IPv6・不正な数値はすべて拒否
+    return false;
+  }
+
+  const [a, b] = octets;
+
+  if (a === 0 && b === 0 && octets[2] === 0 && octets[3] === 0) return true; // 0.0.0.0
+  if (a === 127) return true;                        // 127.0.0.0/8
+  if (a === 10) return true;                         // 10.0.0.0/8（10.0.2.2 を含む）
+  if (a === 172 && b >= 16 && b <= 31) return true;  // 172.16.0.0/12
+  if (a === 192 && b === 168) return true;           // 192.168.0.0/16
+
+  return false;
 };
 
 /**
@@ -692,7 +730,8 @@ export const setSecurityHeaders = (): void => {
     "form-action 'self'"
   ].join('; ') : [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+    // 本番ビルドでは eval を許可しない（Worker/WebAssembly を使っていないため不要）
+    "script-src 'self' 'unsafe-inline' blob:",
     "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",

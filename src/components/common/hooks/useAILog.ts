@@ -3,6 +3,7 @@ import { AILogEntry } from '../types';
 import { databaseService } from '../../../services/databaseService';
 import { StoredAILogEntry } from '../../../services/databaseService';
 import { exportFile } from '../../../utils/mobileExportUtils';
+import { maskSecretsInText } from '../../../utils/securityUtils';
 
 const MAX_LOGS = 10;
 
@@ -52,14 +53,20 @@ export const useAILog = (options: UseAILogOptions = {}) => {
   }, [autoLoad, projectId, chapterId, loadLogs]);
 
   const addLog = useCallback(async (logEntry: Omit<AILogEntry, 'id' | 'timestamp'>) => {
+    // ログはIndexedDBに永続化され、ファイル書き出しやデータエクスポートにも含まれるため、
+    // 保存前にAPIキー等をマスクする。
+    const maskedPrompt = maskSecretsInText(logEntry.prompt as string);
+    const maskedResponse = maskSecretsInText(logEntry.response as string);
+    const maskedError = logEntry.error ? maskSecretsInText(logEntry.error as string) : undefined;
+
     const newLog: AILogEntry = {
       id: Date.now().toString(),
       timestamp: new Date(),
       type: logEntry.type as string,
-      prompt: logEntry.prompt as string,
-      response: logEntry.response as string,
-      error: logEntry.error as string | undefined,
       ...logEntry,
+      prompt: maskedPrompt,
+      response: maskedResponse,
+      error: maskedError,
     };
 
     // メモリ内の状態を更新
@@ -72,9 +79,9 @@ export const useAILog = (options: UseAILogOptions = {}) => {
           projectId,
           chapterId,
           type: logEntry.type as string,
-          prompt: logEntry.prompt as string,
-          response: logEntry.response as string,
-          error: logEntry.error as string | undefined,
+          prompt: maskedPrompt,
+          response: maskedResponse,
+          error: maskedError,
           suggestionType: logEntry.suggestionType as string | undefined,
         };
         await databaseService.saveAILogEntry(projectId, storedEntry);

@@ -6,6 +6,7 @@
 
 import '@testing-library/jest-dom';
 import { afterEach } from 'vitest';
+import { webcrypto } from 'node:crypto';
 
 // グローバルモック設定
 
@@ -69,25 +70,39 @@ Object.defineProperty(window, 'IntersectionObserver', {
     value: IntersectionObserverMock,
 });
 
-// Crypto のモック（暗号化ユーティリティ用）
+// Crypto: jsdom は crypto.subtle を実装していないため Node の WebCrypto を使う。
+// ここをダミー実装にすると暗号化・復号が常に「成功」してしまい、
+// 復号失敗時の挙動（fail-closed）をテストで検証できなくなる。
 Object.defineProperty(window, 'crypto', {
-    value: {
-        getRandomValues: (arr: Uint8Array) => {
-            for (let i = 0; i < arr.length; i++) {
-                arr[i] = Math.floor(Math.random() * 256);
-            }
-            return arr;
-        },
-        subtle: {
-            digest: async () => new ArrayBuffer(32),
-            encrypt: async () => new ArrayBuffer(16),
-            decrypt: async () => new ArrayBuffer(16),
-            importKey: async () => ({} as CryptoKey),
-            deriveKey: async () => ({} as CryptoKey),
-            deriveBits: async () => new ArrayBuffer(32),
-        },
-    },
+    value: webcrypto,
+    writable: true,
+    configurable: true,
 });
+
+// localStorage: Node の実験的な localStorage グローバルが未設定のまま
+// jsdom のものを覆い隠すことがあるため、使える実装を保証する。
+const ensureStorage = (key: 'localStorage' | 'sessionStorage') => {
+    const existing = (globalThis as Record<string, unknown>)[key];
+    if (existing && typeof (existing as Storage).clear === 'function') {
+        return;
+    }
+
+    const store = new Map<string, string>();
+    const storage: Storage = {
+        get length() { return store.size; },
+        clear: () => store.clear(),
+        getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+        key: (index: number) => Array.from(store.keys())[index] ?? null,
+        removeItem: (k: string) => { store.delete(k); },
+        setItem: (k: string, v: string) => { store.set(k, String(v)); },
+    };
+
+    Object.defineProperty(globalThis, key, { value: storage, writable: true, configurable: true });
+    Object.defineProperty(window, key, { value: storage, writable: true, configurable: true });
+};
+
+ensureStorage('localStorage');
+ensureStorage('sessionStorage');
 
 
 // console.error のカスタマイズ（テスト中の不要な警告を抑制）

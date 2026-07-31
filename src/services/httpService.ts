@@ -1,5 +1,33 @@
 import { APIError, ErrorCategory } from '../types/errors';
 
+// 認証情報を含みうるクエリパラメータ名（小文字で比較）
+const SENSITIVE_QUERY_PARAMS = ['key', 'api_key', 'apikey', 'access_token', 'token', 'password'];
+
+/**
+ * ログ出力用にURLの機密クエリパラメータをマスクする。
+ * 401/403（＝キーが誤っているとき）にURLをそのまま出すとAPIキーがコンソールに残るため、
+ * URLをログに書く箇所では必ずこの関数を通す。
+ */
+export function maskUrlForLog(url: string): string {
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    let masked = false;
+    for (const name of [...parsed.searchParams.keys()]) {
+      if (SENSITIVE_QUERY_PARAMS.includes(name.toLowerCase())) {
+        parsed.searchParams.set(name, '***');
+        masked = true;
+      }
+    }
+    if (!masked) return url;
+    // 相対URLを補完した場合はベース部分を取り除いて元の形に戻す
+    return url.startsWith('/') ? `${parsed.pathname}${parsed.search}` : parsed.toString();
+  } catch {
+    // 解析できないURLは、クエリ以降を丸ごと落として安全側に倒す
+    const queryIndex = url.indexOf('?');
+    return queryIndex >= 0 ? `${url.slice(0, queryIndex)}?***` : url;
+  }
+}
+
 // HTTPエラーを作成するヘルパー関数
 function createHttpError(status: number, message: string, _url: string): APIError {
   let category: 'api_key_missing' | 'api_key_invalid' | 'rate_limit' | 'timeout' | 'network' | 'quota_exceeded' | 'model_not_found' | 'invalid_request' | 'server_error' | 'unknown';
@@ -140,7 +168,7 @@ export class HttpService {
 
           // エラーレスポンスの処理
           if (response.status >= 400) {
-            console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+            console.error(`HTTP Error: ${response.status} ${response.statusText} - ${maskUrlForLog(url)}`);
             
             // エラーレスポンスの詳細を取得
             let errorMessage = `HTTP ${response.status}`;
@@ -193,7 +221,7 @@ export class HttpService {
 
       // エラーレスポンスの処理
       if (response.status >= 400) {
-        console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+        console.error(`HTTP Error: ${response.status} ${response.statusText} - ${maskUrlForLog(url)}`);
 
         // エラーレスポンスの詳細を取得
         let errorMessage = `HTTP ${response.status}`;
@@ -230,9 +258,9 @@ export class HttpService {
 
       // エラーログは簡略化（APIキーを含む可能性があるため）
       if (error instanceof Error) {
-        console.error(`HTTP Request Error: ${method} ${url} - ${error.message}`);
+        console.error(`HTTP Request Error: ${method} ${maskUrlForLog(url)} - ${error.message}`);
       } else {
-        console.error(`HTTP Request Error: ${method} ${url}`);
+        console.error(`HTTP Request Error: ${method} ${maskUrlForLog(url)}`);
       }
       
       // より詳細なエラー情報を提供
@@ -378,7 +406,7 @@ export class HttpService {
 
           // エラーレスポンスの処理
           if (response.status >= 400) {
-            console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+            console.error(`HTTP Error: ${response.status} ${response.statusText} - ${maskUrlForLog(url)}`);
             
             // エラーレスポンスの詳細を取得
             let errorMessage = `HTTP ${response.status}`;
@@ -429,7 +457,7 @@ export class HttpService {
 
       // エラーレスポンスの処理
       if (response.status >= 400) {
-        console.error(`HTTP Error: ${response.status} ${response.statusText} - ${url}`);
+        console.error(`HTTP Error: ${response.status} ${response.statusText} - ${maskUrlForLog(url)}`);
         
         // エラーレスポンスの詳細を取得
         let errorMessage = `HTTP ${response.status}`;
@@ -464,9 +492,9 @@ export class HttpService {
       
       // エラーログは簡略化（APIキーを含む可能性があるため）
       if (error instanceof Error) {
-        console.error(`HTTP FormData Request Error: POST ${url} - ${error.message}`);
+        console.error(`HTTP FormData Request Error: POST ${maskUrlForLog(url)} - ${error.message}`);
       } else {
-        console.error(`HTTP FormData Request Error: POST ${url}`);
+        console.error(`HTTP FormData Request Error: POST ${maskUrlForLog(url)}`);
       }
 
       // より詳細なエラー情報を提供

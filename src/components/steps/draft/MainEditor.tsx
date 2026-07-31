@@ -67,8 +67,10 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
   const mdEditorRef = useRef<HTMLDivElement | null>(null);
 
   // Markdownパーサーの初期化
+  // html は必ず false のままにする。ここに渡るのはAI生成文と取り込んだ原稿であり、
+  // true にすると生のHTMLがそのままプレビューへ注入される（サニタイザは介在しない）。
   const mdParser = useMemo(() => new MarkdownIt({
-    html: true,
+    html: false,
     linkify: true,
     typographer: true,
   }), []);
