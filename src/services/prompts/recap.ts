@@ -7,6 +7,15 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * リキャッププロンプトのサニタイズ上限（文字数）。
+ * 章ダイジェスト・中断地点・未回収伏線が指示より前に挿入されるため、既定の10000文字では
+ * 末尾のJSON出力形式指示が黙って切り詰められうる。maxPromptLength に渡して引き上げる。
+ * 入力自体は generateRecap 側の予算（DIGEST_MAX_CHARS 等）で制御されるため、
+ * この値までプロンプトが膨らむわけではない（末尾指示の死守用ヘッドルーム）。
+ */
+export const RECAP_PROMPT_CAP = 20000;
+
 export interface RecapPromptArgs {
     title: string;
     genre?: string;

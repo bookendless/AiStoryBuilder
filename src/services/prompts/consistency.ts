@@ -10,6 +10,16 @@
 import { ConsistencyCategory } from '../../types/consistency';
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * 整合性スキャンプロンプトのサニタイズ上限（文字数）。
+ * 設定台帳＋章本文チャンクが指示より前に挿入されるため、組立後プロンプトが既定の
+ * 10000文字をわずかに超えると末尾のJSON出力形式指示が黙って切り詰められる。
+ * maxPromptLength に渡して引き上げる。チャンク予算は scanChapter 側で従来どおり
+ * getInputCharBudget（既定10000ベース）で制御されるため、この値までプロンプトが
+ * 膨らむわけではない（末尾指示の死守用ヘッドルーム）。
+ */
+export const CONSISTENCY_PROMPT_CAP = 20000;
+
 /** カテゴリごとのチェック指示 */
 const CATEGORY_INSTRUCTIONS: Record<ConsistencyCategory, string> = {
     appearance:

@@ -147,6 +147,12 @@ export const CritiqueSelectionModal: React.FC<CritiqueSelectionModalProps> = ({
                           )}
                         </div>
                         
+                        {weakness.quote && (
+                          <div className="mb-2 pl-2 border-l-2 border-amber-400 dark:border-amber-500 text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP'] line-clamp-2">
+                            「{weakness.quote}」
+                          </div>
+                        )}
+
                         <div className="text-xs text-gray-600 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
                           <span className="font-semibold text-gray-500 dark:text-gray-400">問題: </span>
                           {weakness.problem}

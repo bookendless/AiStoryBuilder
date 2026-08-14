@@ -12,7 +12,7 @@ import { RecapAIContent } from '../../types/recap';
 import { summarizeChapters } from '../summarization/summarizeChapters';
 import { getInputCharBudget } from '../summarization/tokenBudget';
 import { parseJsonLoose } from '../summarization/parseJson';
-import { buildRecapPrompt } from '../prompts/recap';
+import { buildRecapPrompt, RECAP_PROMPT_CAP } from '../prompts/recap';
 import { computeResumePoint, getOpenForeshadowings } from './recapLocal';
 import { ensureIndexFresh, retrieveRecapSummaries } from '../rag';
 
@@ -164,7 +164,12 @@ export async function generateRecap(
         openForeshadowings: openText,
     });
 
-    const responseText = await run(prompt, { signal });
+    const responseText = await run(prompt, {
+        signal,
+        maxPromptLength: RECAP_PROMPT_CAP,
+        projectId: project.id,
+        purpose: 'analysis',
+    });
     const parsed = parseJsonLoose<{ narrative?: unknown; suggestions?: unknown }>(responseText);
 
     if (!parsed || typeof parsed.narrative !== 'string' || !parsed.narrative.trim()) {

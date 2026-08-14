@@ -5,12 +5,19 @@
  * 機械的な修正候補のみをJSON形式で返させる。創作的な書き換えは禁止する。
  */
 
+import { dataBlock } from './common';
+
+/**
+ * AI校正プロンプトのサニタイズ上限（文字数）。
+ * 章本文全文が指示より前に挿入されるため、既定の10000文字では末尾のJSON出力形式指示が
+ * 黙って切り詰められる。maxPromptLength に渡して引き上げる。
+ */
+export const PROOFREAD_PROMPT_CAP = 30000;
+
 export const PROOFREAD_PROMPTS = {
   proofread: `あなたはプロの校正者です。以下の小説の本文を校正し、修正候補をJSON形式で出力してください。
 
-【本文（ここから）】
-{text}
-【本文（ここまで）】
+${dataBlock('本文', '{text}')}
 
 【校正の対象（この種類の問題のみ指摘する）】
 1. 誤字・脱字・衍字（余分な文字）
