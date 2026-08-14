@@ -12,13 +12,15 @@ import { ConsistencyCategory, ScannedIssue } from '../../types/consistency';
 import { getInputCharBudget } from '../summarization/tokenBudget';
 import { parseJsonLoose } from '../summarization/parseJson';
 import { chunkProse } from '../import/chunkProse';
-import { buildConsistencyPrompt } from '../prompts/consistency';
+import { buildConsistencyPrompt, CONSISTENCY_PROMPT_CAP } from '../prompts/consistency';
 import { validateIssues } from './validateIssues';
 
 interface ScanChapterOptions {
     settings: AISettings;
     run: AIRunner;
     signal?: AbortSignal;
+    /** AI利用記録の集計単位（省略時はこのスキャンが作品別の記録に残らない） */
+    projectId?: string;
 }
 
 /** 指示文＋JSONスキーマ分の概算文字数（本文予算から差し引く） */
@@ -37,7 +39,7 @@ export async function scanChapter(
     categories: ConsistencyCategory[],
     options: ScanChapterOptions
 ): Promise<ScannedIssue[]> {
-    const { settings, run, signal } = options;
+    const { settings, run, signal, projectId } = options;
     const text = (chapter.draft ?? '').trim();
     if (!text || categories.length === 0) return [];
 
@@ -59,7 +61,14 @@ export async function scanChapter(
             factSheet,
             categories,
         });
-        const responseText = await run(prompt, { signal, temperature: SCAN_TEMPERATURE });
+        const responseText = await run(prompt, {
+            signal,
+            temperature: SCAN_TEMPERATURE,
+            maxPromptLength: CONSISTENCY_PROMPT_CAP,
+            projectId,
+            purpose: 'review',
+            chapterId: chapter.id,
+        });
         const parsed = parseJsonLoose(responseText);
 
         // quote の実在照合は章全文に対して行う（チャンクは全文の部分文字列なので包含関係が保たれる）

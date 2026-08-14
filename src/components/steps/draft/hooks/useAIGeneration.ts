@@ -7,6 +7,7 @@ import { useGeneration } from '../../../../contexts/useGeneration';
 import type { GenerationAction, ImprovementLog, WeaknessItem } from '../types';
 import { formatText } from '../../../../utils/textFormatter';
 import { extractJsonObjectString } from '../../../../utils/aiResponseParser';
+import { normalizeForQuoteMatch, quoteExists } from '../../../../services/quotes/verifyQuote';
 import { ensureIndexFresh, retrieveForDraft, retrieveForContinue, buildDraftContext } from '../../../../services/rag';
 import { getInputCharBudget } from '../../../../services/summarization/tokenBudget';
 
@@ -176,6 +177,8 @@ export const useAIGeneration = ({
 
   // 生成タスクの識別キー。実行中判定はマネージャから導出（ステップ移動でも維持）
   const pid = currentProject?.id ?? 'none';
+  // AI利用記録の集計単位（未保存プロジェクトでは undefined になり記録されない）
+  const usageProjectId = currentProject?.id;
   const mainKey = `${pid}:draft:main`;
   const isGenerating = isKeyActive(mainKey);
 
@@ -304,6 +307,9 @@ const response = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -350,6 +356,7 @@ const response = await aiService.generateContent({
     onError,
     onWarning,
     addLog,
+    usageProjectId,
   ]);
 
   // 続き生成
@@ -460,6 +467,9 @@ const response = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -505,6 +515,7 @@ const response = await aiService.generateContent({
     applyDraftResult,
     onError,
     addLog,
+    usageProjectId,
   ]);
 
   // 描写強化
@@ -525,6 +536,9 @@ const response = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -546,7 +560,7 @@ const response = await aiService.generateContent({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError, usageProjectId]);
 
   // 文体調整
   const handleStyleAdjustment = useCallback(async () => {
@@ -567,6 +581,9 @@ const response = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -588,7 +605,7 @@ const response = await aiService.generateContent({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError, usageProjectId]);
 
   // 文章短縮
   const handleShortenText = useCallback(async () => {
@@ -608,6 +625,9 @@ const response = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -629,7 +649,7 @@ const response = await aiService.generateContent({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError, usageProjectId]);
 
   // 章全体改善（描写強化＋文体調整の組み合わせ）
   const handleChapterImprovement = useCallback(async () => {
@@ -659,6 +679,9 @@ const response = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -691,6 +714,7 @@ const response = await aiService.generateContent({
     mainKey,
     applyDraftResult,
     onError,
+    usageProjectId,
   ]);
 
   // 弱点の特定（分析フェーズ）
@@ -727,6 +751,9 @@ const critiqueResponse = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'review',
       });
 
       if (signal.aborted) {
@@ -755,7 +782,15 @@ const critiqueResponse = await aiService.generateContent({
           }
 
           if (critiqueData.weaknesses && Array.isArray(critiqueData.weaknesses)) {
-            weaknesses = critiqueData.weaknesses.filter((w) => w && w.aspect && w.problem);
+            // 引用が本文に実在しない場合、指摘自体は残して引用だけを落とす
+            // （引用がなくても指摘には意味があるため。照合はAIが読んだサニタイズ後の本文に対して行う）
+            const normalizedDraft = normalizeForQuoteMatch(draft);
+            weaknesses = critiqueData.weaknesses
+              .filter((w) => w && w.aspect && w.problem)
+              .map((w) => {
+                const quote = typeof w.quote === 'string' ? w.quote.trim() : '';
+                return quoteExists(quote, normalizedDraft) ? { ...w, quote } : { ...w, quote: undefined };
+              });
           }
         } else {
           // テキスト解析のフォールバック
@@ -795,6 +830,7 @@ const critiqueResponse = await aiService.generateContent({
     completeTask,
     mainKey,
     onError,
+    usageProjectId,
   ]);
 
   // 弱点の修正（修正フェーズ）
@@ -837,6 +873,9 @@ const revisionResponse = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       if (signal.aborted) return;
@@ -951,6 +990,7 @@ const revisionResponse = await aiService.generateContent({
     applyDraftResult,
     onError,
     setImprovementLogs,
+    usageProjectId,
   ]);
 
   // キャラクター情報のブレ修正
@@ -992,6 +1032,9 @@ const response = await aiService.generateContent({
         settings,
         signal,
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: usageProjectId,
+        chapterId: selectedChapter || undefined,
+        purpose: 'prose',
       });
 
       if (signal.aborted) {
@@ -1022,6 +1065,7 @@ const response = await aiService.generateContent({
     mainKey,
     applyDraftResult,
     onError,
+    usageProjectId,
   ]);
 
   return {

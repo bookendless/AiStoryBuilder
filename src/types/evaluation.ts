@@ -14,11 +14,24 @@ export interface EvaluationRequest {
     };
 }
 
+/** 改善点と、その根拠となる本文の引用 */
+export interface EvaluationWeakness {
+    point: string;
+    /** 本文に実在する引用。AIが引用を返さない場合や、実在照合に通らなかった場合は undefined */
+    quote?: string;
+}
+
 export interface EvaluationResult {
     score: number; // 1-5
     summary: string;
     strengths: string[];
     weaknesses: string[];
+    /**
+     * 引用つきの改善点。weaknesses と同じ内容を引用つきで並べたもの。
+     * weaknesses を残しているのは、保存済みの講評（Project.evaluations）が文字列配列で
+     * 永続化されているため。表示側は weaknessDetails があればそちらを優先する。
+     */
+    weaknessDetails?: EvaluationWeakness[];
     improvements: string[]; // Actionable advice
     detailedAnalysis: string; // Markdown formatted detailed analysis
     persona?: string; // 読者ペルソナモード時のペルソナ詳細

@@ -10,6 +10,8 @@ import { getUserFriendlyError } from '../utils/errorHandler';
 
 // プロンプトテンプレートを外部ファイルからインポート
 import { PROMPTS, SYSTEM_PROMPT, STRICTNESS_INSTRUCTIONS, EVALUATION_PROMPT_CAP } from './prompts';
+import { parseJsonLoose } from './summarization/parseJson';
+import { normalizeWeaknessDetails } from './evaluation/normalizeWeaknessDetails';
 import { modelSupportsTemperature, isOpenAIReasoningModel } from '../utils/modelCapabilities';
 
 
@@ -1738,6 +1740,17 @@ class AIService {
         })).catch(() => { /* noop */ });
       }
 
+      // AI利用の工程を記録（fire-and-forget・投稿サイトのAI利用区分を後から説明するため）
+      // usage を返さないプロバイダー（ローカルLLM等）でも取りこぼさないよう、
+      // トークン量の記録とは独立して呼ぶ
+      if (settings.recordAIUsageTally !== false && request.projectId) {
+        void import('./aiUsageTallyService').then(m => m.recordUsagePurpose({
+          projectId: request.projectId,
+          purpose: request.purpose,
+          chapterId: request.chapterId,
+        })).catch(() => { /* noop */ });
+      }
+
       // ストリーミングの場合はそのまま返す
       if (request.onStream) {
         return response;
@@ -1821,27 +1834,11 @@ class AIService {
         throw new Error(response.error);
       }
 
-      // JSONパースを試みる
-      try {
-        // レスポンスからJSON部分を抽出（Markdownコードブロック内にある場合などに対応）
-        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-        const jsonStr = jsonMatch ? jsonMatch[0] : response.content;
-        const parsed = JSON.parse(jsonStr) as EvaluationResult;
+      // コードフェンスや前後の説明文が付いた応答にも耐えるパーサを使う
+      const parsed = parseJsonLoose<EvaluationResult>(response.content);
 
-        // 必須フィールドの確認と補完
-        return {
-          score: parsed.score || 3,
-          summary: parsed.summary || '評価の要約を生成できませんでした。',
-          strengths: parsed.strengths || [],
-          weaknesses: parsed.weaknesses || [],
-          improvements: parsed.improvements || [],
-          detailedAnalysis: parsed.detailedAnalysis || response.content,
-          persona: typeof parsed.persona === 'object'
-            ? Object.entries(parsed.persona).map(([k, v]) => `${k}: ${v}`).join(', ')
-            : parsed.persona // ペルソナ情報があれば取得
-        };
-      } catch (e) {
-        console.error('Failed to parse evaluation result:', e);
+      if (!parsed || typeof parsed !== 'object') {
+        console.error('Failed to parse evaluation result');
         // パース失敗時はテキスト全体を詳細分析として返す
         return {
           score: 0,
@@ -1852,6 +1849,23 @@ class AIService {
           detailedAnalysis: response.content
         };
       }
+
+      // 引用が本文に実在しない指摘は、指摘を残したまま引用だけを落とす
+      const weaknessDetails = normalizeWeaknessDetails(parsed.weaknessDetails, request.content);
+
+      // 必須フィールドの確認と補完
+      return {
+        score: parsed.score || 3,
+        summary: parsed.summary || '評価の要約を生成できませんでした。',
+        strengths: parsed.strengths || [],
+        weaknesses: parsed.weaknesses || [],
+        weaknessDetails: weaknessDetails.length > 0 ? weaknessDetails : undefined,
+        improvements: parsed.improvements || [],
+        detailedAnalysis: parsed.detailedAnalysis || response.content,
+        persona: typeof parsed.persona === 'object'
+          ? Object.entries(parsed.persona).map(([k, v]) => `${k}: ${v}`).join(', ')
+          : parsed.persona // ペルソナ情報があれば取得
+      };
     } catch (error) {
       console.error('Evaluation error:', error);
       throw error;

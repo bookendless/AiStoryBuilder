@@ -41,6 +41,36 @@ interface ReviewStepProps {
 
 const MAX_SCORE = 5;
 
+/**
+ * 改善点を表示用に取り出す。
+ *
+ * weaknesses（文字列配列）を基準にし、weaknessDetails 側に対応する引用があれば添える。
+ * 両者は同じ内容を並べたものだが、AIが片方だけ少なく返すことがあるため、
+ * weaknessDetails だけを見ると指摘が抜け落ちる。どちらにしかない指摘も残す。
+ * 保存済みの講評は weaknessDetails を持たないので、その場合は文字列配列のみになる。
+ */
+const toWeaknessItems = (result: EvaluationResult): { point: string; quote?: string }[] => {
+    const details = result.weaknessDetails ?? [];
+    if (details.length === 0) return result.weaknesses.map(point => ({ point }));
+
+    const used = new Set<number>();
+    const items = result.weaknesses.map(point => {
+        const index = details.findIndex((detail, i) =>
+            !used.has(i) && (detail.point === point || detail.point.includes(point) || point.includes(detail.point))
+        );
+        if (index === -1) return { point };
+        used.add(index);
+        return { point, quote: details[index].quote };
+    });
+
+    // weaknesses 側に対応がなかった指摘も落とさない
+    details.forEach((detail, i) => {
+        if (!used.has(i)) items.push(detail);
+    });
+
+    return items;
+};
+
 const EVALUATION_MODES: { id: EvaluationMode; label: string; icon: React.ReactNode; description: string }[] = [
     { id: 'structure', label: '構造・プロット', icon: <BookOpen size={18} />, description: '物語の構成、一貫性、ペース配分を分析します' },
     { id: 'character', label: 'キャラクター', icon: <Users size={18} />, description: 'キャラクターの動機、成長、独自性を評価します' },
@@ -265,7 +295,7 @@ ${result.persona ? `## 想定ペルソナ\n${result.persona}\n` : ''}## 良か�
 ${result.strengths.map(s => `- ${s}`).join('\n')}
 
 ## 改善の余地
-${result.weaknesses.map(w => `- ${w}`).join('\n')}
+${toWeaknessItems(result).map(w => (w.quote ? `- ${w.point}\n  > ${w.quote}` : `- ${w.point}`)).join('\n')}
 
 ## 具体的な改善提案
 ${result.improvements.map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
@@ -767,10 +797,17 @@ ${result.detailedAnalysis}
                                                 改善の余地
                                             </h4>
                                             <ul className="space-y-2">
-                                                {result.weaknesses.map((item, i) => (
+                                                {toWeaknessItems(result).map((item, i) => (
                                                     <li key={i} className="flex items-start gap-2 text-sm text-orange-700 dark:text-orange-400">
                                                         <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                                                        <span>{item}</span>
+                                                        <span>
+                                                            {item.point}
+                                                            {item.quote && (
+                                                                <span className="block mt-1 pl-2 border-l-2 border-orange-300 dark:border-orange-700 text-xs text-orange-600/80 dark:text-orange-400/70">
+                                                                    「{item.quote}」
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                     </li>
                                                 ))}
                                             </ul>
