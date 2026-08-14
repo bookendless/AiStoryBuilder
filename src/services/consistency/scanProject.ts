@@ -70,6 +70,7 @@ export async function scanProject(
                 settings,
                 run,
                 signal,
+                projectId: project.id,
             });
             for (const issue of scanned) {
                 issues.push({

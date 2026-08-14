@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Key, Server, Zap, Lightbulb, BookOpen, Search, RefreshCw } from 'lucide-react';
+import { Settings, Key, Server, Zap, Lightbulb, BookOpen, Search, RefreshCw, ClipboardList } from 'lucide-react';
 import { useAI } from '../contexts/useAI';
 import { useProject } from '../contexts/useProject';
 import { ragStore, reindexProject } from '../services/rag';
@@ -843,6 +843,25 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             </span>
             <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
               あらすじ・章立て・プロット構成の生成時に、AIが「作者の判断で物語が分かれる箇所」と別案を付記します。確認モーダルで変えたい別案を選び、まとめて生成し直せます。
+            </span>
+          </span>
+        </label>
+
+        {/* AI利用状況の記録（投稿時の区分申告用） */}
+        <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={formData.recordAIUsageTally !== false}
+            onChange={(e) => setFormData({ ...formData, recordAIUsageTally: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+          />
+          <span className="font-['Noto_Sans_JP']">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
+              <ClipboardList className="h-4 w-4 text-sky-500" />
+              AI利用状況を記録する
+            </span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+              投稿サイトのAI利用区分（なろう・カクヨム）を申告するために、どの工程でAIを何回呼び出したかを作品ごとに数えます。プロンプトや本文は保存しません。記録は書き出し画面の「AI利用状況」で確認できます。
             </span>
           </span>
         </label>

@@ -18,6 +18,9 @@ export function createConsistencyRunner(settings: AISettings, signal: AbortSigna
             signal: opts?.signal ?? signal,
             timeout: opts?.timeout ?? 180000,
             maxPromptLength: opts?.maxPromptLength,
+            projectId: opts?.projectId,
+            purpose: opts?.purpose,
+            chapterId: opts?.chapterId,
         });
         // generateContent はエラー時に content='' / error=メッセージ を返すため明示的に例外化する
         if (response.error || !response.content?.trim()) {

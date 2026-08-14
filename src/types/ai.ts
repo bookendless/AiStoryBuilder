@@ -43,13 +43,38 @@ export interface AISettings {
   ragEmbeddingProvider?: 'auto' | 'openai' | 'gemini' | 'local' | 'none';
   /** ローカルLLMの埋め込みモデル名（Phase 2、例: nomic-embed-text）。 */
   ragLocalEmbeddingModel?: string;
+  /** AI利用の工程を作品ごとに数えるか（投稿時のAI利用区分の説明用）。未設定は有効（true）扱い。プロンプト本文は保存しない。 */
+  recordAIUsageTally?: boolean;
 }
+
+/**
+ * AI呼び出しの「工程」。投稿サイトのAI利用区分（なろう4区分・カクヨム3タグ）を
+ * 説明できるようにするための記録用で、プロンプトの内容や解析経路には影響しない。
+ *
+ * 重要: AIRequest.type は「プロンプト種別」であり工程ではない（例: AI校正は type='draft'）。
+ * 区分の判定に type を流用すると校正を本文生成と誤って申告しかねないため、
+ * 工程は purpose として明示的に渡す。未指定は「未分類」として扱い、推定はしない。
+ */
+export type AIUsagePurpose =
+  | 'prose'      // 本文そのものの生成・書き換え（草案・続き・一括生成・リライト）
+  | 'proofread'  // 誤字脱字・表記ゆれの校正
+  | 'review'     // 講評・批評・整合性チェック
+  | 'plan'       // プロット・章立て・あらすじ・構成
+  | 'setting'    // キャラクター・世界観・用語集・伏線
+  | 'analysis'   // 要約・分析・リキャップ・What-If
+  | 'chat';      // 相談・チャット
 
 export interface AIRequest {
   prompt: string;
   context?: string;
   type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world' | 'foreshadowing' | 'evaluation' | 'imageToStory' | 'audioToStory' | 'audioImageToStory';
   settings: AISettings;
+  /** 利用記録の集計単位。未指定の呼び出しは作品別サマリーに現れない */
+  projectId?: string;
+  /** 工程（AI利用区分の説明用）。未指定は「未分類」として記録され、type からは推定しない */
+  purpose?: AIUsagePurpose;
+  /** 本文生成がどの章に対するものかの記録用（開示サマリーで章数を示すのに使う） */
+  chapterId?: string;
   image?: string; // Base64エンコードされた画像データ（data:image/...形式）
   audio?: string; // Base64エンコードされた音声データ（data:audio/...形式）
   onStream?: (chunk: string) => void; // ストリーミング用のコールバック

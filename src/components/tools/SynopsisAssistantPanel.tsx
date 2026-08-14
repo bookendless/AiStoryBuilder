@@ -275,6 +275,8 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 settings,
                 signal,
                 maxPromptLength: SYNOPSIS_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'plan',
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -412,6 +414,8 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 settings,
                 signal,
                 maxPromptLength: SYNOPSIS_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'plan',
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -537,6 +541,8 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 settings,
                 signal,
                 maxPromptLength: SYNOPSIS_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'plan',
             });
 
             // キャンセルされた場合は処理をスキップ

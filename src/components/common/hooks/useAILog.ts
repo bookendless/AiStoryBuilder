@@ -4,6 +4,7 @@ import { databaseService } from '../../../services/databaseService';
 import { StoredAILogEntry } from '../../../services/databaseService';
 import { exportFile } from '../../../utils/mobileExportUtils';
 import { maskSecretsInText } from '../../../utils/securityUtils';
+import { getAILogTypeLabel } from '../../../constants/aiLogTypes';
 
 const MAX_LOGS = 10;
 
@@ -94,21 +95,7 @@ export const useAILog = (options: UseAILogOptions = {}) => {
   }, [maxLogs, projectId, chapterId]);
 
   const copyLog = useCallback((log: AILogEntry): string => {
-    const typeLabels: Record<string, string> = {
-      'generate': 'あらすじ生成',
-      'readable': '読みやすく調整',
-      'summary': '要点抽出',
-      'engaging': '魅力的に演出',
-      'basic': '基本生成',
-      'structure': '構造生成',
-      'enhance': '強化',
-      'generateSingle': '単一生成',
-      'continue': '続き生成',
-      'suggestions': '提案',
-      'generateFull': '全章一括生成',
-    };
-
-    const typeLabel = typeLabels[log.type] || log.type;
+    const typeLabel = getAILogTypeLabel(log.type);
 
     const logText = `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
@@ -126,22 +113,8 @@ ${log.error}` : ''}`;
   }, []);
 
   const downloadLogs = useCallback(async (filename?: string): Promise<{ success: boolean; content: string }> => {
-    const typeLabels: Record<string, string> = {
-      'generate': 'あらすじ生成',
-      'readable': '読みやすく調整',
-      'summary': '要点抽出',
-      'engaging': '魅力的に演出',
-      'basic': '基本生成',
-      'structure': '構造生成',
-      'enhance': '強化',
-      'generateSingle': '単一生成',
-      'continue': '続き生成',
-      'suggestions': '提案',
-      'generateFull': '全章一括生成',
-    };
-
     const logsText = aiLogs.map(log => {
-      const typeLabel = typeLabels[log.type] || log.type;
+      const typeLabel = getAILogTypeLabel(log.type);
       return `【AIログ - ${typeLabel}】
 時刻: ${log.timestamp.toLocaleString('ja-JP')}
 

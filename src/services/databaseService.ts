@@ -436,6 +436,12 @@ class DatabaseService {
       // キャッシュからも削除
       this.projectCache.delete(id);
 
+      // AI利用記録は別DBのため上のトランザクションには含められない。
+      // 本体の削除は完了しているので、失敗しても後始末が残るだけで整合性は壊れない
+      void import('./aiUsageTallyService')
+        .then(m => m.clearProjectTally(id))
+        .catch(() => { /* noop */ });
+
       console.log(`プロジェクト ${id} を削除しました`);
     } catch (error) {
       // 既にカスタムエラーの場合はそのまま再スロー

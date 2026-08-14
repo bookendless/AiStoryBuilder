@@ -8,6 +8,7 @@ import { parseAIResponse } from '../../../utils/aiResponseParser';
 import { proofreadText, PROOFREAD_TYPE_LABELS, applyCorrections } from '../../../utils/proofreadUtils';
 import {
   PROOFREAD_PROMPTS,
+  PROOFREAD_PROMPT_CAP,
   extractCorrections,
   ProofreadCorrection,
 } from '../../../services/prompts/proofread';
@@ -17,6 +18,9 @@ interface ProofreadModalProps {
   onClose: () => void;
   draft: string;
   onApply: (newText: string) => void;
+  /** AI利用記録の集計単位（省略時はこの呼び出しが作品別の記録に残らない） */
+  projectId?: string;
+  chapterId?: string;
 }
 
 interface CorrectionItem extends ProofreadCorrection {
@@ -35,6 +39,8 @@ export const ProofreadModal: React.FC<ProofreadModalProps> = ({
   onClose,
   draft,
   onApply,
+  projectId,
+  chapterId,
 }) => {
   const { settings, isConfigured } = useAI();
   const { showSuccess, showError } = useToast();
@@ -71,7 +77,11 @@ export const ProofreadModal: React.FC<ProofreadModalProps> = ({
         prompt,
         type: 'draft',
         settings,
-        maxPromptLength: 30000,
+        maxPromptLength: PROOFREAD_PROMPT_CAP,
+        projectId,
+        chapterId,
+        // 校正は本文執筆そのものではないため、本文生成とは別の工程として記録する
+        purpose: 'proofread',
       });
 
       if (response.error) {

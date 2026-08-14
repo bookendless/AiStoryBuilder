@@ -209,6 +209,8 @@ export const PlotStep1AssistantPanel: React.FC = () => {
                 settings,
                 signal,
                 maxPromptLength: PLOT_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'plan',
             });
 
             // キャンセルされた場合は処理をスキップ

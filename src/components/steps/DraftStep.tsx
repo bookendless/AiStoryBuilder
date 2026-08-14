@@ -893,6 +893,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
         isOpen={isProofreadOpen}
         onClose={() => setIsProofreadOpen(false)}
         draft={draft}
+        projectId={currentProject?.id}
+        chapterId={selectedChapter || undefined}
         onApply={(newText) => {
           setDraft(newText);
           if (selectedChapter) {

@@ -112,6 +112,8 @@ export const CharacterAssistantPanel: React.FC = () => {
                 settings,
                 signal,
                 maxPromptLength: CHARACTER_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'setting',
             });
 
             if (signal.aborted) return;
@@ -295,6 +297,8 @@ export const CharacterAssistantPanel: React.FC = () => {
                 settings,
                 signal,
                 maxPromptLength: CHARACTER_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'setting',
             });
 
             // キャンセルされた場合は処理をスキップ

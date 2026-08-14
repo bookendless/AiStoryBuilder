@@ -171,7 +171,13 @@ export async function generatePreemptiveDraft(
     customPrompt: '',
   });
 
-  const content = await run(prompt, { signal, maxPromptLength: DRAFT_PROMPT_CAP });
+  const content = await run(prompt, {
+    signal,
+    maxPromptLength: DRAFT_PROMPT_CAP,
+    projectId: project.id,
+    purpose: 'prose',
+    chapterId: target.id,
+  });
   return {
     kind: 'draft',
     chapterId: target.id,

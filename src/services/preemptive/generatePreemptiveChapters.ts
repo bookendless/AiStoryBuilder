@@ -127,7 +127,12 @@ export async function generatePreemptiveChapters(
     existingChapters,
   });
 
-  const content = await run(prompt, { signal, maxPromptLength: CHAPTER_PROMPT_CAP });
+  const content = await run(prompt, {
+    signal,
+    maxPromptLength: CHAPTER_PROMPT_CAP,
+    projectId: project.id,
+    purpose: 'plan',
+  });
   const chapters = parseChapterList(content) as Chapter[];
   return { kind: 'chapter', chapters };
 }

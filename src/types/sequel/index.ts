@@ -5,6 +5,7 @@
  */
 
 import { Project } from '../project';
+import { AIUsagePurpose } from '../ai';
 
 /**
  * 章単位のダイジェスト（要約集約の中間表現）
@@ -78,7 +79,16 @@ export interface SequelWizardSnapshot {
 /** AI呼び出しを抽象化したランナー（services層をReactから切り離すため） */
 export type AIRunner = (
     prompt: string,
-    opts?: { signal?: AbortSignal; temperature?: number; timeout?: number; maxPromptLength?: number }
+    opts?: {
+        signal?: AbortSignal;
+        temperature?: number;
+        timeout?: number;
+        maxPromptLength?: number;
+        /** 以下はAI利用記録用（投稿時のAI利用区分の説明に使う。生成内容には影響しない） */
+        projectId?: string;
+        purpose?: AIUsagePurpose;
+        chapterId?: string;
+    }
 ) => Promise<string>;
 
 /** パイプライン進捗の通知 */

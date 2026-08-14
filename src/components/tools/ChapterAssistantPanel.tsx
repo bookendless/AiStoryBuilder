@@ -300,6 +300,8 @@ export const ChapterAssistantPanel: React.FC = () => {
                 settings,
                 signal,
                 maxPromptLength: CHAPTER_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'plan',
             });
 
             // キャンセルされた場合は処理をスキップ
@@ -475,6 +477,8 @@ export const ChapterAssistantPanel: React.FC = () => {
                 settings: settings,
                 signal,
                 maxPromptLength: CHAPTER_PROMPT_CAP,
+                projectId: currentProject?.id,
+                purpose: 'plan',
             });
 
             // キャンセルされた場合は処理をスキップ

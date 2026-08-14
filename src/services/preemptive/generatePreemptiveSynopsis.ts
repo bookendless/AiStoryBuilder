@@ -137,6 +137,11 @@ export async function generatePreemptiveSynopsis(
     detailedStructureInfo: buildDetailedStructureInfo(project.plot),
   });
 
-  const content = await run(prompt, { signal, maxPromptLength: SYNOPSIS_PROMPT_CAP });
+  const content = await run(prompt, {
+    signal,
+    maxPromptLength: SYNOPSIS_PROMPT_CAP,
+    projectId: project.id,
+    purpose: 'plan',
+  });
   return { kind: 'synopsis', synopsis: content.trim() };
 }

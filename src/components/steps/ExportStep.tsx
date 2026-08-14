@@ -5,6 +5,7 @@ import { useToast } from '../useToast';
 import { escapeHtml, sanitizeFileName } from '../../utils/securityUtils';
 import { rubyNotationToHtml } from '../../utils/rubyUtils';
 import { WebNovelExportPanel } from '../export/WebNovelExportPanel';
+import { AIUsageDisclosurePanel } from '../export/AIUsageDisclosurePanel';
 import { EpubExportPanel } from '../export/EpubExportPanel';
 import { isTauriEnvironment } from '../../utils/platformUtils';
 import { StepNavigation } from '../common/StepNavigation';
@@ -2247,6 +2248,9 @@ export const ExportStep: React.FC<ExportStepProps> = ({ onNavigateToStep }) => {
 
         {/* 投稿サイト向け出力 */}
         <WebNovelExportPanel />
+
+        {/* AI利用状況（投稿時の区分申告用） */}
+        <AIUsageDisclosurePanel />
 
         {/* EPUB出力 */}
         <EpubExportPanel />

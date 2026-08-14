@@ -166,6 +166,10 @@ export const useAISuggestions = ({
           settings,
           signal: abortController.signal,
           maxPromptLength: DRAFT_PROMPT_CAP,
+          projectId: currentProject?.id,
+          chapterId: selectedChapter || undefined,
+          // 本文の書き換え候補を作るため、記録上は本文生成として扱う
+          purpose: 'prose',
         });
 
         // キャンセルされた場合は処理をスキップ
