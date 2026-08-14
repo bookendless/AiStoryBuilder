@@ -11,6 +11,7 @@ import { Project } from '../../contexts/ProjectContext';
 import { Chapter } from '../../types/project/chapter';
 import { formatCharacter } from './chunkSources';
 import { DraftRagContext, RetrievedChunk } from './types';
+import { truncateAtSentence } from '../../utils/textTruncate';
 import {
     POOL_RATIO_PAST,
     POOL_RATIO_CHARACTER,
@@ -28,20 +29,6 @@ export interface BuildDraftContextParams {
     /** 直前章末尾の逐語引用の実文字数（そのまま維持されるため固定費として控除） */
     previousChapterEndLength: number;
 }
-
-/** 文境界（。！？改行）で maxLength 以内に切り詰める */
-export const truncateAtSentence = (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text;
-    const window = text.slice(0, maxLength);
-    const cut = Math.max(
-        window.lastIndexOf('。'),
-        window.lastIndexOf('！'),
-        window.lastIndexOf('？'),
-        window.lastIndexOf('\n')
-    );
-    // 文境界が前半すぎる場合はそのまま切る（情報量を優先）
-    return cut >= maxLength * 0.5 ? window.slice(0, cut + 1) : window + '…';
-};
 
 /** プール予算内でスニペットを詰める。入りきらないものはスキップして次を試す */
 const fillPool = (

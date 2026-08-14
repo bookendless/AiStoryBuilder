@@ -1,5 +1,5 @@
 import React, { RefObject, useMemo } from 'react';
-import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles, Scissors } from 'lucide-react';
+import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles, Scissors, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Chapter } from '../../../contexts/ProjectContext';
 import { useProject } from '../../../contexts/useProject';
 import { EmptyState } from '../../common/EmptyState';
@@ -23,6 +23,13 @@ interface ChapterListProps {
   onAddChapter: () => void;
   onEnhance?: (chapter: Chapter, index: number) => void;
   onSplitDraft?: (chapter: Chapter) => void;
+  /** あらすじが本文より古い章のID。判定は親でまとめて行う（ここで計算すると全章の本文をハッシュし直す） */
+  staleChapterIds?: Set<string>;
+  onRefreshSummary?: (chapter: Chapter) => void;
+  /** あらすじ更新中の章ID */
+  refreshingChapterId?: string | null;
+  /** 単章・一括を問わず更新が進行中か */
+  isRefreshBusy?: boolean;
 }
 
 // 個別の章アイテムコンポーネント（メモ化）
@@ -45,6 +52,11 @@ interface ChapterItemProps {
   totalChapters: number;
   onEnhance?: (chapter: Chapter, index: number) => void;
   onSplitDraft?: (chapter: Chapter) => void;
+  isSummaryStale: boolean;
+  isRefreshingSummary: boolean;
+  /** 一括更新を含め、どこかで更新が走っているか（走っている間は他章のボタンも押せなくする） */
+  isRefreshBusy: boolean;
+  onRefreshSummary?: (chapter: Chapter) => void;
 }
 
 const ChapterItem = React.memo<ChapterItemProps>(({
@@ -66,6 +78,10 @@ const ChapterItem = React.memo<ChapterItemProps>(({
   totalChapters,
   onEnhance,
   onSplitDraft,
+  isSummaryStale,
+  isRefreshingSummary,
+  isRefreshBusy,
+  onRefreshSummary,
 }) => {
   const { currentProject } = useProject();
 
@@ -118,6 +134,15 @@ const ChapterItem = React.memo<ChapterItemProps>(({
                 <h4 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-['Noto_Sans_JP'] truncate">
                   {chapter.title}
                 </h4>
+                {isSummaryStale && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP'] flex-shrink-0"
+                    title="本文が書かれた後にあらすじが更新されていません。このあらすじは次の章を書くときの文脈として使われます"
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    あらすじが古い
+                  </span>
+                )}
               </div>
               {!isExpanded && (
                 <div className="ml-7">
@@ -186,6 +211,29 @@ const ChapterItem = React.memo<ChapterItemProps>(({
             >
               <History className="h-4 w-4" />
             </button>
+            {/*
+              本文がある章には常に出す。この機能より前に書かれた章はハッシュを持たず
+              「判定不能＝古くない」に落ちるため、古い章にだけ出すと既存作品では一切押せない
+              （＝この機能が最も効くはずの章で到達できない）。古いと判定できた章だけ色を強める
+            */}
+            {onRefreshSummary && chapter.draft?.trim() && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRefreshSummary(chapter);
+                }}
+                disabled={isRefreshBusy}
+                className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isSummaryStale
+                  ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                title={isSummaryStale
+                  ? 'あらすじが本文より古くなっています。本文から作り直す（AI呼び出しが発生します）'
+                  : '本文からあらすじを作り直す（AI呼び出しが発生します）'}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshingSummary ? 'animate-spin' : ''}`} />
+              </button>
+            )}
             {onEnhance && (
               <button
                 onClick={(e) => {
@@ -375,6 +423,11 @@ const ChapterItem = React.memo<ChapterItemProps>(({
     JSON.stringify(prevProps.chapter.keyEvents) === JSON.stringify(nextProps.chapter.keyEvents) &&
     // 本文分割ボタンの表示可否に影響するため、draft の有無も比較する
     !!prevProps.chapter.draft === !!nextProps.chapter.draft &&
+    // あらすじの鮮度は本文の中身に依存する。本文全体をここで比較すると重いので、
+    // 判定済みの結果（親で算出）を比べる。これを外すとバッジが古い状態で固まる
+    prevProps.isSummaryStale === nextProps.isSummaryStale &&
+    prevProps.isRefreshingSummary === nextProps.isRefreshingSummary &&
+    prevProps.isRefreshBusy === nextProps.isRefreshBusy &&
     prevProps.originalIndex === nextProps.originalIndex &&
     prevProps.isExpanded === nextProps.isExpanded &&
     prevProps.isDragged === nextProps.isDragged &&
@@ -403,6 +456,10 @@ export const ChapterList: React.FC<ChapterListProps> = ({
   onAddChapter,
   onEnhance,
   onSplitDraft,
+  staleChapterIds,
+  onRefreshSummary,
+  refreshingChapterId,
+  isRefreshBusy,
 }) => {
   const { currentProject } = useProject();
 
@@ -479,6 +536,10 @@ export const ChapterList: React.FC<ChapterListProps> = ({
             totalChapters={currentProject.chapters.length}
             onEnhance={onEnhance}
             onSplitDraft={onSplitDraft}
+            isSummaryStale={staleChapterIds?.has(chapter.id) ?? false}
+            isRefreshingSummary={refreshingChapterId === chapter.id}
+            isRefreshBusy={isRefreshBusy ?? false}
+            onRefreshSummary={onRefreshSummary}
           />
         );
       })}

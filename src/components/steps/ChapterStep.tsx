@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { List, Plus, Search, X } from 'lucide-react';
+import { List, Plus, Search, X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Chapter } from '../../contexts/ProjectContext';
 import { useProject } from '../../contexts/useProject';
+import { useAI } from '../../contexts/useAI';
 import { useToast } from '../useToast';
 import { ChapterFormModal } from './chapter/ChapterFormModal';
 import { ChapterHistoryModal } from './chapter/ChapterHistoryModal';
@@ -18,6 +19,13 @@ import {
   getChapterSnapshots,
   ChapterHistorySource,
 } from '../../services/chapterHistoryService';
+import {
+  isSummaryStale,
+  computeSummarySourceHash,
+  SUMMARY_SOURCE_UNVERIFIED,
+} from '../../services/summary/freshness';
+import { refreshChapterSummary, RefreshedSummary } from '../../services/summary/refreshChapterSummary';
+import { createSummaryRunner } from '../../services/summary/createSummaryRunner';
 
 interface ChapterStepProps {
   onNavigateToStep?: (step: Step) => void;
@@ -25,7 +33,12 @@ interface ChapterStepProps {
 
 export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) => {
   const { currentProject, updateProject, deleteChapter } = useProject();
-  const { showSuccess } = useToast();
+  const { settings: aiSettings, isConfigured } = useAI();
+  const { showSuccess, showError } = useToast();
+
+  // あらすじ更新は数十秒かかりうるため、完了時は「その時点で最新の」プロジェクトへ反映する
+  const currentProjectRef = useRef(currentProject);
+  currentProjectRef.current = currentProject;
 
   // 状態管理
   const [showAddForm, setShowAddForm] = useState(false);
@@ -284,14 +297,20 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
       saveChapterHistory(oldChapter);
     }
 
+    const nextSummary = editFormData.summary.trim();
     const updatedChapter = {
       id: editingId,
       title: editFormData.title.trim(),
-      summary: editFormData.summary.trim(),
+      summary: nextSummary,
       characters: editFormData.characters,
       setting: editFormData.setting.trim(),
       mood: editFormData.mood.trim(),
       keyEvents: editFormData.keyEvents,
+      // あらすじを書き換えたときだけ、その時点の本文に対して確定したものとして印を付け直す。
+      // 雰囲気だけ直した場合に印を更新すると、古いままのあらすじが「最新」に化ける
+      ...(nextSummary !== oldChapter?.summary && oldChapter?.draft?.trim()
+        ? { summarySourceHash: computeSummarySourceHash(oldChapter.draft) }
+        : {}),
     };
 
     updateProject({
@@ -462,6 +481,9 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
             setting: history.data.setting,
             mood: history.data.mood,
             keyEvents: history.data.keyEvents,
+            // 履歴のあらすじは過去の時点のもの。本文はそのまま残るので、
+            // 印を引き継ぐと「本文から作られた最新のあらすじ」に化ける
+            ...(c.draft?.trim() ? { summarySourceHash: SUMMARY_SOURCE_UNVERIFIED } : {}),
           }
           : c
       ),
@@ -484,6 +506,125 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     return getChapterSnapshots(currentProject.id, selectedChapterId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject, selectedChapterId, showHistoryModal]);
+
+  // --- あらすじの鮮度管理 ---
+
+  // あらすじが本文より古い章のID。本文全体をハッシュするため、章配列が変わったときだけ計算する
+  const staleChapterIds = useMemo(() => {
+    const ids = new Set<string>();
+    currentProject?.chapters.forEach(c => {
+      if (isSummaryStale(c)) ids.add(c.id);
+    });
+    return ids;
+  }, [currentProject?.chapters]);
+
+  // 更新中の章ID（一括更新中は現在処理中の章）と進捗
+  const [refreshingChapterId, setRefreshingChapterId] = useState<string | null>(null);
+  const [refreshProgress, setRefreshProgress] = useState<{ current: number; total: number } | null>(null);
+  const refreshAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    // アンマウント時に進行中の更新を中断する（結果を反映する先が無くなるため）
+    return () => refreshAbortRef.current?.abort();
+  }, []);
+
+  /**
+   * 指定した章のあらすじを本文から作り直す。
+   * 反映は最後に1回だけ行い、対象章以外は「完了時点で最新の」内容をそのまま残す
+   * （更新中にユーザーが別の章を編集しても、その編集を巻き戻さない）。
+   */
+  const runSummaryRefresh = useCallback(
+    async (targets: Chapter[]) => {
+      const project = currentProjectRef.current;
+      if (!project || targets.length === 0 || refreshAbortRef.current) return;
+
+      if (!isConfigured) {
+        showError('AIの設定が完了していません。設定画面からAPIキーを設定してください');
+        return;
+      }
+
+      const controller = new AbortController();
+      refreshAbortRef.current = controller;
+      const projectId = project.id;
+      const results = new Map<string, RefreshedSummary>();
+      let failed = 0;
+
+      setRefreshProgress({ current: 0, total: targets.length });
+      try {
+        const run = createSummaryRunner(aiSettings, controller.signal);
+        for (let i = 0; i < targets.length; i++) {
+          if (controller.signal.aborted) break;
+          const chapter = targets[i];
+          setRefreshingChapterId(chapter.id);
+          setRefreshProgress({ current: i + 1, total: targets.length });
+          try {
+            results.set(chapter.id, await refreshChapterSummary(chapter, {
+              settings: aiSettings,
+              run,
+              projectId,
+              signal: controller.signal,
+            }));
+          } catch (error) {
+            if (controller.signal.aborted) break;
+            failed++;
+            console.error('あらすじ更新エラー:', error);
+          }
+        }
+      } finally {
+        refreshAbortRef.current = null;
+        setRefreshingChapterId(null);
+        setRefreshProgress(null);
+      }
+
+      const aborted = controller.signal.aborted;
+
+      if (results.size === 0) {
+        if (aborted) showSuccess('あらすじの更新を中止しました');
+        else if (failed > 0) showError('あらすじの更新に失敗しました');
+        return;
+      }
+
+      // 反映先は「完了時点の」プロジェクト。別作品に切り替わっていたら捨てる
+      const latest = currentProjectRef.current;
+      if (!latest || latest.id !== projectId) {
+        showError('別の作品に切り替わったため、あらすじの更新は反映されませんでした');
+        return;
+      }
+
+      latest.chapters.forEach(c => {
+        if (results.has(c.id)) saveChapterHistory(c, 'ai-generate');
+      });
+
+      updateProject({
+        chapters: latest.chapters.map(c => {
+          const refreshed = results.get(c.id);
+          return refreshed ? { ...c, ...refreshed } : c;
+        }),
+      });
+
+      // 中止・失敗は件数だけで察せられないため明示する（残りは古いままなので）
+      const notes = [
+        aborted ? '中止しました' : '',
+        failed > 0 ? `${failed}章は失敗` : '',
+      ].filter(Boolean);
+      showSuccess(
+        notes.length > 0
+          ? `${results.size}章のあらすじを更新しました（${notes.join('・')}）`
+          : `${results.size}章のあらすじを更新しました`
+      );
+    },
+    [aiSettings, isConfigured, saveChapterHistory, showError, showSuccess, updateProject]
+  );
+
+  const handleRefreshSummary = useCallback(
+    (chapter: Chapter) => { void runSummaryRefresh([chapter]); },
+    [runSummaryRefresh]
+  );
+
+  const handleRefreshAllStaleSummaries = useCallback(() => {
+    const targets = currentProjectRef.current?.chapters.filter(c => staleChapterIds.has(c.id)) ?? [];
+    void runSummaryRefresh(targets);
+  }, [runSummaryRefresh, staleChapterIds]);
 
   // AI強化モーダルを開く
   const handleOpenEnhanceModal = (chapter: Chapter, index: number) => {
@@ -545,7 +686,15 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     updateProject({
       chapters: currentProject.chapters.map(c =>
         c.id === enhanceModalState.chapter!.id
-          ? { ...c, ...updates }
+          ? {
+            ...c,
+            ...updates,
+            // AI強化はメタデータ（タイトル・設定・出来事）だけを見て書くため、
+            // 生成されたあらすじは本文の内容を反映していない
+            ...(updates.summary && c.draft?.trim()
+              ? { summarySourceHash: SUMMARY_SOURCE_UNVERIFIED }
+              : {}),
+          }
           : c
       ),
     });
@@ -747,6 +896,35 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
               )}
             </div>
 
+            {/* あらすじ鮮度の一括更新（古い章が2つ以上あるときだけ出す。1章なら章カードのボタンで足りる） */}
+            {(staleChapterIds.size >= 2 || refreshProgress) && (
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-amber-800 dark:text-amber-200 font-['Noto_Sans_JP']">
+                    {staleChapterIds.size}章のあらすじが本文より古くなっています。
+                    あらすじは次の章を書くときの文脈に使われるため、古いままだと生成品質が落ちます。
+                  </p>
+                </div>
+                <button
+                  onClick={refreshProgress ? () => refreshAbortRef.current?.abort() : handleRefreshAllStaleSummaries}
+                  className="flex items-center justify-center space-x-1 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-['Noto_Sans_JP'] flex-shrink-0"
+                >
+                  {refreshProgress ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>更新中 {refreshProgress.current}/{refreshProgress.total}（中止）</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4" />
+                      <span>まとめて更新（AI呼び出し{staleChapterIds.size}回）</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* 折りたたみコントロール */}
             {currentProject.chapters.length > 0 && (
               <div className="mt-3 flex items-center justify-between">
@@ -781,6 +959,10 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
               onAddChapter={() => setShowAddForm(true)}
               onEnhance={handleOpenEnhanceModal}
               onSplitDraft={handleRequestDraftSplit}
+              staleChapterIds={staleChapterIds}
+              onRefreshSummary={handleRefreshSummary}
+              refreshingChapterId={refreshingChapterId}
+              isRefreshBusy={refreshProgress !== null}
             />
           </div>
         </div>

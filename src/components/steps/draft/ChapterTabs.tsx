@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useProject } from '../../../contexts/useProject';
+import { isSummaryStale } from '../../../services/summary/freshness';
 
 interface Chapter {
   id: string;
@@ -31,6 +32,19 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
   const chapterTabsContainerRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
+
+  /**
+   * あらすじが本文より古い章のID。
+   * 判定には保存済みの本文が要るため、props の簡易 Chapter ではなく currentProject を見る。
+   * 表示中のあらすじが次章生成の文脈として使われることを、書いている場所で気付けるようにする。
+   */
+  const staleChapterIds = useMemo(() => {
+    const ids = new Set<string>();
+    currentProject?.chapters.forEach(c => {
+      if (isSummaryStale(c)) ids.add(c.id);
+    });
+    return ids;
+  }, [currentProject?.chapters]);
 
   // 章の説明内のキャラクターIDをキャラクター名に変換する関数
   const convertSummaryCharacterIds = useCallback((summary: string | undefined): string => {
@@ -203,6 +217,15 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
                       {convertSummaryCharacterIds(selectedChapter.summary)}
                     </p>
                   )}
+                  {staleChapterIds.has(selectedChapter.id) && (
+                    <span
+                      className="inline-flex items-center gap-1 mt-1 text-[11px] text-amber-600 dark:text-amber-400 font-['Noto_Sans_JP']"
+                      title="このあらすじは本文より古いままです。章立てステップで更新できます"
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      あらすじが古い
+                    </span>
+                  )}
                 </div>
 
                 {/* 次の章ボタン */}
@@ -316,6 +339,15 @@ export const ChapterTabs: React.FC<ChapterTabsProps> = ({
                         <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 max-h-10 overflow-hidden">
                           {convertSummaryCharacterIds(chapter.summary)}
                         </p>
+                      )}
+                      {staleChapterIds.has(chapter.id) && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400"
+                          title="このあらすじは本文より古いままです。章立てステップで更新できます"
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          あらすじが古い
+                        </span>
                       )}
                     </>
                   )}

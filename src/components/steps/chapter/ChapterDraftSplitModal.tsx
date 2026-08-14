@@ -16,6 +16,7 @@ import {
 } from '../../../services/chapterSplit/splitDraft';
 import { suggestBoundariesAI } from '../../../services/chapterSplit/suggestBoundariesAI';
 import { createImportRunner } from '../../../services/import/createImportRunner';
+import { extractProvisionalSummary, SUMMARY_SOURCE_UNVERIFIED } from '../../../services/summary/freshness';
 
 interface ChapterDraftSplitModalProps {
     isOpen: boolean;
@@ -202,7 +203,11 @@ export const ChapterDraftSplitModal: React.FC<ChapterDraftSplitModalProps> = ({
         const newChapters: Chapter[] = slices.map((slice, i) => ({
             id: `${chapter.id}-dsplit-${i}-${stamp}`,
             title: slice.title.trim() || `${chapter.title}（${i + 1}）`,
-            summary: '',
+            // 分割章のあらすじは本文の冒頭から機械抽出した暫定値（AI呼び出しなし）。
+            // 空のままだと、次章生成時の「直前の章のあらすじ」から丸ごと抜け落ちる。
+            // 要約ではないので UNVERIFIED を付け、章立て画面でAI更新を促す
+            summary: extractProvisionalSummary(slice.draft),
+            summarySourceHash: SUMMARY_SOURCE_UNVERIFIED,
             draft: slice.draft,
             foreshadowingRefs: chapter.foreshadowingRefs,
         }));

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildDraftContext, truncateAtSentence } from '../../../services/rag/buildDraftContext';
+import { buildDraftContext } from '../../../services/rag/buildDraftContext';
+import { truncateAtSentence } from '../../../utils/textTruncate';
 import { RagChunk, RagSourceType, RetrievedChunk } from '../../../services/rag/types';
 import { makeProject, makeChapter, makeCharacter } from './fixtures';
 

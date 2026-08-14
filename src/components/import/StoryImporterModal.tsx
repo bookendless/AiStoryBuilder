@@ -26,6 +26,7 @@ import { useToast } from '../useToast';
 import { getInputCharBudget } from '../../services/summarization/tokenBudget';
 import { IMPORT_PROMPT_HARD_CAP, STYLE_MIN_CHARS } from '../../services/import/constants';
 import { readTextFileSmart } from '../../utils/textEncoding';
+import { SUMMARY_SOURCE_UNVERIFIED } from '../../services/summary/freshness';
 import { useStoryImporter, getImportSnapshot } from './hooks/useStoryImporter';
 
 interface StoryImporterModalProps {
@@ -162,6 +163,8 @@ export const StoryImporterModal: React.FC<StoryImporterModalProps> = ({ isOpen, 
             id: `import-chapter-${Date.now()}`,
             title: 'インポート本文',
             summary: '取り込んだ原文（章分割は未実施。チャプターステップで分割できます）',
+            // 説明文であって本文の要約ではないため、章立て画面で「あらすじが古い」として更新を促す
+            summarySourceHash: SUMMARY_SOURCE_UNVERIFIED,
             draft: result.originalProse,
         };
         createImportedProject(finalTitle, {
