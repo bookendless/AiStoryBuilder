@@ -5,6 +5,12 @@ import { aiService } from '../../../../services/aiService';
 import { DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
 import { useGeneration } from '../../../../contexts/useGeneration';
 
+/**
+ * この章数を超える一括生成では、後半の章ほど品質が落ちやすいことを実行前に伝える。
+ * 中断はせず注意のみ促す（下書き用途としては有効な機能のため）。
+ */
+const MANY_CHAPTERS_THRESHOLD = 5;
+
 interface Chapter {
   id: string;
   title: string;
@@ -112,6 +118,15 @@ export const useAllChaptersGeneration = ({
     // 確認は親コンポーネントで行う（ConfirmDialogを使用）
 
     const totalChapters = currentProject.chapters.length;
+
+    if (totalChapters > MANY_CHAPTERS_THRESHOLD) {
+      onWarning(
+        `${totalChapters}章を一度に生成します。後半の章ほど品質が下がりやすいため、仕上げは章を選んでの生成をおすすめします。`,
+        8000,
+        { title: '一括生成の品質について' }
+      );
+    }
+
     setGenerationProgress({ current: 0, total: totalChapters });
     setGenerationStatus('準備中...');
 
@@ -226,6 +241,8 @@ export const useAllChaptersGeneration = ({
         signal: abortController.signal,
         timeout: 600000, // 600秒 = 10分
         maxPromptLength: DRAFT_PROMPT_CAP,
+        projectId: currentProject.id,
+        purpose: 'prose',
       });
 
       // キャンセルされた場合は処理をスキップ
@@ -299,7 +316,7 @@ export const useAllChaptersGeneration = ({
 
         await updateProject({ chapters: updatedChapters });
 
-        setGenerationStatus(`完了！${chapterIndex}章の草案を生成しました。各章の内容を確認してください。`);
+        setGenerationStatus(`完了！${chapterIndex}章の草案を生成しました。各章を選んで「章全体を改善」などで仕上げると品質が上がります。`);
 
         if (chapterIndex < totalCount) {
           // 一部の章しか生成できなかった場合は明示的に警告
@@ -310,7 +327,7 @@ export const useAllChaptersGeneration = ({
           );
         } else {
           // 全章成功時のみ完了トーストを表示
-          setShowCompletionToast(`全章生成が完了しました（${chapterIndex}/${totalCount}章）`);
+          setShowCompletionToast(`全章生成が完了しました（${chapterIndex}/${totalCount}章）。各章を個別に仕上げると品質が上がります`);
           if (completionToastTimerRef.current) {
             clearTimeout(completionToastTimerRef.current);
           }

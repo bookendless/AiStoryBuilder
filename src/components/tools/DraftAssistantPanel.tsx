@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { getChapterDetails as getChapterDetailsFn } from '../../utils/chapterUtils';
-import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3, SlidersHorizontal } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 import { useProject } from '../../contexts/useProject';
 import { useAI } from '../../contexts/useAI';
 import { useToast } from '../useToast';
@@ -1443,6 +1443,14 @@ ${'='.repeat(80)}`;
                                     </h3>
                                     <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                                         全{currentProject.chapters.length}章の草案を一度に生成します
+                                    </p>
+                                </div>
+
+                                {/* 一括生成は2章目以降で品質が落ちやすいため、章ごとの生成へ誘導する */}
+                                <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                                    <p className="text-xs text-amber-800 dark:text-amber-200 font-['Noto_Sans_JP'] leading-relaxed">
+                                        一括生成は、章ごとの個別生成にくらべて後半の章ほど品質が下がる傾向があります。全体の下書きを一気に用意したいときに向いた機能です。仕上げは章を選んでからの生成をおすすめします。
                                     </p>
                                 </div>
 
