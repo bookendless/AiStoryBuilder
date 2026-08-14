@@ -15,6 +15,11 @@ export interface CreativePointAlternative {
     summary: string;
     /** その別案を選んだ場合の帰結（1行） */
     consequence: string;
+    /**
+     * AIがその案を選ぶ確率（0.0〜1.0）。実際の確率ではなく「無難さ」の主観的な目安で、
+     * 低いほど大胆な案であることを示す。AIが返さない場合は undefined。
+     */
+    probability?: number;
 }
 
 /** 作者の判断ポイント */

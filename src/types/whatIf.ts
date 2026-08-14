@@ -35,8 +35,13 @@ export interface WhatIfReport {
     brokenForeshadowings: string[];
     /** 変わる関係性 */
     relationshipChanges: string[];
-    /** 新たに生まれる展開の可能性 */
+    /** 新たに生まれる展開の可能性（常に完全な一覧。保存済みシナリオとの互換のため文字列配列を維持する） */
     newPossibilities: string[];
+    /**
+     * 新たに生まれる展開の可能性に、AIが示した選びやすさ（probability）を添えたもの。
+     * newPossibilities と同じ順序・同じ件数。確率のない旧データでは undefined。
+     */
+    newPossibilityDetails?: { text: string; probability?: number }[];
     /** 総評（本編に取り込む価値があるか） */
     verdict: string;
 }

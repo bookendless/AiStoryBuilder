@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { assignProbabilityBadges } from '../../utils/probabilityBadge';
 import {
     GitBranch,
     Sparkles,
@@ -154,6 +155,18 @@ export const WhatIfLabPanel: React.FC<WhatIfLabPanelProps> = ({ isOpen, onClose 
     };
 
     const report = viewingScenario?.report;
+
+    // 「本命／意外」バッジ。newPossibilities と同じ並び順なので添字をキーにする
+    const possibilityBadges = useMemo(
+        () =>
+            assignProbabilityBadges(
+                (report?.newPossibilityDetails ?? []).map((detail, index) => ({
+                    id: String(index),
+                    probability: detail.probability,
+                }))
+            ),
+        [report]
+    );
 
     return (
         <Modal
@@ -364,9 +377,25 @@ export const WhatIfLabPanel: React.FC<WhatIfLabPanelProps> = ({ isOpen, onClose 
                             <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 p-4 space-y-1.5">
                                 <h4 className="text-sm font-medium text-emerald-700 dark:text-emerald-300">新たに生まれる可能性</h4>
                                 <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1 list-disc pl-5">
-                                    {report.newPossibilities.map((item, i) => (
-                                        <li key={i}>{item}</li>
-                                    ))}
+                                    {report.newPossibilities.map((item, i) => {
+                                        const badge = possibilityBadges[String(i)];
+                                        return (
+                                            <li key={i}>
+                                                {badge && (
+                                                    <span
+                                                        className={`inline-block mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold align-middle ${
+                                                            badge === '本命'
+                                                                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                                                : 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300'
+                                                        }`}
+                                                    >
+                                                        {badge}
+                                                    </span>
+                                                )}
+                                                {item}
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             </div>
                         )}

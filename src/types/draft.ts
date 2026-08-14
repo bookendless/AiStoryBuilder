@@ -17,6 +17,11 @@ export interface AISuggestion {
   id: string;
   title: string;
   body: string;
+  /**
+   * AIがその案を選ぶ確率（0.0〜1.0）。低いほど大胆な案であることを示す。
+   * AIが返さない場合や、段落分割のフォールバックで作った提案では undefined。
+   */
+  probability?: number;
 }
 
 export interface ImprovementLog {
@@ -60,6 +65,8 @@ export interface WeaknessItem {
   problem?: string;
   score?: number;
   solutions?: string[];
+  /** 問題の該当箇所の本文引用（AIが返さない場合もあるため欠落許容） */
+  quote?: string;
 }
 
 /** AI章執筆時にプロンプトに含めるコンテキスト情報の設定 */

@@ -10,6 +10,7 @@
 import React, { useMemo, useState } from 'react';
 import { Lightbulb, RefreshCw, Check } from 'lucide-react';
 import { CreativePoint, CreativePointSelection } from '../../types/creativePoint';
+import { assignProbabilityBadges, ProbabilityBadge } from '../../utils/probabilityBadge';
 
 interface CreativePointCardsProps {
     points: CreativePoint[];
@@ -29,6 +30,13 @@ export const CreativePointCards: React.FC<CreativePointCardsProps> = ({ points, 
             [pointId]: prev[pointId] === altId ? null : altId,
         }));
     };
+
+    // 別案ID -> バッジ種別。バッジはポイントごと（カード内）の相対順位で決める
+    const badgeByAltId = useMemo<Record<string, ProbabilityBadge>>(() => {
+        const map: Record<string, ProbabilityBadge> = {};
+        points.forEach((point) => Object.assign(map, assignProbabilityBadges(point.alternatives)));
+        return map;
+    }, [points]);
 
     const selections = useMemo<CreativePointSelection[]>(() => {
         const result: CreativePointSelection[] = [];
@@ -54,7 +62,7 @@ export const CreativePointCards: React.FC<CreativePointCardsProps> = ({ points, 
                 </h4>
             </div>
             <p className="text-xs text-sumi-500 dark:text-usuzumi-400 font-['Noto_Sans_JP']">
-                変えたい箇所だけ別案を選び、最後に「別案で生成し直す」を押してください。各カードで選べるのは1つです。選ばなければ現在の推奨案のままになります。
+                変えたい箇所だけ別案を選び、最後に「別案で生成し直す」を押してください。各カードで選べるのは1つです。選ばなければ現在の推奨案のままになります。「本命」はAIが選びやすい無難な案、「意外」は選びにくい大胆な案です。
             </p>
 
             <div className="space-y-3">
@@ -97,6 +105,17 @@ export const CreativePointCards: React.FC<CreativePointCardsProps> = ({ points, 
                                             )}
                                             <span className="min-w-0">
                                                 <span className="block text-xs font-medium text-sumi-700 dark:text-usuzumi-200 font-['Noto_Sans_JP']">
+                                                    {badgeByAltId[alt.id] && (
+                                                        <span
+                                                            className={`inline-block mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold align-middle ${
+                                                                badgeByAltId[alt.id] === '本命'
+                                                                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                                                    : 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300'
+                                                            }`}
+                                                        >
+                                                            {badgeByAltId[alt.id]}
+                                                        </span>
+                                                    )}
                                                     別案: {alt.summary}
                                                 </span>
                                                 {alt.consequence && (

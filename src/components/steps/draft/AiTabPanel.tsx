@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Sparkles, SlidersHorizontal } from 'lucide-react';
 import type { AISuggestion, AISuggestionType, ImprovementLog } from './types';
 import { SUGGESTION_CONFIG } from './constants';
 import { formatTimestamp } from './utils';
+import { assignProbabilityBadges } from '../../../utils/probabilityBadge';
 
 interface ChapterInfo {
   id: string;
@@ -77,6 +78,9 @@ export const AiTabPanel: React.FC<AiTabPanelProps> = ({
   onClearSelectionState,
   onOpenImprovementLogModal,
 }) => {
+  // 「本命／意外」バッジ。AIが確率を返した案が複数あるときだけ付く
+  const suggestionBadges = useMemo(() => assignProbabilityBadges(aiSuggestions), [aiSuggestions]);
+
   if (!selectedChapterId || !currentChapter) {
     return (
       <div className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -309,7 +313,20 @@ export const AiTabPanel: React.FC<AiTabPanelProps> = ({
             className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20"
           >
             <div className="flex items-start justify-between gap-2 mb-2">
-              <h5 className="text-xs font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">{suggestion.title}</h5>
+              <h5 className="text-xs font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                {suggestionBadges[suggestion.id] && (
+                  <span
+                    className={`inline-block mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold align-middle ${
+                      suggestionBadges[suggestion.id] === '本命'
+                        ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                        : 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300'
+                    }`}
+                  >
+                    {suggestionBadges[suggestion.id]}
+                  </span>
+                )}
+                {suggestion.title}
+              </h5>
               <button
                 type="button"
                 onClick={() => onApplySuggestion(suggestion)}

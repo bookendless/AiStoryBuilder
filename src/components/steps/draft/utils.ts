@@ -1,6 +1,8 @@
 import type { AISuggestion } from './types';
 import { HISTORY_STORAGE_PREFIX } from './constants';
 import { exportFile } from '../../../utils/mobileExportUtils';
+import { parseJsonLoose } from '../../../services/summarization/parseJson';
+import { toProbability } from '../../../utils/probabilityBadge';
 
 export const getHistoryStorageKey = (projectId: string, chapterId: string) =>
   `${HISTORY_STORAGE_PREFIX}_${projectId}_${chapterId}`;
@@ -22,21 +24,24 @@ export const formatTimestamp = (timestamp: number) => {
 };
 
 export const parseAISuggestions = (raw: string): AISuggestion[] => {
-  try {
-    const parsed = JSON.parse(raw) as {
-      suggestions?: { title?: string; body?: string }[];
-    } | null;
-    if (parsed && Array.isArray(parsed.suggestions)) {
-      return parsed.suggestions
-        .map((item, index) => ({
-          id: `parsed-${Date.now()}-${index}`,
-          title: item?.title?.trim() || `提案 ${index + 1}`,
-          body: item?.body?.trim() || '',
-        }))
-        .filter((item) => item.body);
-    }
-  } catch {
-    // フォールバック処理へ
+  // コードブロックや前後の説明文が付いた応答も拾う（素の JSON.parse では失敗して
+  // 段落分割のフォールバックに落ちていた）。解析できない場合は null が返る。
+  const parsed = parseJsonLoose<{
+    suggestions?: { title?: string; body?: string; probability?: unknown }[];
+  }>(raw);
+
+  // 形が合っていれば、中身が空でもそのまま返す。ここで段落分割にフォールバックすると
+  // 生のJSON文字列が提案本文になり、適用でそれが原稿に書き込まれてしまう
+  // （0件は呼び出し側がエラーとして扱う）
+  if (parsed && Array.isArray(parsed.suggestions)) {
+    return parsed.suggestions
+      .map((item, index) => ({
+        id: `parsed-${Date.now()}-${index}`,
+        title: item?.title?.trim() || `提案 ${index + 1}`,
+        body: item?.body?.trim() || '',
+        probability: toProbability(item?.probability),
+      }))
+      .filter((item) => item.body);
   }
 
   const fallbackSegments = raw

@@ -10,6 +10,7 @@
 import { parseJsonLoose } from '../summarization/parseJson';
 import { CREATIVE_POINTS_MARKER } from '../prompts/creativePoints';
 import { CreativePoint, CreativePointAlternative } from '../../types/creativePoint';
+import { toProbability } from '../../utils/probabilityBadge';
 
 export interface SplitCreativePointsResult {
     /** マーカーを除いた本文（反映対象） */
@@ -49,6 +50,7 @@ export function normalizeCreativePointsList(list: unknown): CreativePoint[] {
                 id: genId('alt', pi * 10 + ai),
                 summary,
                 consequence: str(ao.consequence),
+                probability: toProbability(ao.probability),
             });
         });
 

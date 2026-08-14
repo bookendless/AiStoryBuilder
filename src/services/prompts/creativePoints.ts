@@ -6,6 +6,8 @@
  * 本文側はマーカー以降を除去して反映するため、適用テキストは汚れない。
  */
 
+import { VS_INSTRUCTION_ALTERNATIVES } from './verbalizedSampling';
+
 /** 本文と creativePoints JSON を区切るマーカー（本文側からは除去する） */
 export const CREATIVE_POINTS_MARKER = '===CREATIVE_POINTS_JSON===';
 
@@ -29,7 +31,7 @@ ${CREATIVE_POINTS_MARKER}
       "label": "判断ポイントの短い見出し",
       "current": "現在の推奨案でどう扱ったか（1行）",
       "alternatives": [
-        { "summary": "別案の要約（1行）", "consequence": "その別案を選んだ場合の帰結（1行）" }
+        { "summary": "別案の要約（1行）", "consequence": "その別案を選んだ場合の帰結（1行）", "probability": 0.4 }
       ]
     }
   ]
@@ -38,6 +40,7 @@ ${CREATIVE_POINTS_MARKER}
 【ルール】
 - マーカーより前は通常の${outputDescription}本文のみとし、JSONやマーカーを混在させない
 - creativePoints は2〜4個、各 alternatives は1〜3個
+${VS_INSTRUCTION_ALTERNATIVES}
 - 日本語で簡潔に。JSON以外の説明はマーカー以降に書かない`;
 }
 
@@ -52,10 +55,11 @@ export function buildCreativePointsJsonKeyInstruction(): string {
 【追加指示：創造ポイントの付記（同一JSON内）】
 上記で指定されたJSONオブジェクトに、トップレベルのキー "creativePoints" を必ず1つ追加してください。
 これは「作者の判断によって物語が分かれる箇所」を2〜4点挙げた配列です。各要素の形式は次の通りです。
-{ "label": "判断ポイントの短い見出し", "current": "現在の推奨案でどう扱ったか（1行）", "alternatives": [ { "summary": "別案の要約（1行）", "consequence": "その別案を選んだ場合の帰結（1行）" } ] }
+{ "label": "判断ポイントの短い見出し", "current": "現在の推奨案でどう扱ったか（1行）", "alternatives": [ { "summary": "別案の要約（1行）", "consequence": "その別案を選んだ場合の帰結（1行）", "probability": 0.4 } ] }
 
 【ルール（厳守）】
 - 構成本体は必ず指定どおりのJSON形式で出力し、各幕・各段階のキーをそのまま維持する（散文だけで終えない）
 - creativePoints は同じJSONオブジェクト内に並べる。別ブロックやマーカーにしない
-- creativePoints は2〜4個、各 alternatives は1〜3個。日本語で簡潔に`;
+- creativePoints は2〜4個、各 alternatives は1〜3個。日本語で簡潔に
+${VS_INSTRUCTION_ALTERNATIVES}`;
 }
