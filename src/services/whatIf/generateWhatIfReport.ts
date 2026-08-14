@@ -14,7 +14,7 @@ import { getInputCharBudget } from '../summarization/tokenBudget';
 import { parseJsonLoose } from '../summarization/parseJson';
 import { buildFactSheet } from '../consistency/buildFactSheet';
 import { getOpenForeshadowings } from '../recap/recapLocal';
-import { buildWhatIfPrompt } from '../prompts/whatIf';
+import { buildWhatIfPrompt, WHATIF_PROMPT_CAP } from '../prompts/whatIf';
 import { parseWhatIfReport } from './parseWhatIfReport';
 
 interface GenerateWhatIfOptions {
@@ -69,6 +69,9 @@ export async function generateWhatIfReport(
     let digestAfter = formatDigests(afterDigests);
 
     // 予算内に切り詰め（前後合わせて上限。波及対象の後半を優先的に残す）
+    // getInputCharBudget には WHATIF_PROMPT_CAP を渡さない。ここは常に DIGEST_MAX_CHARS が
+    // 効いており、CAPを渡しても結果は変わらないうえ、DIGEST_MAX_CHARS を緩めた将来に
+    // ダイジェストだけが黙って倍増（＝課金増）する余地を作らないため
     const totalBudget = Math.min(getInputCharBudget(settings), DIGEST_MAX_CHARS);
     if (digestBefore.length + digestAfter.length > totalBudget) {
         const afterBudget = Math.min(digestAfter.length, Math.floor(totalBudget * 0.6));
@@ -108,7 +111,12 @@ export async function generateWhatIfReport(
         relationships,
     });
 
-    const responseText = await run(prompt, { signal });
+    const responseText = await run(prompt, {
+        signal,
+        maxPromptLength: WHATIF_PROMPT_CAP,
+        projectId: project.id,
+        purpose: 'analysis',
+    });
     const report = parseWhatIfReport(parseJsonLoose(responseText), afterChapters);
     if (!report) {
         throw new Error('What-ifレポートの生成結果を解析できませんでした');

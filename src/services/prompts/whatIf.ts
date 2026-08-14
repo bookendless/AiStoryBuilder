@@ -7,6 +7,21 @@
 
 import { dataBlock, JSON_OUTPUT_RULES } from './common';
 
+/**
+ * What-ifプロンプトのサニタイズ上限（文字数）。
+ *
+ * 設定台帳（最大2000）＋前後のダイジェスト（最大5000）＋未回収の伏線（8件・最大約670）
+ * ＋関係性（12件・最大約760）＋テンプレート（約1500）で、規模の大きい作品では
+ * 既定の10000文字を超える。超えると中抜きが起き、削られるのはちょうど中間——
+ * 【分岐点より後の章（波及の対象）】の後半、つまりこの機能の分析対象そのものになる。
+ * 末尾のJSON出力形式は中抜き方式のおかげで生き残るため**エラーにならず**、
+ * 「波及対象の章を見ずに波及を語ったレポート」が正常な結果として返る。
+ *
+ * 入力自体は generateWhatIfReport 側の予算（FACT_SHEET_BUDGET / DIGEST_MAX_CHARS）で
+ * 制御されるため、この値までプロンプトが膨らむわけではない（中抜きを起こさないためのヘッドルーム）。
+ */
+export const WHATIF_PROMPT_CAP = 20000;
+
 export interface WhatIfPromptArgs {
     title: string;
     genre?: string;
@@ -54,7 +69,7 @@ ${args.premise}
 - chapterImpacts: 「分岐点より後の章」それぞれへの波及。chapterTitleは与えられた章タイトルを一字一句正確に使う。波及がほぼない章は省略してよい。impactは100字程度、severityは major（章の存在意義が変わる）/ moderate（展開の修正が必要）/ minor（微調整で済む）
 - brokenForeshadowings: この分岐で回収不能・無意味になる伏線（なければ空配列）
 - relationshipChanges: この分岐で変わるキャラクター間の関係性（なければ空配列）
-- newPossibilities: この分岐から新たに生まれる展開の可能性を2〜3個（各80字程度、作者の創作意欲を刺激する具体性で）
+- newPossibilities: この分岐から新たに生まれる展開の可能性を2〜3個（各80字程度、作者の創作意欲を刺激する具体性で）。各案には text（本文）と probability（あなたが通常その案を選ぶ確率。0.0〜1.0の数値）を持たせ、少なくとも1案は probability 0.15 未満の意外性のある大胆な案にする
 - verdict: 総評（150字程度）。この分岐は本編より面白くなり得るか、部分的に取り込む価値はあるか、率直に評価する
 
 ${JSON_OUTPUT_RULES}
@@ -67,7 +82,7 @@ ${JSON_OUTPUT_RULES}
   ],
   "brokenForeshadowings": ["…"],
   "relationshipChanges": ["…"],
-  "newPossibilities": ["…"],
+  "newPossibilities": [{"text": "…", "probability": 0.4}],
   "verdict": "…"
 }`;
 }
