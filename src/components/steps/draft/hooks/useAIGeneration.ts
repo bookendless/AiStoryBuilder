@@ -12,6 +12,7 @@ import { ensureIndexFresh, retrieveForDraft, retrieveForContinue, buildDraftCont
 import { getInputCharBudget } from '../../../../services/summarization/tokenBudget';
 import { formatCharacters } from '../../../../services/context/formatCharacter';
 import { buildPreviousStory } from '../../../../services/context/buildPreviousStory';
+import type { ChapterDetails } from '../../../../utils/chapterUtils';
 
 interface Chapter {
   id: string;
@@ -22,13 +23,6 @@ interface Chapter {
   setting?: string;
   mood?: string;
   keyEvents?: string[];
-}
-
-interface ChapterDetails {
-  characters: string;
-  setting: string;
-  mood: string;
-  keyEvents: string;
 }
 
 interface ProjectContextInfo {

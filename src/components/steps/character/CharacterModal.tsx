@@ -235,7 +235,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
     }
 
     // フォームをリセット
-    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
+    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '', notes: '' });
     setSelectedFile(null);
     setPreviewUrl('');
     if (fileInputRef.current) {
@@ -246,7 +246,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
 
   // キャンセル
   const handleCancel = () => {
-    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
+    setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '', notes: '' });
     setSelectedFile(null);
     setPreviewUrl('');
     if (fileInputRef.current) {

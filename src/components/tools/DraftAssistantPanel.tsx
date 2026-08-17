@@ -162,8 +162,8 @@ export const DraftAssistantPanel: React.FC = () => {
         return chapter?.draft || '';
     }, [selectedChapterId, currentProject, chapterDrafts]);
 
-    const getChapterDetails = useCallback((chapter: { characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
-        if (!currentProject) return { characters: '未設定', setting: '未設定', mood: '未設定', keyEvents: '未設定' };
+    const getChapterDetails = useCallback((chapter: { characters?: string[]; setting?: string; mood?: string; keyEvents?: string[]; knowledge?: string; foreshadowing?: string }) => {
+        if (!currentProject) return { characters: '未設定', setting: '未設定', mood: '未設定', keyEvents: '未設定', planNotes: '' };
         return getChapterDetailsFn(chapter, currentProject.characters);
     }, [currentProject]);
 
