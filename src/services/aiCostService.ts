@@ -128,25 +128,12 @@ export function currentMonthKey(date: Date = new Date()): string {
 
 /**
  * 指定月（'YYYY-MM'）のプロバイダー・モデル別サマリーを返す。
+ *
+ * 3軸すべてを表示する画面は getMonthlyEvents を1回呼んで各集計関数に渡す
+ * （こちらと併用すると同じ月を二重に読む）。この関数はモデル別だけが要る場合の入口。
  */
 export async function getMonthlySummary(monthKey: string): Promise<UsageSummary> {
-  try {
-    const [yearStr, monthStr] = monthKey.split('-');
-    const year = Number(yearStr);
-    const month = Number(monthStr) - 1;
-    const start = new Date(year, month, 1).getTime();
-    const end = new Date(year, month + 1, 1).getTime();
-
-    const events = await getDb().usageEvents
-      .where('timestamp')
-      .between(start, end, true, false)
-      .toArray();
-
-    return summarizeEvents(events);
-  } catch (error) {
-    console.warn('AI利用コストの集計に失敗:', error);
-    return { rows: [], totalCalls: 0, totalTokens: 0, totalCost: 0 };
-  }
+  return summarizeEvents(await getMonthlyEvents(monthKey));
 }
 
 /** 指定月のイベントをそのまま返す（作品別・工程別を1回の読み込みで出すため） */

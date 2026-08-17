@@ -21,6 +21,21 @@ export interface ParsedChapter {
 }
 
 /**
+ * 「該当なし」を意味するだけの値。出力形式が伏線に「無ければ『なし』」と書かせるため、
+ * モデルは高い頻度でこの語だけを返す。そのまま保存すると草案プロンプトに
+ * 「この章で扱う伏線: なし」と載り、「未設定の項目は行ごと出さない」方針が崩れる
+ * （その語にモデルが反応して「まだ何も分かっていない」描写を足す）。
+ */
+const EMPTY_VALUE_PATTERN = /^(なし|無し|特になし|特に無し|ありません|無)[。．.]?$/;
+
+/** 「なし」系の値を undefined に落とす。パーサ境界だけで行い、フォーム入力には適用しない */
+const normalizeOptionalDetail = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    if (!trimmed || EMPTY_VALUE_PATTERN.test(trimmed)) return undefined;
+    return trimmed;
+};
+
+/**
  * 内部の作業オブジェクトを ParsedChapter へ変換する。
  * 未出力だった項目は空文字ではなく undefined にして、Chapter に空欄を書き込まないようにする
  * （旧形式の6項目しか返さないモデルでも、単に項目が付かないだけになる）。
@@ -37,8 +52,8 @@ const finalizeChapter = (chapter: {
   foreshadowing: string;
 }): ParsedChapter => ({
   ...chapter,
-  knowledge: chapter.knowledge || undefined,
-  foreshadowing: chapter.foreshadowing || undefined,
+  knowledge: normalizeOptionalDetail(chapter.knowledge),
+  foreshadowing: normalizeOptionalDetail(chapter.foreshadowing),
 });
 
 export function parseChapterList(content: string): ParsedChapter[] {

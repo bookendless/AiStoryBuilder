@@ -95,15 +95,26 @@ export function computeProjectQualityMetrics(chapters: Chapter[]): ProjectQualit
         return numbers.reduce((sum, v) => sum + v, 0) / numbers.length;
     };
 
+    // computeTrend は「添字＝章番号」として傾きを出す。計測できた章だけを詰めて渡すと、
+    // 本文の無い章を挟んだ区間が縮み、傾きが実際より急になる。
+    // 元の章番号の位置に値を置いた疎な系列にして、間隔を保つ
+    const byChapterNumber = (pick: (r: ChapterQualityMetrics) => number | null): (number | null)[] => {
+        const series: (number | null)[] = new Array<number | null>(chapters.length).fill(null);
+        for (const result of results) {
+            series[result.number - 1] = pick(result);
+        }
+        return series;
+    };
+
     return {
         chapters: results,
         measuredChapters: results.length,
         skippedChapters,
         trends: {
-            slopDensity: computeTrend(results.map(r => r.slopDensity)),
-            repetitionRate: computeTrend(results.map(r => r.repetitionRate)),
-            avgSentenceLength: computeTrend(results.map(r => r.avgSentenceLength)),
-            dialogueRatio: computeTrend(results.map(r => r.dialogueRatio)),
+            slopDensity: computeTrend(byChapterNumber(r => r.slopDensity)),
+            repetitionRate: computeTrend(byChapterNumber(r => r.repetitionRate)),
+            avgSentenceLength: computeTrend(byChapterNumber(r => r.avgSentenceLength)),
+            dialogueRatio: computeTrend(byChapterNumber(r => r.dialogueRatio)),
         },
         averages: {
             slopDensity: average(results.map(r => r.slopDensity)) ?? 0,

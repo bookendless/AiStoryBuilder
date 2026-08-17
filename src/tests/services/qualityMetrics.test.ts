@@ -216,4 +216,28 @@ describe('computeProjectQualityMetrics', () => {
         expect(result.measuredChapters).toBe(0);
         expect(result.averages.repetitionRate).toBeNull();
     });
+
+    /** 定型表現をちょうど density 件含む1000字の本文（密度＝件数になる） */
+    const bodyWithSlopDensity = (density: number): string => {
+        const phrase = '言葉を失った。';
+        return phrase.repeat(density) + 'あ'.repeat(1000 - phrase.length * density);
+    };
+
+    it('傾きは元の章番号を x に使う（本文の無い章の区間を詰めない）', () => {
+        // 詰めて計算すると、間が空いている作品の劣化が実際より急に見える
+        const densities = [1, 2, 3, 4];
+        const contiguous = computeProjectQualityMetrics(
+            densities.map((d, i) => chapter(String(i + 1), bodyWithSlopDensity(d)))
+        );
+        expect(contiguous.trends.slopDensity.slope).toBeCloseTo(1, 5);
+
+        // 同じ4章を1章ずつ空けて配置（第1・3・5・7章）→ 1章あたりの変化は半分になる
+        const spaced: Chapter[] = [];
+        densities.forEach((d, i) => {
+            spaced.push(chapter(`m${i}`, bodyWithSlopDensity(d)));
+            spaced.push(chapter(`e${i}`));
+        });
+        const result = computeProjectQualityMetrics(spaced);
+        expect(result.trends.slopDensity.slope).toBeCloseTo(0.5, 5);
+    });
 });

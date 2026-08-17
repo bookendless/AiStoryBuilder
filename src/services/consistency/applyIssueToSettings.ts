@@ -9,7 +9,7 @@
  */
 
 import { Project } from '../../types/project';
-import { ConsistencyIssue } from '../../types/consistency';
+import { ConsistencyIssue, ConsistencyReport } from '../../types/consistency';
 
 export interface ResolvedTarget {
     type: 'character' | 'term';
@@ -80,4 +80,60 @@ export function appendNote(existing: string | undefined, note: string): string {
     const base = (existing ?? '').trimEnd();
     if (base.includes(note)) return base;
     return base ? `${base}\n\n${note}` : note;
+}
+
+export interface AppliedIssueUpdate {
+    /** updateProject に一度だけ渡す差分 */
+    updates: Partial<Project>;
+    /** トースト表示用の、台帳に登録されている正式な表記 */
+    targetName: string;
+}
+
+/**
+ * 「設定書へ補記」と「指摘を解決済みにする」を**1つの差分**にまとめる。
+ *
+ * 分けて updateProject を2回呼んではいけない。updateProject は呼び出し時点の
+ * currentProject にスプレッドで差分を重ねる実装のため、同じハンドラ内の2回目は
+ * 1回目を反映していないスナップショットから組み立てられ、**補記を上書きで消す**。
+ * それでいて解決済みマークと成功トーストだけは残るので、失敗が表に出ない。
+ *
+ * @returns 補記先を確定できなければ null（指摘はそのまま残す）
+ */
+export function buildApplyIssueUpdate(
+    project: Pick<Project, 'characters' | 'glossary' | 'consistencyReports'>,
+    issue: ConsistencyIssue,
+    reportId: string,
+    date: Date = new Date()
+): AppliedIssueUpdate | null {
+    const target = resolveIssueTarget(issue, project);
+    if (!target) return null;
+
+    const note = buildConsistencyNote(issue, date);
+    const updates: Partial<Project> = {};
+
+    if (target.type === 'character') {
+        updates.characters = project.characters.map(c =>
+            c.id === target.id ? { ...c, notes: appendNote(c.notes, note) } : c
+        );
+    } else {
+        // 用語は definition へ追記する。GlossaryTerm.notes はプロンプトに載らないため、
+        // そこへ書いても次の生成に効かない
+        updates.glossary = (project.glossary ?? []).map(g =>
+            g.id === target.id ? { ...g, definition: appendNote(g.definition, note) } : g
+        );
+    }
+
+    updates.consistencyReports = (project.consistencyReports ?? []).map(
+        (report): ConsistencyReport =>
+            report.id !== reportId
+                ? report
+                : {
+                    ...report,
+                    issues: report.issues.map(i =>
+                        i.id === issue.id ? { ...i, status: 'resolved' as const } : i
+                    ),
+                }
+    );
+
+    return { updates, targetName: target.name };
 }

@@ -88,6 +88,24 @@ describe('parseChapterList（旧形式との互換）', () => {
         expect(chapters[0].foreshadowing).toBeUndefined();
     });
 
+    it('「なし」だけの値は undefined にする（プロンプトに「伏線: なし」と載せない）', () => {
+        // 出力形式が「無ければ『なし』」と書かせるため、モデルは高頻度でこの語を返す。
+        // 保存すると草案プロンプトに載り、「未設定の項目は行ごと出さない」方針が崩れる
+        const chapters = parseChapterList(`第1章: 日常
+概要: 何も起きない。
+知識の変化: なし
+伏線: なし。`);
+        expect(chapters[0].knowledge).toBeUndefined();
+        expect(chapters[0].foreshadowing).toBeUndefined();
+    });
+
+    it('「なし」を含むだけの本物の記述は残す', () => {
+        const chapters = parseChapterList(`第1章: 日常
+概要: 何も起きない。
+伏線: 回収＝手紙がなしのつぶてだった理由が判明する`);
+        expect(chapters[0].foreshadowing).toBe('回収＝手紙がなしのつぶてだった理由が判明する');
+    });
+
     it('「重要な出来事」の中に伏線の語があっても横取りしない', () => {
         // 伏線パターンは行頭に限定していないため、判定順序で守っている
         const chapters = parseChapterList(`第1章: 罠

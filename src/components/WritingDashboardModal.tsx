@@ -18,10 +18,10 @@ import {
   saveWritingGoal,
 } from '../services/writingStatsService';
 import {
-  getMonthlySummary,
   getMonthlyEvents,
   getAvailableMonths,
   currentMonthKey,
+  summarizeEvents,
   summarizeByProject,
   summarizeByPurpose,
   UsageSummary,
@@ -120,15 +120,15 @@ export const WritingDashboardModal: React.FC<WritingDashboardModalProps> = ({
     let cancelled = false;
     void (async () => {
       try {
-        // 作品別の表示に作品名が要るため、イベントとプロジェクト一覧をまとめて取る
-        const [summary, events, projects] = await Promise.all([
-          getMonthlySummary(selectedMonth),
+        // 作品別の表示に作品名が要るため、イベントとプロジェクト一覧をまとめて取る。
+        // 3軸すべてを1回の読み込みから出す（getMonthlySummary を併用すると同じ月を二重に読む）
+        const [events, projects] = await Promise.all([
           getMonthlyEvents(selectedMonth),
           databaseService.getAllProjects(),
         ]);
         if (cancelled) return;
         const titles = new Map(projects.map(p => [p.id, p.title]));
-        setCostSummary(summary);
+        setCostSummary(summarizeEvents(events));
         setByProject(summarizeByProject(events, titles));
         setByPurpose(summarizeByPurpose(events));
       } catch (error) {

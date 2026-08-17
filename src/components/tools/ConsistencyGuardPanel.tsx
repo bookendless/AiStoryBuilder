@@ -27,8 +27,7 @@ import { createConsistencyRunner } from '../../services/consistency/createConsis
 import { scanProject, ConsistencyScanProgress } from '../../services/consistency/scanProject';
 import {
     resolveIssueTarget,
-    buildConsistencyNote,
-    appendNote,
+    buildApplyIssueUpdate,
 } from '../../services/consistency/applyIssueToSettings';
 
 /**
@@ -182,29 +181,17 @@ export const ConsistencyGuardPanel: React.FC<ConsistencyGuardPanelProps> = ({ is
      * 指摘を設定書へ補記する（AI呼び出しなしの定型文）。
      * その場の修正だけでは次の生成でまた同じ矛盾が出るため、設定書側に確定事項を残す。
      * 補記先はプロンプトに載る欄（キャラクターの補記／用語の説明）にする。
+     *
+     * 補記と解決済みマークは**必ず1回の updateProject で書く**。分けて呼ぶと、
+     * 2回目が1回目を反映していないスナップショットから組み立てられ、補記が消える。
      */
     const handleApplyToSettings = (issue: ConsistencyIssue) => {
-        if (!currentProject) return;
-        const target = resolveIssueTarget(issue, currentProject);
-        if (!target) return;
+        if (!currentProject || !latestReport) return;
+        const applied = buildApplyIssueUpdate(currentProject, issue, latestReport.id);
+        if (!applied) return;
 
-        const note = buildConsistencyNote(issue);
-        if (target.type === 'character') {
-            void updateProject({
-                characters: currentProject.characters.map(c =>
-                    c.id === target.id ? { ...c, notes: appendNote(c.notes, note) } : c
-                ),
-            });
-        } else {
-            void updateProject({
-                glossary: (currentProject.glossary ?? []).map(g =>
-                    g.id === target.id ? { ...g, definition: appendNote(g.definition, note) } : g
-                ),
-            });
-        }
-
-        setIssueStatus(issue.id, 'resolved');
-        showSuccess(`「${target.name}」の設定に補記し、解決済みにしました`);
+        void updateProject(applied.updates);
+        showSuccess(`「${applied.targetName}」の設定に補記し、解決済みにしました`);
     };
 
     const handleCopyQuote = async (quote: string) => {

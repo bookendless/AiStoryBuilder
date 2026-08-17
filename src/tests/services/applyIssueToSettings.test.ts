@@ -10,10 +10,12 @@ import {
     resolveIssueTarget,
     buildConsistencyNote,
     appendNote,
+    buildApplyIssueUpdate,
     CONSISTENCY_NOTE_PREFIX,
 } from '../../services/consistency/applyIssueToSettings';
 import { formatCharacter } from '../../services/context/formatCharacter';
 import { Character } from '../../types/project/character';
+import { ConsistencyIssue } from '../../types/consistency';
 import { Project } from '../../types/project';
 
 const project = {
@@ -113,6 +115,76 @@ describe('appendNote', () => {
     it('同じ補記は二度足さない（同じ指摘を連打しても増殖させない）', () => {
         const once = appendNote('既存', 'メモ');
         expect(appendNote(once, 'メモ')).toBe(once);
+    });
+});
+
+describe('buildApplyIssueUpdate', () => {
+    const issue: ConsistencyIssue = {
+        id: 'i1',
+        chapterId: 'ch1',
+        chapterTitle: '第1章',
+        category: 'appearance',
+        severity: 'high',
+        quote: '彼の瞳は青かった',
+        description: '設定では黒',
+        evidence: 'キャラクター設定',
+        targetType: 'character',
+        targetName: '蒼真',
+        status: 'open',
+    };
+
+    const projectWithReport = {
+        characters: [
+            { id: 'c1', name: '蒼真' },
+            { id: 'c2', name: '灯' },
+        ],
+        glossary: [{ id: 'g1', term: '銀の航跡', definition: '船の名' }],
+        consistencyReports: [
+            { id: 'r0', issues: [{ ...issue, id: 'other' }] },
+            { id: 'r1', issues: [issue, { ...issue, id: 'i2' }] },
+        ],
+    } as unknown as Pick<Project, 'characters' | 'glossary' | 'consistencyReports'>;
+
+    it('補記と解決済みマークを1つの差分にまとめる', () => {
+        // **これが本体の回帰テスト**。2つの updateProject に分けると、2回目が
+        // 1回目を反映していないスナップショットから作られ、補記が上書きで消える
+        const applied = buildApplyIssueUpdate(projectWithReport, issue, 'r1');
+        expect(applied).not.toBeNull();
+        expect(applied!.updates.characters).toBeDefined();
+        expect(applied!.updates.consistencyReports).toBeDefined();
+    });
+
+    it('対象キャラクターにだけ補記を足す', () => {
+        const applied = buildApplyIssueUpdate(projectWithReport, issue, 'r1');
+        const characters = applied!.updates.characters!;
+        expect(characters[0].notes).toContain(CONSISTENCY_NOTE_PREFIX);
+        expect(characters[0].notes).toContain('引用: 彼の瞳は青かった');
+        expect(characters[1].notes).toBeUndefined();
+        expect(applied!.targetName).toBe('蒼真');
+    });
+
+    it('対象の指摘だけを解決済みにし、他のレポートは触らない', () => {
+        const applied = buildApplyIssueUpdate(projectWithReport, issue, 'r1');
+        const reports = applied!.updates.consistencyReports!;
+        expect(reports[0].issues[0].status).toBe('open'); // 別レポート
+        expect(reports[1].issues[0].status).toBe('resolved');
+        expect(reports[1].issues[1].status).toBe('open'); // 同レポートの別指摘
+    });
+
+    it('用語は definition へ追記する（notes はプロンプトに載らないため）', () => {
+        const applied = buildApplyIssueUpdate(
+            projectWithReport,
+            { ...issue, targetType: 'term', targetName: '銀の航跡' },
+            'r1'
+        );
+        expect(applied!.updates.glossary![0].definition).toContain('船の名');
+        expect(applied!.updates.glossary![0].definition).toContain(CONSISTENCY_NOTE_PREFIX);
+        expect(applied!.updates.characters).toBeUndefined();
+    });
+
+    it('補記先を確定できない指摘では何も返さない', () => {
+        expect(buildApplyIssueUpdate(projectWithReport, { ...issue, targetName: '誰か' }, 'r1')).toBeNull();
+        expect(buildApplyIssueUpdate(projectWithReport, { ...issue, targetType: undefined }, 'r1')).toBeNull();
     });
 });
 
