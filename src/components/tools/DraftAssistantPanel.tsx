@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { getChapterDetails as getChapterDetailsFn } from '../../utils/chapterUtils';
+import { getChapterDetails as getChapterDetailsFn, type ChapterDetails } from '../../utils/chapterUtils';
 import { Sparkles, ChevronDown, ChevronUp, FileText, Edit3, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 import { useProject } from '../../contexts/useProject';
 import { useAI } from '../../contexts/useAI';
@@ -262,7 +262,7 @@ export const DraftAssistantPanel: React.FC = () => {
     // カスタムプロンプトの構築
     const buildCustomPrompt = useCallback((args: {
         currentChapter: { title: string; summary: string };
-        chapterDetails: { characters: string; setting: string; mood: string; keyEvents: string };
+        chapterDetails: ChapterDetails;
         projectCharacters: string;
         previousStory: string;
         previousChapterEnd?: string;
@@ -339,6 +339,7 @@ export const DraftAssistantPanel: React.FC = () => {
             setting: chapterDetails.setting,
             mood: chapterDetails.mood,
             keyEvents: chapterDetails.keyEvents,
+            chapterPlanNotes: chapterDetails.planNotes,
             projectTitle: currentProject?.title || '未設定',
             mainGenre: currentProject?.mainGenre || '未設定',
             subGenre: currentProject?.subGenre || '未設定',

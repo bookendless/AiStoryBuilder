@@ -14,6 +14,17 @@ export interface Chapter {
     mood?: string; // 雰囲気・ムード
     keyEvents?: string[]; // 重要な出来事
     draft?: string; // 章単位の草案
+    /**
+     * この章で誰が何を知る／知らないままか。
+     * 「出来事」ではなく「認識の変化」を持たせることで、草案生成時に
+     * 登場人物が知らないはずの情報を口にするのを防ぐ。
+     */
+    knowledge?: string;
+    /**
+     * この章で張る・仄めかす・回収する伏線の計画メモ（自由記述）。
+     * 追跡台帳は Foreshadowing 型の役割で、こちらは生成時に渡す計画。
+     */
+    foreshadowing?: string;
     foreshadowingRefs?: string[]; // 関連伏線IDのリスト
     /**
      * summary を確定した時点の draft のハッシュ。現在の draft のハッシュと一致しなければ

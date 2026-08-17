@@ -14,7 +14,32 @@ export interface ParsedChapter {
   setting?: string;
   mood?: string;
   keyEvents?: string[];
+  /** この章の終わりに誰が何を知る／知らないままか */
+  knowledge?: string;
+  /** この章で張る・仄めかす・回収する伏線 */
+  foreshadowing?: string;
 }
+
+/**
+ * 内部の作業オブジェクトを ParsedChapter へ変換する。
+ * 未出力だった項目は空文字ではなく undefined にして、Chapter に空欄を書き込まないようにする
+ * （旧形式の6項目しか返さないモデルでも、単に項目が付かないだけになる）。
+ */
+const finalizeChapter = (chapter: {
+  id: string;
+  title: string;
+  summary: string;
+  setting: string;
+  mood: string;
+  keyEvents: string[];
+  characters: string[];
+  knowledge: string;
+  foreshadowing: string;
+}): ParsedChapter => ({
+  ...chapter,
+  knowledge: chapter.knowledge || undefined,
+  foreshadowing: chapter.foreshadowing || undefined,
+});
 
 export function parseChapterList(content: string): ParsedChapter[] {
   const newChapters: ParsedChapter[] = [];
@@ -27,6 +52,8 @@ export function parseChapterList(content: string): ParsedChapter[] {
     mood: string;
     keyEvents: string[];
     characters: string[];
+    knowledge: string;
+    foreshadowing: string;
   } | null = null;
 
   // 拡張された章検出パターン
@@ -46,7 +73,9 @@ export function parseChapterList(content: string): ParsedChapter[] {
     setting: [/設定[・・]場所[：:]\s*(.+)/, /舞台[：:]\s*(.+)/, /場所[：:]\s*(.+)/, /設定[：:]\s*(.+)/],
     mood: [/雰囲気[・・]ムード[：:]\s*(.+)/, /ムード[：:]\s*(.+)/, /雰囲気[：:]\s*(.+)/, /トーン[：:]\s*(.+)/],
     keyEvents: [/重要な出来事[：:]\s*(.+)/, /キーイベント[：:]\s*(.+)/, /出来事[：:]\s*(.+)/, /イベント[：:]\s*(.+)/],
-    characters: [/登場キャラクター[：:]\s*(.+)/, /登場人物[：:]\s*(.+)/, /キャラクター[：:]\s*(.+)/, /人物[：:]\s*(.+)/]
+    characters: [/登場キャラクター[：:]\s*(.+)/, /登場人物[：:]\s*(.+)/, /キャラクター[：:]\s*(.+)/, /人物[：:]\s*(.+)/],
+    knowledge: [/知識の変化[：:]\s*(.+)/, /認識の変化[：:]\s*(.+)/, /知る情報[：:]\s*(.+)/],
+    foreshadowing: [/伏線[：:]\s*(.+)/],
   };
 
   for (const line of lines) {
@@ -67,7 +96,7 @@ export function parseChapterList(content: string): ParsedChapter[] {
 
     if (chapterMatch) {
       if (currentChapter) {
-        newChapters.push(currentChapter);
+        newChapters.push(finalizeChapter(currentChapter));
       }
       currentChapter = {
         id: Date.now().toString() + Math.random(),
@@ -77,6 +106,8 @@ export function parseChapterList(content: string): ParsedChapter[] {
         mood: '',
         keyEvents: [] as string[],
         characters: [] as string[],
+        knowledge: '',
+        foreshadowing: '',
       };
     } else if (currentChapter) {
       // 章の詳細情報を解析（複数パターンを試行）
@@ -142,6 +173,31 @@ export function parseChapterList(content: string): ParsedChapter[] {
         }
       }
 
+      // 知識の変化の検出
+      if (!detailFound) {
+        for (const pattern of detailPatterns.knowledge) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            currentChapter.knowledge = match[1].trim();
+            detailFound = true;
+            break;
+          }
+        }
+      }
+
+      // 伏線の検出。パターンが行頭に限定されていないため、
+      // 「重要な出来事: …伏線: …」のような行を横取りしないよう最後に置く
+      if (!detailFound) {
+        for (const pattern of detailPatterns.foreshadowing) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            currentChapter.foreshadowing = match[1].trim();
+            detailFound = true;
+            break;
+          }
+        }
+      }
+
       // 詳細情報が見つからず、概要も空の場合は最初の説明文を概要として使用
       if (!detailFound && !currentChapter.summary &&
         !trimmedLine.startsWith('役割:') &&
@@ -155,7 +211,7 @@ export function parseChapterList(content: string): ParsedChapter[] {
   }
 
   if (currentChapter) {
-    newChapters.push(currentChapter);
+    newChapters.push(finalizeChapter(currentChapter));
   }
 
   return newChapters;

@@ -135,6 +135,7 @@ export async function generatePreemptiveDraft(
     setting: chapterDetails.setting,
     mood: chapterDetails.mood,
     keyEvents: chapterDetails.keyEvents,
+    chapterPlanNotes: chapterDetails.planNotes,
     projectTitle: project.title || UNSET,
     mainGenre: project.mainGenre || UNSET,
     subGenre: project.subGenre || UNSET,

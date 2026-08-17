@@ -52,6 +52,8 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     setting: '',
     mood: '',
     keyEvents: [],
+    knowledge: '',
+    foreshadowing: '',
   });
   const [editFormData, setEditFormData] = useState<ChapterFormData>({
     title: '',
@@ -60,6 +62,8 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     setting: '',
     mood: '',
     keyEvents: [],
+    knowledge: '',
+    foreshadowing: '',
   });
   // 折りたたみ機能の状態管理
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
@@ -200,6 +204,8 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
       setting: formData.setting.trim(),
       mood: formData.mood.trim(),
       keyEvents: formData.keyEvents,
+      knowledge: formData.knowledge.trim(),
+      foreshadowing: formData.foreshadowing.trim(),
     };
 
     updateProject({
@@ -209,17 +215,17 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     // 新規作成時も履歴を保存
     saveChapterHistory(newChapter);
 
-    setFormData({ title: '', summary: '', characters: [], setting: '', mood: '', keyEvents: [] });
+    setFormData({ title: '', summary: '', characters: [], setting: '', mood: '', keyEvents: [], knowledge: '', foreshadowing: '' });
     setShowAddForm(false);
   };
 
   const handleCloseModal = useCallback(() => {
-    setFormData({ title: '', summary: '', characters: [], setting: '', mood: '', keyEvents: [] });
+    setFormData({ title: '', summary: '', characters: [], setting: '', mood: '', keyEvents: [], knowledge: '', foreshadowing: '' });
     setShowAddForm(false);
   }, []);
 
   const handleCloseEditModal = useCallback(() => {
-    setEditFormData({ title: '', summary: '', characters: [], setting: '', mood: '', keyEvents: [] });
+    setEditFormData({ title: '', summary: '', characters: [], setting: '', mood: '', keyEvents: [], knowledge: '', foreshadowing: '' });
     setShowEditForm(false);
     setEditingId(null);
   }, []);
@@ -274,7 +280,7 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
     });
   };
 
-  const handleEditChapter = (chapter: { id: string; title: string; summary: string; characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
+  const handleEditChapter = (chapter: Chapter) => {
     setEditingId(chapter.id);
     setEditFormData({
       title: chapter.title,
@@ -283,6 +289,8 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
       setting: chapter.setting || '',
       mood: chapter.mood || '',
       keyEvents: chapter.keyEvents || [],
+      knowledge: chapter.knowledge || '',
+      foreshadowing: chapter.foreshadowing || '',
     });
     setShowEditForm(true);
   };
@@ -306,6 +314,8 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
       setting: editFormData.setting.trim(),
       mood: editFormData.mood.trim(),
       keyEvents: editFormData.keyEvents,
+      knowledge: editFormData.knowledge.trim(),
+      foreshadowing: editFormData.foreshadowing.trim(),
       // あらすじを書き換えたときだけ、その時点の本文に対して確定したものとして印を付け直す。
       // 雰囲気だけ直した場合に印を更新すると、古いままのあらすじが「最新」に化ける
       ...(nextSummary !== oldChapter?.summary && oldChapter?.draft?.trim()
@@ -484,6 +494,9 @@ export const ChapterStep: React.FC<ChapterStepProps> = ({ onNavigateToStep }) =>
             // 履歴のあらすじは過去の時点のもの。本文はそのまま残るので、
             // 印を引き継ぐと「本文から作られた最新のあらすじ」に化ける
             ...(c.draft?.trim() ? { summarySourceHash: SUMMARY_SOURCE_UNVERIFIED } : {}),
+            // knowledge / foreshadowing はスナップショットに含めていないため復元対象外。
+            // 過去のスナップショットにはそもそも値が無く、復元で undefined を書くと
+            // 現在の計画メモを消してしまうため、意図的に現在値を残す
           }
           : c
       ),

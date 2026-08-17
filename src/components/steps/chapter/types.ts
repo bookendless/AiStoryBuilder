@@ -32,6 +32,10 @@ export interface ChapterFormData {
   setting: string;
   mood: string;
   keyEvents: string[];
+  /** この章の終わりに誰が何を知る／知らないままか */
+  knowledge: string;
+  /** この章で張る・仄めかす・回収する伏線 */
+  foreshadowing: string;
 }
 
 

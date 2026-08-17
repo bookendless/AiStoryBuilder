@@ -30,6 +30,7 @@ export const DRAFT_PROMPTS = {
 設定・場所: {setting}
 雰囲気・ムード: {mood}
 重要な出来事: {keyEvents}
+{chapterPlanNotes}
 
 【プロジェクト情報】
 作品タイトル: {projectTitle}

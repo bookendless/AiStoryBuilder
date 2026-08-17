@@ -101,6 +101,38 @@ export const ChapterFormModal: React.FC<ChapterFormModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                知識の変化
+              </label>
+              <textarea
+                value={formData.knowledge}
+                onChange={(e) => onFormDataChange({ ...formData, knowledge: e.target.value })}
+                placeholder="この章の終わりに誰が何を知り、誰が知らないままかを書きます（例：主人公は父の裏切りを知るが、妹には伏せたまま）"
+                rows={2}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                草案生成時にそのまま渡されます。登場人物が知らないはずの情報を口にするのを防ぎます。
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                伏線
+              </label>
+              <textarea
+                value={formData.foreshadowing}
+                onChange={(e) => onFormDataChange({ ...formData, foreshadowing: e.target.value })}
+                placeholder="この章で張る・仄めかす・回収する伏線（例：回収＝第2章の指輪の出所が判明する）"
+                rows={2}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
+                生成時に渡す計画メモです。回収状況の追跡は伏線トラッカーが担当します。
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
                 設定・場所
               </label>
               <textarea

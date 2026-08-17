@@ -133,6 +133,20 @@ export async function generatePreemptiveChapters(
     projectId: project.id,
     purpose: 'plan',
   });
-  const chapters = parseChapterList(content) as Chapter[];
+  // ParsedChapter は Chapter と形が近いだけで同一ではないため、キャストせず明示的に組み立てる。
+  // タイトルの無い解析結果（見出しだけ拾った等）は章として使えないので落とす
+  const chapters: Chapter[] = parseChapterList(content)
+    .filter(parsed => parsed.title.trim().length > 0)
+    .map(parsed => ({
+      id: parsed.id,
+      title: parsed.title,
+      summary: parsed.summary,
+      characters: parsed.characters,
+      setting: parsed.setting,
+      mood: parsed.mood,
+      keyEvents: parsed.keyEvents,
+      knowledge: parsed.knowledge,
+      foreshadowing: parsed.foreshadowing,
+    }));
   return { kind: 'chapter', chapters };
 }
