@@ -28,6 +28,9 @@ export const formatCharacter = (char: Character): string => {
             : speechStyle
             }`;
     }
+    // 補記（整合性ガードからの注意書きなど）。ここに載せないと、
+    // 「同じ矛盾を繰り返さない」ための記述が次の生成に効かない
+    if (char.notes?.trim()) info += `\n  補記: ${char.notes.trim()}`;
     return info;
 };
 

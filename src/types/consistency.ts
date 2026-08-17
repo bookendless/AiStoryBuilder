@@ -50,6 +50,13 @@ export interface ConsistencyIssue {
     evidence: string;
     /** 修正案（任意） */
     suggestion?: string;
+    /**
+     * 指摘が特定の登場人物・用語に関するものであれば、その種別と名前。
+     * IDではなく名前で受け取るのは、全IDをプロンプトに渡すとコストが増えるため。
+     * 実在確認は resolveIssueTarget で行い、確定できなければ落とす（指摘自体は残す）。
+     */
+    targetType?: 'character' | 'term';
+    targetName?: string;
     status: ConsistencyIssueStatus;
 }
 
@@ -67,5 +74,5 @@ export interface ConsistencyReport {
 /** バリデーション済みだがID・章情報付与前の指摘（scanChapter の戻り値） */
 export type ScannedIssue = Pick<
     ConsistencyIssue,
-    'category' | 'severity' | 'quote' | 'description' | 'evidence' | 'suggestion'
+    'category' | 'severity' | 'quote' | 'description' | 'evidence' | 'suggestion' | 'targetType' | 'targetName'
 >;

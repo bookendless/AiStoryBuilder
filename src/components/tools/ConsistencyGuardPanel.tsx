@@ -9,6 +9,7 @@ import {
     RotateCcw,
     AlertTriangle,
     XCircle,
+    BookPlus,
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { useProject } from '../../contexts/useProject';
@@ -24,6 +25,11 @@ import {
 } from '../../types/consistency';
 import { createConsistencyRunner } from '../../services/consistency/createConsistencyRunner';
 import { scanProject, ConsistencyScanProgress } from '../../services/consistency/scanProject';
+import {
+    resolveIssueTarget,
+    buildConsistencyNote,
+    appendNote,
+} from '../../services/consistency/applyIssueToSettings';
 
 /**
  * ConsistencyGuardPanel - 整合性ガード（設定ドリフト検知）
@@ -170,6 +176,35 @@ export const ConsistencyGuardPanel: React.FC<ConsistencyGuardPanelProps> = ({ is
                 : { ...r, issues: r.issues.map(i => (i.id === issueId ? { ...i, status } : i)) }
         );
         void updateProject({ consistencyReports: reports });
+    };
+
+    /**
+     * 指摘を設定書へ補記する（AI呼び出しなしの定型文）。
+     * その場の修正だけでは次の生成でまた同じ矛盾が出るため、設定書側に確定事項を残す。
+     * 補記先はプロンプトに載る欄（キャラクターの補記／用語の説明）にする。
+     */
+    const handleApplyToSettings = (issue: ConsistencyIssue) => {
+        if (!currentProject) return;
+        const target = resolveIssueTarget(issue, currentProject);
+        if (!target) return;
+
+        const note = buildConsistencyNote(issue);
+        if (target.type === 'character') {
+            void updateProject({
+                characters: currentProject.characters.map(c =>
+                    c.id === target.id ? { ...c, notes: appendNote(c.notes, note) } : c
+                ),
+            });
+        } else {
+            void updateProject({
+                glossary: (currentProject.glossary ?? []).map(g =>
+                    g.id === target.id ? { ...g, definition: appendNote(g.definition, note) } : g
+                ),
+            });
+        }
+
+        setIssueStatus(issue.id, 'resolved');
+        showSuccess(`「${target.name}」の設定に補記し、解決済みにしました`);
     };
 
     const handleCopyQuote = async (quote: string) => {
@@ -414,6 +449,20 @@ export const ConsistencyGuardPanel: React.FC<ConsistencyGuardPanelProps> = ({ is
                                                     <Copy className="h-3.5 w-3.5" />
                                                     <span>引用をコピー</span>
                                                 </button>
+                                                {/* 補記先が設定台帳で確定できたときだけ出す（誤った人物へ書き込むと以降の全生成に効くため） */}
+                                                {issue.status !== 'resolved' &&
+                                                    currentProject &&
+                                                    resolveIssueTarget(issue, currentProject) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleApplyToSettings(issue)}
+                                                            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition-colors"
+                                                            title="この指摘を設定書に補記して、次の生成から同じ矛盾を防ぐ（AI呼び出しなし）"
+                                                        >
+                                                            <BookPlus className="h-3.5 w-3.5" />
+                                                            <span>設定書に補記</span>
+                                                        </button>
+                                                    )}
                                                 {issue.status !== 'resolved' && (
                                                     <button
                                                         type="button"

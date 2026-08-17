@@ -44,6 +44,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
     background: '',
     image: '',
     speechStyle: '',
+    notes: '',
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -63,10 +64,11 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
           background: editingCharacter.background,
           image: editingCharacter.image || '',
           speechStyle: editingCharacter.speechStyle || '',
+          notes: editingCharacter.notes || '',
         });
         setPreviewUrl(editingCharacter.image || '');
       } else {
-        setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '' });
+        setFormData({ name: '', role: '', appearance: '', personality: '', background: '', image: '', speechStyle: '', notes: '' });
         setPreviewUrl('');
       }
       setSelectedFile(null);
@@ -221,6 +223,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
       background: formData.background.trim(),
       image: formData.image,
       speechStyle: formData.speechStyle.trim() || undefined,
+      notes: formData.notes.trim() || undefined,
     };
 
     if (editingCharacter && onUpdate) {
@@ -581,6 +584,22 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                   )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-['Noto_Sans_JP']">
                     💡 この口調設定は、AIアシストでの会話生成や草案作成時に反映されます
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
+                    補記
+                  </label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="設定として確定した事項の覚え書き（例：一人称は「僕」で固定。「俺」は使わない）"
+                    rows={3}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-['Noto_Sans_JP']"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-['Noto_Sans_JP']">
+                    💡 整合性ガードの「設定書に補記」でもここに追記されます。草案生成に渡されるため、不要になった項目は削ってください
                   </p>
                 </div>
               </>
