@@ -22,12 +22,12 @@ export const isOpenAIReasoningModel = (model: string): boolean => {
  * モデルが temperature パラメータを受け付けるか判定する。
  * 非対応モデルに temperature を送ると 400 になるため、リクエストボディから省略する。
  *
- * - Claude: opus 4.7 / 4.8 / 4.9 系、sonnet-5 / fable-5 / mythos-5 系
+ * - Claude: opus 4.7 / 4.8 / 4.9 系、opus-5 / sonnet-5 / fable-5 / mythos-5 系
  * - OpenAI: GPT-5 系および o1 / o3 / o4 系（リーズニングモデル）
  */
 export const modelSupportsTemperature = (model: string): boolean => {
   if (!model) return true;
-  if (/opus-4-[789]|sonnet-5|fable-5|mythos-5/.test(model)) return false;
+  if (/opus-4-[789]|opus-5|sonnet-5|fable-5|mythos-5/.test(model)) return false;
   if (isOpenAIReasoningModel(model)) return false;
   return true;
 };

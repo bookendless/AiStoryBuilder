@@ -1,16 +1,26 @@
 import { AIProvider } from '../../types/ai';
 
 // xAI Grokモデル定義
-// 2026年7月13日時点の公式情報（https://docs.x.ai/developers/models）を反映
+// 2026年8月17日時点の公式情報（https://docs.x.ai/developers/models）を反映
 const GROK_MODELS = [
-    // Grok 4.5 - 最新・最高知能モデル
+    // Grok 4.6 - 最新・最高知能モデル
     {
-        id: 'grok-4.5',
-        name: 'Grok 4.5',
-        description: '2026年7月登場のxAI最新・最高知能モデル。コーディング・エージェント・知識作業向け。推論努力を設定可能。500kトークンコンテキスト。',
+        id: 'grok-4.6',
+        name: 'Grok 4.6',
+        description: 'xAI最新・最高知能かつ最速のモデル。コーディング・チャット・汎用タスク向け。500kトークンコンテキスト。',
         maxTokens: 500000,
         capabilities: ['テキスト', 'ビジョン', '高度推論', 'ツール使用', '構造化出力'],
         recommendedUse: '最高品質の執筆・分析、複雑なエージェントタスク',
+        latencyClass: 'fast' as const,
+    },
+    // Grok 4.5 - 前世代フラッグシップ
+    {
+        id: 'grok-4.5',
+        name: 'Grok 4.5',
+        description: '2026年7月登場。前世代フラッグシップモデル（最新はgrok-4.6）。コーディング・エージェント・知識作業向け。推論努力を設定可能。500kトークンコンテキスト。',
+        maxTokens: 500000,
+        capabilities: ['テキスト', 'ビジョン', '高度推論', 'ツール使用', '構造化出力'],
+        recommendedUse: '高品質の執筆・分析、複雑なエージェントタスク',
         latencyClass: 'fast' as const,
     },
     // Grok 4.3 - フラッグシップ（1Mコンテキスト）
@@ -48,10 +58,10 @@ export const grokProvider: AIProvider = {
     id: 'grok',
     name: 'xAI Grok',
     requiresApiKey: true,
-    description: 'xAIのGrokシリーズ。最新のGrok 4.5を筆頭に、テキスト・画像・動画・音声生成を網羅。',
+    description: 'xAIのGrokシリーズ。最新のGrok 4.6を筆頭に、テキスト・画像・動画・音声生成を網羅。',
     apiDocsUrl: 'https://docs.x.ai/developers/models',
     recommendedUses: [
-        'Grok 4.5による最高知能のチャット・コーディング',
+        'Grok 4.6による最高知能のチャット・コーディング',
         'Grok 4.3 / 4.20 Reasoningによる長文（1Mトークン）処理',
         'Grok 4.20 Non-Reasoningによる低遅延・低コスト処理',
     ],

@@ -1,6 +1,6 @@
 import { AIProvider } from '../../types/ai';
 
-// OpenAIモデル定義（2026年7月13日時点の公式情報を反映）
+// OpenAIモデル定義（2026年8月17日時点の公式情報を反映）
 const OPENAI_MODELS = [
   // --- GPT-5.6 Series (Current Generation, 2026-07-09 GA) ---
   {
@@ -73,7 +73,7 @@ const OPENAI_MODELS = [
   {
     id: 'o4-mini',
     name: 'OpenAI o4-mini',
-    description: '高スループット向け推論特化モデル。o3より高い使用量制限。200kトークンコンテキスト。',
+    description: '【移行推奨】2026年10月23日にスナップショット提供終了予定。gpt-5.6-terraへの移行を推奨。高スループット向け推論特化モデル。200kトークンコンテキスト。',
     maxTokens: 200000,
     capabilities: ['テキスト', '高度推論', 'コード'],
     recommendedUse: '科学・数学・コーディングの高速推論、大量処理',
@@ -82,7 +82,7 @@ const OPENAI_MODELS = [
   {
     id: 'o3',
     name: 'OpenAI o3',
-    description: '推論特化フラッグシップモデル。200kトークンコンテキスト。最大100k出力。',
+    description: '【移行推奨】2026年12月11日にスナップショット提供終了予定。gpt-5.6-solへの移行を推奨。推論特化フラッグシップモデル。200kトークンコンテキスト。最大100k出力。',
     maxTokens: 200000,
     capabilities: ['テキスト', '高度推論', 'コード'],
     recommendedUse: '最高難易度の論理・数学・科学タスク',

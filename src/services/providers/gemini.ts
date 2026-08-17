@@ -1,15 +1,26 @@
 import { AIProvider } from '../../types/ai';
 
-// Geminiモデル定義（2026年7月22日時点の公式情報を反映）
+// Geminiモデル定義（2026年8月17日時点の公式情報を反映）
 const GEMINI_MODELS = [
-  // --- Gemini 3.6 Series (Latest, GA) ---
+  // --- Gemini 3.7 Series (Latest, GA) ---
   {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    description: '2026年7月GA。フロンティア級性能を高速・低コストで持続するエージェント向け最新Flash。コード生成・空間推論に強み。1Mトークン入力/最大65k出力。',
+    id: 'gemini-3.7-flash',
+    name: 'Gemini 3.7 Flash',
+    description: '最新かつ最も高性能なFlashモデル。複雑なコーディング・エージェントワークフロー・信頼性の高いマルチステップ実行向け。1Mトークン入力/最大65k出力。',
     maxTokens: 1048576,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '複雑なコーディングサイクルを伴う高速エージェントループ、エージェント実行タスク',
+    latencyClass: 'fast' as const,
+  },
+
+  // --- Gemini 3.6 Series (Previous-gen, GA) ---
+  {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    description: '2026年7月GA。前世代Flash。速度とマルチモーダル性能のバランスに優れる（最新はgemini-3.7-flash）。1Mトークン入力/最大65k出力。',
+    maxTokens: 1048576,
+    capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
+    recommendedUse: '汎用エージェントタスク、日常的なマルチモーダル処理',
     latencyClass: 'fast' as const,
   },
 
@@ -17,7 +28,7 @@ const GEMINI_MODELS = [
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
-    description: '2026年5月登場、現在GA。エージェント・コーディングでフロンティア級性能を持続する最上位Flash。1Mトークンコンテキスト、最大65k出力。',
+    description: '2026年5月登場。基盤性能を持つレガシーFlash。1Mトークンコンテキスト、最大65k出力。',
     maxTokens: 1048576,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '高速マルチモーダル処理、エージェントワークフロー、コスト効率の高いタスク',

@@ -1,15 +1,24 @@
 import { AIProvider } from '../../types/ai';
 
-// Claudeモデル定義（2026年7月13日時点の公式情報を反映）
+// Claudeモデル定義（2026年8月17日時点の公式情報を反映）
 const CLAUDE_MODELS = [
   // --- Claude 5 Series (Latest) ---
   {
     id: 'claude-fable-5',
     name: 'Claude Fable 5',
-    description: '2026年登場のMythosクラス最上位モデル。最高難易度の推論・長期エージェント作業向け。思考は常時有効。1Mコンテキスト、最大128k出力。単価はOpusより高め（$10/$50）',
+    description: '2026年6月9日GA。長期エージェント作業向けの最上位モデル。思考は常時有効。1Mコンテキスト、最大128k出力。単価はOpus 5より高め（$10/$50）',
     maxTokens: 1000000,
     capabilities: ['テキスト', 'ビジョン', '高度推論', 'エージェント'],
     recommendedUse: '最難関の長編構成・整合性検証、品質最優先の推敲',
+    latencyClass: 'standard' as const,
+  },
+  {
+    id: 'claude-opus-5',
+    name: 'Claude Opus 5',
+    description: '2026年6月9日GA。複雑なエージェントコーディング・エンタープライズ用途向けの中核モデル。1Mコンテキスト、最大128k出力（$5/$25）',
+    maxTokens: 1000000,
+    capabilities: ['テキスト', 'ビジョン', '高度推論', 'エージェント'],
+    recommendedUse: '複雑な分析、長期エージェントタスク、高度な専門領域',
     latencyClass: 'standard' as const,
   },
   {
@@ -95,7 +104,7 @@ export const claudeProvider: AIProvider = {
   id: 'claude',
   name: 'Anthropic Claude',
   requiresApiKey: true,
-  description: 'Claude 5（Fable / Sonnet）と 4.8 / 4.7 / 4.6 / 4.5 ファミリー。長文要約や整合性チェックに強みがあります。',
+  description: 'Claude 5（Fable / Opus / Sonnet）と 4.8 / 4.7 / 4.6 / 4.5 ファミリー。長文要約や整合性チェックに強みがあります。',
   apiDocsUrl: 'https://docs.anthropic.com/en/api/messages',
   recommendedUses: [
     '長文の推敲や構造化された要約',

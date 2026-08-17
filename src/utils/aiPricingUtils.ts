@@ -18,7 +18,7 @@ export type AIProvider = 'openai' | 'claude' | 'gemini' | 'grok' | 'local';
 /**
  * モデルIDのパターン（前方一致・部分一致）と概算単価の対応。
  * 上から順に最初にマッチしたものを採用するため、より限定的なパターンを先に置く。
- * 単価は目安（2026年7月時点の想定値）。
+ * 単価は目安（2026年8月時点の想定値）。
  */
 const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean; price: ModelPrice }>> = {
   openai: [
@@ -45,7 +45,7 @@ const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean;
     { match: m => m.includes('pro'), price: { input: 1.25, output: 10 } },
   ],
   grok: [
-    { match: m => m.includes('grok-4.5'), price: { input: 2, output: 6 } },
+    { match: m => m.includes('grok-4.6') || m.includes('grok-4.5'), price: { input: 2, output: 6 } },
     { match: () => true, price: { input: 1.25, output: 2.5 } },
   ],
   local: [
