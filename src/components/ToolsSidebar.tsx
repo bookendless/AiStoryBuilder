@@ -16,6 +16,7 @@ import {
   Settings,
   ShieldCheck,
   FlaskConical,
+  Gauge,
 } from 'lucide-react';
 import { getAllFeatureFlags, setFeatureEnabled, FEATURE_LABELS, FeatureKey } from '../constants/features';
 import { useProject } from '../contexts/useProject';
@@ -30,6 +31,7 @@ import { ForeshadowingTracker } from './tools/ForeshadowingTracker';
 import { EmotionMapVisualizer } from './tools/EmotionMapVisualizer';
 import { ConsistencyGuardPanel } from './tools/ConsistencyGuardPanel';
 import { WhatIfLabPanel } from './tools/WhatIfLabPanel';
+import { QualityMetricsPanel } from './tools/QualityMetricsPanel';
 import { CharacterAssistantPanel } from './tools/CharacterAssistantPanel';
 import { SynopsisAssistantPanel } from './tools/SynopsisAssistantPanel';
 import { PlotStep1AssistantPanel } from './tools/PlotStep1AssistantPanel';
@@ -119,6 +121,7 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
   const [showEmotionMap, setShowEmotionMap] = useState(false);
   const [showConsistencyGuard, setShowConsistencyGuard] = useState(false);
   const [showWhatIfLab, setShowWhatIfLab] = useState(false);
+  const [showQualityMetrics, setShowQualityMetrics] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showFeatureSettings, setShowFeatureSettings] = useState(false);
   const [featureFlags, setFeatureFlags] = useState(getAllFeatureFlags);
@@ -262,6 +265,14 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       icon: FlaskConical,
       onClick: () => setShowWhatIfLab(true),
       color: 'text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20',
+      available: !!currentProject,
+    },
+    {
+      id: 'qualityMetrics',
+      label: '品質メトリクス',
+      icon: Gauge,
+      onClick: () => setShowQualityMetrics(true),
+      color: 'text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20',
       available: !!currentProject,
     },
   ];
@@ -564,6 +575,11 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       <WhatIfLabPanel
         isOpen={showWhatIfLab}
         onClose={() => setShowWhatIfLab(false)}
+      />
+
+      <QualityMetricsPanel
+        isOpen={showQualityMetrics}
+        onClose={() => setShowQualityMetrics(false)}
       />
 
       <ChatAssistant

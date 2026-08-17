@@ -3,7 +3,7 @@
  */
 
 import { Project } from '../../contexts/ProjectContext';
-import { Character } from '../../types/project/character';
+import { formatCharacter } from '../context/formatCharacter';
 import { chunkProse } from '../import/chunkProse';
 import { fnv1a64 } from './hash';
 import { RagChunk, SourceDoc } from './types';
@@ -15,21 +15,10 @@ import {
 } from './constants';
 
 /**
- * キャラクター情報のプロンプト向け整形（インデックスと強制包含の両方で使う共通形式）。
- * 口調は既存の buildCharacterInfo と同様に100文字へ切り詰める。
+ * キャラクター整形は草案生成の全経路で共通（services/context/formatCharacter.ts）。
+ * 既存の import 元を変えずに済むよう、ここからも再輸出する。
  */
-export const formatCharacter = (char: Character): string => {
-    let info = char.name;
-    if (char.role) info += ` (${char.role})`;
-    if (char.personality) info += `\n  性格: ${char.personality}`;
-    if (char.appearance) info += `\n  外見: ${char.appearance}`;
-    if (char.background) info += `\n  背景: ${char.background}`;
-    if (char.speechStyle) {
-        const speechStyle = char.speechStyle.trim();
-        info += `\n  口調: ${speechStyle.length > 100 ? speechStyle.substring(0, 100) + '...' : speechStyle}`;
-    }
-    return info;
-};
+export { formatCharacter };
 
 const foreshadowingStatusLabel: Record<string, string> = {
     planted: '設置済み・未回収',

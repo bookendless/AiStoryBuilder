@@ -9,10 +9,18 @@
 import { aiService } from '../aiService';
 import { DRAFT_PROMPT_CAP } from '../prompts/draft';
 import { AIRunner } from '../../types/sequel';
-import { Project, Character } from '../../types/project';
+import { Project } from '../../types/project';
 import { Chapter } from '../../types/project/chapter';
 import { PreemptiveDraftResult } from '../../types/preemptive';
 import { getChapterDetails } from '../../utils/chapterUtils';
+import { formatCharacters } from '../context/formatCharacter';
+import { buildPreviousStory } from '../context/buildPreviousStory';
+import {
+  formatRelationships,
+  formatWorldSettings,
+  formatGlossary,
+  formatTimeline,
+} from '../context/formatProjectContext';
 
 interface Options {
   run: AIRunner;
@@ -24,22 +32,6 @@ const UNSET = '未設定';
 /** 最初の未草案章を返す（全章が草案済みなら null） */
 export function findFirstUndraftedChapter(project: Project): Chapter | null {
   return project.chapters.find(c => !c.draft || !c.draft.trim()) ?? null;
-}
-
-function buildProjectCharacters(characters: Character[]): string {
-  return characters
-    .map(char => {
-      let info = `${char.name}`;
-      if (char.role) info += ` (${char.role})`;
-      if (char.personality) info += `\n  性格: ${char.personality}`;
-      if (char.background) info += `\n  背景: ${char.background}`;
-      if (char.speechStyle) {
-        const s = char.speechStyle.trim();
-        info += `\n  口調: ${s.length > 100 ? s.substring(0, 100) + '...' : s}`;
-      }
-      return info;
-    })
-    .join('\n\n');
 }
 
 function buildPlotStructure(plot: Project['plot']): string {
@@ -81,38 +73,29 @@ function buildStyleDetails(project: Project): string {
   return arr.length > 0 ? arr.join('\n') + '\n' : '';
 }
 
-/** 設定資料・用語集・相関図・タイムラインを整形（全コンテキスト含む既定動作） */
+/**
+ * 設定資料・用語集・相関図・タイムラインを整形（全コンテキスト含む既定動作）。
+ *
+ * 整形は草案パネルと共通（services/context/formatProjectContext.ts）。
+ * 以前はここだけ独自実装で、相関図の呼び方（fromCallsTo / toCallsFrom）が落ちていた。
+ *
+ * なお ContextSettings（パネルのON/OFFトグル）と RAG はここでは通さない。
+ * 先回り生成はパネルの状態に依存せず「既定で全部入り」で走るのが仕様
+ * （ユーザーが見ていない裏で、そのときのトグル状態に結果が左右されないようにするため）。
+ */
 function buildContextSections(project: Project): string {
   const sections: string[] = [];
 
-  const relationships = (project.relationships || [])
-    .map(r => {
-      const from = project.characters.find(c => c.id === r.from)?.name || '不明';
-      const to = project.characters.find(c => c.id === r.to)?.name || '不明';
-      return `・${from} → ${to}: ${r.type} (${r.description || ''})`;
-    })
-    .join('\n');
+  const relationships = formatRelationships(project);
   if (relationships) sections.push(`\n\n【キャラクター相関図】\n${relationships}`);
 
-  const worldSettings = (project.worldSettings || [])
-    .map(w => `・${w.title}: ${w.content.substring(0, 100)}...`)
-    .join('\n');
+  const worldSettings = formatWorldSettings(project);
   if (worldSettings) sections.push(`\n\n【設定資料・世界観】\n${worldSettings}`);
 
-  const glossary = (project.glossary || [])
-    .map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`)
-    .join('\n');
+  const glossary = formatGlossary(project);
   if (glossary) sections.push(`\n\n【重要用語集】\n${glossary}`);
 
-  const timeline = [...(project.timeline || [])]
-    .sort((a, b) => a.order - b.order)
-    .map(t => {
-      let entry = `・${t.title}`;
-      if (t.date) entry += ` (${t.date})`;
-      if (t.description) entry += `: ${t.description.substring(0, 100)}...`;
-      return entry;
-    })
-    .join('\n');
+  const timeline = formatTimeline(project);
   if (timeline) sections.push(`\n\n【タイムライン】\n${timeline}`);
 
   return sections.join('');
@@ -130,12 +113,8 @@ export async function generatePreemptiveDraft(
   const targetIndex = project.chapters.findIndex(c => c.id === target.id);
   const chapterDetails = getChapterDetails(target, project.characters);
 
-  // 前章までのあらすじ
-  const previousStory =
-    project.chapters
-      .slice(0, targetIndex)
-      .map((c, i) => `第${i + 1}章「${c.title}」\nあらすじ: ${c.summary || '（あらすじなし）'}`)
-      .join('\n\n') || 'これが最初の章です。';
+  // 前章までのあらすじ（直近ほど厚く、古い章は圧縮・最後はタイトルのみへ）
+  const previousStory = buildPreviousStory(project.chapters, targetIndex) || 'これが最初の章です。';
 
   // 直前章の末尾（接続用、末尾1000文字）
   let previousChapterEnd = '';
@@ -162,7 +141,7 @@ export async function generatePreemptiveDraft(
     targetReader: project.targetReader || UNSET,
     previousStory,
     previousChapterEnd,
-    projectCharacters: `${buildProjectCharacters(project.characters)}${buildContextSections(project)}`,
+    projectCharacters: `${formatCharacters(project.characters)}${buildContextSections(project)}`,
     plotTheme: project.plot?.theme || UNSET,
     plotSetting: project.plot?.setting || UNSET,
     plotStructure: buildPlotStructure(project.plot),

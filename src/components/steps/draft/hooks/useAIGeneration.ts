@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Project, Character } from '../../../../contexts/ProjectContext';
+import { Project } from '../../../../contexts/ProjectContext';
 import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
 import { buildContinueEnhancedPrompt, DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
@@ -10,6 +10,8 @@ import { extractJsonObjectString } from '../../../../utils/aiResponseParser';
 import { normalizeForQuoteMatch, quoteExists } from '../../../../services/quotes/verifyQuote';
 import { ensureIndexFresh, retrieveForDraft, retrieveForContinue, buildDraftContext } from '../../../../services/rag';
 import { getInputCharBudget } from '../../../../services/summarization/tokenBudget';
+import { formatCharacters } from '../../../../services/context/formatCharacter';
+import { buildPreviousStory } from '../../../../services/context/buildPreviousStory';
 
 interface Chapter {
   id: string;
@@ -94,34 +96,6 @@ interface UseAIGenerationReturn {
   handleFixCharacterInconsistencies: () => Promise<void>;
   handleCancelGeneration: () => void;
 }
-
-/**
- * プロンプト用にキャラクター情報を整形する（口調は最大100文字に切り詰め）
- */
-const buildCharacterInfo = (characters: Character[]): string =>
-  characters
-    .map((char) => {
-      let charInfo = `${char.name}`;
-      if (char.role) {
-        charInfo += ` (${char.role})`;
-      }
-      if (char.personality) {
-        charInfo += `\n  性格: ${char.personality}`;
-      }
-      if (char.background) {
-        charInfo += `\n  背景: ${char.background}`;
-      }
-      // 口調設定は簡潔に、かつ安全な表現のみを含める
-      if (char.speechStyle) {
-        const speechStyle = char.speechStyle.trim();
-        const truncatedSpeechStyle = speechStyle.length > 100
-          ? speechStyle.substring(0, 100) + '...'
-          : speechStyle;
-        charInfo += `\n  口調: ${truncatedSpeechStyle}`;
-      }
-      return charInfo;
-    })
-    .join('\n\n');
 
 /**
  * 文体の詳細指示ブロックを構築する。
@@ -239,14 +213,11 @@ export const useAIGeneration = ({
       const chapterDetails = getChapterDetails(currentChapter);
 
       // プロジェクトのキャラクター情報を整理
-      let projectCharacters = buildCharacterInfo(currentProject.characters);
+      let projectCharacters = formatCharacters(currentProject.characters);
 
-      // 前章までのあらすじを取得
+      // 前章までのあらすじを取得（直近ほど厚く、古い章は圧縮・最後はタイトルのみへ）
       const currentChapterIndex = currentProject.chapters.findIndex((c) => c.id === currentChapter.id);
-      let previousStory = currentProject.chapters
-        .slice(0, currentChapterIndex)
-        .map((c, index: number) => `第${index + 1}章「${c.title}」\nあらすじ: ${c.summary || '（あらすじなし）'}`)
-        .join('\n\n');
+      let previousStory = buildPreviousStory(currentProject.chapters, currentChapterIndex);
 
       // 直前の章の末尾を取得（一貫性確保のため）
       let previousChapterEnd = '';
@@ -375,7 +346,7 @@ const response = await aiService.generateContent({
 
     try {
       // プロジェクトのキャラクター情報を整理
-      let projectCharacters = buildCharacterInfo(currentProject.characters);
+      let projectCharacters = formatCharacters(currentProject.characters);
 
       // 設定情報の取得
       let contextInfo = getProjectContextInfo();

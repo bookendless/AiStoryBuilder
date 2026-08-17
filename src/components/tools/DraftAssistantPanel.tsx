@@ -22,6 +22,14 @@ import type { ImprovementLog, ChapterHistoryEntry, HistoryEntryType, WeaknessIte
 import { aiService } from '../../services/aiService';
 import { databaseService } from '../../services/databaseService';
 import { sanitizeInputForPrompt } from '../../utils/securityUtils';
+import {
+    formatRelationships,
+    formatWorldSettings,
+    formatGlossary,
+    formatTimeline,
+} from '../../services/context/formatProjectContext';
+import { clampContextSections } from '../../services/context/clampContextSections';
+import { getInputCharBudget } from '../../services/summarization/tokenBudget';
 import { HISTORY_AUTO_SAVE_DELAY, HISTORY_MAX_ENTRIES, HISTORY_TYPE_LABELS, HISTORY_BADGE_CLASSES } from '../steps/draft/constants';
 import { diffLines, type Change } from 'diff';
 import { Save, RotateCcw, Trash2, Eye } from 'lucide-react';
@@ -163,47 +171,15 @@ export const DraftAssistantPanel: React.FC = () => {
     const getProjectContextInfo = useCallback(() => {
         if (!currentProject) return { worldSettings: '', glossary: '', relationships: '', plotInfo: '', timeline: '' };
 
-        // 世界観設定
-        const worldSettingsText = contextSettings.worldSettings
-            ? (currentProject.worldSettings || []).length > 0
-                ? (currentProject.worldSettings || []).map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n')
-                : '特になし'
-            : '';
+        // 整形は先回り生成と共通（services/context/formatProjectContext.ts）。
+        // トグルOFFは空文字、ONで中身が無ければ「特になし」という従来の区別は維持する
+        const withToggle = (enabled: boolean, text: string): string =>
+            enabled ? (text || '特になし') : '';
 
-        // 用語集
-        const glossaryText = contextSettings.glossary
-            ? (currentProject.glossary || []).length > 0
-                ? (currentProject.glossary || []).map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n')
-                : '特になし'
-            : '';
-
-        // キャラクター相関図
-        const relationshipsText = contextSettings.relationships
-            ? (currentProject.relationships || []).length > 0
-                ? (currentProject.relationships || []).map(r => {
-                    const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
-                    const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
-                    const callNote = (r.fromCallsTo || r.toCallsFrom)
-                        ? ` / 呼び方: ${fromChar}は${toChar}を「${r.fromCallsTo || '未設定'}」、${toChar}は${fromChar}を「${r.toCallsFrom || '未設定'}」と呼ぶ`
-                        : '';
-                    return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})${callNote}`;
-                }).join('\n')
-                : '特になし'
-            : '';
-
-        // タイムライン
-        const timelineText = contextSettings.timeline
-            ? (currentProject.timeline || []).length > 0
-                ? [...(currentProject.timeline || [])]
-                    .sort((a, b) => a.order - b.order)
-                    .map(t => {
-                        let entry = `・${t.title}`;
-                        if (t.date) entry += ` (${t.date})`;
-                        if (t.description) entry += `: ${t.description.substring(0, 100)}...`;
-                        return entry;
-                    }).join('\n')
-                : '特になし'
-            : '';
+        const worldSettingsText = withToggle(contextSettings.worldSettings, formatWorldSettings(currentProject));
+        const glossaryText = withToggle(contextSettings.glossary, formatGlossary(currentProject));
+        const relationshipsText = withToggle(contextSettings.relationships, formatRelationships(currentProject));
+        const timelineText = withToggle(contextSettings.timeline, formatTimeline(currentProject));
 
         // プロット情報（常に含める）
         const plot = currentProject.plot;
@@ -265,34 +241,21 @@ export const DraftAssistantPanel: React.FC = () => {
         };
     }, [currentProject, contextSettings]);
 
-    // コンテキスト文字数計算（モーダル表示用、設定に関係なく全セクションの文字数を返す）
+    /**
+     * コンテキスト文字数計算（モーダル表示用）。
+     *
+     * トグルの状態に関係なく全セクションの文字数を返す。「この設定を含めると
+     * 何文字増えるか」を見てトグルを決める画面なので、OFFのセクションを0にすると
+     * 判断材料が消える（＝getProjectContextInfo からは導出できない）。
+     * 整形自体は共有しているため、表示される増分と実際の増分がずれることはない。
+     */
     const getContextCharCounts = useCallback(() => {
         if (!currentProject) return { glossary: 0, relationships: 0, worldSettings: 0, timeline: 0 };
-
-        const glossaryText = (currentProject.glossary || []).map(g => `・${g.term}: ${g.definition.substring(0, 100)}...`).join('\n');
-        const relationshipsText = (currentProject.relationships || []).map(r => {
-            const fromChar = currentProject.characters.find(c => c.id === r.from)?.name || '不明';
-            const toChar = currentProject.characters.find(c => c.id === r.to)?.name || '不明';
-            const callNote = (r.fromCallsTo || r.toCallsFrom)
-                ? ` / 呼び方: ${fromChar}は${toChar}を「${r.fromCallsTo || '未設定'}」、${toChar}は${fromChar}を「${r.toCallsFrom || '未設定'}」と呼ぶ`
-                : '';
-            return `・${fromChar} → ${toChar}: ${r.type} (${r.description || ''})${callNote}`;
-        }).join('\n');
-        const worldSettingsText = (currentProject.worldSettings || []).map(w => `・${w.title}: ${w.content.substring(0, 100)}...`).join('\n');
-        const timelineText = [...(currentProject.timeline || [])]
-            .sort((a, b) => a.order - b.order)
-            .map(t => {
-                let entry = `・${t.title}`;
-                if (t.date) entry += ` (${t.date})`;
-                if (t.description) entry += `: ${t.description.substring(0, 100)}...`;
-                return entry;
-            }).join('\n');
-
         return {
-            glossary: glossaryText.length,
-            relationships: relationshipsText.length,
-            worldSettings: worldSettingsText.length,
-            timeline: timelineText.length,
+            glossary: formatGlossary(currentProject).length,
+            relationships: formatRelationships(currentProject).length,
+            worldSettings: formatWorldSettings(currentProject).length,
+            timeline: formatTimeline(currentProject).length,
         };
     }, [currentProject]);
 
@@ -351,6 +314,24 @@ export const DraftAssistantPanel: React.FC = () => {
             plotStructure = contextInfo.plotInfo || '未設定';
         }
 
+        // 設定類は全量が連結されるため、プロンプト全体のCAPに当たる前にここで予算内へ収める。
+        // 逐語で入るもの（前章末尾・文体見本・前章あらすじ）は先に差し引く
+        const contextBudget =
+            getInputCharBudget(settings) -
+            previousStory.length -
+            previousChapterEnd.length -
+            (currentProject?.styleSample?.length ?? 0);
+        const clampedContext = clampContextSections(
+            projectCharacters,
+            [
+                { heading: '【キャラクター相関図】', body: contextInfo.relationships },
+                { heading: '【重要用語集】', body: contextInfo.glossary },
+                { heading: '【設定資料・世界観】', body: contextInfo.worldSettings },
+                { heading: '【タイムライン】', body: contextInfo.timeline },
+            ],
+            contextBudget
+        );
+
         const basePrompt = aiService.buildPrompt('draft', 'generateSingle', {
             chapterTitle: currentChapter.title,
             chapterSummary: currentChapter.summary,
@@ -364,7 +345,7 @@ export const DraftAssistantPanel: React.FC = () => {
             targetReader: currentProject?.targetReader || '未設定',
             previousStory: previousStory || 'これが最初の章です。',
             previousChapterEnd: previousChapterEnd ? `\n【直前の章のラストシーン（接続用）】\n以下の文章は、直前の章の終わりの部分です。この流れを汲んで、自然に接続するように新しい章を書き始めてください。\n---\n${previousChapterEnd}\n---` : '',
-            projectCharacters: `${projectCharacters}${contextInfo.relationships ? `\n\n【キャラクター相関図】\n${contextInfo.relationships}` : ''}${contextInfo.worldSettings ? `\n\n【設定資料・世界観】\n${contextInfo.worldSettings}` : ''}${contextInfo.glossary ? `\n\n【重要用語集】\n${contextInfo.glossary}` : ''}${contextInfo.timeline ? `\n\n【タイムライン】\n${contextInfo.timeline}` : ''}`,
+            projectCharacters: clampedContext,
             plotTheme: currentProject?.plot?.theme || '未設定',
             plotSetting: currentProject?.plot?.setting || '未設定',
             plotStructure: plotStructure,
@@ -380,7 +361,7 @@ export const DraftAssistantPanel: React.FC = () => {
         }
 
         return basePrompt;
-    }, [currentProject, useCustomPrompt, customPrompt]);
+    }, [currentProject, useCustomPrompt, customPrompt, settings]);
 
     // 章草案の保存
     const handleSaveChapterDraft = useCallback(async (chapterId: string, content: string) => {
