@@ -1737,6 +1737,10 @@ class AIService {
           promptTokens: response.usage?.promptTokens,
           completionTokens: response.usage?.completionTokens,
           totalTokens: response.usage?.totalTokens,
+          // 按分用。未指定の呼び出しは「未分類」として集計される
+          projectId: request.projectId,
+          purpose: request.purpose,
+          chapterId: request.chapterId,
         })).catch(() => { /* noop */ });
       }
 

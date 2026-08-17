@@ -19,10 +19,15 @@ import {
 } from '../services/writingStatsService';
 import {
   getMonthlySummary,
+  getMonthlyEvents,
   getAvailableMonths,
   currentMonthKey,
+  summarizeByProject,
+  summarizeByPurpose,
   UsageSummary,
+  UsageBreakdownRow,
 } from '../services/aiCostService';
+import { databaseService } from '../services/databaseService';
 import { formatUsd } from '../utils/aiPricingUtils';
 import {
   computeDailyDeltas,
@@ -64,6 +69,10 @@ export const WritingDashboardModal: React.FC<WritingDashboardModalProps> = ({
   const [costSummary, setCostSummary] = useState<UsageSummary | null>(null);
   const [months, setMonths] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey());
+  // コストの内訳軸（モデル別／作品別／工程別）
+  const [costAxis, setCostAxis] = useState<'model' | 'project' | 'purpose'>('model');
+  const [byProject, setByProject] = useState<UsageBreakdownRow[]>([]);
+  const [byPurpose, setByPurpose] = useState<UsageBreakdownRow[]>([]);
 
   const load = useCallback(async () => {
     if (!currentProject) return;
@@ -109,14 +118,28 @@ export const WritingDashboardModal: React.FC<WritingDashboardModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
-    void getMonthlySummary(selectedMonth)
-      .then(summary => {
-        if (!cancelled) setCostSummary(summary);
-      })
-      .catch(error => {
+    void (async () => {
+      try {
+        // 作品別の表示に作品名が要るため、イベントとプロジェクト一覧をまとめて取る
+        const [summary, events, projects] = await Promise.all([
+          getMonthlySummary(selectedMonth),
+          getMonthlyEvents(selectedMonth),
+          databaseService.getAllProjects(),
+        ]);
+        if (cancelled) return;
+        const titles = new Map(projects.map(p => [p.id, p.title]));
+        setCostSummary(summary);
+        setByProject(summarizeByProject(events, titles));
+        setByPurpose(summarizeByPurpose(events));
+      } catch (error) {
         console.error('AIコストサマリーの読み込みに失敗しました:', error);
-        if (!cancelled) setCostSummary(null);
-      });
+        if (!cancelled) {
+          setCostSummary(null);
+          setByProject([]);
+          setByPurpose([]);
+        }
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -388,27 +411,56 @@ export const WritingDashboardModal: React.FC<WritingDashboardModalProps> = ({
                     </div>
                   </div>
                 </div>
+                <div className="flex gap-1 mb-2">
+                  {([
+                    { id: 'model', label: 'モデル別' },
+                    { id: 'project', label: '作品別' },
+                    { id: 'purpose', label: '工程別' },
+                  ] as const).map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setCostAxis(tab.id)}
+                      className={`px-3 py-1 rounded-lg text-xs font-['Noto_Sans_JP'] transition-colors ${costAxis === tab.id
+                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-semibold'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
                   <table className="w-full text-xs font-['Noto_Sans_JP']">
                     <thead>
                       <tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 text-left">
-                        <th className="px-3 py-2 font-medium">モデル</th>
+                        <th className="px-3 py-2 font-medium">
+                          {costAxis === 'model' ? 'モデル' : costAxis === 'project' ? '作品' : '工程'}
+                        </th>
                         <th className="px-3 py-2 font-medium text-right">回数</th>
                         <th className="px-3 py-2 font-medium text-right">トークン</th>
                         <th className="px-3 py-2 font-medium text-right">概算</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {costSummary.rows.map(row => (
-                        <tr key={`${row.provider}:${row.model}`} className="text-gray-800 dark:text-gray-200">
-                          <td className="px-3 py-2">
-                            <span className="text-gray-500 dark:text-gray-400">{row.provider}</span> {row.model}
-                          </td>
-                          <td className="px-3 py-2 text-right">{row.calls.toLocaleString()}</td>
-                          <td className="px-3 py-2 text-right">{row.totalTokens.toLocaleString()}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatUsd(row.cost)}</td>
-                        </tr>
-                      ))}
+                      {costAxis === 'model'
+                        ? costSummary.rows.map(row => (
+                          <tr key={`${row.provider}:${row.model}`} className="text-gray-800 dark:text-gray-200">
+                            <td className="px-3 py-2">
+                              <span className="text-gray-500 dark:text-gray-400">{row.provider}</span> {row.model}
+                            </td>
+                            <td className="px-3 py-2 text-right">{row.calls.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right">{row.totalTokens.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{formatUsd(row.cost)}</td>
+                          </tr>
+                        ))
+                        : (costAxis === 'project' ? byProject : byPurpose).map(row => (
+                          <tr key={row.key} className="text-gray-800 dark:text-gray-200">
+                            <td className="px-3 py-2">{row.label}</td>
+                            <td className="px-3 py-2 text-right">{row.calls.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right">{row.totalTokens.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{formatUsd(row.cost)}</td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
@@ -417,6 +469,12 @@ export const WritingDashboardModal: React.FC<WritingDashboardModalProps> = ({
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 font-['Noto_Sans_JP']">
               ※ 単価は目安です。実際の請求額はプロバイダーの料金体系・為替により異なります。ローカルLLMは無料（$0）です。
             </p>
+            {costAxis !== 'model' && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 font-['Noto_Sans_JP']">
+                ※ 「未分類」は、この機能より前の記録と、作品・工程を渡していない機能からの呼び出しです。
+                合計と内訳の和を合わせるため、除外せずに表示しています。
+              </p>
+            )}
           </div>
 
           <p className="text-xs text-gray-400 dark:text-gray-500 font-['Noto_Sans_JP']">
