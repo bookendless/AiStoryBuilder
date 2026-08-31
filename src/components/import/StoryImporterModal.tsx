@@ -265,6 +265,13 @@ export const StoryImporterModal: React.FC<StoryImporterModalProps> = ({ isOpen, 
                     原文はそのまま保存され、書き換えはされません。
                 </p>
 
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-['Noto_Sans_JP']">
+                        取り込みは、ご自身が権利を持つ原稿に限ってご利用ください。
+                    </p>
+                </div>
+
                 {!isConfigured && (
                     <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                         <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />

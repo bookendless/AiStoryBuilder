@@ -5,9 +5,9 @@
  * ユーザーに不要なファイルを削除してリポジトリサイズを最小化
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+import fs from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
 
 console.log('🔧 リポジトリ最適化を開始します...\n');
 

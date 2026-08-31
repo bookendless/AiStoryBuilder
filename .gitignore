@@ -202,3 +202,6 @@ out/
 # Androidキーストア設定ファイル（機密情報を含む）
 **/keystore.properties
 src-tauri/gen/android/keystore.properties
+
+# 署名用の秘密鍵（updaterのminisign鍵など）
+*.key

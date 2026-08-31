@@ -13,13 +13,13 @@
     "assistant"
   ],
   "author": "AI Story Builder Team",
-  "homepage": "https://github.com/your-username/ai-story-builder#readme",
+  "homepage": "https://github.com/bookendless/aistorybuilder#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/ai-story-builder.git"
+    "url": "https://github.com/bookendless/aistorybuilder.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/ai-story-builder/issues"
+    "url": "https://github.com/bookendless/aistorybuilder/issues"
   },
   "license": "MIT",
   "scripts": {
@@ -38,7 +38,8 @@
     "test:coverage": "vitest run --coverage",
     "setup:local": "node scripts/setup-local.js",
     "check:local": "node scripts/check-local-llm.js",
-    "check:env": "node scripts/check-environment.js",
+    "version:check": "node scripts/bump-version.js",
+    "version:set": "node scripts/bump-version.js --set",
     "quick-start": "node scripts/quick-start.js",
     "optimize-repo": "node scripts/optimize-repo.js",
     "tauri": "tauri",

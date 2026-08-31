@@ -5,8 +5,8 @@
  * AI Story Builder をローカルLLM環境で動作させるための設定を行います
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 console.log('🏠 AI Story Builder ローカル環境セットアップを開始します...\n');
 
@@ -30,6 +30,13 @@ if (!fs.existsSync(envLocalPath)) {
 
 // ローカルLLM設定の確認
 console.log('\n🔍 ローカルLLM設定を確認中...');
+
+// env.local.example が無く .env.local を作成できなかった場合は、ここで読み込むと落ちる
+if (!fs.existsSync(envLocalPath)) {
+  console.log('⚠️  .env.local が無いため設定を確認できません');
+  console.log('   .env.local を作成してから npm run setup:local を再実行してください');
+  process.exit(1);
+}
 
 const envContent = fs.readFileSync(envLocalPath, 'utf8');
 const localEndpointMatch = envContent.match(/VITE_LOCAL_LLM_ENDPOINT=(.+)/);

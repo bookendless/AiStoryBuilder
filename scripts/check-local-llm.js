@@ -5,8 +5,8 @@
  * ローカルLLMサーバーが正常に動作しているかを確認します
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 console.log('🔍 ローカルLLM接続をチェック中...\n');
 
