@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プライバシーポリシー | AI Story Builder</title>
+<meta name="description" content="AI Story Builder のプライバシーポリシー。開発者はいかなる情報も収集しません。">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1d24;
+    --muted: #5a6272;
+    --rule: #dfe3ea;
+    --accent: #2e4a7d;
+    --surface: #f5f7fa;
+    --warn-bg: #fdf6e7;
+    --warn-br: #e0c88a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171d;
+      --fg: #e2e5eb;
+      --muted: #9aa2b2;
+      --rule: #2e3542;
+      --accent: #8fadd9;
+      --surface: #1c202a;
+      --warn-bg: #2c2415;
+      --warn-br: #5c4c22;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+    line-height: 1.9;
+    font-size: 16px;
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 1.8rem; line-height: 1.4; margin: 0 0 .5rem; }
+  h2 {
+    font-size: 1.2rem;
+    margin: 2.75rem 0 .75rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  h3 { font-size: 1rem; margin: 1.75rem 0 .5rem; }
+  p, li { color: var(--fg); }
+  .meta { color: var(--muted); font-size: .875rem; margin: 0 0 2rem; }
+  .lead {
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.25rem;
+    margin: 0 0 2rem;
+  }
+  .lead p { margin: 0 0 .5rem; }
+  .lead p:last-child { margin: 0; }
+  .note {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-br);
+    padding: .9rem 1.1rem;
+    font-size: .92rem;
+    margin: 1rem 0;
+  }
+  .table-wrap { overflow-x: auto; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: .92rem; }
+  th, td { text-align: left; vertical-align: top; padding: .7rem .8rem; border-bottom: 1px solid var(--rule); }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; white-space: nowrap; }
+  code {
+    font-family: ui-monospace, "Consolas", monospace;
+    font-size: .88em;
+    background: var(--surface);
+    padding: .1em .35em;
+    border-radius: 2px;
+  }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  ul { padding-left: 1.3rem; }
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: .85rem;
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>プライバシーポリシー</h1>
+  <p class="meta">AI Story Builder（Windows 版 / Android 版）　最終更新日: 2026年9月1日</p>
+
+  <div class="lead">
+    <p><strong>開発者は、利用者のいかなる情報も収集しません。</strong>本アプリはサーバーを持たず、アカウント登録もありません。</p>
+    <p>作品データは利用者の端末内にのみ保存されます。外部へ送信されるのは、<strong>利用者自身が設定したAIプロバイダーへ、利用者がAI機能を実行したときだけ</strong>です。</p>
+  </div>
+
+  <h2>1. 開発者が収集する情報</h2>
+
+  <p><strong>ありません。</strong>本アプリには以下がいずれも存在しません。</p>
+
+  <ul>
+    <li>開発者が運営するサーバー、およびデータの送信先</li>
+    <li>アカウント登録・ログイン</li>
+    <li>アクセス解析、利用統計、行動トラッキング</li>
+    <li>クラッシュレポートの外部送信</li>
+    <li>広告、および広告事業者向けの識別子</li>
+    <li>起動時の更新確認その他の自動通信</li>
+  </ul>
+
+  <p>本アプリの通信先は、アプリの設定ファイル（Content Security Policy）で技術的に制限されています。許可されているのは、後述するAIプロバイダーのAPIと、利用者の端末内・同一ネットワーク内のローカルLLMサーバーのみです。それ以外の宛先へは、仮にコード上で試みても通信自体が成立しません。</p>
+
+  <h2>2. データの保存場所</h2>
+
+  <p>すべて利用者の端末内です。開発者はこれらにアクセスできません。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>保存先</th><th>内容</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>IndexedDB</code></td>
+          <td>プロジェクト（本文・キャラクター・あらすじ・章立て・用語集など）、バックアップ、章の編集履歴、AIログ、貼り付けた画像、アプリ設定</td>
+        </tr>
+        <tr>
+          <td><code>localStorage</code></td>
+          <td>AI設定（<code>ai-settings</code>）、APIキー暗号化に使う鍵の種（<code>_enc_seed_v1</code>）</td>
+        </tr>
+        <tr>
+          <td><code>secure-settings.json</code></td>
+          <td>暗号化されたAPIキー（デスクトップ版。アプリのローカルデータ領域に保存されます）</td>
+        </tr>
+        <tr>
+          <td>利用者が指定したフォルダ</td>
+          <td>エクスポートしたファイル。保存先は、その都度ネイティブの保存ダイアログで利用者が選びます</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>3. 外部へ送信される情報</h2>
+
+  <p>AI機能を実行したときにのみ、その機能に必要なデータが、<strong>利用者が設定したAIプロバイダー</strong>へ送信されます。送信は利用者の操作が起点であり、バックグラウンドで勝手に送られることはありません。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>機能</th><th>送信されるもの</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>草案生成・続きを書く・章生成</td><td>執筆中の本文、関連するキャラクター設定、あらすじ、章立て、用語集、世界観設定、伏線など</td></tr>
+        <tr><td>リライト・描写強化・AI校正</td><td>対象として選択した本文の範囲、および前後の文脈</td></tr>
+        <tr><td>プロット・キャラクター生成</td><td>入力したテーマ、説明文、既存のプロット・キャラクター設定</td></tr>
+        <tr><td>画像から物語を作る／キャラクター画像の分析</td><td>アップロードした画像</td></tr>
+        <tr><td>音声から物語を作る</td><td>アップロードした音声ファイル</td></tr>
+        <tr><td>小説の取り込み</td><td>取り込んだ小説の本文（分析のため全体が対象になります）</td></tr>
+        <tr><td>憑依チャット・壁打ちチャット</td><td>入力したメッセージ、対象キャラクターの設定、プロジェクトの設定情報</td></tr>
+        <tr><td>関連情報検索（RAG）を有効にした場合</td><td>全体ではなく、端末内の検索で選ばれた関連箇所の抜粋のみ。選定処理は端末内で完結します</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>送信先と、その後の取り扱い</h3>
+
+  <p>送信先は、利用者が設定画面で選んだプロバイダーのAPIに限られます。</p>
+
+  <ul>
+    <li>OpenAI（<code>api.openai.com</code>） — <a href="https://openai.com/policies/privacy-policy/">プライバシーポリシー</a></li>
+    <li>Anthropic（<code>api.anthropic.com</code>） — <a href="https://www.anthropic.com/legal/privacy">プライバシーポリシー</a></li>
+    <li>Google（<code>generativelanguage.googleapis.com</code>） — <a href="https://policies.google.com/privacy">プライバシーポリシー</a></li>
+    <li>xAI（<code>api.x.ai</code>） — <a href="https://x.ai/legal/privacy-policy">プライバシーポリシー</a></li>
+  </ul>
+
+  <p>送信後のデータがどのように保存・利用されるか（学習への利用の有無、保持期間など）は、<strong>各プロバイダーの利用規約およびプライバシーポリシーに従います</strong>。開発者はこれを制御できず、送信済みデータの内容を知ることもできません。機密性の高い原稿を扱う場合は、利用するプロバイダーの規約を事前にご確認ください。</p>
+
+  <h3>ローカルLLMを使う場合</h3>
+
+  <p>Ollama や LM Studio などのローカルLLMを設定した場合、<strong>データは端末外へ出ません。</strong>接続先は、ループバックアドレスおよび私的IPv4アドレス（同一ネットワーク内）に限定して検証されており、この検証を通らない宛先へは送信されません。完全にオフラインで利用したい場合は、この構成を選んでください。</p>
+
+  <h2>4. APIキーの取り扱い</h2>
+
+  <p>入力されたAPIキーは、AES-GCM と PBKDF2 により暗号化して端末内に保存されます。送信時はHTTPヘッダーにのみ載せ、URLには含めません（URLはエラーログに残るためです）。ログやエクスポートに書き出す前には、キーを含む文字列をマスクします。</p>
+
+  <div class="note">
+    <strong>暗号化の限界について。</strong>暗号鍵の種は同じ端末の <code>localStorage</code> に保存されます。したがってこの暗号化は、<strong>ディスクを直接覗かれた場合の対策</strong>であり、その端末上でプログラムを実行できる攻撃者に対する保護にはなりません。OSのキーチェーンとの統合は今後の検討課題です。
+  </div>
+
+  <h2>5. AIログとエクスポート</h2>
+
+  <p>AIへの指示文と応答は「AIログ」として IndexedDB に保存されます。生成結果の確認や、コスト集計に使われます。このログは<strong>データのエクスポートにも含まれます</strong>（APIキー等の秘密情報はマスクされます）。エクスポートしたファイルを第三者に渡す場合は、原稿本文と指示履歴が含まれる点にご注意ください。</p>
+
+  <h2>6. データの削除</h2>
+
+  <ul>
+    <li><strong>プロジェクト単位</strong>: ホーム画面から個別に削除できます。</li>
+    <li><strong>APIキー</strong>: 設定画面でキーを削除できます。</li>
+    <li><strong>すべて削除</strong>: アプリをアンインストールすると、アプリのローカルデータ領域に保存されたデータ（<code>IndexedDB</code>、<code>localStorage</code>、<code>secure-settings.json</code>）は削除されます。利用者自身が任意のフォルダへエクスポートしたファイルは残るため、必要に応じて手動で削除してください。</li>
+  </ul>
+
+  <p>開発者側にデータの控えは存在しないため、開発者に対する削除請求は必要ありません。</p>
+
+  <h2>7. 第三者提供</h2>
+
+  <p>開発者が情報を保有していないため、第三者への提供・販売は行いません。前述のAIプロバイダーへの送信は、利用者自身が設定・実行するものであり、開発者による提供ではありません。</p>
+
+  <h2>8. 本ポリシーの変更</h2>
+
+  <p>機能追加により送信内容が変わる場合は、本ポリシーを更新し、冒頭の最終更新日を改めます。重要な変更はリリースノートでもお知らせします。</p>
+
+  <h2>9. お問い合わせ</h2>
+
+  <p>本ポリシーおよびアプリの動作に関するお問い合わせは、GitHub リポジトリの <a href="https://github.com/bookendless/aistorybuilder/issues">Issues</a> までお願いします。</p>
+
+  <footer>
+    AI Story Builder は MIT ライセンスで公開されているオープンソースソフトウェアです。
+    本ポリシーの記述は <a href="https://github.com/bookendless/aistorybuilder">ソースコード</a>および
+    <a href="https://github.com/bookendless/aistorybuilder/blob/main/SECURITY.md">SECURITY.md</a> で検証できます。
+  </footer>
+
+</main>
+</body>
+</html>
