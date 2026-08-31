@@ -25,8 +25,8 @@
 ### 1. リポジトリのクローンと依存関係のインストール
 
 ```bash
-git clone https://github.com/bookendless/aistorybuilder.git
-cd aistorybuilder
+git clone https://github.com/bookendless/AiStoryBuilder.git
+cd AiStoryBuilder
 npm install
 ```
 

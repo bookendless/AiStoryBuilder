@@ -7,7 +7,7 @@
 **AIを活用した小説創作支援デスクトップアプリケーション**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows&logoColor=white)](https://github.com/bookendless/aistorybuilder/releases)
+[![Windows](https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows&logoColor=white)](https://github.com/bookendless/AiStoryBuilder/releases)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-FEC131?style=flat-square&logo=tauri&logoColor=black)](https://tauri.app)
 
 </div>
@@ -107,7 +107,7 @@ Windowsのデスクトップ環境に加え、Androidでも動作するクロス
 
 ### 一般ユーザーの方
 
-1. [リリースページ](https://github.com/bookendless/aistorybuilder/releases)にアクセスします。
+1. [リリースページ](https://github.com/bookendless/AiStoryBuilder/releases)にアクセスします。
 2. 最新のインストーラー（Windowsの場合は `.exe`）をダウンロードします。
 3. インストーラーを実行し、画面の指示に従ってインストールしてください。
 4. アプリ起動後、設定画面からお好みのAIプロバイダーのAPIキーを入力して利用開始します。
@@ -121,8 +121,8 @@ Windowsのデスクトップ環境に加え、Androidでも動作するクロス
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/bookendless/aistorybuilder.git
-cd aistorybuilder
+git clone https://github.com/bookendless/AiStoryBuilder.git
+cd AiStoryBuilder
 
 # 依存関係のインストール
 npm install

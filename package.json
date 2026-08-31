@@ -13,13 +13,13 @@
     "assistant"
   ],
   "author": "AI Story Builder Team",
-  "homepage": "https://github.com/bookendless/aistorybuilder#readme",
+  "homepage": "https://github.com/bookendless/AiStoryBuilder#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bookendless/aistorybuilder.git"
+    "url": "https://github.com/bookendless/AiStoryBuilder.git"
   },
   "bugs": {
-    "url": "https://github.com/bookendless/aistorybuilder/issues"
+    "url": "https://github.com/bookendless/AiStoryBuilder/issues"
   },
   "license": "MIT",
   "scripts": {

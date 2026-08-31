@@ -135,4 +135,4 @@ A: 一時的な表示不具合の場合、`Ctrl + R` (または `F5`) でアプ�
 
 ### Q: バグを見つけました
 
-A: [GitHub Issues](https://github.com/bookendless/aistorybuilder/issues) にてご報告いただけると助かります。発生手順やエラーメッセージを添えていただけますと、迅速な修正につながります。
+A: [GitHub Issues](https://github.com/bookendless/AiStoryBuilder/issues) にてご報告いただけると助かります。発生手順やエラーメッセージを添えていただけますと、迅速な修正につながります。

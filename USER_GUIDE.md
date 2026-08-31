@@ -35,7 +35,7 @@
 
 ### Windows / Linux
 
-1. [GitHubのリリースページ](https://github.com/bookendless/aistorybuilder/releases)からインストーラーをダウンロードします。
+1. [GitHubのリリースページ](https://github.com/bookendless/AiStoryBuilder/releases)からインストーラーをダウンロードします。
    - Windows: `.exe` または `.msi`
    - Linux: `.AppImage` または `.deb`
 2. インストーラーを実行し、画面の指示に従ってください。

@@ -4,7 +4,7 @@ version = "2.3.0"
 description = "AIを活用した小説創作支援アプリケーション"
 authors = ["AI Story Builder Team"]
 license = "MIT"
-repository = "https://github.com/bookendless/aistorybuilder"
+repository = "https://github.com/bookendless/AiStoryBuilder"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

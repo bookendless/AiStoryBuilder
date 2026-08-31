@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Story Builder</title>
+<meta name="description" content="AIを活用した小説創作支援デスクトップアプリケーション。作品データは端末内にのみ保存されます。">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1d24;
+    --muted: #5a6272;
+    --rule: #dfe3ea;
+    --accent: #2e4a7d;
+    --surface: #f5f7fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171d;
+      --fg: #e2e5eb;
+      --muted: #9aa2b2;
+      --rule: #2e3542;
+      --accent: #8fadd9;
+      --surface: #1c202a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+    line-height: 1.9;
+    font-size: 16px;
+  }
+  main { max-width: 40rem; margin: 0 auto; padding: 4rem 1.25rem 5rem; }
+  h1 { font-size: 2rem; margin: 0 0 .5rem; letter-spacing: .01em; }
+  .tagline { color: var(--muted); margin: 0 0 2.5rem; }
+  h2 {
+    font-size: 1.05rem;
+    margin: 2.5rem 0 .75rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  ul.links { list-style: none; padding: 0; margin: 0; }
+  ul.links li { border-bottom: 1px solid var(--rule); }
+  ul.links a {
+    display: block;
+    padding: .9rem .25rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  ul.links a:hover { text-decoration: underline; }
+  ul.links a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  ul.links .desc {
+    display: block;
+    color: var(--muted);
+    font-weight: 400;
+    font-size: .88rem;
+  }
+  .box {
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.25rem;
+    margin: 0 0 2rem;
+  }
+  .box p { margin: 0; }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: .85rem;
+  }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>AI Story Builder</h1>
+  <p class="tagline">AIを活用した小説創作支援デスクトップアプリケーション（Windows / Android）</p>
+
+  <div class="box">
+    <p>作品データは利用者の端末内にのみ保存されます。開発者はサーバーを持たず、いかなる情報も収集しません。</p>
+  </div>
+
+  <h2>ドキュメント</h2>
+
+  <ul class="links">
+    <li>
+      <a href="./privacy-policy.html">プライバシーポリシー
+        <span class="desc">保存場所、AI機能ごとの送信内容、データの削除方法</span>
+      </a>
+    </li>
+    <li>
+      <a href="https://github.com/bookendless/AiStoryBuilder#readme">README
+        <span class="desc">機能一覧とインストール方法</span>
+      </a>
+    </li>
+    <li>
+      <a href="https://github.com/bookendless/AiStoryBuilder/blob/main/FAQ.md">よくある質問（FAQ）
+        <span class="desc">使い方、AI機能、権利とライセンス</span>
+      </a>
+    </li>
+    <li>
+      <a href="https://github.com/bookendless/AiStoryBuilder/blob/main/SECURITY.md">セキュリティ方針
+        <span class="desc">通信先の制限、APIキーの保護と、その限界</span>
+      </a>
+    </li>
+  </ul>
+
+  <h2>入手</h2>
+
+  <ul class="links">
+    <li>
+      <a href="https://github.com/bookendless/AiStoryBuilder/releases">リリースページ
+        <span class="desc">インストーラーのダウンロード</span>
+      </a>
+    </li>
+    <li>
+      <a href="https://github.com/bookendless/AiStoryBuilder">ソースコード
+        <span class="desc">MIT ライセンス</span>
+      </a>
+    </li>
+  </ul>
+
+  <footer>
+    不具合の報告は <a href="https://github.com/bookendless/AiStoryBuilder/issues">GitHub Issues</a> へお願いします。
+  </footer>
+
+</main>
+</body>
+</html>
