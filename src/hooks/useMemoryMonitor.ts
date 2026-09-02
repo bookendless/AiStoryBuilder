@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatBytes } from '../utils/formatBytes';
 
 // Chrome の performance.memory API の型定義
 interface PerformanceMemory {
@@ -50,15 +51,6 @@ export interface UseMemoryMonitorOptions {
     onCriticalLevel?: (info: MemoryInfo) => void;
     /** 有効かどうか - デフォルト: true */
     enabled?: boolean;
-}
-
-// バイトを人間が読める形式に変換
-function formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 // メモリ情報が利用可能かチェック

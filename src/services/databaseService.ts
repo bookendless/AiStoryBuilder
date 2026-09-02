@@ -5,6 +5,48 @@ import { ChapterHistoryEntry } from '../components/steps/draft/types';
 import { AILogEntry } from '../components/common/types';
 import { DatabaseError, DatabaseValidationError, DatabaseNotFoundError, DatabaseStorageError } from '../types/errors';
 import { RagChunk, RagMeta } from './rag/types';
+import type {
+  ExportDataOptions,
+  ResolvedExportOptions,
+  ImportProgress,
+  ImportSummary,
+  ProjectStorageInfo,
+  StorageBreakdown,
+} from './data-transfer/types';
+import { createEmptyProjectStorageInfo } from './data-transfer/types';
+import { buildExportChunks, resolveExportOptions, type ExportSource } from './data-transfer/exportStream';
+import { importFromChunks, blobToChunks, ImportFormatError } from './data-transfer/streamingImport';
+import { backupByteSize, jsonByteSize } from '../utils/formatBytes';
+
+export type {
+  ExportDataOptions,
+  ImportProgress,
+  ImportSummary,
+  ProjectStorageInfo,
+  StorageBreakdown,
+} from './data-transfer/types';
+
+/** Blobへ書き出す前に文字列としてためる上限（文字数） */
+const EXPORT_BLOB_FLUSH_CHARS = 1_000_000;
+
+/**
+ * 主キーの一覧をページ単位で取得して1件ずつ返す
+ * offset()による走査と違い、件数が増えても素直にページングできる
+ */
+async function* iterateByKeys<T>(
+  table: Table<T, string>,
+  keys: string[],
+  pageSize: number
+): AsyncGenerator<T> {
+  for (let i = 0; i < keys.length; i += pageSize) {
+    const page = await table.bulkGet(keys.slice(i, i + pageSize));
+    for (const item of page) {
+      if (item) yield item;
+    }
+    // 長時間メインスレッドを占有しないように制御を返す
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+}
 
 export interface StoredProject extends Project {
   version: number;
@@ -198,6 +240,9 @@ class DatabaseService {
   private autoBackupTimer: ReturnType<typeof setInterval> | null = null;
   private autoBackupInterval = 300000; // 5分
   private autoBackupGetProject: (() => Project | null) | null = null;
+  // 直近に自動バックアップを作った時点のプロジェクトと更新日時。
+  // プロジェクト切替のたびにタイマーは張り直されるため、インスタンス側で覚えておく
+  private lastAutoBackupStamp: { projectId: string; updatedAt: number } | null = null;
 
   // パフォーマンス最適化のためのキャッシュ
   private projectCache = new DataCache<StoredProject>(50, 5 * 60 * 1000); // 50件、5分
@@ -442,6 +487,14 @@ class DatabaseService {
         .then(m => m.clearProjectTally(id))
         .catch(() => { /* noop */ });
 
+      // 別DB・別ファイルに置かれる自動バックアップと執筆統計も後始末する
+      void import('./autoBackupService')
+        .then(m => m.deleteProjectBackups(id))
+        .catch(() => { /* noop */ });
+      void import('./writingStatsService')
+        .then(m => m.clearProjectStats(id))
+        .catch(() => { /* noop */ });
+
       console.log(`プロジェクト ${id} を削除しました`);
     } catch (error) {
       // 既にカスタムエラーの場合はそのまま再スロー
@@ -656,30 +709,10 @@ class DatabaseService {
     console.log(`バックアップ ${backupId} を削除しました`);
   }
 
-  // 自動バックアップ一括削除
+  // 自動バックアップ一括削除（1プロジェクト分）
   async deleteAutoBackups(projectId: string): Promise<number> {
-    try {
-      // 指定されたプロジェクトの自動バックアップを取得
-      const autoBackups = await db.backups
-        .where('projectId')
-        .equals(projectId)
-        .and(backup => backup.type === 'auto')
-        .toArray();
-
-      if (autoBackups.length === 0) {
-        return 0;
-      }
-
-      // 削除実行
-      const ids = autoBackups.map(b => b.id);
-      await db.backups.bulkDelete(ids);
-
-      console.log(`プロジェクト ${projectId} の自動バックアップを ${ids.length} 件削除しました`);
-      return ids.length;
-    } catch (error) {
-      console.error('自動バックアップ一括削除エラー:', error);
-      throw error;
-    }
+    const { deleted } = await this.deleteAutoBackupsForProjects([projectId]);
+    return deleted;
   }
 
   // 手動バックアップ作成
@@ -822,7 +855,19 @@ class DatabaseService {
           return;
         }
 
+        // 前回のバックアップから内容が変わっていなければ作らない。
+        // 同じ中身のスナップショットが溜まり続けるのがデータ肥大化の主因だった
+        const updatedAtStamp = new Date(currentProject.updatedAt).getTime();
+        if (
+          this.lastAutoBackupStamp?.projectId === currentProject.id &&
+          this.lastAutoBackupStamp.updatedAt === updatedAtStamp
+        ) {
+          console.log('自動バックアップ: 前回から変更がないためスキップしました');
+          return;
+        }
+
         await this.createBackup(currentProject, '自動バックアップ', 'auto');
+        this.lastAutoBackupStamp = { projectId: currentProject.id, updatedAt: updatedAtStamp };
         console.log('自動バックアップ完了');
       } catch (error) {
         console.error('自動バックアップエラー:', error);
@@ -841,176 +886,56 @@ class DatabaseService {
   }
 
 
-  // 型安全な日付変換ヘルパー関数
-  private safeDateConversion(value: unknown): Date {
-    if (value instanceof Date) {
-      return value;
-    }
-    if (typeof value === 'string' || typeof value === 'number') {
-      return new Date(value);
-    }
-    console.warn('無効な日付値:', value);
-    return new Date();
-  }
+  // ==================== データのインポート ====================
 
-  // 型安全な配列チェック
-  private isArray(value: unknown): value is unknown[] {
-    return Array.isArray(value);
-  }
-
-  // 型安全なオブジェクトチェック
-  private isObject(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-  }
-
-  // データインポート
+  /**
+   * JSON文字列からデータを取り込む（後方互換用の薄いラッパー）
+   */
   async importData(jsonData: string): Promise<void> {
+    await this.importFile(new Blob([jsonData], { type: 'application/json' }));
+  }
+
+  /**
+   * ファイルからデータを取り込む
+   *
+   * ファイル全体をJSON.parseせず、チャンクごとに解析してDBへ書き出すため、
+   * サイズ上限がない。進捗はonProgressで受け取れる。
+   */
+  async importFile(
+    file: Blob,
+    onProgress?: (progress: ImportProgress) => void
+  ): Promise<ImportSummary> {
+    this.checkDatabaseHealth();
+
     try {
-      // インポートデータの形状は信頼できないため、各フィールドをunknownとして検証しながら処理する
-      const data = JSON.parse(jsonData) as {
-        version?: unknown;
-        projects?: unknown;
-        backups?: unknown;
-        settings?: unknown;
-        histories?: unknown;
-        aiLogs?: unknown;
-      };
+      const summary = await importFromChunks(blobToChunks(file), {
+        db: {
+          projects: db.projects,
+          backups: db.backups,
+          settings: db.settings,
+          chapterHistories: db.chapterHistories,
+          aiLogs: db.aiLogs,
+          images: db.images,
+        },
+        onProgress,
+        totalBytes: file.size,
+      });
 
-      // バージョン1のデータ（履歴・ログなし）とバージョン2のデータ（履歴・ログあり）に対応
-      const isVersion2 = data.version === 2;
-
-      if (data.projects && this.isArray(data.projects)) {
-        // プロジェクトの日付フィールドを変換
-        const processedProjects = data.projects.map((project: unknown) => {
-          if (!this.isObject(project)) {
-            console.warn('無効なプロジェクトデータ:', project);
-            return null;
-          }
-
-          return {
-            ...project,
-            createdAt: this.safeDateConversion(project.createdAt),
-            updatedAt: this.safeDateConversion(project.updatedAt),
-            // imageBoardのaddedAtも変換
-            imageBoard: this.isArray(project.imageBoard)
-              ? project.imageBoard.map((img: unknown) => {
-                if (!this.isObject(img)) return img;
-                return {
-                  ...img,
-                  addedAt: this.safeDateConversion(img.addedAt)
-                };
-              })
-              : [],
-            // chaptersの日付も変換（もしあれば）
-            chapters: this.isArray(project.chapters)
-              ? project.chapters.map((chapter: unknown) => {
-                if (!this.isObject(chapter)) return chapter;
-                const result: Record<string, unknown> = { ...chapter };
-
-                if (chapter.createdAt) {
-                  result.createdAt = this.safeDateConversion(chapter.createdAt);
-                }
-                if (chapter.updatedAt) {
-                  result.updatedAt = this.safeDateConversion(chapter.updatedAt);
-                }
-
-                return result;
-              })
-              : [],
-          };
-        }).filter((project: unknown): project is StoredProject => project !== null);
-
-        await db.projects.bulkPut(processedProjects);
-      }
-
-      if (data.backups && this.isArray(data.backups)) {
-        // バックアップの日付フィールドを変換（圧縮対応）
-        const processedBackups = data.backups.map((backup: unknown) => {
-          if (!this.isObject(backup)) {
-            console.warn('無効なバックアップデータ:', backup);
-            return null;
-          }
-
-          const backupData = backup.data;
-
-          // 圧縮されている場合は文字列のまま、そうでない場合はオブジェクトとして処理
-          if (typeof backupData === 'string') {
-            // 圧縮データまたはJSON文字列
-            return {
-              ...backup,
-              createdAt: this.safeDateConversion(backup.createdAt),
-              data: backupData,
-              compressed: backup.compressed || false,
-            } as ProjectBackup;
-          } else if (this.isObject(backupData)) {
-            // 古い形式（オブジェクト）の場合はJSON文字列に変換
-            const jsonData = JSON.stringify({
-              ...backupData,
-              createdAt: this.safeDateConversion(backupData.createdAt),
-              updatedAt: this.safeDateConversion(backupData.updatedAt),
-              imageBoard: this.isArray(backupData.imageBoard)
-                ? backupData.imageBoard.map((img: unknown) => {
-                  if (!this.isObject(img)) return img;
-                  return {
-                    ...img,
-                    addedAt: this.safeDateConversion(img.addedAt)
-                  };
-                })
-                : []
-            });
-
-            return {
-              ...backup,
-              createdAt: this.safeDateConversion(backup.createdAt),
-              data: jsonData,
-              compressed: false,
-            } as ProjectBackup;
-          } else {
-            console.warn('無効なバックアップデータのdataフィールド:', backupData);
-            return null;
-          }
-        }).filter((backup): backup is ProjectBackup => backup !== null);
-
-        await db.backups.bulkPut(processedBackups);
-      }
-
-      if (data.settings && this.isArray(data.settings)) {
-        await db.settings.bulkPut(data.settings as AppSettings[]);
-      }
-
-      // バージョン2のデータの場合、履歴とAIログもインポート
-      if (isVersion2) {
-        if (data.histories && this.isArray(data.histories)) {
-          const processedHistories = data.histories.map((history: unknown) => {
-            if (!this.isObject(history)) return null;
-            return {
-              ...history,
-              timestamp: typeof history.timestamp === 'number'
-                ? history.timestamp
-                : Date.now(),
-            };
-          }).filter((h: unknown): h is StoredChapterHistoryEntry => h !== null);
-
-          await db.chapterHistories.bulkPut(processedHistories);
-        }
-
-        if (data.aiLogs && this.isArray(data.aiLogs)) {
-          const processedAILogs = data.aiLogs.map((log: unknown) => {
-            if (!this.isObject(log)) return null;
-            return {
-              ...log,
-              timestamp: this.safeDateConversion(log.timestamp),
-            };
-          }).filter((l: unknown): l is StoredAILogEntry => l !== null);
-
-          await db.aiLogs.bulkPut(processedAILogs);
-        }
-      }
-
-      console.log('データインポート完了');
+      console.log('データインポート完了:', summary.counts);
+      return summary;
     } catch (error) {
       console.error('データインポートエラー:', error);
-      throw new Error('無効なデータ形式です');
+      if (error instanceof ImportFormatError) {
+        throw error;
+      }
+      throw new DatabaseStorageError(
+        `データのインポートに失敗しました: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    } finally {
+      // 取り込んだ内容が古いキャッシュに隠れないよう捨てる
+      this.projectCache.clear();
+      this.settingsCache.clear();
     }
   }
 
@@ -1570,521 +1495,219 @@ class DatabaseService {
     };
   }
 
-  // データエクスポートの拡張（パフォーマンス最適化版）
-  async exportData(options?: {
-    useStreaming?: boolean;
-    returnBlob?: boolean;
-    excludeBackups?: boolean;
-    compress?: boolean;
-    // 軽量エクスポート用オプション（Android向け）
-    currentProjectId?: string; // 指定したプロジェクトのみをエクスポート
-    excludeHistories?: boolean; // 履歴を除外
-    excludeAILogs?: boolean; // AIログを除外
-    excludeImageData?: boolean; // imageBoard内の画像URL/Base64データを除外
-  }): Promise<string | Blob> {
-    const useStreaming = options?.useStreaming ?? false;
-    const returnBlob = options?.returnBlob ?? false;
-    const excludeBackups = options?.excludeBackups ?? false;
-    const compress = options?.compress ?? false;
-    const currentProjectId = options?.currentProjectId;
-    const excludeHistories = options?.excludeHistories ?? false;
-    const excludeAILogs = options?.excludeAILogs ?? false;
-    const excludeImageData = options?.excludeImageData ?? false;
+  // ==================== データのエクスポート ====================
 
-    // データ量を事前にチェック
-    const [projectCount, backupCount, historyCount, aiLogCount] = await Promise.all([
-      currentProjectId ? Promise.resolve(1) : db.projects.count(),
-      excludeBackups ? Promise.resolve(0) : db.backups.count(),
-      excludeHistories ? Promise.resolve(0) : db.chapterHistories.count(),
-      excludeAILogs ? Promise.resolve(0) : db.aiLogs.count(),
-    ]);
+  /**
+   * エクスポート対象データの供給元を作る
+   *
+   * 作品別エクスポートでは backups / 履歴 / AIログ も projectId で絞る。
+   * 従来は projects しか絞れておらず、他作品のデータが丸ごと混入していた。
+   */
+  private createExportSource(options: ResolvedExportOptions): ExportSource {
+    const projectIds = options.projectIds;
 
-    const totalRecords = projectCount + backupCount + historyCount + aiLogCount;
+    return {
+      async *projects() {
+        const keys = (projectIds
+          ? await db.projects.where('id').anyOf(projectIds).primaryKeys()
+          : await db.projects.toCollection().primaryKeys()) as string[];
+        yield* iterateByKeys(db.projects, keys, 20);
+      },
 
-    // 大量データの場合は警告（10,000件以上）
-    if (totalRecords > 10000) {
-      console.warn(`大量のデータをエクスポートします（${totalRecords}件）。処理に時間がかかる可能性があります。`);
-    }
+      async *backups(types) {
+        if (types.length === 0) return;
+        const keys = (projectIds
+          ? await db.backups.where('projectId').anyOf(projectIds).primaryKeys()
+          : await db.backups.toCollection().primaryKeys()) as string[];
+        for await (const backup of iterateByKeys(db.backups, keys, 10)) {
+          if (types.includes(backup.type)) {
+            yield backup;
+          }
+        }
+      },
 
-    // ストリーミング方式（Android環境向けのメモリ効率的な処理）
-    // Android環境では常にストリーミング方式を使用
-    if (useStreaming) {
-      if (returnBlob) {
-        return this.exportDataStreamingAsBlob({
-          excludeBackups,
-          compress,
-          currentProjectId,
-          excludeHistories,
-          excludeAILogs,
-          excludeImageData,
-        });
-      }
-      return this.exportDataStreaming({
-        excludeBackups,
-        currentProjectId,
-        excludeHistories,
-        excludeAILogs,
-        excludeImageData,
-      });
-    }
+      async *histories() {
+        const keys = (projectIds
+          ? await db.chapterHistories.where('projectId').anyOf(projectIds).primaryKeys()
+          : await db.chapterHistories.toCollection().primaryKeys()) as string[];
+        yield* iterateByKeys(db.chapterHistories, keys, 100);
+      },
 
-    // 通常方式（デスクトップ環境向け）
-    // 並列でデータを取得（メモリ使用量に注意）
-    const [projects, backups, settings, histories, aiLogs] = await Promise.all([
-      currentProjectId
-        ? db.projects.where('id').equals(currentProjectId).toArray()
-        : db.projects.toArray(),
-      excludeBackups ? Promise.resolve([]) : db.backups.toArray(),
-      db.settings.toArray(),
-      excludeHistories ? Promise.resolve([]) : db.chapterHistories.toArray(),
-      excludeAILogs ? Promise.resolve([]) : db.aiLogs.toArray(),
-    ]);
+      async *aiLogs() {
+        const keys = (projectIds
+          ? await db.aiLogs.where('projectId').anyOf(projectIds).primaryKeys()
+          : await db.aiLogs.toCollection().primaryKeys()) as string[];
+        yield* iterateByKeys(db.aiLogs, keys, 100);
+      },
 
-    // 画像データを除外する場合、imageBoardからurlを削除
-    const processedProjects = excludeImageData
-      ? projects.map(project => ({
-        ...project,
-        imageBoard: project.imageBoard?.map(img => ({
-          id: img.id,
-          imageId: img.imageId,
-          title: img.title,
-          description: img.description,
-          category: img.category,
-          addedAt: img.addedAt,
-          // urlフィールドは除外（Base64データを削除）
-        })) || [],
-      }))
-      : projects;
+      settings: () => db.settings.toArray(),
 
-    const exportData = {
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      projects: processedProjects,
-      backups,
-      settings,
-      histories,
-      aiLogs,
+      async *images(imageIds) {
+        if (imageIds.length === 0) return;
+        yield* iterateByKeys(db.images, imageIds, 5);
+      },
     };
+  }
 
-    // JSON文字列化（大きなデータの場合は時間がかかる可能性がある）
+  /**
+   * データをエクスポートする
+   *
+   * 返り値は options.returnBlob で切り替わる。Blobを選ぶと巨大なデータでも
+   * JSヒープに全量を載せずに済むため、デスクトップではこちらを使う。
+   */
+  async exportData(options?: ExportDataOptions): Promise<string | Blob> {
+    const resolved = resolveExportOptions(options);
+    const chunks = buildExportChunks(this.createExportSource(resolved), resolved);
+
     try {
-      return JSON.stringify(exportData, null, 2);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('circular')) {
-        throw new Error('循環参照が検出されました。データの構造を確認してください。');
+      if (!resolved.returnBlob) {
+        const parts: string[] = [];
+        for await (const chunk of chunks) {
+          parts.push(chunk);
+        }
+        return parts.join('');
       }
-      // メモリ不足の可能性
+
+      // 文字列のまま連結し続けると数百MBでメモリを使い切るため、
+      // 一定量ごとにBlobへ移してJSヒープの外へ逃がす
+      const blobParts: Blob[] = [];
+      let buffer = '';
+      for await (const chunk of chunks) {
+        buffer += chunk;
+        if (buffer.length >= EXPORT_BLOB_FLUSH_CHARS) {
+          blobParts.push(new Blob([buffer]));
+          buffer = '';
+        }
+      }
+      if (buffer.length > 0) {
+        blobParts.push(new Blob([buffer]));
+      }
+
+      let blob = new Blob(blobParts, { type: 'application/json' });
+      if (resolved.compress) {
+        blob = await this.compressBlob(blob);
+      }
+      return blob;
+    } catch (error) {
       if (error instanceof RangeError) {
-        throw new Error('データが大きすぎてエクスポートできません。データを削減してから再試行してください。');
+        throw new Error('データが大きすぎてエクスポートできません。含める内容を減らすか、作品を分けてエクスポートしてください。');
       }
       throw error;
     }
   }
 
-  // ストリーミング方式でのエクスポート（メモリ効率的 - 完全ストリーミング）
-  private async exportDataStreaming(options?: {
-    excludeBackups?: boolean;
-    currentProjectId?: string;
-    excludeHistories?: boolean;
-    excludeAILogs?: boolean;
-    excludeImageData?: boolean;
-  }): Promise<string> {
-    const CHUNK_SIZE = 10; // 一度に処理するレコード数（Android環境では非常に小さく）
-    const excludeBackups = options?.excludeBackups ?? false;
-    const currentProjectId = options?.currentProjectId;
-    const excludeHistories = options?.excludeHistories ?? false;
-    const excludeAILogs = options?.excludeAILogs ?? false;
-    const excludeImageData = options?.excludeImageData ?? false;
+  /**
+   * プロジェクトごとの容量内訳を求める
+   *
+   * 各テーブルをカーソルで1度ずつ走査して集計するため、
+   * 全レコードを配列に載せずに済む（エクスポート画面の推定サイズ表示に使う）
+   */
+  async getProjectStorageBreakdown(): Promise<StorageBreakdown> {
+    const infoMap = new Map<string, ProjectStorageInfo>();
+    const imageRefs = new Map<string, Set<string>>();
 
-    console.log(`完全ストリーミング方式でエクスポートを開始します... (バックアップ除外: ${excludeBackups}, 現行プロジェクトのみ: ${!!currentProjectId}, 履歴除外: ${excludeHistories}, AIログ除外: ${excludeAILogs}, 画像データ除外: ${excludeImageData})`);
+    await db.projects.each(project => {
+      const info = createEmptyProjectStorageInfo({
+        id: project.id,
+        title: project.title,
+        updatedAt: project.updatedAt instanceof Date ? project.updatedAt : new Date(project.updatedAt),
+      });
+      info.projectBytes = jsonByteSize(project);
+      infoMap.set(project.id, info);
 
-    // 画像データを除外するヘルパー関数
-    const processProjectForExport = (project: StoredProject) => {
-      if (!excludeImageData) return project;
-      return {
-        ...project,
-        imageBoard: project.imageBoard?.map(img => ({
-          id: img.id,
-          imageId: img.imageId,
-          title: img.title,
-          description: img.description,
-          category: img.category,
-          addedAt: img.addedAt,
-          // urlフィールドは除外（Base64データを削除）
-        })) || [],
-      };
-    };
-
-    // JSON文字列を段階的に構築（一度にすべてのデータをメモリに保持しない）
-    let jsonString = '{\n';
-    jsonString += '  "version": 2,\n';
-    jsonString += `  "exportedAt": "${new Date().toISOString()}",\n`;
-
-    // プロジェクトをチャンクで処理してJSON文字列に追加
-    jsonString += '  "projects": [\n';
-
-    if (currentProjectId) {
-      // 現行プロジェクトのみをエクスポート
-      const project = await db.projects.get(currentProjectId);
-      if (project) {
-        const processedProject = processProjectForExport(project);
-        const projectJson = JSON.stringify(processedProject, null, 2);
-        const indentedJson = projectJson.split('\n').map((line, idx) =>
-          idx === 0 ? '      ' + line : '      ' + line
-        ).join('\n');
-        jsonString += indentedJson;
+      for (const image of project.imageBoard ?? []) {
+        if (!image?.imageId) continue;
+        const refs = imageRefs.get(image.imageId) ?? new Set<string>();
+        refs.add(project.id);
+        imageRefs.set(image.imageId, refs);
       }
-    } else {
-      // 全プロジェクトをエクスポート
-      const projectCount = await db.projects.count();
-      let isFirstProject = true;
-      for (let offset = 0; offset < projectCount; offset += CHUNK_SIZE) {
-        const chunk = await db.projects.offset(offset).limit(CHUNK_SIZE).toArray();
+    });
 
-        for (const project of chunk) {
-          if (!isFirstProject) {
-            jsonString += ',\n';
-          }
-          const processedProject = processProjectForExport(project);
-          const projectJson = JSON.stringify(processedProject, null, 2);
-          // インデントを調整（2スペース + 4スペース = 6スペース）
-          const indentedJson = projectJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          jsonString += indentedJson;
-          isFirstProject = false;
-        }
+    let totalAutoBackupCount = 0;
+    let totalAutoBackupBytes = 0;
 
-        // メモリを解放するために少し待機
-        if (offset + CHUNK_SIZE < projectCount) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
+    await db.backups.each(backup => {
+      const size = backupByteSize(backup);
+      if (backup.type === 'auto') {
+        // 削除済みプロジェクトの孤立バックアップも総数には数える
+        totalAutoBackupCount++;
+        totalAutoBackupBytes += size;
       }
-    }
-    jsonString += '\n  ],\n';
-
-    // バックアップをチャンクで処理してJSON文字列に追加（除外されていない場合のみ）
-    if (!excludeBackups) {
-      jsonString += '  "backups": [\n';
-      const backupCount = await db.backups.count();
-      let isFirstBackup = true;
-      for (let offset = 0; offset < backupCount; offset += CHUNK_SIZE) {
-        const chunk = await db.backups.offset(offset).limit(CHUNK_SIZE).toArray();
-
-        for (const backup of chunk) {
-          if (!isFirstBackup) {
-            jsonString += ',\n';
-          }
-          const backupJson = JSON.stringify(backup, null, 2);
-          const indentedJson = backupJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          jsonString += indentedJson;
-          isFirstBackup = false;
-        }
-
-        if (offset + CHUNK_SIZE < backupCount) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
+      const info = infoMap.get(backup.projectId);
+      if (!info) return;
+      if (backup.type === 'auto') {
+        info.autoBackupCount++;
+        info.autoBackupBytes += size;
+      } else {
+        info.manualBackupCount++;
+        info.manualBackupBytes += size;
       }
-      jsonString += '\n  ],\n';
-    } else {
-      jsonString += '  "backups": [],\n';
+    });
+
+    await db.chapterHistories.each(history => {
+      const info = infoMap.get(history.projectId);
+      if (!info) return;
+      info.historyCount++;
+      info.historyBytes += jsonByteSize(history);
+    });
+
+    await db.aiLogs.each(log => {
+      const info = infoMap.get(log.projectId);
+      if (!info) return;
+      info.aiLogCount++;
+      info.aiLogBytes += jsonByteSize(log);
+    });
+
+    if (imageRefs.size > 0) {
+      await db.images.where('id').anyOf([...imageRefs.keys()]).each(image => {
+        const owners = imageRefs.get(image.id);
+        if (!owners) return;
+        for (const projectId of owners) {
+          const info = infoMap.get(projectId);
+          if (!info) continue;
+          info.imageCount++;
+          info.imageBytes += image.compressedSize;
+        }
+      });
     }
 
-    // 設定を取得（通常は少ないので一度に処理）
     const settings = await db.settings.toArray();
-    jsonString += '  "settings": ' + JSON.stringify(settings, null, 2) + ',\n';
 
-    // 履歴をチャンクで処理してJSON文字列に追加
-    if (!excludeHistories) {
-      jsonString += '  "histories": [\n';
-      const historyCount = await db.chapterHistories.count();
-      let isFirstHistory = true;
-      for (let offset = 0; offset < historyCount; offset += CHUNK_SIZE) {
-        const chunk = await db.chapterHistories.offset(offset).limit(CHUNK_SIZE).toArray();
-
-        for (const history of chunk) {
-          if (!isFirstHistory) {
-            jsonString += ',\n';
-          }
-          const historyJson = JSON.stringify(history, null, 2);
-          const indentedJson = historyJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          jsonString += indentedJson;
-          isFirstHistory = false;
-        }
-
-        if (offset + CHUNK_SIZE < historyCount) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-      }
-      jsonString += '\n  ],\n';
-    } else {
-      jsonString += '  "histories": [],\n';
-    }
-
-    // AIログをチャンクで処理してJSON文字列に追加
-    if (!excludeAILogs) {
-      jsonString += '  "aiLogs": [\n';
-      const aiLogCount = await db.aiLogs.count();
-      let isFirstAiLog = true;
-      for (let offset = 0; offset < aiLogCount; offset += CHUNK_SIZE) {
-        const chunk = await db.aiLogs.offset(offset).limit(CHUNK_SIZE).toArray();
-
-        for (const aiLog of chunk) {
-          if (!isFirstAiLog) {
-            jsonString += ',\n';
-          }
-          const aiLogJson = JSON.stringify(aiLog, null, 2);
-          const indentedJson = aiLogJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          jsonString += indentedJson;
-          isFirstAiLog = false;
-        }
-
-        if (offset + CHUNK_SIZE < aiLogCount) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-      }
-      jsonString += '\n  ]\n';
-    } else {
-      jsonString += '  "aiLogs": []\n';
-    }
-
-    // JSONの終了
-    jsonString += '}';
-
-    console.log(`ストリーミングエクスポート完了: ${jsonString.length} 文字`);
-    return jsonString;
+    return {
+      projects: [...infoMap.values()].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()),
+      settingsBytes: jsonByteSize(settings),
+      totalAutoBackupCount,
+      totalAutoBackupBytes,
+    };
   }
 
-  // ストリーミング方式でBlobとしてエクスポート（メモリ効率的 - 大きな文字列を保持しない）
-  private async exportDataStreamingAsBlob(options?: {
-    excludeBackups?: boolean;
-    compress?: boolean;
-    currentProjectId?: string;
-    excludeHistories?: boolean;
-    excludeAILogs?: boolean;
-    excludeImageData?: boolean;
-  }): Promise<Blob> {
-    const CHUNK_SIZE = 5; // 一度に処理するレコード数（Android環境では非常に小さく）
-    const STRING_CHUNK_SIZE = 100 * 1024; // 100KBずつBlobに追加
-    const excludeBackups = options?.excludeBackups ?? false;
-    const compress = options?.compress ?? false;
-    const currentProjectId = options?.currentProjectId;
-    const excludeHistories = options?.excludeHistories ?? false;
-    const excludeAILogs = options?.excludeAILogs ?? false;
-    const excludeImageData = options?.excludeImageData ?? false;
-
-    console.log(`ストリーミングBlob方式でエクスポートを開始します... (バックアップ除外: ${excludeBackups}, 圧縮: ${compress}, 現行プロジェクトのみ: ${!!currentProjectId}, 履歴除外: ${excludeHistories}, AIログ除外: ${excludeAILogs}, 画像データ除外: ${excludeImageData})`);
-
-    // 画像データを除外するヘルパー関数
-    const processProjectForExport = (project: StoredProject) => {
-      if (!excludeImageData) return project;
-      return {
-        ...project,
-        imageBoard: project.imageBoard?.map(img => ({
-          id: img.id,
-          imageId: img.imageId,
-          title: img.title,
-          description: img.description,
-          category: img.category,
-          addedAt: img.addedAt,
-          // urlフィールドは除外（Base64データを削除）
-        })) || [],
-      };
-    };
-
-    // Blobのチャンクを蓄積
-    const blobChunks: BlobPart[] = [];
-    let currentChunk = '';
-
-    // チャンクをBlobに追加するヘルパー関数
-    const flushChunk = () => {
-      if (currentChunk.length > 0) {
-        blobChunks.push(currentChunk);
-        currentChunk = '';
-      }
-    };
-
-    // JSONの開始部分を追加
-    currentChunk += '{\n';
-    currentChunk += '  "version": 2,\n';
-    currentChunk += `  "exportedAt": "${new Date().toISOString()}",\n`;
-
-    // プロジェクトをチャンクで処理してJSON文字列に追加
-    currentChunk += '  "projects": [\n';
-
-    if (currentProjectId) {
-      // 現行プロジェクトのみをエクスポート
-      const project = await db.projects.get(currentProjectId);
-      if (project) {
-        const processedProject = processProjectForExport(project);
-        const projectJson = JSON.stringify(processedProject, null, 2);
-        const indentedJson = projectJson.split('\n').map((line, idx) =>
-          idx === 0 ? '      ' + line : '      ' + line
-        ).join('\n');
-        currentChunk += indentedJson;
-
-        // チャンクが大きくなったらBlobに追加
-        if (currentChunk.length > STRING_CHUNK_SIZE) {
-          flushChunk();
-        }
-      }
-    } else {
-      // 全プロジェクトをエクスポート
-      const projectCount = await db.projects.count();
-      let isFirstProject = true;
-      for (let offset = 0; offset < projectCount; offset += CHUNK_SIZE) {
-        const chunk = await db.projects.offset(offset).limit(CHUNK_SIZE).toArray();
-
-        for (const project of chunk) {
-          if (!isFirstProject) {
-            currentChunk += ',\n';
-          }
-          const processedProject = processProjectForExport(project);
-          const projectJson = JSON.stringify(processedProject, null, 2);
-          const indentedJson = projectJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          currentChunk += indentedJson;
-          isFirstProject = false;
-
-          // チャンクが大きくなったらBlobに追加
-          if (currentChunk.length > STRING_CHUNK_SIZE) {
-            flushChunk();
-          }
-        }
-
-        // メモリを解放するために少し待機
-        if (offset + CHUNK_SIZE < projectCount) {
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-      }
-    }
-    currentChunk += '\n  ],\n';
-
-    // バックアップをチャンクで処理（除外されていない場合のみ）
-    if (!excludeBackups) {
-      currentChunk += '  "backups": [\n';
-      const backupCount = await db.backups.count();
-      let isFirstBackup = true;
-      for (let offset = 0; offset < backupCount; offset += CHUNK_SIZE) {
-        const chunk = await db.backups.offset(offset).limit(CHUNK_SIZE).toArray();
-
-        for (const backup of chunk) {
-          if (!isFirstBackup) {
-            currentChunk += ',\n';
-          }
-          const backupJson = JSON.stringify(backup, null, 2);
-          const indentedJson = backupJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          currentChunk += indentedJson;
-          isFirstBackup = false;
-
-          if (currentChunk.length > STRING_CHUNK_SIZE) {
-            flushChunk();
-          }
-        }
-
-        if (offset + CHUNK_SIZE < backupCount) {
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-      }
-      currentChunk += '\n  ],\n';
-    } else {
-      currentChunk += '  "backups": [],\n';
+  /**
+   * 複数プロジェクトの自動バックアップをまとめて削除する
+   * @param target 対象プロジェクトIDの配列、または 'all'（孤立分も含む全件）
+   */
+  async deleteAutoBackupsForProjects(
+    target: string[] | 'all'
+  ): Promise<{ deleted: number; freedBytes: number }> {
+    const idSet = target === 'all' ? null : new Set(target);
+    if (idSet && idSet.size === 0) {
+      return { deleted: 0, freedBytes: 0 };
     }
 
-    // 設定を取得（通常は少ないので一度に処理）
-    const settings = await db.settings.toArray();
-    currentChunk += '  "settings": ' + JSON.stringify(settings, null, 2) + ',\n';
+    const ids: string[] = [];
+    let freedBytes = 0;
 
-    // 履歴をチャンクで処理
-    if (!excludeHistories) {
-      currentChunk += '  "histories": [\n';
-      const historyCount = await db.chapterHistories.count();
-      let isFirstHistory = true;
-      for (let offset = 0; offset < historyCount; offset += CHUNK_SIZE) {
-        const chunk = await db.chapterHistories.offset(offset).limit(CHUNK_SIZE).toArray();
+    await db.backups.where('type').equals('auto').each(backup => {
+      if (idSet && !idSet.has(backup.projectId)) return;
+      ids.push(backup.id);
+      freedBytes += backupByteSize(backup);
+    });
 
-        for (const history of chunk) {
-          if (!isFirstHistory) {
-            currentChunk += ',\n';
-          }
-          const historyJson = JSON.stringify(history, null, 2);
-          const indentedJson = historyJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          currentChunk += indentedJson;
-          isFirstHistory = false;
-
-          if (currentChunk.length > STRING_CHUNK_SIZE) {
-            flushChunk();
-          }
-        }
-
-        if (offset + CHUNK_SIZE < historyCount) {
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-      }
-      currentChunk += '\n  ],\n';
-    } else {
-      currentChunk += '  "histories": [],\n';
+    for (let i = 0; i < ids.length; i += 500) {
+      await db.backups.bulkDelete(ids.slice(i, i + 500));
     }
 
-    // AIログをチャンクで処理
-    if (!excludeAILogs) {
-      currentChunk += '  "aiLogs": [\n';
-      const aiLogCount = await db.aiLogs.count();
-      let isFirstAiLog = true;
-      for (let offset = 0; offset < aiLogCount; offset += CHUNK_SIZE) {
-        const chunk = await db.aiLogs.offset(offset).limit(CHUNK_SIZE).toArray();
-
-        for (const aiLog of chunk) {
-          if (!isFirstAiLog) {
-            currentChunk += ',\n';
-          }
-          const aiLogJson = JSON.stringify(aiLog, null, 2);
-          const indentedJson = aiLogJson.split('\n').map((line, idx) =>
-            idx === 0 ? '      ' + line : '      ' + line
-          ).join('\n');
-          currentChunk += indentedJson;
-          isFirstAiLog = false;
-
-          if (currentChunk.length > STRING_CHUNK_SIZE) {
-            flushChunk();
-          }
-        }
-
-        if (offset + CHUNK_SIZE < aiLogCount) {
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-      }
-      currentChunk += '\n  ]\n';
-    } else {
-      currentChunk += '  "aiLogs": []\n';
-    }
-
-    // JSONの終了
-    currentChunk += '}';
-    flushChunk(); // 残りのチャンクを追加
-
-    // Blobを作成
-    let blob = new Blob(blobChunks, { type: 'application/json' });
-    console.log(`ストリーミングBlobエクスポート完了: ${blob.size} bytes`);
-
-    // 圧縮が有効な場合、Blobを圧縮
-    if (compress) {
-      blob = await this.compressBlob(blob);
-      console.log(`圧縮後のBlobサイズ: ${blob.size} bytes`);
-    }
-
-    return blob;
+    console.log(`自動バックアップを ${ids.length} 件削除しました`);
+    return { deleted: ids.length, freedBytes };
   }
 
   // Blobをgzip圧縮
@@ -2415,10 +2038,11 @@ class DatabaseService {
       if (compactDatabase) {
         console.log('データベースの再構築を開始します...');
 
-        // すべてのデータをエクスポート（通常方式で文字列として取得）
+        // すべてのデータをエクスポート（文字列として取得）
+        // 画像テーブルはクリアしないので、Base64で二重に持たせない
         const exportDataString = await this.exportData({
-          useStreaming: false,
           returnBlob: false,
+          includeImages: false,
         }) as string;
 
         // すべてのテーブルをクリア

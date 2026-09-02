@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Database, Download, Upload, Trash2, Copy, RotateCcw, HardDrive, Save, Clock, FileText, Eraser, Archive, GitCompare } from 'lucide-react';
+import { Database, Download, Trash2, Copy, RotateCcw, HardDrive, Save, Clock, FileText, Eraser, Archive, GitCompare } from 'lucide-react';
 import { databaseService } from '../services/databaseService';
 import { Project } from '../contexts/ProjectContext';
 import { useProject } from '../contexts/useProject';
@@ -13,11 +13,10 @@ import { ConfirmDialog } from './common/ConfirmDialog';
 import { BackupDescriptionModal } from './steps/draft/BackupDescriptionModal';
 import { ClearAllDataConfirmModal } from './common/ClearAllDataConfirmModal';
 import { SnapshotCompareModal } from './SnapshotCompareModal';
-import { isTauriEnvironment, isAndroidEnvironment } from '../utils/platformUtils';
-
-// インポートはファイル全体をメモリ上で JSON.parse するため、上限を設けないと
-// 巨大ファイルでタブごと落ちる。実プロジェクトのエクスポートは数MB程度。
-const MAX_IMPORT_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+import { DataExportPanel, type DeleteAutoBackupsRequest } from './data-manager/DataExportPanel';
+import { DataImportPanel } from './data-manager/DataImportPanel';
+import type { ImportProgress } from '../services/data-transfer/types';
+import { formatBytes } from '../utils/formatBytes';
 
 interface DataManagerProps {
   isOpen: boolean;
@@ -73,12 +72,16 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     type: 'delete-backup' | 'restore-backup' | 'import-data' |
     'cleanup-localstorage' | 'cleanup-history-date' | 'cleanup-ailog-date' |
     'delete-project-history' | 'delete-project-ailog' | 'delete-auto-backups' |
+    'delete-auto-backups-selected' | 'delete-auto-backups-all' |
     'optimize-database' | 'optimize-database-compact' | 'clear-all-data' | null;
     // バックアップ関連
     backupId?: string;
     backupType?: 'manual' | 'auto';
     backupDescription?: string;
     targetProjectId?: string; // 一括削除用
+    targetProjectIds?: string[]; // 複数プロジェクトの一括削除用
+    targetCount?: number;
+    targetBytes?: number;
     // インポート関連
     importFile?: File;
     // クリーンアップ関連
@@ -97,6 +100,12 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     isOpen: false,
     type: null,
   });
+
+  // インポート進捗（取り込み中のみ値が入る）
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+
+  // エクスポートパネルに容量内訳を取り直させるためのトークン
+  const [panelRefreshToken, setPanelRefreshToken] = useState(0);
 
   // バックアップ説明入力モーダルの状態
   const [backupDescriptionModalOpen, setBackupDescriptionModalOpen] = useState(false);
@@ -401,171 +410,38 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  const handleExportData = async () => {
+  // データが変わったあとに統計・一覧・パネルを取り直す
+  const refreshAfterDataChange = useCallback(async () => {
+    await loadAllProjects();
+    await loadStats();
+    await loadProjectData();
+    if (currentProject) {
+      await loadBackups();
+    }
+    setPanelRefreshToken(token => token + 1);
+  }, [loadAllProjects, loadBackups, loadProjectData, currentProject]);
+
+  const handleRequestDeleteAutoBackups = useCallback((request: DeleteAutoBackupsRequest) => {
+    setConfirmDialogState({
+      isOpen: true,
+      type: request.scope === 'all' ? 'delete-auto-backups-all' : 'delete-auto-backups-selected',
+      targetProjectIds: request.projectIds,
+      targetCount: request.count,
+      targetBytes: request.bytes,
+    });
+  }, []);
+
+  const handleConfirmDeleteAutoBackupsForProjects = async (scope: 'selected' | 'all') => {
     setIsLoading(true);
     try {
-      // Tauri環境かどうかを確認（Tauri 2対応）
-      const isTauri = isTauriEnvironment();
-      const isAndroid = await isAndroidEnvironment();
-
-      // Android環境では軽量エクスポート用のファイル名を使用
-      const fileName = isAndroid
-        ? `story-builder-lightweight-${new Date().toISOString().split('T')[0]}.json`
-        : `story-builder-backup-${new Date().toISOString().split('T')[0]}.json`;
-
-      // エクスポートデータを取得
-      let exportContent: string;
-
-      if (isAndroid) {
-        // Android環境では軽量エクスポート（文字列として取得）
-        // 現行プロジェクトのみ、バックアップ・履歴・AIログ・画像データを除外
-        const exportOptions = {
-          useStreaming: false, // 文字列として取得（Tauriダイアログ用）
-          returnBlob: false,
-          excludeBackups: true, // バックアップを除外
-          compress: false, // 圧縮を無効化
-          currentProjectId: currentProject?.id, // 現行プロジェクトのみ
-          excludeHistories: true, // 履歴を除外
-          excludeAILogs: true, // AIログを除外
-          excludeImageData: true, // 画像データを除外（imageBoard.urlを削除）
-        };
-
-        console.log('Android軽量エクスポートオプション:', exportOptions);
-
-        exportContent = await databaseService.exportData(exportOptions) as string;
-
-        const dataSize = new Blob([exportContent]).size;
-        console.log(`エクスポートデータサイズ: ${dataSize} bytes (${(dataSize / 1024).toFixed(2)} KB)`);
-
-        if (dataSize < 100) {
-          throw new Error('エクスポートするデータが空です。データベースにデータが存在するか確認してください。');
-        }
-      } else {
-        // デスクトップ環境では通常の文字列方式（全データ含む）
-        exportContent = await databaseService.exportData({
-          useStreaming: false,
-          excludeBackups: false,
-          excludeHistories: false,
-          excludeAILogs: false,
-          excludeImageData: false,
-        }) as string;
-
-        // エクスポートデータの検証
-        if (!exportContent || typeof exportContent !== 'string' || exportContent.trim().length === 0) {
-          throw new Error('エクスポートするデータが空です。データベースにデータが存在するか確認してください。');
-        }
-
-        // データサイズの確認（デバッグ用）
-        const dataSize = new Blob([exportContent]).size;
-        console.log(`エクスポートデータサイズ: ${dataSize} bytes (${(dataSize / 1024).toFixed(2)} KB)`);
-
-        if (dataSize < 100) {
-          console.warn('エクスポートデータが異常に小さいです。データが正しく取得できていない可能性があります。');
-        }
-      }
-
-      // Tauri環境での保存処理（ExportStepと同じ方法）
-      // Android/デスクトップ両方でsave()ダイアログを使用
-      if (isTauri) {
-        try {
-          console.log('Tauri保存ダイアログを開きます...');
-          const { save } = await import('@tauri-apps/plugin-dialog');
-          const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-
-          const filePath = await save({
-            title: 'バックアップファイルを保存',
-            defaultPath: fileName,
-            filters: [{
-              name: 'JSON Files',
-              extensions: ['json']
-            }]
-          });
-
-          console.log('選択されたファイルパス:', filePath);
-
-          if (filePath) {
-            console.log('ファイル書き込みを開始します...');
-            console.log('データサイズ:', exportContent.length, '文字');
-            await writeTextFile(filePath, exportContent);
-            console.log('ファイル書き込み完了');
-            showSuccess('ファイルを指定の場所に保存しました', 3000);
-            return;
-          }
-
-          // ユーザーがキャンセルした場合
-          if (filePath === null) {
-            console.log('ユーザーがキャンセルしました');
-            return;
-          }
-        } catch (pluginError) {
-          console.warn('Tauri plugin error, falling back to share/download:', pluginError);
-          // フォールバックに進む
-        }
-      }
-
-      // Share APIを試行（Tauriが失敗した場合、またはブラウザ環境）
-      let exported = false;
-
-      console.log('Share APIを試行します...');
-      console.log('navigator.share:', typeof navigator !== 'undefined' && !!navigator.share);
-
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try {
-          const blob = new Blob([exportContent], { type: 'application/json' });
-          const file = new File([blob], fileName, { type: 'application/json' });
-
-          console.log(`ファイルサイズ: ${blob.size} bytes`);
-          console.log('navigator.canShare:', !!navigator.canShare);
-
-          const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
-          console.log('canShareFiles:', canShareFiles);
-
-          if (canShareFiles) {
-            console.log('ファイル共有をサポートしています。共有メニューを開きます...');
-            await navigator.share({
-              title: isAndroid ? 'データバックアップ（軽量版）' : 'データバックアップ',
-              files: [file]
-            });
-            console.log('Share API成功');
-            showSuccess('共有メニューを開きました。ファイルを保存する場所を選択してください。', 5000);
-            exported = true;
-          } else {
-            console.log('ファイル共有はサポートされていません');
-          }
-        } catch (shareError) {
-          if (shareError instanceof Error && shareError.name === 'AbortError') {
-            console.log('ユーザーが共有をキャンセルしました');
-            return;
-          }
-          console.warn('Share API failed:', shareError);
-        }
-      } else {
-        console.log('Share APIはサポートされていません');
-      }
-
-      // ブラウザダウンロード（最後のフォールバック）
-      if (!exported) {
-        console.log('ブラウザダウンロードにフォールバックします...');
-        const blob = new Blob([exportContent], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 200);
-
-        showSuccess('ダウンロードを開始しました（ダウンロードフォルダを確認してください）', 5000);
-      }
+      const target = scope === 'all' ? 'all' : (confirmDialogState.targetProjectIds ?? []);
+      const { deleted, freedBytes } = await databaseService.deleteAutoBackupsForProjects(target);
+      await refreshAfterDataChange();
+      showSuccess(`${deleted}件の自動バックアップを削除しました（${formatBytes(freedBytes)}を解放）`, 5000);
     } catch (error) {
-      console.error('Export error:', error);
       const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
-      showError(errorInfo.message, 7000, {
-        title: 'エクスポートエラー',
+      showError(errorInfo.message, 5000, {
+        title: errorInfo.title,
         details: errorInfo.details || errorInfo.solution,
       });
     } finally {
@@ -573,49 +449,77 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // ファイルを状態に保存して確認ダイアログを表示
+  const handleImportData = (file: File) => {
+    // ファイルを状態に保存して確認ダイアログを表示する
     setConfirmDialogState({
       isOpen: true,
       type: 'import-data',
       importFile: file,
     });
-
-    // ファイル入力をリセット（確認後に処理される）
-    event.target.value = '';
   };
 
   const handleConfirmImportData = async () => {
-    if (!confirmDialogState.importFile) return;
-
-    // ファイル全体をメモリに読み込んで JSON.parse するため、上限がないと巨大ファイルで
-    // タブごとクラッシュする。読み込む前にサイズで弾く。
-    if (confirmDialogState.importFile.size > MAX_IMPORT_FILE_SIZE) {
-      const limitMB = Math.round(MAX_IMPORT_FILE_SIZE / (1024 * 1024));
-      const actualMB = (confirmDialogState.importFile.size / (1024 * 1024)).toFixed(1);
-      showError(`インポートファイルが大きすぎます（${actualMB}MB）。${limitMB}MB以下のファイルを選択してください。`, 7000, {
-        title: 'インポートエラー',
-      });
-      setConfirmDialogState({ isOpen: false, type: null });
-      return;
-    }
+    const file = confirmDialogState.importFile;
+    if (!file) return;
 
     setIsLoading(true);
+    setImportProgress({
+      bytesRead: 0,
+      totalBytes: file.size,
+      counts: { projects: 0, backups: 0, settings: 0, histories: 0, aiLogs: 0, images: 0 },
+    });
+
     try {
-      const text = await confirmDialogState.importFile.text();
-      await databaseService.importData(text);
-      await loadAllProjects();
-      await loadStats();
-      showSuccess('データをインポートしました', 3000);
+      // 進捗更新で再描画が詰まらないよう、更新頻度を抑える
+      let lastUpdate = 0;
+      const summary = await databaseService.importFile(file, progress => {
+        const now = Date.now();
+        if (now - lastUpdate > 150 || progress.bytesRead === progress.totalBytes) {
+          lastUpdate = now;
+          setImportProgress(progress);
+        }
+      });
+
+      await refreshAfterDataChange();
+
+      const { counts } = summary;
+      const skippedNote = summary.skipped > 0 ? `（形式が不正な ${summary.skipped}件はスキップ）` : '';
+      showSuccess(
+        `インポート完了: 作品 ${counts.projects}件、バックアップ ${counts.backups}件、` +
+        `履歴 ${counts.histories}件、AIログ ${counts.aiLogs}件、画像 ${counts.images}件${skippedNote}`,
+        8000
+      );
     } catch (error) {
       const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
       showError(errorInfo.message, 7000, {
         title: 'インポートエラー',
         details: errorInfo.details || errorInfo.solution,
       });
+    } finally {
+      setIsLoading(false);
+      setImportProgress(null);
+    }
+  };
+
+  // クリーンアップタブからの一括削除。件数と容量を数えてから確認する
+  const handleRequestDeleteAllAutoBackups = async () => {
+    setIsLoading(true);
+    try {
+      const breakdown = await databaseService.getProjectStorageBreakdown();
+      if (breakdown.totalAutoBackupCount === 0) {
+        showSuccess('削除できる自動バックアップはありません', 3000);
+        return;
+      }
+      setConfirmDialogState({
+        isOpen: true,
+        type: 'delete-auto-backups-all',
+        targetProjectIds: [],
+        targetCount: breakdown.totalAutoBackupCount,
+        targetBytes: breakdown.totalAutoBackupBytes,
+      });
+    } catch (error) {
+      const errorInfo = getUserFriendlyError(error instanceof Error ? error : new Error(String(error)));
+      showError(errorInfo.message, 5000, { title: errorInfo.title });
     } finally {
       setIsLoading(false);
     }
@@ -666,6 +570,12 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         break;
       case 'delete-auto-backups':
         await handleConfirmDeleteAutoBackups();
+        break;
+      case 'delete-auto-backups-selected':
+        await handleConfirmDeleteAutoBackupsForProjects('selected');
+        break;
+      case 'delete-auto-backups-all':
+        await handleConfirmDeleteAutoBackupsForProjects('all');
         break;
       case 'import-data':
         await handleConfirmImportData();
@@ -810,6 +720,20 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
           type: 'danger' as const,
           confirmLabel: '削除',
         };
+      case 'delete-auto-backups-selected':
+        return {
+          title: '自動バックアップを削除しますか？',
+          message: `選択した作品の自動バックアップ ${confirmDialogState.targetCount ?? 0}件（約${formatBytes(confirmDialogState.targetBytes ?? 0)}）を削除します。\n手動バックアップは削除されません。\nこの操作は取り消せません。`,
+          type: 'danger' as const,
+          confirmLabel: '削除',
+        };
+      case 'delete-auto-backups-all':
+        return {
+          title: 'すべての自動バックアップを削除しますか？',
+          message: `すべての作品の自動バックアップ ${confirmDialogState.targetCount ?? 0}件（約${formatBytes(confirmDialogState.targetBytes ?? 0)}）を削除します。\n手動バックアップは削除されません。\nこの操作は取り消せません。`,
+          type: 'danger' as const,
+          confirmLabel: '削除',
+        };
       case 'restore-backup':
         return {
           title: 'バックアップから復元しますか？',
@@ -820,7 +744,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
       case 'import-data':
         return {
           title: 'データをインポートしますか？',
-          message: 'データをインポートします。\n既存のデータと重複する場合は上書きされます。',
+          message: 'データをインポートします。\n既存のデータと重複する場合は上書きされます。\n大きなファイルの場合は数分かかることがあります。',
           type: 'warning' as const,
           confirmLabel: 'インポート',
         };
@@ -1473,7 +1397,26 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
-              {/* 4. データベース最適化（フル幅） */}
+              {/* 4. 自動バックアップの一括削除（フル幅） */}
+              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800 mb-4">
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
+                  自動バックアップの一括削除
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
+                  すべての作品の自動バックアップを、作品を開かずにまとめて削除します。手動バックアップは残ります。
+                  作品ごとに選んで削除したい場合は「インポート・エクスポート」タブから行えます。
+                </p>
+                <button
+                  onClick={handleRequestDeleteAllAutoBackups}
+                  disabled={isLoading}
+                  className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-['Noto_Sans_JP']"
+                >
+                  <Trash2 className="h-4 w-4 inline mr-2" />
+                  すべての作品の自動バックアップを削除
+                </button>
+              </div>
+
+              {/* 5. データベース最適化（フル幅） */}
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-3 font-['Noto_Sans_JP']">
                   データベース最適化（VACUUM相当）
@@ -1558,7 +1501,7 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
-              {/* 5. すべての削除（最下部、フル幅） */}
+              {/* 6. すべての削除（最下部、フル幅） */}
               <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
                 <h4 className="font-bold text-red-800 dark:text-red-400 mb-2 font-['Noto_Sans_JP']">
                   危険な操作
@@ -1580,48 +1523,22 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
         )}
 
         {activeTab === 'import-export' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-                データのエクスポート
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
-                すべてのプロジェクトとバックアップをJSONファイルとしてエクスポートします。
-              </p>
-              <button
-                onClick={handleExportData}
-                disabled={isLoading}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
-              >
-                <Download className="h-4 w-4" />
-                <span>データをエクスポート</span>
-              </button>
-            </div>
+          <div className="space-y-8">
+            <DataExportPanel
+              projects={projects}
+              currentProject={currentProject}
+              isBusy={isLoading}
+              setBusy={setIsLoading}
+              refreshToken={panelRefreshToken}
+              onDataChanged={refreshAfterDataChange}
+              onRequestDeleteAutoBackups={handleRequestDeleteAutoBackups}
+            />
 
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 font-['Noto_Sans_JP']">
-                データのインポート
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4 font-['Noto_Sans_JP']">
-                以前にエクスポートしたJSONファイルからデータを復元します。
-              </p>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportData}
-                  disabled={isLoading}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                />
-                <button
-                  disabled={isLoading}
-                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-['Noto_Sans_JP']"
-                >
-                  <Upload className="h-4 w-4" />
-                  <span>ファイルを選択してインポート</span>
-                </button>
-              </div>
-            </div>
+            <DataImportPanel
+              isBusy={isLoading}
+              progress={importProgress}
+              onFileSelected={handleImportData}
+            />
           </div>
         )}
 
@@ -1631,7 +1548,13 @@ export const DataManager: React.FC<DataManagerProps> = ({ isOpen, onClose }) => 
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
               <div className="flex items-center space-x-3">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-                <span className="text-gray-900 dark:text-white font-['Noto_Sans_JP']">処理中...</span>
+                <span className="text-gray-900 dark:text-white font-['Noto_Sans_JP']">
+                  {importProgress
+                    ? `インポート中… ${importProgress.totalBytes
+                      ? Math.min(100, Math.round((importProgress.bytesRead / importProgress.totalBytes) * 100))
+                      : 0}%`
+                    : '処理中...'}
+                </span>
               </div>
             </div>
           </div>

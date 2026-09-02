@@ -191,6 +191,32 @@ export async function listBackups(projectId: string): Promise<BackupEntry[]> {
   }
 }
 
+/**
+ * 指定プロジェクトの自動バックアップをすべて削除する
+ * プロジェクト削除時に呼ばれ、Tauriではファイル、ブラウザではIndexedDBを片付ける
+ */
+export async function deleteProjectBackups(projectId: string): Promise<number> {
+  try {
+    if (isTauri) {
+      const { readDir, remove, BaseDirectory } = await import('@tauri-apps/plugin-fs');
+      const entries = await readDir('backups', { baseDir: BaseDirectory.AppLocalData });
+      const names = entries
+        .filter(e => e.name && e.name.startsWith(`${projectId}_`) && e.name.endsWith('.json'))
+        .map(e => e.name!);
+      for (const name of names) {
+        await remove(`backups/${name}`, { baseDir: BaseDirectory.AppLocalData });
+      }
+      return names.length;
+    }
+
+    return await getDb().backups.where('projectId').equals(projectId).delete();
+  } catch (err) {
+    // バックアップの後始末に失敗してもプロジェクト削除自体は完了している
+    console.warn('自動バックアップの削除に失敗:', err);
+    return 0;
+  }
+}
+
 export function getLastBackupTime(): Date | null {
   return lastBackupTime;
 }

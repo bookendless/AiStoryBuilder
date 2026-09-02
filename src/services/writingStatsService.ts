@@ -109,3 +109,17 @@ export async function getWritingGoal(projectId: string): Promise<WritingGoal> {
 export async function saveWritingGoal(goal: WritingGoal): Promise<void> {
   await getDb().goals.put(goal);
 }
+
+/**
+ * 指定プロジェクトの執筆統計を削除する
+ * プロジェクト削除時に残骸が溜まるのを防ぐ
+ */
+export async function clearProjectStats(projectId: string): Promise<void> {
+  try {
+    const database = getDb();
+    await database.dailyStats.where('projectId').equals(projectId).delete();
+    await database.goals.delete(projectId);
+  } catch (error) {
+    console.warn('執筆統計の削除に失敗:', error);
+  }
+}

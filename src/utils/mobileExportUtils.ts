@@ -107,8 +107,19 @@ export async function exportFile(options: ExportFileOptions): Promise<ExportResu
                         throw new Error('FILE_TOO_LARGE_FOR_MOBILE');
                     }
                     
-                    const arrayBuffer = await blob.arrayBuffer();
-                    await writeFile(filePath, new Uint8Array(arrayBuffer));
+                    // 1回のIPCに数百MBを載せると失敗するため、大きなファイルは追記で分割する
+                    const WRITE_CHUNK_SIZE = 16 * 1024 * 1024;
+                    if (blobSize <= WRITE_CHUNK_SIZE) {
+                        const arrayBuffer = await blob.arrayBuffer();
+                        await writeFile(filePath, new Uint8Array(arrayBuffer));
+                    } else {
+                        for (let offset = 0; offset < blobSize; offset += WRITE_CHUNK_SIZE) {
+                            const part = await blob.slice(offset, offset + WRITE_CHUNK_SIZE).arrayBuffer();
+                            await writeFile(filePath, new Uint8Array(part), offset === 0
+                                ? { create: true }
+                                : { append: true });
+                        }
+                    }
                 }
                 return { success: true, method: 'tauri' };
             }

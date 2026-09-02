@@ -524,6 +524,11 @@ export class DataCache<T> {
     this.cache.delete(key);
   }
 
+  /** 全件破棄する（インポート直後など、内容が総入れ替えになるとき用） */
+  clear(): void {
+    this.cache.clear();
+  }
+
   cleanup(): void {
     const now = Date.now();
     for (const [key, entry] of this.cache.entries()) {

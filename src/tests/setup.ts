@@ -21,7 +21,22 @@ const indexedDB = {
 Object.defineProperty(window, 'indexedDB', {
     value: indexedDB,
     writable: true,
+    // 実DBを使うテストが fake-indexeddb で差し替えられるようにする
+    configurable: true,
 });
+
+// Blob.arrayBuffer のポリフィル
+// jsdom の Blob には arrayBuffer() が無いため、ブラウザ環境に合わせて補う
+if (typeof Blob !== 'undefined' && typeof Blob.prototype.arrayBuffer !== 'function') {
+    Blob.prototype.arrayBuffer = function arrayBuffer(this: Blob): Promise<ArrayBuffer> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as ArrayBuffer);
+            reader.onerror = () => reject(reader.error ?? new Error('Blobの読み込みに失敗しました'));
+            reader.readAsArrayBuffer(this);
+        });
+    };
+}
 
 // MatchMedia のモック（レスポンシブ対応コンポーネント用）
 Object.defineProperty(window, 'matchMedia', {
