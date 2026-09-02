@@ -275,6 +275,8 @@ body {
 /* カスタムスクロールバー */
 ::-webkit-scrollbar {
   width: 6px;
+  /* 横スクロールバーの厚み。未指定だと既定の約15pxが縦書き本文の高さを削る */
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {

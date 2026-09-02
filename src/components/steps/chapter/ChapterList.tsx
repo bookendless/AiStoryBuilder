@@ -1,5 +1,5 @@
 import React, { RefObject, useMemo } from 'react';
-import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles, Scissors, RefreshCw, AlertTriangle } from 'lucide-react';
+import { List, Plus, Edit3, Trash2, ChevronUp, ChevronDown, History, ChevronRight, Search, Sparkles, Scissors, RefreshCw, AlertTriangle, Eye, Anchor } from 'lucide-react';
 import { Chapter } from '../../../contexts/ProjectContext';
 import { useProject } from '../../../contexts/useProject';
 import { EmptyState } from '../../common/EmptyState';
@@ -290,6 +290,36 @@ const ChapterItem = React.memo<ChapterItemProps>(({
               {chapter.summary}
             </p>
 
+            {/* 知識の変化（編集モーダルの入力内容。空白のみの入力は出さない） */}
+            {chapter.knowledge?.trim() && (
+              <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20 px-3 py-2">
+                <div className="flex items-center gap-1.5">
+                  <Eye className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                  <span className="text-xs font-medium text-teal-700 dark:text-teal-300 font-['Noto_Sans_JP']">
+                    知識の変化
+                  </span>
+                </div>
+                <p className="text-sm text-teal-800 dark:text-teal-200 font-['Noto_Sans_JP'] mt-1 whitespace-pre-wrap break-words">
+                  {chapter.knowledge.trim()}
+                </p>
+              </div>
+            )}
+
+            {/* 伏線（計画メモ。回収状況の追跡は伏線トラッカー側） */}
+            {chapter.foreshadowing?.trim() && (
+              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-3 py-2">
+                <div className="flex items-center gap-1.5">
+                  <Anchor className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                  <span className="text-xs font-medium text-purple-700 dark:text-purple-300 font-['Noto_Sans_JP']">
+                    伏線
+                  </span>
+                </div>
+                <p className="text-sm text-purple-800 dark:text-purple-200 font-['Noto_Sans_JP'] mt-1 whitespace-pre-wrap break-words">
+                  {chapter.foreshadowing.trim()}
+                </p>
+              </div>
+            )}
+
             {/* 設定・場所 */}
             {chapter.setting && (
               <div>
@@ -419,6 +449,9 @@ const ChapterItem = React.memo<ChapterItemProps>(({
     prevProps.chapter.summary === nextProps.chapter.summary &&
     prevProps.chapter.setting === nextProps.chapter.setting &&
     prevProps.chapter.mood === nextProps.chapter.mood &&
+    // 展開時に表示する計画メモ。ここを外すと編集モーダルで保存しても古い内容のまま残る
+    prevProps.chapter.knowledge === nextProps.chapter.knowledge &&
+    prevProps.chapter.foreshadowing === nextProps.chapter.foreshadowing &&
     JSON.stringify(prevProps.chapter.characters) === JSON.stringify(nextProps.chapter.characters) &&
     JSON.stringify(prevProps.chapter.keyEvents) === JSON.stringify(nextProps.chapter.keyEvents) &&
     // 本文分割ボタンの表示可否に影響するため、draft の有無も比較する

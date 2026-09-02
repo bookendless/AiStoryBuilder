@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minus, Plus, AlignLeft, AlignJustify, Maximize, Minimize } from 'lucide-react';
+import { Minus, Plus, AlignLeft, AlignJustify, Maximize, Minimize, GripVertical } from 'lucide-react';
 import {
   MODAL_DEFAULT_LINE_HEIGHT,
   MODAL_FONT_SIZE_OPTIONS,
@@ -24,6 +24,12 @@ interface DisplaySettingsPanelProps {
   setIsVerticalWriting: React.Dispatch<React.SetStateAction<boolean>>;
   isZenMode: boolean;
   setIsZenMode: React.Dispatch<React.SetStateAction<boolean>>;
+  /** 見出し部分をドラッグハンドルにする。省略時は移動不可 */
+  onDragHandlePointerDown?: (event: React.PointerEvent) => void;
+  /** ハンドルのダブルクリック（位置リセット用） */
+  onDragHandleDoubleClick?: () => void;
+  /** パネル自体をドラッグ中かどうか（カーソル表示の切り替えに使う） */
+  isPanelDragging?: boolean;
 }
 
 export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
@@ -41,7 +47,11 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
   setIsVerticalWriting,
   isZenMode,
   setIsZenMode,
+  onDragHandlePointerDown,
+  onDragHandleDoubleClick,
+  isPanelDragging = false,
 }) => {
+  const isDraggable = Boolean(onDragHandlePointerDown);
   // スライダーのクリックとドラッグ処理
   const sliderRef = React.useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
@@ -88,12 +98,28 @@ export const DisplaySettingsPanel: React.FC<DisplaySettingsPanelProps> = ({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">表示設定</h4>
-            <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-              執筆エリアの見た目と操作感を調整します。
-            </p>
+        <div
+          className={`flex items-center justify-between ${isDraggable ? `select-none touch-none ${isPanelDragging ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+          onPointerDown={onDragHandlePointerDown}
+          onDoubleClick={onDragHandleDoubleClick && ((event) => {
+            // ハンドル上のボタン（リセット等）の連打では位置を戻さない
+            if ((event.target as HTMLElement).closest('button')) return;
+            onDragHandleDoubleClick();
+          })}
+        >
+          <div
+            className="flex items-start gap-2"
+            title={isDraggable ? 'ドラッグで移動 / ダブルクリックで元の位置に戻す' : undefined}
+          >
+            {isDraggable && (
+              <GripVertical className="h-4 w-4 mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+            )}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white font-['Noto_Sans_JP']">表示設定</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                執筆エリアの見た目と操作感を調整します。
+              </p>
+            </div>
           </div>
           <button
             type="button"

@@ -118,6 +118,8 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({ onNavigateToStep }
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    // データが空のドラッグを中断するエンジン対策（保険）
+    e.dataTransfer.setData('text/plain', String(index));
   }, []);
 
   // ドラッグ中

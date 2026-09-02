@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { getChapterDetails as getChapterDetailsFn } from '../../utils/chapterUtils';
+import { getChapterDetails as getChapterDetailsFn, type ChapterDetailsInput } from '../../utils/chapterUtils';
 import ReactDOM from 'react-dom';
 import { useProject } from '../../contexts/useProject';
-import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save } from 'lucide-react';
+import { PenTool, BookOpen, ChevronDown, ChevronUp, AlignLeft, AlignJustify, Settings, Save, GripHorizontal, Eye, Anchor } from 'lucide-react';
 import { databaseService } from '../../services/databaseService';
 import {
   HISTORY_AUTO_SAVE_DELAY,
@@ -13,9 +13,12 @@ import {
   MODAL_TEXTAREA_DEFAULT_HEIGHT,
   MODAL_TEXTAREA_MAX_HEIGHT,
   MODAL_TEXTAREA_MIN_HEIGHT,
+  DISPLAY_SETTINGS_PANEL_WIDTH,
+  DISPLAY_SETTINGS_POSITION_KEY,
 } from './draft/constants';
 // ワークスペースサイドバーは削除され、AI機能はToolsSidebarに移行
 import { DisplaySettingsPanel } from './draft/DisplaySettingsPanel';
+import { useDraggablePanel } from '../../hooks/useDraggablePanel';
 import { Toast } from './draft/Toast';
 import { BackupDescriptionModal } from './draft/BackupDescriptionModal';
 import { ChapterTabs } from './draft/ChapterTabs';
@@ -120,8 +123,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
     return currentProject.chapters.find(c => c.id === selectedChapter) || null;
   }, [selectedChapter, currentProject]);
 
-  const getChapterDetails = useCallback((chapter: { characters?: string[]; setting?: string; mood?: string; keyEvents?: string[] }) => {
-    if (!currentProject) return { characters: '未設定', setting: '未設定', mood: '未設定', keyEvents: '未設定' };
+  const getChapterDetails = useCallback((chapter: ChapterDetailsInput) => {
+    if (!currentProject) return { characters: '未設定', setting: '未設定', mood: '未設定', keyEvents: '未設定', planNotes: '' };
     return getChapterDetailsFn(chapter, currentProject.characters);
   }, [currentProject]);
 
@@ -133,6 +136,26 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const verticalPreviewRef = useRef<HTMLDivElement | null>(null);
   const displaySettingsRef = useRef<HTMLDivElement | null>(null);
   const settingsBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  // 表示設定パネルはドラッグで移動できる（既定位置は設定ボタンの直下）
+  const {
+    position: displaySettingsPosition,
+    isDragging: isDisplaySettingsDragging,
+    startDrag: startDisplaySettingsDrag,
+    resetPosition: resetDisplaySettingsPosition,
+  } = useDraggablePanel({
+    isOpen: isDisplaySettingsOpen,
+    panelRef: displaySettingsRef,
+    storageKey: DISPLAY_SETTINGS_POSITION_KEY,
+    getDefaultPosition: () => {
+      const button = settingsBtnRef.current;
+      const panel = displaySettingsRef.current;
+      if (!button) return null;
+      const rect = button.getBoundingClientRect();
+      // ボタンの右端に合わせて下に出す
+      return { x: rect.right - (panel?.offsetWidth ?? DISPLAY_SETTINGS_PANEL_WIDTH), y: rect.bottom + 4 };
+    },
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -782,7 +805,16 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
                       </p>
                       {(() => {
                         const chapterDetails = getChapterDetails(currentChapter);
-                        const hasDetails = Object.values(chapterDetails).some(value => value !== '未設定');
+                        const knowledge = currentChapter.knowledge?.trim() || '';
+                        const foreshadowing = currentChapter.foreshadowing?.trim() || '';
+                        // planNotes は空文字なので '未設定' 比較に混ぜない（混ぜると常に true になる）
+                        const hasDetails =
+                          chapterDetails.characters !== '未設定' ||
+                          chapterDetails.setting !== '未設定' ||
+                          chapterDetails.mood !== '未設定' ||
+                          chapterDetails.keyEvents !== '未設定' ||
+                          !!knowledge ||
+                          !!foreshadowing;
                         if (!hasDetails) return null;
                         return (
                           <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
@@ -812,6 +844,39 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
                                 </div>
                               )}
                             </div>
+
+                            {/* 計画メモ（章立ての編集モーダルで入力した内容。草案生成にそのまま渡される） */}
+                            {(knowledge || foreshadowing) && (
+                              <div className="mt-3 space-y-2">
+                                {knowledge && (
+                                  <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20 px-3 py-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <Eye className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                                      <span className="text-xs font-medium text-teal-700 dark:text-teal-300 font-['Noto_Sans_JP']">
+                                        知識の変化
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-teal-800 dark:text-teal-200 font-['Noto_Sans_JP'] mt-1 whitespace-pre-wrap break-words leading-relaxed">
+                                      {knowledge}
+                                    </p>
+                                  </div>
+                                )}
+                                {foreshadowing && (
+                                  <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-3 py-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <Anchor className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                                      {/* 同じ画面の伏線パネル（トラッカー）と区別するため計画メモと明示する */}
+                                      <span className="text-xs font-medium text-purple-700 dark:text-purple-300 font-['Noto_Sans_JP']">
+                                        伏線（計画メモ）
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-purple-800 dark:text-purple-200 font-['Noto_Sans_JP'] mt-1 whitespace-pre-wrap break-words leading-relaxed">
+                                      {foreshadowing}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
@@ -1004,32 +1069,50 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
       {isDisplaySettingsOpen && settingsBtnRef.current && ReactDOM.createPortal(
         <div
           ref={displaySettingsRef}
-          className="fixed z-[200] w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4"
-          style={{
-            top: settingsBtnRef.current.getBoundingClientRect().bottom + 4,
-            right: window.innerWidth - settingsBtnRef.current.getBoundingClientRect().right,
-          }}
-        >
-          <DisplaySettingsPanel
-            mainFontSize={mainFontSize}
-            setMainFontSize={setMainFontSize}
-            mainLineHeight={mainLineHeight}
-            setMainLineHeight={setMainLineHeight}
-            mainTextareaHeight={mainTextareaHeight}
-            adjustMainTextareaHeight={adjustMainTextareaHeight}
-            setMainTextareaHeight={setMainTextareaHeight}
-            handleResetDisplaySettings={() => {
-              setMainFontSize(MODAL_DEFAULT_FONT_SIZE);
-              setMainLineHeight(MODAL_DEFAULT_LINE_HEIGHT);
-              setMainTextareaHeight(MODAL_TEXTAREA_DEFAULT_HEIGHT);
+          className="fixed z-[200] w-80 max-h-[calc(100vh-16px)] flex flex-col overflow-hidden bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700"
+          style={displaySettingsPosition
+            ? { left: displaySettingsPosition.x, top: displaySettingsPosition.y }
+            : {
+              // 実寸計測が終わるまでの初期位置。直後にフックが画面内へ丸める
+              top: settingsBtnRef.current.getBoundingClientRect().bottom + 4,
+              right: window.innerWidth - settingsBtnRef.current.getBoundingClientRect().right,
             }}
-            mainControlButtonBase={mainControlButtonBase}
-            mainControlButtonActive={mainControlButtonActive}
-            isVerticalWriting={isVerticalWriting}
-            setIsVerticalWriting={setIsVerticalWriting}
-            isZenMode={isZenMode}
-            setIsZenMode={setIsZenMode}
-          />
+        >
+          {/* 掴みバー。本文がスクロールしても消えないようスクロール領域の外に置く */}
+          <div
+            className={`shrink-0 flex items-center justify-center px-4 pt-2.5 pb-1 select-none touch-none ${isDisplaySettingsDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            onPointerDown={startDisplaySettingsDrag}
+            onDoubleClick={resetDisplaySettingsPosition}
+            title="ドラッグで移動 / ダブルクリックで元の位置に戻す"
+            aria-hidden="true"
+          >
+            <GripHorizontal className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
+            <DisplaySettingsPanel
+              mainFontSize={mainFontSize}
+              setMainFontSize={setMainFontSize}
+              mainLineHeight={mainLineHeight}
+              setMainLineHeight={setMainLineHeight}
+              mainTextareaHeight={mainTextareaHeight}
+              adjustMainTextareaHeight={adjustMainTextareaHeight}
+              setMainTextareaHeight={setMainTextareaHeight}
+              handleResetDisplaySettings={() => {
+                setMainFontSize(MODAL_DEFAULT_FONT_SIZE);
+                setMainLineHeight(MODAL_DEFAULT_LINE_HEIGHT);
+                setMainTextareaHeight(MODAL_TEXTAREA_DEFAULT_HEIGHT);
+              }}
+              mainControlButtonBase={mainControlButtonBase}
+              mainControlButtonActive={mainControlButtonActive}
+              isVerticalWriting={isVerticalWriting}
+              setIsVerticalWriting={setIsVerticalWriting}
+              isZenMode={isZenMode}
+              setIsZenMode={setIsZenMode}
+              onDragHandlePointerDown={startDisplaySettingsDrag}
+              onDragHandleDoubleClick={resetDisplaySettingsPosition}
+              isPanelDragging={isDisplaySettingsDragging}
+            />
+          </div>
         </div>,
         document.body
       )}

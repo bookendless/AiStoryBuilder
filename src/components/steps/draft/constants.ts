@@ -19,6 +19,11 @@ export const MODAL_LINE_HEIGHT_OPTIONS = [1.4, 1.6, 1.8];
 export const MODAL_DEFAULT_FONT_SIZE = 16;
 export const MODAL_DEFAULT_LINE_HEIGHT = 1.6;
 
+/** 表示設定パネルの幅(px)。Tailwindの w-80 と一致させる */
+export const DISPLAY_SETTINGS_PANEL_WIDTH = 320;
+/** ドラッグで動かした表示設定パネルの位置を保存するキー */
+export const DISPLAY_SETTINGS_POSITION_KEY = 'draft-display-settings-position';
+
 export const HISTORY_STORAGE_PREFIX = 'chapterHistory';
 export const HISTORY_MAX_ENTRIES = 30;
 export const HISTORY_AUTO_SAVE_DELAY = 300000; // 5分

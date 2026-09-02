@@ -236,14 +236,14 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
         <div className={`p-6 space-y-6 ${isZenMode ? 'flex-1 flex flex-col overflow-hidden' : ''}`}>
           {/* メインテキストエリア */}
           <div
-            className={`rounded-lg min-h-[300px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
+            className={`rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${isZenMode ? 'flex-1 flex flex-col min-h-0 border-none rounded-none' : 'min-h-[300px]'}`}
           >
             {selectedChapterId ? (
-              <div className={`p-4 ${isZenMode ? 'flex-1 flex flex-col p-0 bg-transparent' : ''}`}>
+              <div className={`p-4 ${isZenMode ? 'flex-1 flex flex-col min-h-0 p-0 bg-transparent' : ''}`}>
                 <div
-                  className={`bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors duration-200 ${isZenMode ? 'flex-1 flex flex-col border-none rounded-none' : ''}`}
+                  className={`bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors duration-200 ${isZenMode ? 'flex-1 flex flex-col min-h-0 border-none rounded-none' : ''}`}
                 >
-                  <div className={`flex ${isZenMode ? 'flex-1' : ''}`}>
+                  <div className={`flex ${isZenMode ? 'flex-1 min-h-0 min-w-0 relative' : ''}`}>
                     {isVerticalWriting ? (
                       // 縦書きモード: 従来のtextareaを使用
                       <textarea
@@ -251,11 +251,12 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
                         value={draft}
                         onChange={(e) => onDraftChange(e.target.value)}
                         placeholder="ここに草案を執筆してください..."
-                        className={`flex-1 px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none font-serif-jp text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${isZenMode ? 'h-full' : ''}`}
+                        className={`px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 border-0 bg-transparent focus:outline-none resize-none font-serif-jp text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${isZenMode ? 'absolute inset-0' : 'flex-1'}`}
                         style={{
                           fontSize: mainFontSize,
                           lineHeight: mainLineHeight,
-                          height: isZenMode ? '100%' : `min(${mainTextareaHeight}px, 80vh)`,
+                          height: isZenMode ? undefined : `min(${mainTextareaHeight}px, 80vh)`,
+                          maxHeight: '100%',
                           writingMode: 'vertical-rl',
                           textOrientation: 'upright',
                           letterSpacing: '0.05em',
@@ -326,7 +327,7 @@ export const MainEditor = forwardRef<MainEditorHandle, MainEditorProps>(({
         </div>
 
         {/* フッター（禅モード時は簡易表示） */}
-        <div className={`border-t border-gray-200 dark:border-gray-700 px-4 py-3 sm:px-6 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-900/30 ${isZenMode ? 'bg-gray-900/90 text-white border-none' : ''}`}>
+        <div className={`border-t border-gray-200 dark:border-gray-700 px-4 py-3 sm:px-6 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-900/30 ${isZenMode ? 'shrink-0 bg-gray-900/90 text-white border-none' : ''}`}>
           <div className="flex flex-col gap-1">
             <div className={`text-sm font-['Noto_Sans_JP'] ${isZenMode ? 'text-gray-300' : 'text-gray-600 dark:text-gray-400'}`}>
               文字数: {wordCount.toLocaleString()}
