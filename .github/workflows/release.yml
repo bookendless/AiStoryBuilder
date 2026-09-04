@@ -1,0 +1,151 @@
+name: Release Build
+
+# タグを打つと Windows インストーラーと Android APK を同じ GitHub Release へ公開する。
+# アップデーター用の署名付き成果物（*.sig / latest.json）も Windows ジョブが添付する。
+# latest.json は tauri.conf.json の plugins.updater.endpoints が参照する配信元。
+#
+# 2つのジョブを1ファイルにまとめ、android を needs: windows にしているのは、
+# 同じタグの Release を両方が作りに行くと下書きが二重にできるため。
+# GitHub の「タグ名で Release を取得」APIは下書きを返さないので、
+# 並行実行だと後発が既存の下書きを見つけられない。
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows Release Build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust ツールチェーン セットアップ
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust ビルドキャッシュ
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Node.js 20 セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 依存関係インストール
+        run: npm ci
+
+      - name: Lint と型チェック
+        run: |
+          npm run lint
+          npm run type-check
+
+      - name: バージョン整合の確認
+        # package.json / tauri.conf.json / Cargo.toml / Cargo.lock がずれていると
+        # 更新が配信されないため、ビルド前に止める
+        run: npm run version:check
+
+      - name: ビルドと Release への公開
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # アップデーターの minisign 秘密鍵。失うと既存インストールへ更新を配信できなくなる
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # 空パスワードの鍵は tauri-cli が扱えない（生成も署名も
+          # "Wrong password for that key" で失敗する）ため、実パスワードを設定している。
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          releaseBody: |
+            Windows 版インストーラーと Android 版 APK です。
+
+            Windows: zip を解凍し、中のインストーラーを実行してください。
+            未署名のため「WindowsによってPCが保護されました」と表示されますが、
+            「詳細情報」→「実行」で進められます。
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target x86_64-pc-windows-msvc
+
+  android:
+    name: Android Release Build
+    runs-on: ubuntu-latest
+    # windows ジョブが下書き Release を作り終えてから APK を追加する
+    needs: windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17 セットアップ
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Android SDK セットアップ
+        uses: android-actions/setup-android@v3
+
+      - name: Rust ツールチェーン セットアップ
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Android Rust ターゲット追加
+        run: |
+          rustup target add aarch64-linux-android
+          rustup target add armv7-linux-androideabi
+          rustup target add i686-linux-android
+          rustup target add x86_64-linux-android
+
+      - name: Node.js 20 セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 依存関係インストール
+        run: npm install
+
+      - name: Android プロジェクト初期化
+        run: npm run tauri:android:init
+
+      - name: Keystore 配置
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > src-tauri/gen/android/release.keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Android リリースビルド
+        run: npm run tauri:build:android:release
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+
+      - name: APK の出力先を確認
+        # files: の glob はこれまで一度も実行されていない（過去のタグは全てビルドで落ちていた）。
+        # 一致しなければアップロードは黙って0件になるため、ここで先に止める
+        run: |
+          ls -R src-tauri/gen/android/app/build/outputs/apk/ || true
+          count=$(ls src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk 2>/dev/null | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::APK が想定パスに見つかりません。上の ls 出力を見て files: のパスを修正してください"
+            exit 1
+          fi
+          echo "APK を ${count} 件検出しました"
+
+      - name: GitHub Release へアップロード
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          # windows ジョブが作った下書きに追加する。draft を揃えないと公開版が別にできる
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
