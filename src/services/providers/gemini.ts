@@ -1,23 +1,26 @@
 import { AIProvider } from '../../types/ai';
 
-// Geminiモデル定義（2026年9月4日時点の公式情報を反映）
+// Geminiモデル定義
+// descriptionは利用者に見える文言なので、裏の取れない数値・時期は書かないこと。
+// 3.8 / 3.7 は公式モデル一覧で位置づけのみ確認済み。それ以外の世代の記述は未検証
 const GEMINI_MODELS = [
-  // --- Gemini 3.8 Series (Latest, GA) ---
+  // --- Gemini 3.8 Series (Latest, Stable) ---
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    description: '2026年9月GA。最新かつ最も高性能なFlashモデル。長時間のエージェント実行や複雑なワークフローに強く、思考レベル（低・中・高）を調整できる。1Mトークン入力/最大64k出力。',
+    description: '最新のFlashモデル。長時間のエージェント実行や複雑なワークフロー向け。',
+    // 1Mは3.x Flash系に揃えた値。3.8個別の上限は公式ドキュメントで確認できていない
     maxTokens: 1048576,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '長編の章立て・整合性チェックなど、長い文脈を扱う重い処理',
     latencyClass: 'fast' as const,
   },
 
-  // --- Gemini 3.7 Series (Previous-gen, GA) ---
+  // --- Gemini 3.7 Series (Previous-gen) ---
   {
     id: 'gemini-3.7-flash',
     name: 'Gemini 3.7 Flash',
-    description: '2026年8月GA。前世代のFlash。複雑なコーディング・エージェントワークフロー・信頼性の高いマルチステップ実行向け（最新はgemini-3.8-flash）。1Mトークン入力/最大65k出力。',
+    description: '前世代のFlash。複雑なコーディング・エージェントワークフロー・信頼性の高いマルチステップ実行向け（最新はgemini-3.8-flash）。',
     maxTokens: 1048576,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '複雑なコーディングサイクルを伴う高速エージェントループ、エージェント実行タスク',
