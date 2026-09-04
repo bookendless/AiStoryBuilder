@@ -3,12 +3,15 @@
 /**
  * バージョン同時更新スクリプト
  *
- * バージョン番号は package.json / tauri.conf.json / Cargo.toml / Cargo.lock の
- * 4箇所に散在している。updater 導入後は tauri.conf.json の更新漏れがそのまま
+ * バージョン番号は package.json / tauri.conf.json / Cargo.toml / Cargo.lock に
+ * 散在している。updater 導入後は tauri.conf.json の更新漏れがそのまま
  * 「誰にも更新が配信されない」に直結するため、まとめて更新・検証する。
  *
- *   npm run version:check              → 4箇所を照合するだけ（不一致なら終了コード1）
- *   npm run version:set -- 2.4.0       → 4箇所をまとめて 2.4.0 に更新
+ * Cargo.lock は .gitignore 対象でリポジトリに含まれないため、CI では存在しない。
+ * 無い場合はスキップし、残りの整合だけを見る。
+ *
+ *   npm run version:check              → 照合するだけ（不一致なら終了コード1）
+ *   npm run version:set -- 2.4.0       → まとめて 2.4.0 に更新
  */
 
 import fs from 'fs';
@@ -43,6 +46,9 @@ const TARGETS = [
     {
         label: 'src-tauri/Cargo.lock',
         file: 'src-tauri/Cargo.lock',
+        // Cargo.lock は .gitignore 対象でリポジトリに含まれない。
+        // CIのチェックアウト直後には存在しないため、無い場合はスキップする
+        optional: true,
         // 自アプリのパッケージエントリのみ
         pattern: /(name = "ai-story-builder"\r?\nversion = ")([^"]+)(")/,
     },
@@ -55,6 +61,7 @@ function readTarget(target) {
     const filePath = path.join(ROOT, target.file);
 
     if (!fs.existsSync(filePath)) {
+        if (target.optional) return null;
         throw new Error(`${target.label} が見つかりません: ${filePath}`);
     }
 
@@ -75,13 +82,23 @@ function readTarget(target) {
 function check() {
     console.log('🔍 バージョン記述を照合します...\n');
 
-    const results = TARGETS.map((target) => ({ target, ...readTarget(target) }));
+    const results = [];
+    const skipped = [];
+    for (const target of TARGETS) {
+        const read = readTarget(target);
+        if (read) results.push({ target, ...read });
+        else skipped.push(target);
+    }
+
     const versions = [...new Set(results.map((r) => r.version))];
     const consistent = versions.length === 1;
 
     for (const r of results) {
         const mark = consistent || r.version === results[0].version ? '  ' : '❌';
         console.log(`${mark} ${r.target.label.padEnd(26)} ${r.version}`);
+    }
+    for (const t of skipped) {
+        console.log(`   ${t.label.padEnd(26)} （このリポジトリには無いためスキップ）`);
     }
 
     console.log('');
@@ -92,7 +109,7 @@ function check() {
         return 1;
     }
 
-    console.log(`✅ 4箇所すべて ${versions[0]} で一致しています`);
+    console.log(`✅ 対象 ${results.length} 箇所すべて ${versions[0]} で一致しています`);
     return 0;
 }
 
@@ -107,7 +124,12 @@ function set(nextVersion) {
 
     // 1ファイルでも書き換えに失敗したら中途半端な状態にしないよう、
     // 全ファイルを読んで検証してから、まとめて書き込む
-    const results = TARGETS.map((target) => ({ target, ...readTarget(target) }));
+    const results = [];
+    for (const target of TARGETS) {
+        const read = readTarget(target);
+        if (read) results.push({ target, ...read });
+        else console.log(`   ${target.label.padEnd(26)} （このリポジトリには無いためスキップ）`);
+    }
 
     const updates = results.map((r) => ({
         ...r,
