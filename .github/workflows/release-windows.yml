@@ -52,10 +52,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # アップデーターの minisign 秘密鍵。失うと既存インストールへ更新を配信できなくなる
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # 鍵にパスワードを設定していないため空文字を渡す。
-          # 未設定にすると署名時に対話プロンプトが出てCIが止まる。
-          # 空文字は秘密ではないのでSecretsに置く必要はない（GitHubは空のSecretを作れない）。
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+          # 空パスワードの鍵は tauri-cli が扱えない（生成も署名も
+          # "Wrong password for that key" で失敗する）ため、実パスワードを設定している。
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: ${{ github.ref_name }}
