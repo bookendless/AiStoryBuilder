@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Home, Save, PanelLeftClose, PanelLeftOpen, Database, Settings, TrendingUp, ChevronRight, Check, HelpCircle, Menu, GraduationCap, MoreVertical, Circle, Wrench } from 'lucide-react';
+import { Moon, Sun, Home, Save, PanelLeftClose, PanelLeftOpen, Database, Settings, TrendingUp, ChevronRight, Check, HelpCircle, Menu, GraduationCap, MoreVertical, Circle, Wrench, ArrowUpCircle } from 'lucide-react';
 import { useProject } from '../contexts/useProject';
 import { useSaveStatus } from '../contexts/useSaveStatus';
 import { useAI } from '../contexts/useAI';
@@ -12,6 +12,8 @@ import { ContextHelp } from './ContextHelp';
 import { Step } from '../App';
 import { SearchBar } from './SearchBar';
 import { useBreakpoint } from '../hooks/useMediaQuery';
+import { UpdateCheckModal } from './UpdateCheckModal';
+import { isTauriEnvironment } from '../utils/platformUtils';
 
 // 執筆ダッシュボードは recharts（重量ライブラリ）を含むため遅延読み込みし、
 // メインチャンクへの混入を防ぐ（LazyComponents.tsx と同じパターン）
@@ -58,6 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [showAISettings, setShowAISettings] = useState(false);
   const [showProgressDetails, setShowProgressDetails] = useState(false);
   const [showContextHelp, setShowContextHelp] = useState(false);
+  const [showUpdateCheck, setShowUpdateCheck] = useState(false);
+  // アップデート確認はデスクトップアプリ版のみ。ブラウザで開いている場合は出さない
+  const isDesktopApp = isTauriEnvironment();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
@@ -377,7 +382,7 @@ export const Header: React.FC<HeaderProps> = ({
               )}
 
               {/* 三点リーダーメニュー */}
-              {(currentStep !== 'home' || breakpoint !== 'desktop') && (
+              {(currentStep !== 'home' || breakpoint !== 'desktop' || isDesktopApp) && (
                 <div className="relative" ref={moreMenuRef}>
                   <button
                     onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -423,6 +428,23 @@ export const Header: React.FC<HeaderProps> = ({
                           <HelpCircle className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
                           <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
                             ヘルプ
+                          </span>
+                        </button>
+                      )}
+
+                      {/* アップデート確認（デスクトップアプリ版のみ。押したときだけ通信する） */}
+                      {isDesktopApp && (
+                        <button
+                          onClick={() => {
+                            setShowUpdateCheck(true);
+                            setShowMoreMenu(false);
+                          }}
+                          className="w-full flex items-center space-x-3 px-4 py-2 text-left hover:bg-usuzumi-100 dark:hover:bg-usuzumi-700 transition-colors focus:outline-none focus:ring-2 focus:ring-ai-500 focus:ring-inset"
+                          aria-label="アップデートを確認"
+                        >
+                          <ArrowUpCircle className="h-5 w-5 text-ai-600 dark:text-ai-400" aria-hidden="true" />
+                          <span className="text-sm font-['Noto_Sans_JP'] text-sumi-700 dark:text-usuzumi-300">
+                            アップデートを確認
                           </span>
                         </button>
                       )}
@@ -512,6 +534,14 @@ export const Header: React.FC<HeaderProps> = ({
         isOpen={showContextHelp}
         onClose={() => setShowContextHelp(false)}
       />
+
+      {/* アップデート確認（デスクトップアプリ版のみ） */}
+      {isDesktopApp && (
+        <UpdateCheckModal
+          isOpen={showUpdateCheck}
+          onClose={() => setShowUpdateCheck(false)}
+        />
+      )}
     </>
   );
 };

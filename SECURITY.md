@@ -54,8 +54,9 @@ AIプロバイダーへの送信のみに限られます。
   （回帰テスト: `src/tests/utils/promptContentPreservation.test.ts`）。
   制御文字の除去・空白の正規化・長さ制限は維持します。
 
-- **Tauri のプラグイン権限** — `src-tauri/capabilities/default.json` が実質的な唯一の境界です
-  （Rust側にカスタムコマンドはありません）。
+- **Tauri のプラグイン権限** — `src-tauri/capabilities/` 配下が実質的な唯一の境界です
+  （Rust側にカスタムコマンドはありません）。全プラットフォーム共通は `default.json`、
+  デスクトップ限定（アップデーターと再起動）は `desktop.json` に分けています。
   - ファイルの**読み取り**権限（`fs:allow-read-text-file`）は付与していません。コード上、
     プラグイン経由で読むのは `readDir` のみで、ファイル内容の読み取りは行っていないためです。
     取り込み機能はブラウザの File API（`textEncoding.ts`）を使うので、この権限は不要です。
@@ -64,6 +65,12 @@ AIプロバイダーへの送信のみに限られます。
     利用者が選ぶため、ホーム配下の任意のフォルダ（例: `~/Novels/`）を弾くと保存が失敗します。
     代わりに、自動起動・シェル初期化・認証情報のパスを `deny` で塞いでいます
     （denyはallowより優先されます）。この deny 一覧は削らないでください。
+    テキスト用の `fs:allow-write-text-file` に加え、バイナリ用の `fs:allow-write-file` も
+    許可しています（画像を含むエクスポートを16MBずつ追記して書き出すため）。
+    許可パスと deny 一覧は両者で共通です。
+  - **アップデーター**は `desktop.json` の `updater:default` と `process:allow-restart` のみ。
+    更新の確認・取得はRust側のプラグインが行うため、WebView の CSP `connect-src` は
+    変更していません。ここにAIプロバイダー以外の接続先を足す必要はありません。
 
 ## 既知の残余リスク
 
@@ -74,8 +81,18 @@ AIプロバイダーへの送信のみに限られます。
 - **`script-src 'unsafe-inline'`** — Tauri の CSP でインラインスクリプトを許可しています。
   isolation パターンおよび nonce 方式への移行は構造変更が大きく、未対応です。
 
-- **コード署名と更新チャネルが無い** — Windowsインストーラーは未署名で、自動更新もありません
-  （＝更新機構由来の攻撃面はゼロですが、修正を配布する手段もありません）。配布は手動DLです。
+- **コード署名が無い** — Windowsインストーラーは未署名のため、ダウンロードと初回起動で
+  SmartScreen の警告が出ます。解消にはOV/EV証明書の取得が必要で、費用と実在性審査が発生します。
+  Azure Artifact Signing は米国・カナダの法人限定のため、日本の個人開発者は対象外です。
+
+- **更新チャネルは minisign 署名のみで守られている** — 更新の配信は GitHub Releases、
+  改ざん検知は updater プラグインの minisign 署名（公開鍵は `tauri.conf.json` の
+  `plugins.updater.pubkey` に埋め込み）で行います。**秘密鍵を失うと、既存のインストールへ
+  更新を配信する手段が永久に失われます**（公開鍵は配布済みバイナリに焼き込まれているため、
+  鍵を作り直しても検証に通りません）。鍵はリポジトリ外（`~/.tauri/`）に置き、`.gitignore` の
+  `*.key` で保護したうえで、端末外にバックアップしてください。
+  更新確認は利用者が明示的に操作したときのみ実行し、起動時の自動確認は行いません
+  （プライバシーポリシーで自動通信をしないと明示しているため）。
 
 - **dev依存の `brace-expansion` DoS 勧告** — eslint / tailwindcss(sucrase) / typescript-eslint 経由。
   本番バンドルには含まれず、修正には eslint の破壊的更新が必要なため、当面は受容します。
