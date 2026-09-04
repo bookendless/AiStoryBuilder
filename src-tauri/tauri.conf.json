@@ -52,7 +52,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDBCQjRENjBERkJBN0E4MkYKUldRdnFLZjdEZGEwQzhUWTZxTVFlSjQzRmRBRXRYSDZOL3NRM2J0YmgwUjlnYjJjOGlIWGNSLzAK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNBOTkzMEZCM0VFMEQyRTYKUldUbTB1QSsrekNaT3NoaFAzUm5sV0lDUkxrT1hrNnRJYk9nY1NkSFVkYjNOVFVIbnYvSHp3dEgK",
       "endpoints": [
         "https://github.com/bookendless/AiStoryBuilder/releases/latest/download/latest.json"
       ],
