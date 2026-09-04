@@ -3,7 +3,7 @@ import { Settings, Key, Server, Zap, Lightbulb, BookOpen, Search, RefreshCw, Cli
 import { useAI } from '../contexts/useAI';
 import { useProject } from '../contexts/useProject';
 import { ragStore, reindexProject } from '../services/rag';
-import { AI_PROVIDERS, AVAILABLE_PROVIDERS } from '../services/providers';
+import { AI_PROVIDERS, AVAILABLE_PROVIDERS, getMaxOutputTokens } from '../services/providers';
 import { useToast } from './useToast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
@@ -520,7 +520,6 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 key={provider.id}
                 onClick={async () => {
                   const newModel = provider.models[0].id;
-                  const newModelData = provider.models[0];
 
                   // プロバイダーに応じてapiKeysからAPIキーを取得（非同期復号化）
                   // 後方互換性のため、apiKeysに無い場合はapiKeyからも取得を試みる
@@ -545,7 +544,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                     ...formData,
                     provider: provider.id,
                     model: newModel,
-                    maxTokens: Math.min(formData.maxTokens, newModelData.maxTokens),
+                    maxTokens: Math.min(formData.maxTokens, getMaxOutputTokens(provider.id, newModel)),
                     apiKey: apiKeyForProvider
                   };
 
@@ -631,11 +630,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             <select
               value={formData.model}
               onChange={(e) => {
-                const selectedModel = selectedProvider?.models.find(m => m.id === e.target.value);
                 setFormData({
                   ...formData,
                   model: e.target.value,
-                  maxTokens: selectedModel ? Math.min(formData.maxTokens, selectedModel.maxTokens) : formData.maxTokens
+                  maxTokens: Math.min(formData.maxTokens, getMaxOutputTokens(formData.provider, e.target.value))
                 });
               }}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
@@ -648,8 +646,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             </select>
             {selectedModel && (
               <div className="mt-2 space-y-2">
+                {/* コンテキスト長と出力上限は別物なので、必ず名前を付けて分けて出す。
+                    以前は「最大トークン数」の1行にコンテキスト長を出していたため、
+                    それが出力上限だと誤解される作りになっていた */}
                 <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-                  最大トークン数: {selectedModel.maxTokens.toLocaleString()}
+                  コンテキスト長: {selectedModel.contextWindow.toLocaleString()} トークン
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+                  最大出力トークン数: {selectedModel.maxOutputTokens.toLocaleString()} トークン
                 </p>
                 {selectedModel.capabilities && selectedModel.capabilities.length > 0 && (
                   <div className="flex flex-wrap gap-2">
@@ -813,16 +817,19 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-['Noto_Sans_JP']">
-              最大トークン数
+              最大出力トークン数
             </label>
             <input
               type="number"
               min="100"
-              max={selectedModel?.maxTokens || 2000000}
+              max={getMaxOutputTokens(formData.provider, formData.model)}
               value={formData.maxTokens}
               onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
               className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
             />
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
+              1回の生成で書かせる長さの上限です。モデルの上限（{getMaxOutputTokens(formData.provider, formData.model).toLocaleString()} トークン）を超える値は、保存時に上限まで下げられます。
+            </p>
           </div>
         </div>
       </div>

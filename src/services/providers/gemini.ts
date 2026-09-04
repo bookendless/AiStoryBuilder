@@ -1,19 +1,25 @@
-import { AIProvider } from '../../types/ai';
+import { AIModel, AIProvider } from '../../types/ai';
 
 // Geminiモデル定義
 // descriptionは利用者に見える文言なので、裏の取れない数値・時期は書かないこと。
 // 3.8 / 3.7 は公式モデル一覧で位置づけのみ確認済み。それ以外の世代の記述は未検証
-const GEMINI_MODELS = [
+//
+// 配列に AIModel[] を付けているのは、旧フィールド名 maxTokens が残っていたら
+// コンパイルエラーにするため。型注釈なしで models: GEMINI_MODELS と代入すると
+// 余剰プロパティ検査が効かず、古いキーが黙って生き残る。
+const GEMINI_MODELS: AIModel[] = [
   // --- Gemini 3.8 Series (Latest, Stable) ---
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
     description: '最新のFlashモデル。長時間のエージェント実行や複雑なワークフロー向け。',
     // 1Mは3.x Flash系に揃えた値。3.8個別の上限は公式ドキュメントで確認できていない
-    maxTokens: 1048576,
+    contextWindow: 1048576,
+    // 未確認。3.6 / 3.5 の公式記載（最大65k出力）に揃えた
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '長編の章立て・整合性チェックなど、長い文脈を扱う重い処理',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
 
   // --- Gemini 3.7 Series (Previous-gen) ---
@@ -21,10 +27,12 @@ const GEMINI_MODELS = [
     id: 'gemini-3.7-flash',
     name: 'Gemini 3.7 Flash',
     description: '前世代のFlash。複雑なコーディング・エージェントワークフロー・信頼性の高いマルチステップ実行向け（最新はgemini-3.8-flash）。',
-    maxTokens: 1048576,
+    contextWindow: 1048576,
+    // 未確認。3.6 / 3.5 の公式記載に揃えた
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '複雑なコーディングサイクルを伴う高速エージェントループ、エージェント実行タスク',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
 
   // --- Gemini 3.6 Series (Previous-gen, GA) ---
@@ -32,10 +40,11 @@ const GEMINI_MODELS = [
     id: 'gemini-3.6-flash',
     name: 'Gemini 3.6 Flash',
     description: '2026年7月GA。前世代Flash。速度とマルチモーダル性能のバランスに優れる（最新はgemini-3.7-flash）。1Mトークン入力/最大65k出力。',
-    maxTokens: 1048576,
+    contextWindow: 1048576,
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '汎用エージェントタスク、日常的なマルチモーダル処理',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
 
   // --- Gemini 3.5 Series (GA) ---
@@ -43,20 +52,22 @@ const GEMINI_MODELS = [
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
     description: '2026年5月登場。基盤性能を持つレガシーFlash。1Mトークンコンテキスト、最大65k出力。',
-    maxTokens: 1048576,
+    contextWindow: 1048576,
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '高速マルチモーダル処理、エージェントワークフロー、コスト効率の高いタスク',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
 
   {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
     description: '2026年7月GA。3.5世代最速・最安価な高スループット向けモデル。サブエージェントタスクやドキュメント解析に最適。1Mトークン入力/最大65k出力。',
-    maxTokens: 1048576,
+    contextWindow: 1048576,
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: '大量エージェントワークフロー、単純なデータ抽出、レイテンシ・コスト最優先タスク',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
 
   // --- Gemini 3.1 Series (Latest Preview) ---
@@ -64,28 +75,34 @@ const GEMINI_MODELS = [
     id: 'gemini-3.1-pro-preview',
     name: 'Gemini 3.1 Pro (Preview)',
     description: '2026年2月登場のプレビュー版Pro。高度な推論・コーディング・長大マルチモーダル処理に対応（3.5 Proは未提供）',
-    maxTokens: 1048576,
+    contextWindow: 1048576,
+    // 未確認。2.5 Pro の公式値（65,536）に揃えた
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', '思考モード', 'コード実行'],
     recommendedUse: 'エージェントワークフロー、複雑なプログラミングタスク、高度なデータ分析',
-    latencyClass: 'standard' as const,
+    latencyClass: 'standard',
   },
   {
     id: 'gemini-3-flash-preview',
     name: 'Gemini 3 Flash (Preview)',
     description: '2026年2月登場。フロンティアクラスの性能を低コストで提供するプレビュー版',
-    maxTokens: 2000000,
+    contextWindow: 2000000,
+    // 未確認。Gemini系の公式記載に揃えた
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', 'コード実行'],
     recommendedUse: '高速なマルチモーダル処理、リアルタイム応答、大量のデータ分析',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
   {
     id: 'gemini-3.1-flash-lite',
     name: 'Gemini 3.1 Flash-Lite',
     description: '2026年2月登場。最も費用対効果の高いマルチモーダルモデル。最低レイテンシ。',
-    maxTokens: 2000000,
+    contextWindow: 2000000,
+    // 未確認。Gemini系の公式記載に揃えた
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '動画', '音声', 'PDF', 'コード実行'],
     recommendedUse: '大量処理、リアルタイム応答、コスト最優先タスク',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
 
   // --- Gemini 2.5 Series (Stable GA) ---
@@ -93,28 +110,31 @@ const GEMINI_MODELS = [
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
     description: '2025年6月GA。複雑なタスク向け最先端モデル。安定した2Mトークンコンテキスト。',
-    maxTokens: 2000000,
+    contextWindow: 2000000,
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', 'オーディオ', '思考モード', 'コード実行'],
     recommendedUse: '長期プロジェクトの統合管理や分析、複雑なエージェントタスク',
-    latencyClass: 'standard' as const,
+    latencyClass: 'standard',
   },
   {
     id: 'gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
     description: '推論を必要とする低レイテンシで大容量のタスクに最適な価格とパフォーマンスのモデル。',
-    maxTokens: 1000000,
+    contextWindow: 1000000,
+    maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '思考モード'],
     recommendedUse: '画像分析付きキャラクター補完や大量生成',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
   {
     id: 'gemini-2.5-flash-lite',
     name: 'Gemini 2.5 Flash Lite',
     description: '2.5世代の最速・最安価モデル。API料金を抑えたい場合に最適',
-    maxTokens: 1000000,
+    contextWindow: 1000000,
+    maxOutputTokens: 65536,
     capabilities: ['テキスト'],
     recommendedUse: '反復的な短文生成・要約',
-    latencyClass: 'fast' as const,
+    latencyClass: 'fast',
   },
 ];
 
@@ -133,22 +153,3 @@ export const geminiProvider: AIProvider = {
   regions: ['Global', 'Japan'],
   models: GEMINI_MODELS,
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

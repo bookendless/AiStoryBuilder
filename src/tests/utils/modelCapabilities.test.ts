@@ -35,7 +35,7 @@ describe('modelSupportsTemperature', () => {
         }
     );
 
-    it.each(['claude-opus-4-7', 'claude-opus-4-8', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5'])(
+    it.each(['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-fable-5-1', 'claude-mythos-5'])(
         'temperature 非対応のClaudeモデル %s では送らない',
         (model) => {
             expect(modelSupportsTemperature(model)).toBe(false);

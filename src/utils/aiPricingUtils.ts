@@ -18,10 +18,13 @@ export type AIProvider = 'openai' | 'claude' | 'gemini' | 'grok' | 'local';
 /**
  * モデルIDのパターン（前方一致・部分一致）と概算単価の対応。
  * 上から順に最初にマッチしたものを採用するため、より限定的なパターンを先に置く。
- * 単価は目安（2026年8月時点の想定値）。
+ * 単価は目安（2026年9月4日時点。公式ドキュメントで確認できたものは実額、それ以外は想定値）。
  */
 const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean; price: ModelPrice }>> = {
   openai: [
+    // gpt-5.4-mini / nano は公式ドキュメントの実額。汎用の mini / nano 行より先に置く
+    { match: m => m.includes('gpt-5.4-nano'), price: { input: 0.2, output: 1.25 } },
+    { match: m => m.includes('gpt-5.4-mini'), price: { input: 0.75, output: 4.5 } },
     { match: m => m.includes('nano'), price: { input: 0.05, output: 0.4 } },
     { match: m => m.includes('mini'), price: { input: 0.25, output: 2 } },
     { match: m => m.includes('gpt-5.6-sol'), price: { input: 5, output: 30 } },

@@ -11,11 +11,15 @@ describe('getModelPrice', () => {
   it('Claude Haikuは低単価', () => {
     expect(getModelPrice('claude', 'claude-haiku-4-5-20251001')).toEqual({ input: 1, output: 5 });
   });
-  it('OpenAI nanoはminiより先にマッチする', () => {
-    expect(getModelPrice('openai', 'gpt-5.4-nano')).toEqual({ input: 0.05, output: 0.4 });
+  it('gpt-5.4-nano は専用行の実額を使う（汎用nano行に落ちない）', () => {
+    expect(getModelPrice('openai', 'gpt-5.4-nano')).toEqual({ input: 0.2, output: 1.25 });
   });
-  it('OpenAI miniはgpt-5系の一般単価より優先', () => {
-    expect(getModelPrice('openai', 'gpt-5.4-mini')).toEqual({ input: 0.25, output: 2 });
+  it('gpt-5.4-mini は専用行の実額を使う（汎用mini行に落ちない）', () => {
+    expect(getModelPrice('openai', 'gpt-5.4-mini')).toEqual({ input: 0.75, output: 4.5 });
+  });
+  it('専用行のない mini / nano は汎用行にフォールバックする', () => {
+    expect(getModelPrice('openai', 'gpt-5.6-nano')).toEqual({ input: 0.05, output: 0.4 });
+    expect(getModelPrice('openai', 'gpt-5.6-mini')).toEqual({ input: 0.25, output: 2 });
   });
   it('Geminiのflash-liteはflashより先にマッチ', () => {
     expect(getModelPrice('gemini', 'gemini-3.1-flash-lite')).toEqual({ input: 0.1, output: 0.4 });

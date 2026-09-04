@@ -1,6 +1,6 @@
 import React, { useState, ReactNode, useMemo, useCallback, useEffect } from 'react';
 import { AISettings } from '../types/ai';
-import { AI_PROVIDERS } from '../services/providers';
+import { getMaxOutputTokens } from '../services/providers';
 import { encryptApiKey, encryptApiKeyAsync } from '../utils/securityUtils';
 import { storageService } from '../services/storageService';
 import { AIContext } from './useAI';
@@ -81,9 +81,9 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       const saved = localStorage.getItem('ai-settings');
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<AISettings>;
-        const selectedProvider = AI_PROVIDERS.find(p => p.id === parsed.provider);
-        const selectedModel = selectedProvider?.models.find(m => m.id === parsed.model);
-        const modelMaxTokens = selectedModel?.maxTokens || 8192;
+        // 保存値はモデルの「出力上限」で頭打ちにする。
+        // 以前はコンテキスト長（最大2M）と比較していたため、事実上何も止めていなかった
+        const modelMaxOutputTokens = getMaxOutputTokens(parsed.provider, parsed.model);
 
         return {
           ...envSettings,
@@ -92,7 +92,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           apiKeys: undefined,
           apiKey: '',
           temperature: Math.max(0, Math.min(1, parsed.temperature || envSettings.temperature)),
-          maxTokens: Math.max(100, Math.min(modelMaxTokens, parsed.maxTokens || envSettings.maxTokens)),
+          maxTokens: Math.max(100, Math.min(modelMaxOutputTokens, parsed.maxTokens || envSettings.maxTokens)),
         };
       }
       return { ...envSettings, apiKeys: undefined, apiKey: '' };
@@ -201,15 +201,13 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       updated: redactSettings(updated)
     });
 
-    // モデルが変更された場合、そのモデルの最大トークン数に合わせて調整
+    // モデルが変更された場合、そのモデルの最大出力トークン数に合わせて調整
     if (newSettings.model || newSettings.provider) {
-      const selectedProvider = AI_PROVIDERS.find(p => p.id === updated.provider);
-      const selectedModel = selectedProvider?.models.find(m => m.id === updated.model);
-      const modelMaxTokens = selectedModel?.maxTokens || 8192;
+      const modelMaxOutputTokens = getMaxOutputTokens(updated.provider, updated.model);
 
-      // 現在のmaxTokensが新しいモデルの最大値を超えている場合は調整
-      if (updated.maxTokens > modelMaxTokens) {
-        updated.maxTokens = modelMaxTokens;
+      // 現在のmaxTokensが新しいモデルの出力上限を超えている場合は調整
+      if (updated.maxTokens > modelMaxOutputTokens) {
+        updated.maxTokens = modelMaxOutputTokens;
       }
     }
 

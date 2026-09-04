@@ -13,6 +13,7 @@ import { PROMPTS, SYSTEM_PROMPT, STRICTNESS_INSTRUCTIONS, EVALUATION_PROMPT_CAP 
 import { parseJsonLoose } from './summarization/parseJson';
 import { normalizeWeaknessDetails } from './evaluation/normalizeWeaknessDetails';
 import { modelSupportsTemperature, isOpenAIReasoningModel } from '../utils/modelCapabilities';
+import { resolveMaxOutputTokens } from './providers';
 
 
 class AIService {
@@ -269,10 +270,12 @@ class AIService {
       };
 
       // GPT-5.1系やo系モデルはmax_completion_tokens、それ以外はmax_tokensを使用
+      // 値はモデルの出力上限で頭打ちにする（超過するとOpenAI APIは400を返す）
+      const maxOutputTokens = resolveMaxOutputTokens(request.settings);
       if (isNewModelType) {
-        requestBody.max_completion_tokens = request.settings.maxTokens;
+        requestBody.max_completion_tokens = maxOutputTokens;
       } else {
-        requestBody.max_tokens = request.settings.maxTokens;
+        requestBody.max_tokens = maxOutputTokens;
       }
 
       // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒（OpenAIのデフォルト、高度なモデルの思考時間を考慮）
@@ -437,6 +440,10 @@ class AIService {
       : '/api/anthropic/v1/messages';
 
     try {
+      // 出力上限はモデル定義でクランプする（超過するとClaude APIは400を返す）。
+      // ログにも実際に送る値を出す。設定値をそのまま出すと、切り詰めの調査時に
+      // コンソールとリクエストの数字が食い違って混乱するため
+      const maxOutputTokens = resolveMaxOutputTokens(request.settings);
 
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
@@ -445,7 +452,7 @@ class AIService {
           prompt: this.maskSensitiveInfo(request.prompt, 100),
           hasImage: !!request.image,
           temperature: request.settings.temperature,
-          maxTokens: request.settings.maxTokens,
+          maxTokens: maxOutputTokens,
           apiUrl: apiUrl.replace(/\/api\/anthropic\/v1\/messages/, '/api/anthropic/v1/messages'), // エンドポイントのみ表示
           stream: !!request.onStream
         });
@@ -483,7 +490,7 @@ class AIService {
 
       const requestBody: ClaudeRequestBody = {
         model: request.settings.model,
-        max_tokens: request.settings.maxTokens,
+        max_tokens: maxOutputTokens,
         // temperature 非対応モデル（opus 4.7/4.8 など）では省略する
         ...(modelSupportsTemperature(request.settings.model)
           ? { temperature: request.settings.temperature }
@@ -679,6 +686,11 @@ class AIService {
         : `/api/gemini/v1beta/models/${request.settings.model}:${method}`;
       const geminiHeaders = { 'x-goog-api-key': apiKey };
 
+      // 出力上限はモデル定義でクランプする。
+      // Gemini の maxOutputTokens は入力コンテキスト長（最大2M）とは別物で、
+      // 実際の上限は 65,536 前後。ログにも実際に送る値を出す
+      const maxOutputTokens = resolveMaxOutputTokens(request.settings);
+
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
         console.log('Gemini API Request:', {
@@ -687,7 +699,7 @@ class AIService {
           hasImage: !!request.image,
           hasAudio: !!request.audio,
           temperature: request.settings.temperature,
-          maxTokens: request.settings.maxTokens,
+          maxTokens: maxOutputTokens,
           apiUrl,
           stream: !!request.onStream
         });
@@ -741,7 +753,7 @@ class AIService {
         },
         generationConfig: {
           temperature: request.settings.temperature,
-          maxOutputTokens: request.settings.maxTokens,
+          maxOutputTokens: maxOutputTokens,
         },
       };
 
@@ -1154,8 +1166,9 @@ class AIService {
         }));
       }
 
-      // max_tokensを制限（Local LLMでは適度に設定）
-      const maxTokens = Math.min(request.settings.maxTokens, 8192);
+      // max_tokensを制限。8192の直書きは local.ts の maxOutputTokens に移した。
+      // 他のプロバイダーと同じ関数を通すことで、上限の判定が1か所に揃う
+      const maxTokens = resolveMaxOutputTokens(request.settings);
 
       // 画像がある場合のメッセージ構築（OpenAI互換形式）
       let userContent: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>;
@@ -1416,6 +1429,9 @@ class AIService {
       : '/api/xai/v1/chat/completions';
 
     try {
+      // 出力上限はモデル定義でクランプする。ログにも実際に送る値を出す
+      const maxOutputTokens = resolveMaxOutputTokens(request.settings);
+
       // 開発環境のみログ出力（機密情報をマスク）
       if (import.meta.env.DEV) {
         console.log('xAI Grok API Request:', {
@@ -1423,7 +1439,7 @@ class AIService {
           prompt: this.maskSensitiveInfo(request.prompt, 100),
           hasImage: !!request.image,
           temperature: request.settings.temperature,
-          maxTokens: request.settings.maxTokens,
+          maxTokens: maxOutputTokens,
           apiUrl: apiUrl.replace(/key=[^&]+/, 'key=***'),
           stream: !!request.onStream
         });
@@ -1463,7 +1479,7 @@ class AIService {
         ],
         temperature: request.settings.temperature,
         stream: !!request.onStream,
-        max_tokens: request.settings.maxTokens,
+        max_tokens: maxOutputTokens,
       };
 
       // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、そうでない場合は180秒

@@ -14,7 +14,21 @@ export interface AIModel {
   id: string;
   name: string;
   description: string;
-  maxTokens: number;
+  /**
+   * 入力コンテキスト長（プロンプト＋応答を合わせて収まる総量）。表示専用。
+   *
+   * 重要: この値を出力上限として API に送ってはならない。
+   * 旧名は maxTokens で、AISettings.maxTokens（出力上限の設定値）と同名だったため
+   * 両者が混同され、コンテキスト長がそのまま max_tokens / maxOutputTokens として
+   * 送信されていた。名前を分けたのはその再発を型で防ぐため。
+   */
+  contextWindow: number;
+  /**
+   * 1リクエストで生成できる出力トークンの上限。API に送る値のクランプ先。
+   * 公式ドキュメントで確認できないモデルは高めの値を入れ、根拠をコメントに残すこと。
+   * 低すぎる値を入れると利用者の生成が黙って短くなる（過大な値は従来どおりAPIエラー）。
+   */
+  maxOutputTokens: number;
   capabilities?: string[];
   recommendedUse?: string;
   latencyClass?: 'standard' | 'fast' | 'reasoning';
@@ -28,6 +42,10 @@ export interface AISettings {
   localEndpoint?: string;
   localContextLength?: number; // ローカルLLMに送るプロンプトの最大文字数（未設定時は既定値を使用）
   temperature: number;
+  /**
+   * 利用者が設定する「最大出力トークン数」。保存済みデータのキー名なので変更しない。
+   * 送信時は必ず resolveMaxOutputTokens() を通し、モデルの maxOutputTokens で頭を打たせる。
+   */
   maxTokens: number;
   /** 創造ポイント（Phase C）の提案を有効にするか。未設定は有効（true）扱い。 */
   creativePointsEnabled?: boolean;

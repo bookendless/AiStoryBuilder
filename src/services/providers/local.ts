@@ -1,16 +1,22 @@
-import { AIProvider } from '../../types/ai';
+import { AIModel, AIProvider } from '../../types/ai';
 import { isAllowedLocalEndpoint } from '../../utils/securityUtils';
 
 // ローカルLLMモデル定義
-const LOCAL_MODELS = [
+//
+// maxOutputTokens の 8,192 は、以前 aiService.ts の送信直前に
+// Math.min(settings.maxTokens, 8192) として直書きされていた値をここへ移したもの。
+// 接続先のモデルは利用者ごとに違い本当の上限は分からないため、保守的な値を据え置く。
+// （利用者が調整できるようにするかは別課題）
+const LOCAL_MODELS: AIModel[] = [
   {
     id: 'local-model',
     name: 'ローカルモデル',
     description: '接続先ローカルLLMのデフォルト識別子',
-    maxTokens: 32768,
+    contextWindow: 32768,
+    maxOutputTokens: 8192,
     capabilities: ['テキスト', 'ビジョン'],
     recommendedUse: 'アイデア出しや短い文章生成、画像解析（対応モデルの場合）',
-    latencyClass: 'standard' as const,
+    latencyClass: 'standard',
   },
 ];
 
