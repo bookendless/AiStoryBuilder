@@ -33,16 +33,16 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Node.js 20 セットアップ
+      - name: Node.js 24 セットアップ
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       - name: 依存関係インストール
         run: npm ci
 
-      - name: Lint と型チェック
+      - name: Lint・型チェック・テスト
         run: |
           npm run lint
           npm run type-check
@@ -105,10 +105,10 @@ jobs:
           rustup target add i686-linux-android
           rustup target add x86_64-linux-android
 
-      - name: Node.js 20 セットアップ
+      - name: Node.js 24 セットアップ
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       - name: 依存関係インストール

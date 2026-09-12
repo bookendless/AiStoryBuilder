@@ -33,10 +33,10 @@ jobs:
           rustup target add i686-linux-android
           rustup target add x86_64-linux-android
 
-      - name: Node.js 20 セットアップ
+      - name: Node.js 24 セットアップ
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       - name: 依存関係インストール
