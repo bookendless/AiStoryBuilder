@@ -16,7 +16,11 @@ export interface ProjectContextType {
   setCurrentProject: (project: Project | null) => void;
   projects: Project[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
-  updateProject: (updates: Partial<Project>, immediate?: boolean) => Promise<void>;
+  updateProject: (
+    updates: Partial<Project> | ((project: Project) => Partial<Project>),
+    immediate?: boolean,
+    targetProjectId?: string,
+  ) => Promise<void>;
   createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
   createSequelProject: (parent: Project, overrides: Partial<Project>) => Project;
   createImportedProject: (title: string, overrides: Partial<Project>) => Project;

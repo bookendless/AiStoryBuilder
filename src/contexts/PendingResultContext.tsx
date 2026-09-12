@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { useToast } from '../components/useToast';
+import { useProject } from './useProject';
 import {
   PendingResult,
   PendingResultContext,
@@ -31,6 +32,7 @@ const genId = (): string =>
 
 export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { showSuccess, showInfo, showError } = useToast();
+  const { currentProject } = useProject();
   const [pendingResults, setPendingResults] = useState<PendingResult[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   // 最新の保留結果を同期参照（applyResult で onApply を引くため）
@@ -53,6 +55,7 @@ export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ child
         id,
         label: input.label,
         preview: input.preview,
+        projectId: input.projectId,
         onApply: input.onApply,
         applyLabel: input.applyLabel,
         applySuccessMessage: input.applySuccessMessage,
@@ -80,6 +83,10 @@ export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ child
     async (id: string) => {
       const target = resultsRef.current.find((r) => r.id === id);
       if (!target) return;
+      if (target.projectId && currentProject?.id !== target.projectId) {
+        showError('生成元のプロジェクトを開いてから反映してください。');
+        return;
+      }
       try {
         await target.onApply();
         removeResult(id);
@@ -89,7 +96,7 @@ export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ child
         showError(`${target.label}の反映に失敗しました`);
       }
     },
-    [removeResult, showSuccess, showError]
+    [currentProject?.id, removeResult, showSuccess, showError]
   );
 
   const discardResult = useCallback(

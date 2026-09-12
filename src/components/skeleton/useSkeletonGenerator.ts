@@ -42,9 +42,9 @@ export function useSkeletonGenerator() {
             showWarning('別のプロジェクトを開いているため、骨組みは反映されませんでした。対象のプロジェクトを開いてから反映してください。', 6000);
             return;
         }
-        const basePlot = currentProjectRef.current?.plot ?? {
-            theme: '', setting: '', hook: '', protagonistGoal: '', mainObstacle: '',
-        };
+        const latestProject = currentProjectRef.current;
+        if (!latestProject) return;
+        const basePlot = latestProject.plot;
         const plotPatch: Project['plot'] = {
             ...basePlot,
             theme: result.plot.theme || basePlot.theme,
@@ -61,9 +61,9 @@ export function useSkeletonGenerator() {
 
         const patch: Partial<Project> = { plot: plotPatch };
         if (result.characters.length > 0) {
-            patch.characters = result.characters;
+            patch.characters = [...latestProject.characters, ...result.characters];
         }
-        await updateProjectRef.current(patch, true);
+        await updateProjectRef.current(patch, true, targetProjectId);
     }, [showWarning]);
 
     /**
@@ -103,6 +103,7 @@ export function useSkeletonGenerator() {
                     proposeResult({
                         label: 'AIおまかせ骨組み',
                         preview: buildSkeletonPreview(result),
+                        projectId: targetProjectId,
                         onApply: () => applySkeleton(result, targetProjectId),
                         applySuccessMessage: '骨組みを反映しました',
                     });

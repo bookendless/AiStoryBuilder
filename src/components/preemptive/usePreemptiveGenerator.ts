@@ -56,14 +56,14 @@ export function usePreemptiveGenerator() {
         return;
       }
       if (result.kind === 'synopsis') {
-        await updateProjectRef.current({ synopsis: result.synopsis }, true);
+        await updateProjectRef.current({ synopsis: result.synopsis }, true, targetProjectId);
       } else if (result.kind === 'chapter') {
-        await updateProjectRef.current({ chapters: [...proj.chapters, ...result.chapters] }, true);
+        await updateProjectRef.current({ chapters: [...proj.chapters, ...result.chapters] }, true, targetProjectId);
       } else {
         const updatedChapters = proj.chapters.map(c =>
           c.id === result.chapterId ? { ...c, draft: result.draft } : c
         );
-        await updateProjectRef.current({ chapters: updatedChapters }, true);
+        await updateProjectRef.current({ chapters: updatedChapters }, true, targetProjectId);
       }
     },
     [showWarning]
@@ -118,6 +118,7 @@ export function usePreemptiveGenerator() {
           const pendingId = proposeResult({
             label: `先回り: ${meta.label}`,
             preview: buildPreemptivePreview(finalResult),
+            projectId: targetProjectId,
             onApply: () => applyResult(finalResult, targetProjectId),
             applySuccessMessage: `${meta.label}を反映しました`,
           });

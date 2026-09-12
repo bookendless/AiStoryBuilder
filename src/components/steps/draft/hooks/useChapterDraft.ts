@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Project } from '../../../../contexts/ProjectContext';
-import { databaseService } from '../../../../services/databaseService';
 
 interface UseChapterDraftOptions {
   currentProject: Project | null;
-  updateProject: (updates: { chapters?: Project['chapters']; draft?: string }) => void;
+  updateProject: (
+    updates: { chapters?: Project['chapters']; draft?: string } | ((project: Project) => { chapters?: Project['chapters']; draft?: string }),
+    immediate?: boolean,
+    targetProjectId?: string,
+  ) => Promise<void>;
   selectedChapter: string | null;
   onSaveSuccess?: (lastSavedAt: Date, isAutoSave?: boolean) => void;
   onSaveError?: (error: Error) => void;
   onToastMessage?: (message: string | null) => void;
 }
+
 
 export const useChapterDraft = ({
   currentProject,
@@ -26,6 +30,10 @@ export const useChapterDraft = ({
   // 現在の値を保持するためのref（アンマウント時に使用）
   const currentDraftRef = useRef(draft);
   const currentSelectedChapterRef = useRef(selectedChapter);
+  const currentProjectRef = useRef(currentProject);
+  const updateProjectRef = useRef(updateProject);
+  currentProjectRef.current = currentProject;
+  updateProjectRef.current = updateProject;
 
   // refを更新
   useEffect(() => {
@@ -95,7 +103,7 @@ export const useChapterDraft = ({
       if (!currentProject) return;
 
       try {
-        const contentToSave = content || draft;
+        const contentToSave = content ?? draft;
 
         // chapterDraftsを更新（空の草案も含む）
         const updatedChapterDrafts = { ...chapterDrafts, [chapterId]: contentToSave };
@@ -109,20 +117,10 @@ export const useChapterDraft = ({
           return chapter;
         });
 
-        const updatedProject = {
-          ...currentProject,
+        await updateProject({
           chapters: updatedChapters,
           draft: contentToSave,
-          updatedAt: new Date(),
-        };
-
-        updateProject({
-          chapters: updatedChapters,
-          draft: contentToSave, // メインの草案も更新
-        });
-
-        // 即座にデータベースに保存（デバウンスを待たない）
-        await databaseService.saveProject(updatedProject);
+        }, true, currentProject.id);
 
         // 保存成功時の処理
         const now = new Date();
@@ -145,41 +143,24 @@ export const useChapterDraft = ({
     [currentProject, draft, chapterDrafts, updateProject, onSaveSuccess, onSaveError, onToastMessage]
   );
 
-  // アンマウント時に保存（refから最新の値を取得）
   useEffect(() => {
     return () => {
-      const currentChapter = currentSelectedChapterRef.current;
-      const currentDraft = currentDraftRef.current;
-      
-      if (currentChapter && currentProject) {
-        // 即座にデータベースに保存（非同期処理を同期的に実行）
-        const saveToDatabase = async () => {
-          try {
-            const updatedChapters = currentProject.chapters.map(chapter => {
-              if (chapter.id === currentChapter) {
-                return { ...chapter, draft: currentDraft };
-              }
-              return chapter;
-            });
-            
-            const updatedProject = {
-              ...currentProject,
-              chapters: updatedChapters,
-              draft: currentDraft,
-              updatedAt: new Date(),
-            };
-            
-            await databaseService.saveProject(updatedProject);
-          } catch (error) {
-            console.error('アンマウント時の保存エラー:', error);
-          }
-        };
-        
-        // 保存を実行（エラーハンドリング付き）
-        void saveToDatabase();
-      }
+      const project = currentProjectRef.current;
+      const chapterId = currentSelectedChapterRef.current;
+      const latestDraft = currentDraftRef.current;
+      if (!project || !chapterId) return;
+
+      void updateProjectRef.current((latest) => {
+        const chapters = latest.chapters.map(chapter =>
+          chapter.id === chapterId ? { ...chapter, draft: latestDraft } : chapter
+        );
+        return { chapters, draft: latestDraft };
+      }, true, project.id).catch(error => {
+        console.error('Draft cleanup save error:', error);
+      });
     };
-  }, [currentProject]);
+  }, []);
+
 
   return {
     draft,

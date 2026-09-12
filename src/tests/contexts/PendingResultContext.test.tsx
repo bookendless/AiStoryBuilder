@@ -3,6 +3,7 @@ import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import { PendingResultProvider } from '../../contexts/PendingResultContext';
 import { usePendingResult } from '../../contexts/usePendingResult';
+import { ProjectContext, ProjectContextType } from '../../contexts/useProject';
 
 // useToast をモック（プロバイダは showSuccess/showInfo/showError を利用する）
 const showSuccess = vi.fn();
@@ -12,8 +13,32 @@ vi.mock('../../components/useToast', () => ({
   useToast: () => ({ showSuccess, showInfo, showError }),
 }));
 
+const projectContext: ProjectContextType = {
+  currentProject: null,
+  setCurrentProject: vi.fn(),
+  projects: [],
+  setProjects: vi.fn(),
+  updateProject: vi.fn(async () => {}),
+  createNewProject: vi.fn(),
+  createSequelProject: vi.fn(),
+  createImportedProject: vi.fn(),
+  createBranchProject: vi.fn(),
+  saveProject: vi.fn(),
+  createManualBackup: vi.fn(),
+  loadProject: vi.fn(),
+  deleteProject: vi.fn(),
+  duplicateProject: vi.fn(),
+  loadAllProjects: vi.fn(),
+  deleteChapter: vi.fn(),
+  calculateProjectProgress: vi.fn(),
+  getStepCompletion: vi.fn(),
+  getPreviousAccess: vi.fn(),
+};
+
 const wrapper = ({ children }: { children: React.ReactNode }) =>
-  React.createElement(PendingResultProvider, null, children);
+  React.createElement(ProjectContext.Provider, { value: projectContext },
+    React.createElement(PendingResultProvider, null, children)
+  );
 
 describe('PendingResultContext', () => {
   beforeEach(() => {
@@ -54,6 +79,23 @@ describe('PendingResultContext', () => {
 
     expect(onApply).toHaveBeenCalledTimes(1);
     expect(result.current.pendingResults).toHaveLength(0);
+  });
+
+  it('生成元とは別のプロジェクトが開かれている結果を反映しない', async () => {
+    const onApply = vi.fn();
+    const { result } = renderHook(() => usePendingResult(), { wrapper });
+    let id = '';
+    act(() => {
+      id = result.current.proposeResult({
+        label: 'あらすじ', preview: 'p', projectId: 'source-project', onApply,
+      });
+    });
+
+    await act(async () => { await result.current.applyResult(id); });
+
+    expect(onApply).not.toHaveBeenCalled();
+    expect(result.current.pendingResults).toHaveLength(1);
+    expect(showError).toHaveBeenCalledWith('生成元のプロジェクトを開いてから反映してください。');
   });
 
   it('discardResult では onApply は実行されず、保留から除去される', () => {

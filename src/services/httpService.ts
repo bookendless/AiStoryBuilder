@@ -155,9 +155,9 @@ export class HttpService {
 
         try {
           const response = await fetchToUse(url, fetchOptions);
-          clearTimeout(timeoutId);
           
           const responseText = await response.text();
+          clearTimeout(timeoutId);
           let data: T;
           
           try {
@@ -264,7 +264,7 @@ export class HttpService {
       }
       
       // より詳細なエラー情報を提供
-      if (error instanceof Error) {
+      if (error instanceof Error || error instanceof DOMException) {
         if (error.name === 'AbortError') {
           throw new APIError(
             `タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`,
@@ -359,6 +359,7 @@ export class HttpService {
     }
   ): Promise<HttpResponse<T>> {
     const timeout = options?.timeout || 45000;
+    let tauriTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
       // Tauri環境かブラウザ環境かで適切なfetchを使用
@@ -385,6 +386,10 @@ export class HttpService {
       // Tauri環境ではconnectTimeoutを設定
       if (isUsingTauri) {
         fetchOptions.connectTimeout = timeout;
+        // connectTimeout は接続確立だけを対象にするため、本文読込まで含めた期限を設ける。
+        const controller = new AbortController();
+        tauriTimeoutId = setTimeout(() => controller.abort(), timeout);
+        fetchOptions.signal = controller.signal;
       } else {
         // ブラウザ環境ではAbortControllerでタイムアウトを実装
         const controller = new AbortController();
@@ -393,9 +398,9 @@ export class HttpService {
 
         try {
           const response = await fetchToUse(url, fetchOptions);
-          clearTimeout(timeoutId);
 
           const responseText = await response.text();
+          clearTimeout(timeoutId);
           let data: T;
 
           try {
@@ -447,6 +452,7 @@ export class HttpService {
       const response = await fetchToUse(url, fetchOptions);
 
       const responseText = await response.text();
+      if (tauriTimeoutId) clearTimeout(tauriTimeoutId);
       let data: T;
 
       try {
@@ -485,6 +491,7 @@ export class HttpService {
         headers: Object.fromEntries(response.headers.entries()),
       };
     } catch (error) {
+      if (tauriTimeoutId) clearTimeout(tauriTimeoutId);
       // 既にAPIErrorの場合はそのまま再スロー
       if (error instanceof APIError) {
         throw error;
@@ -498,7 +505,7 @@ export class HttpService {
       }
 
       // より詳細なエラー情報を提供
-      if (error instanceof Error) {
+      if (error instanceof Error || error instanceof DOMException) {
         if (error.name === 'AbortError') {
           throw new APIError(
             `タイムアウトエラー: リクエストが${timeout}ms以内に完了しませんでした`,

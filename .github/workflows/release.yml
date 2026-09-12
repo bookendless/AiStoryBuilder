@@ -46,6 +46,7 @@ jobs:
         run: |
           npm run lint
           npm run type-check
+          npm run test:run
 
       - name: バージョン整合の確認
         # package.json / tauri.conf.json / Cargo.toml / Cargo.lock がずれていると
@@ -111,7 +112,7 @@ jobs:
           cache: npm
 
       - name: 依存関係インストール
-        run: npm install
+        run: npm ci
 
       - name: Android プロジェクト初期化
         run: npm run tauri:android:init

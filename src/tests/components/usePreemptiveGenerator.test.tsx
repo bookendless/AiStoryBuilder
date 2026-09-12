@@ -173,6 +173,6 @@ describe('usePreemptiveGenerator', () => {
     const onApply = lastProposed.input!.onApply as () => Promise<void>;
 
     await act(async () => { await onApply(); });
-    expect(updateProject).toHaveBeenCalledWith({ synopsis: '先回りあらすじ' }, true);
+    expect(updateProject).toHaveBeenCalledWith({ synopsis: '先回りあらすじ' }, true, 'p1');
   });
 });

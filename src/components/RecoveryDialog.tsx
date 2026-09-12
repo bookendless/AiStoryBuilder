@@ -17,7 +17,7 @@ interface RecoveryDialogProps {
     /** ダイアログを表示するかどうか */
     isOpen: boolean;
     /** 復元時のコールバック */
-    onRecover: (data: RecoveryData) => void;
+    onRecover: (data: RecoveryData) => Promise<void>;
     /** 破棄時のコールバック */
     onDiscard: () => void;
     /** ダイアログを閉じるコールバック */
@@ -45,16 +45,20 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
 
     if (!isOpen || !recoveryData) return null;
 
-    const handleRecover = () => {
+    const handleRecover = async () => {
+        if (isRecovering) return;
         setIsRecovering(true);
         try {
-            onRecover(recoveryData);
+            await onRecover(recoveryData);
             clearRecoveryData();
             onClose();
+        } catch (error) {
+            console.error('[CrashRecovery] Recovery failed:', error);
         } finally {
             setIsRecovering(false);
         }
     };
+
 
     const handleDiscard = () => {
         clearRecoveryData();

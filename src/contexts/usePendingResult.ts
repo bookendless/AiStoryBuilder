@@ -14,6 +14,8 @@ import { CreativePoint, CreativePointSelection } from '../types/creativePoint';
 export interface PendingResult {
   id: string;
   label: string; // 例: 「構成全体」
+  /** 生成元の作品。別作品を開いている間は反映しない。 */
+  projectId?: string;
   preview: ReactNode; // 確認モーダルに表示する要約・プレビュー
   onApply: () => void | Promise<void>; // 反映処理（パネル側クロージャ。updateProject 等を捕捉）
   applyLabel?: string; // 反映ボタンの表示（既定: 「反映する」）
@@ -27,6 +29,7 @@ export interface PendingResult {
 export interface ProposeResultInput {
   label: string;
   preview: ReactNode;
+  projectId?: string;
   onApply: () => void | Promise<void>;
   applyLabel?: string;
   applySuccessMessage?: string;

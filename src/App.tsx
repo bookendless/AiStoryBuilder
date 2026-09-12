@@ -209,33 +209,32 @@ const RecoveryDialogWrapper: React.FC<{
   const { currentProject, updateProject, loadProject } = useProject();
   const { showSuccess, showError } = useToast();
 
-  const handleRecover = async (data: RecoveryData) => {
+  const handleRecover = async (data: RecoveryData): Promise<void> => {
     try {
-      // プロジェクトが読み込まれている場合はマージ
-      if (currentProject && currentProject.id === data.projectId) {
-        const merged = mergeRecoveryData(currentProject, data);
-        await updateProject(merged, true);
-        showSuccess('データを復元しました', 5000);
-      } else if (data.projectId) {
-        try {
-          // DBから直接取得してマージ後に保存し、loadProjectで再読み込む。
-          // loadProject完了後もReact stateのクロージャは古いままのため、
-          // currentProjectに依存するupdateProjectは使用できない。
-          const rawProject = await databaseService.loadProject(data.projectId);
-          if (!rawProject) throw new Error('プロジェクトが見つかりません');
-          const merged = mergeRecoveryData(rawProject, data);
-          await databaseService.saveProject(merged);
-          await loadProject(data.projectId);
-          showSuccess('プロジェクトを読み込み、データを復元しました', 5000);
-        } catch {
-          showError('プロジェクトの読み込みに失敗しました');
-        }
+      if (!data.projectId) {
+        throw new Error('Recovery data is missing a project ID');
       }
+
+      if (currentProject?.id === data.projectId) {
+        const merged = mergeRecoveryData(currentProject, data);
+        await updateProject(merged, true, data.projectId);
+        showSuccess('データを復元しました', 5000);
+        return;
+      }
+
+      const rawProject = await databaseService.loadProject(data.projectId);
+      if (!rawProject) throw new Error('プロジェクトが見つかりません');
+      const merged = mergeRecoveryData(rawProject, data);
+      await loadProject(data.projectId);
+      await updateProject(merged, true, data.projectId);
+      showSuccess('プロジェクトを読み込み、データを復元しました', 5000);
     } catch (error) {
       console.error('[Recovery] 復元エラー:', error);
-      showError('データの復元に失敗しました');
+      showError('データの復元に失敗しました。リカバリーデータは保持されています。');
+      throw error;
     }
   };
+
 
   const handleDiscard = () => {
     showSuccess('リカバリーデータを破棄しました', 3000);
@@ -512,8 +511,8 @@ const AppContent: React.FC = () => {
     <ErrorBoundary>
       <AIProvider>
         <GenerationProvider>
-        <PendingResultProvider>
         <ProjectProvider errorNotifier={errorNotifier}>
+        <PendingResultProvider>
           <StepChangeAutoSave currentStep={currentStep} />
           <PreemptiveGenerationManager currentStep={currentStep} />
           <RecapGate />
@@ -650,8 +649,8 @@ const AppContent: React.FC = () => {
             }}
             mode={onboardingMode}
           />
-        </ProjectProvider>
         </PendingResultProvider>
+        </ProjectProvider>
         </GenerationProvider>
       </AIProvider>
     </ErrorBoundary>

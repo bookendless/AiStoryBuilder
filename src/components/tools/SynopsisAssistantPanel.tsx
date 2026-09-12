@@ -322,6 +322,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 proposeResult({
                     label: 'あらすじ',
                     preview: generated,
+                    projectId: currentProject?.id,
                     onApply: () => updateSynopsis(generated),
                     creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
                     onRegenerateWithSelections:
@@ -580,6 +581,7 @@ export const SynopsisAssistantPanel: React.FC = () => {
                 proposeResult({
                     label: '全体あらすじ',
                     preview: generated,
+                    projectId: currentProject?.id,
                     onApply: () => updateSynopsis(generated),
                     creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
                     onRegenerateWithSelections:

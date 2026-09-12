@@ -199,7 +199,6 @@ export const CharacterAssistantPanel: React.FC = () => {
             if (parsedSuggestions.length > 0) {
                 // 通常のキャラ生成と同様に保留結果として登録する。
                 // 背景で完了 → トーストの「確認する」→ 確認モーダルで反映/破棄できる。
-                const existingCharacters = currentProject?.characters ?? [];
                 const suggestionsToAdd = parsedSuggestions;
                 const previewLines = parsedSuggestions.map((c, i) =>
                     `${i + 1}. ${c.name}（${c.role || '役割未設定'}）${c.reason ? `\n   💡 ${c.reason}` : ''}`
@@ -210,9 +209,12 @@ export const CharacterAssistantPanel: React.FC = () => {
                 proposeResult({
                     label: `不足キャラクターの提案（${parsedSuggestions.length}人）`,
                     preview: previewLines.join('\n\n'),
+                    projectId: currentProject!.id,
                     onApply: () => {
                         const cleanCharacters = suggestionsToAdd.map(({ reason: _reason, ...char }) => char);
-                        updateProject({ characters: [...existingCharacters, ...cleanCharacters] });
+                        return updateProject(project => ({
+                            characters: [...project.characters, ...cleanCharacters],
+                        }), false, currentProject!.id);
                     },
                 });
             } else {
@@ -365,8 +367,6 @@ export const CharacterAssistantPanel: React.FC = () => {
                     error: response.error,
                     parsedCharacters: newCharacters,
                 });
-
-                const existingCharacters = currentProject.characters;
                 const charactersToAdd = newCharacters;
 
                 // プレビュー: キャラ名・役割・性格の要約
@@ -383,9 +383,10 @@ export const CharacterAssistantPanel: React.FC = () => {
                 proposeResult({
                     label: `キャラクター（${newCharacters.length}人追加）`,
                     preview: previewLines.join('\n\n'),
-                    onApply: () => updateProject({
-                        characters: [...existingCharacters, ...charactersToAdd],
-                    }),
+                    projectId: currentProject!.id,
+                    onApply: () => updateProject(project => ({
+                        characters: [...project.characters, ...charactersToAdd],
+                    }), false, currentProject!.id),
                 });
             } else {
                 // 解析失敗時もログを記録

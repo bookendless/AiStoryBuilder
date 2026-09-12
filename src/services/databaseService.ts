@@ -236,6 +236,7 @@ try {
 
 class DatabaseService {
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
+  private autoSaveRunId = 0;
   private autoSaveInterval = 180000; // 3分
   private autoBackupTimer: ReturnType<typeof setInterval> | null = null;
   private autoBackupInterval = 300000; // 5分
@@ -446,7 +447,7 @@ class DatabaseService {
       return storedProjects.map(({ version: _version, lastSaved: _lastSaved, ...project }) => project);
     } catch (error) {
       console.error('全プロジェクト取得エラー:', error);
-      return [];
+      throw error;
     }
   }
 
@@ -794,42 +795,39 @@ class DatabaseService {
   // 注意: getProject 関数を渡すことで、常に最新のプロジェクト状態を取得できます
   async startAutoSave(
     getProject: () => Project | null,
-    callback: (success: boolean, error?: Error) => void
+    callback: (success: boolean, error?: Error) => void,
+    options: { persistProject?: boolean } = {},
   ): Promise<void> {
     this.stopAutoSave();
-
+    const runId = ++this.autoSaveRunId;
     const settings = await this.getSettings();
+    if (runId !== this.autoSaveRunId) return;
+
     this.autoSaveInterval = settings.autoSaveInterval;
-
-    this.autoSaveTimer = setInterval(async () => {
-      try {
-        // 最新のプロジェクト状態を取得（クロージャ問題を回避）
-        const currentProject = getProject();
-
-        // プロジェクトが null の場合はスキップ
-        if (!currentProject) {
-          console.log('自動保存: プロジェクトが見つかりません、スキップします');
-          return;
+    if (options.persistProject !== false) {
+      this.autoSaveTimer = setInterval(async () => {
+        if (runId !== this.autoSaveRunId) return;
+        try {
+          const currentProject = getProject();
+          if (!currentProject) return;
+          await this.saveProject(currentProject);
+          if (runId === this.autoSaveRunId) callback(true);
+        } catch (error) {
+          if (runId === this.autoSaveRunId) {
+            callback(false, error instanceof Error ? error : new Error('Auto-save failed'));
+          }
         }
+      }, this.autoSaveInterval);
+    }
 
-        // プロジェクトの保存（自動バックアップは独立タイマーで実行）
-        await this.saveProject(currentProject);
-
-        callback(true);
-        console.log('自動保存完了');
-      } catch (error) {
-        console.error('自動保存エラー:', error);
-        callback(false, error instanceof Error ? error : new Error('自動保存に失敗しました'));
-        // エラーが発生してもアプリケーションは継続
-      }
-    }, this.autoSaveInterval);
-
-    // 自動バックアップも独立タイマーで開始
-    await this.startAutoBackup(getProject);
+    if (runId === this.autoSaveRunId) {
+      await this.startAutoBackup(getProject);
+    }
   }
 
   // 自動保存停止
   stopAutoSave(): void {
+    this.autoSaveRunId += 1;
     if (this.autoSaveTimer) {
       clearInterval(this.autoSaveTimer);
       this.autoSaveTimer = null;

@@ -397,23 +397,16 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                     }
 
                     // 即時反映せず、確認モーダルで反映/破棄を選べるよう保留に登録
-                    const currentPlot = currentProject?.plot;
-                    const nextPlot = {
-                        theme: currentPlot?.theme || '',
-                        setting: currentPlot?.setting || '',
-                        hook: currentPlot?.hook || '',
-                        protagonistGoal: currentPlot?.protagonistGoal || '',
-                        mainObstacle: currentPlot?.mainObstacle || '',
-                        ...currentPlot,
-                        ...plotUpdates,
-                    };
                     const previewText = Object.values(plotUpdates)
                         .filter((v) => typeof v === 'string' && v.trim().length > 0)
                         .join('\n\n');
                     proposeResult({
                         label: `${PLOT_STRUCTURE_CONFIGS[plotStructure].label}`,
                         preview: previewText,
-                        onApply: () => updateProject({ plot: nextPlot }, true),
+                        projectId: currentProject?.id,
+                        onApply: () => updateProject(project => ({
+                            plot: { ...project.plot, ...plotUpdates },
+                        }), true, currentProject?.id),
                         creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
                         onRegenerateWithSelections:
                             creativePoints.length > 0
@@ -593,6 +586,7 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                         // 「確認する」や左下インジケータの「確認待ち」から内容を確認・反映できる。
                         proposeResult({
                             label: 'プロット一貫性チェック',
+                            projectId: currentProject?.id,
                             applyLabel: '提案に従って修正を実施',
                             applySuccessMessage: '提案に従ってプロットを修正しました',
                             preview: (

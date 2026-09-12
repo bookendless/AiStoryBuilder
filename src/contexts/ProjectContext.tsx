@@ -1,12 +1,13 @@
 import React, { useState, useRef, ReactNode, useMemo, useCallback } from 'react';
 import { databaseService } from '../services/databaseService';
-import { useSafeEffect, useTimer } from '../hooks/useMemoryLeakPrevention';
+import { useSafeEffect } from '../hooks/useMemoryLeakPrevention';
 import {
   startAutoRecovery,
   stopAutoRecovery,
   setupBeforeUnloadHandler,
 } from '../services/crashRecoveryService';
 import { getUserFriendlyError } from '../utils/errorHandler';
+import { ProjectSaveCoordinator } from '../services/projectSaveCoordinator';
 
 // 型定義をtypes/からインポート
 import { Step } from '../types/common';
@@ -59,7 +60,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const { setTimer } = useTimer();
 
   // lastAccessed上書き前の値をプロジェクトIDごとに保持（リキャップの経過時間判定用）
   const previousAccessRef = useRef<Record<string, Date | undefined>>({});
@@ -71,52 +71,77 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     currentProjectRef.current = currentProject;
   }, [currentProject]);
 
+  const errorNotifierRef = useRef(errorNotifier);
+  errorNotifierRef.current = errorNotifier;
+
+  const notifySaveError = useCallback((projectId: string, error: unknown) => {
+    if (currentProjectRef.current?.id !== projectId) return;
+    console.error('Project save error:', error);
+    const notifier = errorNotifierRef.current;
+    if (!notifier) return;
+    const errorInfo = getUserFriendlyError(error);
+    notifier.notifyError(error, 'Project save', {
+      title: errorInfo.title || 'Project save failed',
+      duration: 7000,
+      showDetails: true,
+    });
+  }, []);
+
+  const saveCoordinatorRef = useRef<ProjectSaveCoordinator | null>(null);
+  if (!saveCoordinatorRef.current) {
+    saveCoordinatorRef.current = new ProjectSaveCoordinator({
+      save: (project) => databaseService.saveProject(project),
+      onSaveStart: (projectId) => {
+        if (currentProjectRef.current?.id === projectId) setIsLoading(true);
+      },
+      onSaveSuccess: (projectId) => {
+        if (currentProjectRef.current?.id === projectId) {
+          setLastSaved(new Date());
+          setIsLoading(false);
+        }
+      },
+      onSaveError: (projectId, error) => {
+        if (currentProjectRef.current?.id === projectId) setIsLoading(false);
+        notifySaveError(projectId, error);
+      },
+    });
+  }
+  const saveCoordinator = saveCoordinatorRef.current!;
+
+  const commitCurrentProject = useCallback((project: Project | null) => {
+    currentProjectRef.current = project;
+    setCurrentProjectState(project);
+    if (project) {
+      setProjects(prev => prev.map(item => item.id === project.id ? project : item));
+    }
+  }, []);
+
   // setCurrentProjectをラップしてlastAccessedを更新（メモ化）
   // DBへの即時保存はプロジェクト切替時のみ行う。同一プロジェクトの内容更新は
   // updateProjectのデバウンス保存が担当するため、ここで保存すると二重書込みになる
   const setCurrentProject = useCallback((project: Project | null) => {
-    if (project) {
-      const isProjectSwitch = currentProjectRef.current?.id !== project.id;
-      if (isProjectSwitch) {
-        // 上書き前の最終アクセス日時を退避（IndexedDB経由で文字列化されている可能性に備えDate化）
-        previousAccessRef.current[project.id] = project.lastAccessed
-          ? new Date(project.lastAccessed)
-          : undefined;
-        const updatedProject = {
-          ...project,
-          lastAccessed: new Date(),
-        };
-        currentProjectRef.current = updatedProject;
-        setCurrentProjectState(updatedProject);
-        // プロジェクト一覧も更新
-        setProjects(prev => prev.map(p =>
-          p.id === updatedProject.id ? updatedProject : p
-        ));
-        // 切替時はlastAccessedをDBにも保存（非同期だがエラーは無視）
-        databaseService.saveProject(updatedProject).catch(err => {
-          console.error('lastAccessed更新エラー:', err);
-          // エラー通知（オプショナル）
-          if (errorNotifier) {
-            const errorInfo = getUserFriendlyError(err);
-            errorNotifier.notifyError(err, '最終アクセス時刻の更新', {
-              title: errorInfo.title,
-              duration: 5000,
-            });
-          }
-        });
-      } else {
-        currentProjectRef.current = project;
-        setCurrentProjectState(project);
-        // プロジェクト一覧も更新
-        setProjects(prev => prev.map(p =>
-          p.id === project.id ? project : p
-        ));
-      }
-    } else {
-      currentProjectRef.current = null;
-      setCurrentProjectState(null);
+    if (!project) {
+      commitCurrentProject(null);
+      return;
     }
-  }, [errorNotifier]);
+
+    const isProjectSwitch = currentProjectRef.current?.id !== project.id;
+    if (!isProjectSwitch) {
+      saveCoordinator.activate(project.id);
+      commitCurrentProject(project);
+      return;
+    }
+
+    previousAccessRef.current[project.id] = project.lastAccessed
+      ? new Date(project.lastAccessed)
+      : undefined;
+    const updatedProject: Project = { ...project, lastAccessed: new Date() };
+    saveCoordinator.activate(updatedProject.id);
+    commitCurrentProject(updatedProject);
+    void saveCoordinator.schedule(updatedProject, true).catch(() => {
+      // onSaveError で通知済み。未処理の Promise rejection だけを防ぐ。
+    });
+  }, [commitCurrentProject, saveCoordinator]);
 
   // 初期化時にプロジェクト一覧を読み込み
   useSafeEffect(() => {
@@ -165,7 +190,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
                   });
                 }
               }
-            }
+            },
+            { persistProject: false },
           );
         } catch (err) {
           console.error('自動保存開始エラー:', err);
@@ -214,69 +240,29 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
         console.error('自動保存停止エラー:', err);
       }
     };
-  }, [currentProject]);
+  }, [currentProject?.id]);
 
-  const updateProject = useCallback(async (updates: Partial<Project>, immediate: boolean = false) => {
-    if (!currentProject) return;
+  const updateProject = useCallback(async (
+    updates: Partial<Project> | ((project: Project) => Partial<Project>),
+    immediate: boolean = false,
+    targetProjectId?: string,
+  ) => {
+    const base = currentProjectRef.current;
+    if (!base) return;
+    if (targetProjectId && base.id !== targetProjectId) {
+      throw new Error('The source project is no longer active');
+    }
 
-    const updatedProject = {
-      ...currentProject,
-      ...updates,
+    const patch = typeof updates === 'function' ? updates(base) : updates;
+    const updatedProject: Project = {
+      ...base,
+      ...patch,
       updatedAt: new Date(),
     };
+    commitCurrentProject(updatedProject);
+    await saveCoordinator.schedule(updatedProject, immediate);
+  }, [commitCurrentProject, saveCoordinator]);
 
-    // setCurrentProject内でprojects一覧も更新される
-    setCurrentProject(updatedProject);
-
-    if (immediate) {
-      // 即座に保存（手動保存時など）
-      try {
-        await databaseService.saveProject(updatedProject);
-        setLastSaved(new Date());
-        console.log('プロジェクトを即座に保存しました');
-      } catch (error) {
-        console.error('即座保存エラー:', error);
-        // エラー通知（オプショナル）
-        if (errorNotifier) {
-          const errorInfo = getUserFriendlyError(error);
-          errorNotifier.notifyError(error, 'プロジェクトの保存', {
-            title: errorInfo.title || 'プロジェクトの保存に失敗しました',
-            duration: 7000,
-            showDetails: true,
-            onRetry: errorInfo.retryable ? () => updateProject(updates, true) : undefined,
-          });
-        }
-      }
-    } else {
-      // デバウンス付きで保存（自動保存時）
-      // updatedProjectをクロージャー内でキャプチャするため、最新の値を取得するために
-      // setCurrentProjectの更新後に保存処理を実行
-      setTimer(async () => {
-        setIsLoading(true);
-        try {
-          // state一覧はsetCurrentProject側で更新済みのためDB保存のみ行う
-          await databaseService.saveProject(updatedProject);
-          setLastSaved(new Date());
-          setIsLoading(false);
-        } catch (error) {
-          console.error('プロジェクト保存エラー:', error);
-          setIsLoading(false);
-          // エラー通知（オプショナル）
-          if (errorNotifier) {
-            const errorInfo = getUserFriendlyError(error);
-            errorNotifier.notifyError(error, 'プロジェクトの自動保存', {
-              title: errorInfo.title || 'プロジェクトの自動保存に失敗しました',
-              duration: 7000,
-              showDetails: true,
-            });
-          }
-        }
-      }, 500);
-    }
-  }, [currentProject, setTimer, setCurrentProject, setLastSaved, errorNotifier]);
-
-  // クラッシュリカバリーデータの保存は startAutoRecovery の定期タイマーと
-  // beforeunload ハンドラに一本化（毎更新の全量シリアライズはメインスレッドを塞ぐため廃止）
 
   const createNewProject = useCallback((title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string): Project => {
     // デバッグ: あらすじの値を確認
@@ -544,34 +530,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
   }, [setCurrentProject]);
 
   const saveProject = useCallback(async (): Promise<void> => {
-    if (!currentProject) return;
-
-    setIsLoading(true);
-    try {
-      await databaseService.saveProject(currentProject);
-      setLastSaved(new Date());
-
-      // プロジェクト一覧も更新
-      setProjects(prev => prev.map(p =>
-        p.id === currentProject.id ? currentProject : p
-      ));
-      setIsLoading(false); // 成功時にもローディング状態を解除
-    } catch (error) {
-      console.error('プロジェクト保存エラー:', error);
-      setIsLoading(false);
-      // エラー通知（オプショナル）
-      if (errorNotifier) {
-        const errorInfo = getUserFriendlyError(error);
-        errorNotifier.notifyError(error, 'プロジェクトの保存', {
-          title: errorInfo.title || 'プロジェクトの保存に失敗しました',
-          duration: 7000,
-          showDetails: true,
-          onRetry: errorInfo.retryable ? () => saveProject() : undefined,
-        });
-      }
-      throw error; // エラーを呼び出し側に伝播
-    }
-  }, [currentProject, setLastSaved, errorNotifier]);
+    const project = currentProjectRef.current;
+    if (!project) return;
+    await saveCoordinator.schedule(project, true);
+  }, [saveCoordinator]);
 
   const createManualBackup = useCallback(async (description: string = '手動バックアップ'): Promise<void> => {
     if (!currentProject) return;
@@ -647,28 +609,27 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
   const deleteProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);
     try {
-      await databaseService.deleteProject(id);
-      setProjects(prev => prev.filter(p => p.id !== id));
-
-      if (currentProject?.id === id) {
-        setCurrentProject(null);
+      await saveCoordinator.delete(id, (projectId) => databaseService.deleteProject(projectId));
+      setProjects(prev => prev.filter(project => project.id !== id));
+      if (currentProjectRef.current?.id === id) {
+        commitCurrentProject(null);
       }
-      setIsLoading(false); // 成功時にもローディング状態を解除
     } catch (error) {
-      console.error('プロジェクト削除エラー:', error);
-      setIsLoading(false);
-      // エラー通知（オプショナル）
-      if (errorNotifier) {
+      console.error('Project delete error:', error);
+      const notifier = errorNotifierRef.current;
+      if (notifier) {
         const errorInfo = getUserFriendlyError(error);
-        errorNotifier.notifyError(error, 'プロジェクトの削除', {
-          title: errorInfo.title || 'プロジェクトの削除に失敗しました',
+        notifier.notifyError(error, 'Project delete', {
+          title: errorInfo.title || 'Project delete failed',
           duration: 7000,
           showDetails: true,
         });
       }
-      throw error; // エラーを呼び出し側に伝播
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-  }, [currentProject, setCurrentProject, errorNotifier]);
+  }, [commitCurrentProject, saveCoordinator]);
 
   const duplicateProject = useCallback(async (id: string): Promise<void> => {
     setIsLoading(true);

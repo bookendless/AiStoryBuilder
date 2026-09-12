@@ -222,13 +222,13 @@ export function mergeRecoveryData(
     return {
         ...currentProject,
         // リカバリーデータで上書き
-        chapters: recoveryData.projectData.chapters || currentProject.chapters,
-        characters: recoveryData.projectData.characters || currentProject.characters,
-        plot: recoveryData.projectData.plot || currentProject.plot,
-        synopsis: recoveryData.projectData.synopsis || currentProject.synopsis,
-        worldSettings: recoveryData.projectData.worldSettings || currentProject.worldSettings,
-        foreshadowings: recoveryData.projectData.foreshadowings || currentProject.foreshadowings,
-        glossary: recoveryData.projectData.glossary || currentProject.glossary,
+        chapters: recoveryData.projectData.chapters ?? currentProject.chapters,
+        characters: recoveryData.projectData.characters ?? currentProject.characters,
+        plot: recoveryData.projectData.plot ?? currentProject.plot,
+        synopsis: recoveryData.projectData.synopsis ?? currentProject.synopsis,
+        worldSettings: recoveryData.projectData.worldSettings ?? currentProject.worldSettings,
+        foreshadowings: recoveryData.projectData.foreshadowings ?? currentProject.foreshadowings,
+        glossary: recoveryData.projectData.glossary ?? currentProject.glossary,
         updatedAt: new Date(),
     };
 }

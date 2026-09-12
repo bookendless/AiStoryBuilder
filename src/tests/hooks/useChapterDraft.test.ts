@@ -2,12 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useChapterDraft } from '../../components/steps/draft/hooks/useChapterDraft';
 
-vi.mock('../../services/databaseService', () => ({
-  databaseService: {
-    saveProject: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
 const makeProject = () => ({
   id: 'proj-1',
   title: 'テスト',
@@ -28,7 +22,7 @@ const makeProject = () => ({
 } as Parameters<typeof useChapterDraft>[0]['currentProject'] & object);
 
 describe('useChapterDraft', () => {
-  const updateProject = vi.fn();
+  const updateProject = vi.fn(async () => {});
   const onSaveSuccess = vi.fn();
   const onSaveError = vi.fn();
   const onToastMessage = vi.fn();
@@ -51,8 +45,7 @@ describe('useChapterDraft', () => {
     expect(result.current.draft).toBe('第1章の内容');
   });
 
-  it('handleSaveChapterDraft が databaseService.saveProject を呼ぶ', async () => {
-    const { databaseService } = await import('../../services/databaseService');
+  it('handleSaveChapterDraft はProjectContext経由で即時保存する', async () => {
     const { result } = renderHook(() =>
       useChapterDraft({
         currentProject: makeProject(),
@@ -66,7 +59,11 @@ describe('useChapterDraft', () => {
     await act(async () => {
       await result.current.handleSaveChapterDraft('ch-1', '新しい内容');
     });
-    expect(databaseService.saveProject).toHaveBeenCalled();
+    expect(updateProject).toHaveBeenCalledWith(
+      expect.objectContaining({ draft: '新しい内容' }),
+      true,
+      'proj-1'
+    );
   });
 
   it('isAutoSave=false 時に onToastMessage が呼ばれない', async () => {
@@ -103,6 +100,24 @@ describe('useChapterDraft', () => {
     });
     expect(onToastMessage).toHaveBeenCalledWith('自動保存しました');
     vi.useRealTimers();
+  });
+
+  it('空文字の草案を保存できる', async () => {
+    const { result } = renderHook(() =>
+      useChapterDraft({
+        currentProject: makeProject(),
+        updateProject,
+        selectedChapter: 'ch-1',
+      })
+    );
+    await act(async () => {
+      await result.current.handleSaveChapterDraft('ch-1', '');
+    });
+    expect(updateProject).toHaveBeenCalledWith(
+      expect.objectContaining({ draft: '' }),
+      true,
+      'proj-1'
+    );
   });
 
   it('複数章切り替え時に draft が正しく切り替わる', async () => {

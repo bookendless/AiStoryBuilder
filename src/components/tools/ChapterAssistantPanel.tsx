@@ -347,7 +347,6 @@ export const ChapterAssistantPanel: React.FC = () => {
             });
 
             if (newChapters.length > 0) {
-                const existingChapters = currentProject.chapters;
                 const chaptersToAdd = newChapters;
 
                 // 不完全な章があるかチェック
@@ -376,9 +375,10 @@ export const ChapterAssistantPanel: React.FC = () => {
                 proposeResult({
                     label: `章立て（${newChapters.length}章追加）`,
                     preview: previewText,
-                    onApply: () => updateProject({
-                        chapters: [...existingChapters, ...chaptersToAdd],
-                    }),
+                    projectId: currentProject.id,
+                    onApply: () => updateProject(project => ({
+                            chapters: [...project.chapters, ...chaptersToAdd],
+                        }), false, currentProject.id),
                     creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
                     onRegenerateWithSelections:
                         creativePoints.length > 0
@@ -503,7 +503,6 @@ export const ChapterAssistantPanel: React.FC = () => {
                 });
 
                 if (newChapters.length > 0) {
-                    const existingChapters = currentProject.chapters;
                     const chaptersToAdd = newChapters;
 
                     // 不完全な章があるかチェック
@@ -534,9 +533,10 @@ export const ChapterAssistantPanel: React.FC = () => {
                     proposeResult({
                         label: `構成バランス章立て（${newChapters.length}章追加）`,
                         preview: previewText,
-                        onApply: () => updateProject({
-                            chapters: [...existingChapters, ...chaptersToAdd],
-                        }),
+                        projectId: currentProject.id,
+                        onApply: () => updateProject(project => ({
+                            chapters: [...project.chapters, ...chaptersToAdd],
+                        }), false, currentProject.id),
                         creativePoints: creativePoints.length > 0 ? creativePoints : undefined,
                         onRegenerateWithSelections:
                             creativePoints.length > 0
