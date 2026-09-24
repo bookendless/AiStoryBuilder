@@ -28,7 +28,7 @@ import { useToast } from './components/useToast';
 import { OfflineNotifier } from './components/OfflineNotifier';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
-import { PerformanceMonitor, registerServiceWorker } from './utils/performanceUtils';
+import { PerformanceMonitor } from './utils/performanceUtils';
 import { useGlobalShortcuts } from './hooks/useKeyboardNavigation';
 import { useErrorHandler } from './hooks/useErrorHandler';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
@@ -63,11 +63,6 @@ function App() {
 
         // パフォーマンス監視の開始
         performanceMonitor = new PerformanceMonitor();
-
-        // サービスワーカーの登録
-        if (import.meta.env.PROD) {
-          await registerServiceWorker();
-        }
 
         // データ移行（初回のみ）
         const migrationDone = localStorage.getItem('historyMigrationDone');

@@ -225,34 +225,4 @@ export function useIsSlowConnection(): boolean {
     return quality === 'slow';
 }
 
-/**
- * オフラインキューのサイズを監視するフック
- */
-export function useOfflineQueueSize(): number {
-    const [size, setSize] = useState(0);
-
-    useEffect(() => {
-        // 動的インポートで循環参照を回避
-        import('../utils/networkRetryUtils').then(({ getOfflineQueueManager }) => {
-            const queue = getOfflineQueueManager();
-
-            const updateSize = () => {
-                setSize(queue.pendingCount());
-            };
-
-            // 初期値を設定
-            updateSize();
-
-            // ポーリングで更新（オブザーバーパターンがないため）
-            const interval = setInterval(updateSize, 1000);
-
-            return () => {
-                clearInterval(interval);
-            };
-        });
-    }, []);
-
-    return size;
-}
-
 export default useNetworkStatus;
