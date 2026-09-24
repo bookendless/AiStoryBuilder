@@ -10,7 +10,7 @@ import { AISettings } from '../../types/ai';
 import { AIRunner } from '../../types/sequel';
 import { ConsistencyCategory, ScannedIssue } from '../../types/consistency';
 import { getInputCharBudget } from '../summarization/tokenBudget';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { chunkProse } from '../import/chunkProse';
 import { buildConsistencyPrompt, CONSISTENCY_PROMPT_CAP } from '../prompts/consistency';
 import { validateIssues } from './validateIssues';

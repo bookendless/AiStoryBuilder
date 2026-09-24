@@ -13,7 +13,7 @@ import { Character } from '../../types/project';
 import { AIRunner, SequelProgress } from '../../types/sequel';
 import { AISettings } from '../../types/ai';
 import { getInputCharBudget } from '../summarization/tokenBudget';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { chunkProse } from './chunkProse';
 import { buildCharacterExtractPrompt, buildCharacterConsolidatePrompt } from '../prompts/import';
 import {

@@ -11,7 +11,7 @@ import {
     SequelElements,
     AIRunner,
 } from '../../types/sequel';
-import { parseJsonLoose } from './parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import {
     buildExtractPrompt,
     buildGenerateSynopsisPlotPrompt,

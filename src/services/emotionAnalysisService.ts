@@ -9,6 +9,7 @@ import {
   EmotionType,
 } from '../types/emotion';
 import { parseAIResponse } from '../utils/aiResponseParser';
+import { extractJson } from '../utils/jsonExtract';
 import { buildEmotionAnalysisPrompt as generateEmotionAnalysisPrompt, EMOTION_PROMPT_CAP } from './prompts/emotion';
 
 /**
@@ -105,10 +106,11 @@ export const analyzeChapterEmotion = async (
       }
     } else {
       // JSONオブジェクトの前後のテキストを抽出
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const beforeJson = rawContent.substring(0, rawContent.indexOf(jsonMatch[0])).trim();
-        const afterJson = rawContent.substring(rawContent.indexOf(jsonMatch[0]) + jsonMatch[0].length).trim();
+      const jsonSource = extractJson(rawContent, 'object')?.source;
+      const jsonIndex = jsonSource ? rawContent.indexOf(jsonSource) : -1;
+      if (jsonSource && jsonIndex !== -1) {
+        const beforeJson = rawContent.substring(0, jsonIndex).trim();
+        const afterJson = rawContent.substring(jsonIndex + jsonSource.length).trim();
         const notes = [beforeJson, afterJson].filter(Boolean).join('\n\n');
         if (notes) {
           analysisNotes = notes;

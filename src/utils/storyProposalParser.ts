@@ -2,6 +2,8 @@
  * AIが生成した物語プロジェクト提案をパースするユーティリティ
  */
 
+import { parseJsonObject } from './jsonExtract';
+
 export interface StoryProposal {
   title: string;
   theme: string;
@@ -21,15 +23,12 @@ export interface StoryProposal {
  */
 export function parseStoryProposal(response: string): StoryProposal | null {
   try {
-    // JSON部分を抽出（コードブロック内にある場合に対応）
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // JSON部分を抽出（コードブロック・前後の文章にも対応）
+    const parsed = parseJsonObject<Partial<StoryProposal>>(response);
+    if (!parsed) {
       console.warn('JSON形式が見つかりませんでした:', response);
       return null;
     }
-
-    const jsonStr = jsonMatch[0];
-    const parsed = JSON.parse(jsonStr) as Partial<StoryProposal>;
 
     // 必須フィールドの検証
     if (!parsed.title || !parsed.theme || !parsed.mainGenre || !parsed.description || !parsed.synopsis) {

@@ -10,7 +10,7 @@ import { getUserFriendlyError } from '../utils/errorHandler';
 
 // プロンプトテンプレートを外部ファイルからインポート
 import { PROMPTS, SYSTEM_PROMPT, STRICTNESS_INSTRUCTIONS, EVALUATION_PROMPT_CAP } from './prompts';
-import { parseJsonLoose } from './summarization/parseJson';
+import { parseJsonLoose } from '../utils/jsonExtract';
 import { normalizeWeaknessDetails } from './evaluation/normalizeWeaknessDetails';
 import { modelSupportsTemperature, isOpenAIReasoningModel } from '../utils/modelCapabilities';
 import { resolveMaxOutputTokens } from './providers';

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { splitCreativePoints, normalizeCreativePointsList } from '../../services/creativePoints/parseCreativePoints';
 import { CREATIVE_POINTS_MARKER } from '../../services/prompts/creativePoints';
+import { parseJsonObject } from '../../utils/jsonExtract';
 
 /**
  * splitCreativePoints の本文分離・正規化を検証する。
@@ -133,18 +134,10 @@ describe('normalizeCreativePointsList', () => {
  * 構成フィールドと創造ポイントの両方が取り出せることを保証する。
  */
 describe('plot2 構成JSON + creativePoints キーの抽出', () => {
-    // パネル(handleStructureAIGenerate)と同じ抽出ロジックを再現
+    // パネル(handleStructureAIGenerate)と同じ抽出経路（parseJsonObject）を通す
     const extract = (raw: string) => {
-        let normalized = raw.trim();
-        if (normalized.startsWith('{{') && normalized.endsWith('}}')) {
-            normalized = normalized.slice(1, -1);
-        }
-        const m = normalized.match(/\{[\s\S]*\}/);
-        if (!m) return null;
-        let jsonString = m[0];
-        if (jsonString.startsWith('{{')) jsonString = jsonString.slice(1);
-        if (jsonString.endsWith('}}')) jsonString = jsonString.slice(0, -1);
-        const parsed = JSON.parse(jsonString) as Record<string, unknown>;
+        const parsed = parseJsonObject(raw);
+        if (!parsed) return null;
         return {
             ki: typeof parsed['起（導入）'] === 'string' ? (parsed['起（導入）'] as string) : '',
             creativePoints: normalizeCreativePointsList(parsed.creativePoints),
@@ -178,5 +171,17 @@ describe('plot2 構成JSON + creativePoints キーの抽出', () => {
         const res = extract(raw);
         expect(res!.ki).toBe('本文');
         expect(res!.creativePoints).toEqual([]);
+    });
+
+    it('二重波括弧で包まれていても構成を取得できる', () => {
+        const raw = `{${JSON.stringify({ '起（導入）': '本文' })}}`;
+        expect(extract(raw)!.ki).toBe('本文');
+    });
+
+    it('JSONの後ろに波括弧を含む補足文があっても構成を取得できる', () => {
+        const raw = `${JSON.stringify({ '起（導入）': '本文' })}
+
+補足: {必要なら調整してください}`;
+        expect(extract(raw)!.ki).toBe('本文');
     });
 });

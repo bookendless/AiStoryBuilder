@@ -25,7 +25,7 @@ import {
     TONE_OPTIONS,
     STYLE_SAMPLE_EXTRACT_CHARS,
 } from '../../constants/writingStyle';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { buildStyleClassifyPrompt } from '../prompts/import';
 import { computeStyleMetrics, formatStyleMetrics, StyleMetrics } from './analyzeStyleMetrics';
 import { STYLE_MIN_CHARS, STYLE_EXCERPT_CHARS, IMPORT_PROMPT_HARD_CAP } from './constants';

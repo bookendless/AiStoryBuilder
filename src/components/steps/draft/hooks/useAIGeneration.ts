@@ -6,7 +6,7 @@ import { buildContinueEnhancedPrompt, DRAFT_PROMPT_CAP } from '../../../../servi
 import { useGeneration } from '../../../../contexts/useGeneration';
 import type { GenerationAction, ImprovementLog, WeaknessItem } from '../types';
 import { formatText } from '../../../../utils/textFormatter';
-import { extractJsonObjectString } from '../../../../utils/aiResponseParser';
+import { parseJsonObject } from '../../../../utils/jsonExtract';
 import { normalizeForQuoteMatch, quoteExists } from '../../../../services/quotes/verifyQuote';
 import { ensureIndexFresh, retrieveForDraft, retrieveForContinue, buildDraftContext } from '../../../../services/rag';
 import { getInputCharBudget } from '../../../../services/summarization/tokenBudget';
@@ -734,14 +734,12 @@ const critiqueResponse = await aiService.generateContent({
       let weaknesses: WeaknessItem[] = []; // 型適用
 
       try {
-        const jsonString = extractJsonObjectString(critiqueResponse.content);
+        const critiqueData = parseJsonObject<{
+          summary?: string;
+          weaknesses?: WeaknessItem[];
+        }>(critiqueResponse.content);
 
-        if (jsonString && jsonString.startsWith('{')) {
-          const critiqueData = JSON.parse(jsonString) as {
-            summary?: string;
-            weaknesses?: WeaknessItem[];
-          };
-
+        if (critiqueData) {
           if (critiqueData.summary) {
             critiqueSummary = critiqueData.summary;
           }
@@ -855,16 +853,15 @@ const revisionResponse = await aiService.generateContent({
       let phase2Changes: string[] = [];
 
       try {
-        const jsonString = extractJsonObjectString(revisionResponse.content);
+        const parsed = parseJsonObject<{
+          revisedText?: string;
+          revised_text?: string;
+          improvementSummary?: string;
+          improvement_summary?: string;
+          changes?: string[];
+        }>(revisionResponse.content);
 
-        if (jsonString && jsonString.startsWith('{')) {
-          const parsed = JSON.parse(jsonString) as {
-            revisedText?: string;
-            revised_text?: string;
-            improvementSummary?: string;
-            improvement_summary?: string;
-            changes?: string[];
-          };
+        if (parsed) {
           const rawRevisedText = parsed.revisedText || parsed.revised_text || '';
           revisedText = formatText(rawRevisedText);
           improvementSummary = parsed.improvementSummary || parsed.improvement_summary || '';

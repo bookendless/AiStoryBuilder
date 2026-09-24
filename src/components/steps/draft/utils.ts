@@ -1,7 +1,7 @@
 import type { AISuggestion } from './types';
 import { HISTORY_STORAGE_PREFIX } from './constants';
 import { exportFile } from '../../../utils/mobileExportUtils';
-import { parseJsonLoose } from '../../../services/summarization/parseJson';
+import { parseJsonLoose } from '../../../utils/jsonExtract';
 import { toProbability } from '../../../utils/probabilityBadge';
 
 export const getHistoryStorageKey = (projectId: string, chapterId: string) =>

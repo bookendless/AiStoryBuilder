@@ -18,6 +18,7 @@ import type { PlotStructureType, PlotFormData, ConsistencyCheck } from '../steps
 import { PLOT_STRUCTURE_CONFIGS, AI_LOG_TYPE_LABELS } from '../steps/plot2/constants';
 import { getProjectContext, getStructureFields, formatCharactersInfo } from '../steps/plot2/utils';
 import { exportFile } from '../../utils/mobileExportUtils';
+import { parseJsonObject } from '../../utils/jsonExtract';
 
 export const PlotStep2AssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -311,23 +312,9 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 return;
             }
 
-            const content = response.content;
-            let normalizedContent = content.trim();
-            if (normalizedContent.startsWith('{{') && normalizedContent.endsWith('}}')) {
-                normalizedContent = normalizedContent.slice(1, -1);
-            }
-
-            const jsonMatch = normalizedContent.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
+            const parsed = parseJsonObject<Record<string, unknown>>(response.content);
+            if (parsed) {
                 try {
-                    let jsonString = jsonMatch[0];
-                    if (jsonString.startsWith('{{')) {
-                        jsonString = jsonString.slice(1);
-                    }
-                    if (jsonString.endsWith('}}')) {
-                        jsonString = jsonString.slice(0, -1);
-                    }
-                    const parsed = JSON.parse(jsonString) as Record<string, unknown>;
 
                     // 創造ポイント（Phase C）: 同一JSON内の creativePoints キーを正規化（構成キーには非干渉）
                     const creativePoints = cpEnabled
@@ -548,27 +535,13 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 return;
             }
 
-            const content = response.content;
-            let normalizedContent = content.trim();
-            if (normalizedContent.startsWith('{{') && normalizedContent.endsWith('}}')) {
-                normalizedContent = normalizedContent.slice(1, -1);
-            }
-
-            const jsonMatch = normalizedContent.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
+            const parsed = parseJsonObject<{
+                issues?: unknown;
+                suggestions?: unknown;
+                hasIssues?: unknown;
+            }>(response.content);
+            if (parsed) {
                 try {
-                    let jsonString = jsonMatch[0];
-                    if (jsonString.startsWith('{{')) {
-                        jsonString = jsonString.slice(1);
-                    }
-                    if (jsonString.endsWith('}}')) {
-                        jsonString = jsonString.slice(0, -1);
-                    }
-                    const parsed = JSON.parse(jsonString) as {
-                        issues?: unknown;
-                        suggestions?: unknown;
-                        hasIssues?: unknown;
-                    };
                     const issues = Array.isArray(parsed.issues)
                         ? parsed.issues.filter((issue): issue is string => typeof issue === 'string')
                         : [];
@@ -626,6 +599,10 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                         title: '解析エラー',
                     });
                 }
+            } else {
+                showError('AI出力の解析に失敗しました。', 7000, {
+                    title: '解析エラー',
+                });
             }
         } catch (error) {
             // キャンセルされた場合はエラーを表示しない
@@ -838,23 +815,9 @@ export const PlotStep2AssistantPanel: React.FC = () => {
                 throw new Error(response.error);
             }
 
-            const content = response.content;
-            let normalizedContent = content.trim();
-            if (normalizedContent.startsWith('{{') && normalizedContent.endsWith('}}')) {
-                normalizedContent = normalizedContent.slice(1, -1);
-            }
-
-            const jsonMatch = normalizedContent.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
+            const parsed = parseJsonObject<Record<string, unknown>>(response.content);
+            if (parsed) {
                 try {
-                    let jsonString = jsonMatch[0];
-                    if (jsonString.startsWith('{{')) {
-                        jsonString = jsonString.slice(1);
-                    }
-                    if (jsonString.endsWith('}}')) {
-                        jsonString = jsonString.slice(0, -1);
-                    }
-                    const parsed = JSON.parse(jsonString) as Record<string, unknown>;
 
                     const getStringValue = (key: string, defaultValue: string): string => {
                         const value = parsed[key];

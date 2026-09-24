@@ -8,6 +8,7 @@ import { Character } from '../contexts/ProjectContext';
 import { generateUUID } from './securityUtils';
 import { TEXT_LIMITS } from '../constants/character';
 import { parseAIResponse } from './aiResponseParser';
+import { parseJsonLoose } from './jsonExtract';
 
 /**
  * 解析結果のインターフェース
@@ -57,28 +58,11 @@ const parseJsonCharacters = (content: string): ParseResult => {
   };
 
   try {
-    // JSON文字列を抽出（コードブロック内のJSONも対応）
-    let jsonString = content.trim();
-
-    // コードブロック内のJSONを抽出
-    const codeBlockMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch) {
-      jsonString = codeBlockMatch[1].trim();
+    // 配列形式・{characters: [...]} 形式のどちらも最初に現れたJSONとして取り出す
+    const parsed = parseJsonLoose(content);
+    if (parsed === null) {
+      throw new Error('JSONが見つかりませんでした');
     }
-
-    // 波括弧で囲まれたJSONオブジェクトを抽出
-    const objectMatch = jsonString.match(/\{[\s\S]*\}/);
-    if (objectMatch) {
-      jsonString = objectMatch[0];
-    }
-
-    // 角括弧で囲まれたJSON配列を抽出
-    const arrayMatch = jsonString.match(/\[[\s\S]*\]/);
-    if (arrayMatch) {
-      jsonString = arrayMatch[0];
-    }
-
-    const parsed: unknown = JSON.parse(jsonString);
 
     // 配列形式: [{name: "...", role: "...", ...}, ...]
     let characterArray: unknown[] = [];

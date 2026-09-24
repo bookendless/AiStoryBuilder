@@ -11,6 +11,7 @@ import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 import { exportFile } from '../../utils/mobileExportUtils';
+import { parseJsonObject, parseJsonObjectArray } from '../../utils/jsonExtract';
 import {
   buildGlossaryExtractTermsPrompt,
   buildGlossaryDescriptionPrompt,
@@ -325,13 +326,10 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
       if (response.content) {
         try {
           // JSONを抽出（コードブロックがあれば除去）
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
+          const extractedTerms = parseJsonObjectArray<Partial<GlossaryTerm>>(response.content);
+          if (!extractedTerms) {
+            throw new Error('AI出力からJSON配列を抽出できませんでした');
           }
-
-          const extractedTerms = JSON.parse(jsonText) as Partial<GlossaryTerm>[];
 
           // 既存の用語と重複しないようにフィルタ
           const existingTerms = new Set(glossary.map(t => t.term.toLowerCase()));
@@ -405,13 +403,10 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
+          const generated = parseJsonObject<Partial<GlossaryTerm>>(response.content);
+          if (!generated) {
+            throw new Error('AI出力からJSONを抽出できませんでした');
           }
-
-          const generated = JSON.parse(jsonText) as Partial<GlossaryTerm>;
 
           // フォームに反映
           setFormData(prev => ({
@@ -497,13 +492,10 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ isOpen, onClos
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
+          const generatedTerms = parseJsonObjectArray<Partial<GlossaryTerm>>(response.content);
+          if (!generatedTerms) {
+            throw new Error('AI出力からJSON配列を抽出できませんでした');
           }
-
-          const generatedTerms = JSON.parse(jsonText) as Partial<GlossaryTerm>[];
 
           // 既存の用語と重複しないようにフィルタ
           const existingTerms = new Set(glossary.map(t => t.term.toLowerCase()));

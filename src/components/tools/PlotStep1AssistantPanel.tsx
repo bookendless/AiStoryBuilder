@@ -11,6 +11,7 @@ import { buildPlotBasicSettingsPrompt, PLOT_PROMPT_CAP } from '../../services/pr
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { exportFile } from '../../utils/mobileExportUtils';
+import { extractJson } from '../../utils/jsonExtract';
 
 // フィールド設定
 const FIELD_MAX_LENGTHS = {
@@ -244,59 +245,15 @@ export const PlotStep1AssistantPanel: React.FC = () => {
             const content = response.content;
             console.log('Basic AI生の出力:', content);
 
-            // JSON形式の解析（強化版）
-            let parsedData: Record<string, unknown> | null = null;
-            try {
-                // 複数のJSON抽出パターンを試行
-                const jsonPatterns = [
-                    // 1. 完全なJSONオブジェクト
-                    /\{[\s\S]*?\}/,
-                    // 2. 複数行にわたるJSON
-                    /\{[\s\S]*\}/,
-                    // 3. 基本設定専用のJSON
-                    /\{\s*"メインテーマ"[\s\S]*?"フック要素"[\s\S]*?\}/
-                ];
+            // JSON形式の解析：基本設定のキーを2つ以上含むオブジェクトだけを採用する
+            const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害', '物語の結末'];
+            const parsedData = (extractJson(content, 'object', {
+                accept: (value) =>
+                    basicKeys.filter(key => Object.prototype.hasOwnProperty.call(value, key)).length >= 2,
+            })?.value ?? null) as Record<string, unknown> | null;
 
-                for (const pattern of jsonPatterns) {
-                    const jsonMatch = content.match(pattern);
-                    if (jsonMatch) {
-                        let jsonStr = jsonMatch[0];
-
-                        // JSON文字列のクリーニング
-                        jsonStr = jsonStr
-                            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 制御文字を除去
-                            .replace(/\s+/g, ' ') // 連続する空白を単一の空白に
-                            .replace(/\n/g, ' ') // 改行を空白に
-                            .trim();
-
-                        try {
-                            const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-
-                            // 基本設定のキーが存在するかチェック
-                            const basicKeys = ['メインテーマ', '舞台設定', 'フック要素', '主人公の目標', '主要な障害', '物語の結末'];
-                            const validKeys = basicKeys.filter(key => Object.prototype.hasOwnProperty.call(parsed, key));
-
-                            if (validKeys.length >= 2) { // 最低2つのキーがあれば有効
-                                console.log('基本設定JSON解析成功:', {
-                                    pattern: pattern.toString(),
-                                    validKeys: validKeys,
-                                    content: jsonStr.substring(0, 200) + '...'
-                                });
-                                parsedData = parsed;
-                                break;
-                            }
-                        } catch (parseError) {
-                            console.warn('JSON解析エラー:', parseError);
-                            continue;
-                        }
-                    }
-                }
-
-                if (!parsedData) {
-                    console.warn('基本設定JSON解析に失敗、フォールバック解析を使用');
-                }
-            } catch (error) {
-                console.warn('基本設定JSON解析に失敗:', error);
+            if (!parsedData) {
+                console.warn('基本設定JSON解析に失敗、フォールバック解析を使用');
             }
 
             // フィールド抽出関数

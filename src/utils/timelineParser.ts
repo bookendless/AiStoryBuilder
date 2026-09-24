@@ -4,6 +4,7 @@
  */
 
 import { TimelineEvent } from '../contexts/ProjectContext';
+import { extractJson, parseJsonObject } from './jsonExtract';
 
 export interface ParsedTimelineEvent {
     title: string;
@@ -256,27 +257,19 @@ function extractCharacterNamesFromContent(text: string): string[] | undefined {
  */
 function tryParseJSON(content: string): TimelineParseResult {
     try {
-        let jsonText = content.trim();
-
-        // JSON配列を抽出する試み
-        const arrayMatch = jsonText.match(/\[[\s\S]*\]/);
-        if (arrayMatch) {
-            jsonText = arrayMatch[0];
-        } else {
-            // 単一オブジェクトの場合
-            const objectMatch = jsonText.match(/\{[\s\S]*\}/);
-            if (objectMatch) {
-                jsonText = `[${objectMatch[0]}]`;
-            } else {
-                return {
-                    success: false,
-                    events: [],
-                    format: 'unknown',
-                };
-            }
+        // イベント配列を優先し（{"events": [...]} の内側の配列も拾う）、無ければ単一オブジェクトを配列として扱う
+        const arrayFound = extractJson(content, 'array', {
+            accept: (value) => Array.isArray(value) && value.some((item) => item !== null && typeof item === 'object'),
+        });
+        const objectFound = arrayFound ? null : extractJson(content, 'object');
+        const parsed: unknown = arrayFound ? arrayFound.value : objectFound ? [objectFound.value] : null;
+        if (parsed === null) {
+            return {
+                success: false,
+                events: [],
+                format: 'unknown',
+            };
         }
-
-        const parsed: unknown = JSON.parse(jsonText);
 
         if (!Array.isArray(parsed)) {
             return {
@@ -575,17 +568,14 @@ export interface ConsistencyCheckResult {
 export function parseConsistencyCheckResponse(content: string): ConsistencyCheckResult {
     // まずJSON形式での解析を試みる
     try {
-        let jsonText = content.trim();
-        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            jsonText = jsonMatch[0];
-        }
-
-        const parsed = JSON.parse(jsonText) as {
+        const parsed = parseJsonObject<{
             hasIssues?: unknown;
             issues?: unknown;
             suggestions?: unknown;
-        };
+        }>(content);
+        if (!parsed) {
+            return parseConsistencyCheckText(content);
+        }
         return {
             hasIssues: Boolean(parsed.hasIssues),
             issues: Array.isArray(parsed.issues) ? parsed.issues.map(String) : [],

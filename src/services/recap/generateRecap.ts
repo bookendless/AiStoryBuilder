@@ -11,7 +11,7 @@ import { AIRunner } from '../../types/sequel';
 import { RecapAIContent } from '../../types/recap';
 import { summarizeChapters } from '../summarization/summarizeChapters';
 import { getInputCharBudget } from '../summarization/tokenBudget';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { buildRecapPrompt, RECAP_PROMPT_CAP } from '../prompts/recap';
 import { computeResumePoint, getOpenForeshadowings } from './recapLocal';
 import { ensureIndexFresh, retrieveRecapSummaries } from '../rag';

@@ -14,7 +14,7 @@ import { AISettings } from '../../types/ai';
 import { AIRunner, SequelProgress } from '../../types/sequel';
 import { Character } from '../../types/project/character';
 import { SkeletonSeed, SkeletonPlot, SkeletonResult } from '../../types/skeleton';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { buildPlotSkeletonPrompt, buildCharacterSeedPrompt } from '../prompts/skeleton';
 import {
     buildStructureInferencePrompt,

@@ -11,6 +11,7 @@ import { EmptyState } from '../common/EmptyState';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { useOverlayBackHandler } from '../../contexts/useOverlayBackHandler';
 import { parseTimelineAIResponse, parseConsistencyCheckResponse } from '../../utils/timelineParser';
+import { parseJsonObject, parseJsonObjectArray } from '../../utils/jsonExtract';
 import {
   buildTimelineExtractEventsPrompt,
   buildTimelineDescriptionPrompt,
@@ -253,20 +254,17 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-
-          const extractedEvents = JSON.parse(jsonText) as Array<{
+          const extractedEvents = parseJsonObjectArray<{
             title: string;
             description: string;
             date?: string;
             category: TimelineEvent['category'];
             chapterTitle?: string;
             characterNames?: string[];
-          }>;
+          }>(response.content);
+          if (!extractedEvents) {
+            throw new Error('AI出力からJSON配列を抽出できませんでした');
+          }
 
           // 既存のイベントと重複しないようにフィルタ
           const existingTitles = new Set(timeline.map(e => e.title.toLowerCase()));
@@ -396,19 +394,16 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-
-          const generated = JSON.parse(jsonText) as {
+          const generated = parseJsonObject<{
             description: string;
             date?: string;
             category?: TimelineEvent['category'];
             chapterTitle?: string;
             characterNames?: string[];
-          };
+          }>(response.content);
+          if (!generated) {
+            throw new Error('AI出力からJSONを抽出できませんでした');
+          }
 
           // フォームに反映
           const chapterId = generated.chapterTitle
@@ -506,17 +501,14 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-
-          const result = JSON.parse(jsonText) as {
+          const result = parseJsonObject<{
             hasIssues: boolean;
             issues?: string[];
             suggestions?: string[];
-          };
+          }>(response.content);
+          if (!result) {
+            throw new Error('AI出力からJSONを抽出できませんでした');
+          }
 
           let resultText = '';
           if (!result.hasIssues) {
@@ -624,20 +616,17 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({ isOpen, onClose 
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-
-          const suggestedEvents = JSON.parse(jsonText) as Array<{
+          const suggestedEvents = parseJsonObjectArray<{
             title: string;
             description: string;
             date?: string;
             category: TimelineEvent['category'];
             chapterTitle?: string;
             characterNames?: string[];
-          }>;
+          }>(response.content);
+          if (!suggestedEvents) {
+            throw new Error('AI出力からJSON配列を抽出できませんでした');
+          }
 
           // 章IDとキャラクターIDを解決
           const processedEvents = suggestedEvents.map(event => {

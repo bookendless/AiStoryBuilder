@@ -10,7 +10,7 @@
 import { PLOT_STRUCTURE_CONFIGS, CHARACTER_LIMIT } from '../../components/steps/plot2/constants';
 import type { PlotStructureType } from '../../components/steps/plot2/types';
 import type { Chapter } from '../../types/project/chapter';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 
 /**
  * 構成推定プロンプトのサニタイズ上限（文字数）。

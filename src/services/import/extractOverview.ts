@@ -11,7 +11,7 @@ import { AISettings } from '../../types/ai';
 import { ImportOverview } from '../../types/import';
 import { getInputCharBudget } from '../summarization/tokenBudget';
 import { aggregateStory } from '../summarization/aggregateStory';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { chunkProse } from './chunkProse';
 import { buildProseChunkSummaryPrompt, buildOverviewExtractPrompt } from '../prompts/import';
 import { IMPORT_PROMPT_HARD_CAP } from './constants';

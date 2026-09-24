@@ -7,7 +7,7 @@
  * - 解析できない・空なら creativePoints は空配列（＝カードは表示されない）
  */
 
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { CREATIVE_POINTS_MARKER } from '../prompts/creativePoints';
 import { CreativePoint, CreativePointAlternative } from '../../types/creativePoint';
 import { toProbability } from '../../utils/probabilityBadge';

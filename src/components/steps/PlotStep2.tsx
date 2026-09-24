@@ -18,6 +18,7 @@ import { PlotStructureSection } from './plot2/components/PlotStructureSection';
 import { StructureInferenceModal } from './plot2/components/StructureInferenceModal';
 import { StepNavigation } from '../common/StepNavigation';
 import { getInputCharBudget } from '../../services/summarization/tokenBudget';
+import { parseJsonObject } from '../../utils/jsonExtract';
 import { IMPORT_SYSTEM_PROMPT } from '../../services/prompts/import';
 import { buildStructureInferencePrompt } from '../../services/prompts/plotStructure';
 import {
@@ -225,26 +226,9 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
         return;
       }
 
-      const content = response.content;
-      // {{ と }} で囲まれたJSONを正しく処理するため、まず正規化
-      let normalizedContent = content.trim();
-      // {{ で始まり }} で終わる場合、外側の波括弧を1つ削除
-      if (normalizedContent.startsWith('{{') && normalizedContent.endsWith('}}')) {
-        normalizedContent = normalizedContent.slice(1, -1);
-      }
-
-      const jsonMatch = normalizedContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
+      const parsed = parseJsonObject<Record<string, unknown>>(response.content);
+      if (parsed) {
         try {
-          let jsonString = jsonMatch[0];
-          // さらに {{ と }} が残っている場合は削除
-          if (jsonString.startsWith('{{')) {
-            jsonString = jsonString.slice(1);
-          }
-          if (jsonString.endsWith('}}')) {
-            jsonString = jsonString.slice(0, -1);
-          }
-          const parsed = JSON.parse(jsonString) as Record<string, unknown>;
           // 型安全性の向上：文字列型であることを確認
           const improvedText = typeof parsed[fieldLabel] === 'string'
             ? parsed[fieldLabel]
@@ -256,6 +240,10 @@ export const PlotStep2: React.FC<PlotStep2Props> = ({ onNavigateToStep }) => {
             title: '解析エラー',
           });
         }
+      } else {
+        showError('AI出力の解析に失敗しました。', 7000, {
+          title: '解析エラー',
+        });
       }
     } catch (error) {
       console.error('AI補完エラー:', error);

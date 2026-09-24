@@ -12,7 +12,7 @@
 
 import { AISettings } from '../../types/ai';
 import { AIRunner } from '../../types/sequel';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { getInputCharBudget } from '../summarization/tokenBudget';
 import { chunkProse } from '../import/chunkProse';
 import { IMPORT_PROMPT_HARD_CAP } from '../import/constants';

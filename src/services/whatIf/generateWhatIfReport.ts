@@ -11,7 +11,7 @@ import { AIRunner } from '../../types/sequel';
 import { WhatIfBranchPoint, WhatIfReport } from '../../types/whatIf';
 import { summarizeChapters } from '../summarization/summarizeChapters';
 import { getInputCharBudget } from '../summarization/tokenBudget';
-import { parseJsonLoose } from '../summarization/parseJson';
+import { parseJsonLoose } from '../../utils/jsonExtract';
 import { buildFactSheet } from '../consistency/buildFactSheet';
 import { getOpenForeshadowings } from '../recap/recapLocal';
 import { buildWhatIfPrompt, WHATIF_PROMPT_CAP } from '../prompts/whatIf';

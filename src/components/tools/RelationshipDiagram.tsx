@@ -4,6 +4,7 @@ import { CharacterRelationship, Character } from '../../contexts/ProjectContext'
 import { useProject } from '../../contexts/useProject';
 import { useAI } from '../../contexts/useAI';
 import { aiService } from '../../services/aiService';
+import { extractJson, isJsonObjectArray, parseJsonObject } from '../../utils/jsonExtract';
 import {
   buildRelationshipInferPrompt,
   buildRelationshipSuggestPrompt,
@@ -323,55 +324,10 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
   };
 
 
-  // AIレスポンスからJSON配列を安全に抽出するヘルパー関数
-  const extractJsonArray = (text: string): string | null => {
-    // 1. コードブロック内のJSON配列を探す (```json または ```)
-    const codeBlockMatch = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-    if (codeBlockMatch) {
-      try {
-        JSON.parse(codeBlockMatch[1].trim());
-        return codeBlockMatch[1].trim();
-      } catch {
-        // 無効なJSON、次の方法を試す
-      }
-    }
-
-    // 2. マークダウン形式のチェック（誤マッチを防ぐ）
-    // マークダウンリストマーカーやヘッダーが含まれている場合は、純粋なJSONではない可能性が高い
-    const hasMarkdownMarkers = /^[\s]*[-*]\s+\*\*|^[\s]*###?\s+/m.test(text);
-
-    // 3. 純粋なJSON配列を探す（最初の [ から最後の ] まで）
-    const firstBracket = text.indexOf('[');
-    const lastBracket = text.lastIndexOf(']');
-
-    if (firstBracket !== -1 && lastBracket > firstBracket) {
-      const potential = text.substring(firstBracket, lastBracket + 1);
-
-      // マークダウンマーカーが含まれている場合、より慎重に検証
-      if (hasMarkdownMarkers) {
-        // JSON配列の開始直後に改行+ハイフンがある場合はマークダウンリストの可能性が高い
-        if (/^\[\s*\n\s*-\s+\*\*/.test(potential)) {
-          return null; // マークダウン形式と判断
-        }
-      }
-
-      try {
-        const parsed: unknown = JSON.parse(potential);
-        if (Array.isArray(parsed)) {
-          return potential;
-        }
-      } catch {
-        // 不完全なJSON、NULLを返す
-      }
-    }
-
-    // 4. 空配列の特殊ケース
-    if (text.includes('[]')) {
-      return '[]';
-    }
-
-    return null;
-  };
+  // AIレスポンスから関係性のJSON配列（要素はすべてオブジェクト）を抽出するヘルパー関数。
+  // 「関係[1]」のような本文中の角括弧を誤って拾わないよう、要素の形で受理を絞り込む。
+  const extractJsonArray = (text: string): string | null =>
+    extractJson(text, 'array', { accept: isJsonObjectArray })?.source ?? null;
 
   // マークダウン形式から関係性情報をパースするフォールバック関数
   const parseRelationshipsFromMarkdown = (text: string): Array<{
@@ -1146,18 +1102,15 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-
-          const result = JSON.parse(jsonText) as {
+          const result = parseJsonObject<{
             hasIssues: boolean;
             issues?: string[];
             suggestions?: string[];
             isolatedCharacters?: string[];
-          };
+          }>(response.content);
+          if (!result) {
+            throw new Error('AI出力からJSONを抽出できませんでした');
+          }
 
           let resultText = '';
           if (!result.hasIssues) {
@@ -1254,20 +1207,17 @@ export const RelationshipDiagram: React.FC<RelationshipDiagramProps> = ({ isOpen
 
       if (response.content) {
         try {
-          let jsonText = response.content.trim();
-          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-
-          const generated = JSON.parse(jsonText) as {
+          const generated = parseJsonObject<{
             description: string;
             type?: CharacterRelationship['type'];
             strength?: number;
             notes?: string;
             fromCallsTo?: string;
             toCallsFrom?: string;
-          };
+          }>(response.content);
+          if (!generated) {
+            throw new Error('AI出力からJSONを抽出できませんでした');
+          }
 
           setFormData(prev => ({
             ...prev,

@@ -196,3 +196,24 @@ describe('章構造の解析', () => {
         expect(data.chapters.length).toBe(2);
     });
 });
+
+describe('JSON抽出の堅牢性', () => {
+    it('コードフェンスなしのオブジェクト配列を配列のまま返す', () => {
+        const result = parseAIResponse('[{"before": "a", "after": "b"}, {"before": "c", "after": "d"}]', 'json');
+        expect(result.success).toBe(true);
+        expect(result.data).toEqual([
+            { before: 'a', after: 'b' },
+            { before: 'c', after: 'd' },
+        ]);
+    });
+
+    it('ネストしたオブジェクトで終わるJSONを壊さない', () => {
+        const result = parseAIResponse('{"corrections": [], "meta": {"count": 0}}', 'json');
+        expect(result.data).toEqual({ corrections: [], meta: { count: 0 } });
+    });
+
+    it('JSONの後ろに波括弧を含む補足文があっても抽出する', () => {
+        const result = parseAIResponse('{"canSplit": false}\n\n補足: {分割不要}', 'json');
+        expect(result.data).toEqual({ canSplit: false });
+    });
+});

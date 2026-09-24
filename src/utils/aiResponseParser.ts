@@ -3,6 +3,8 @@
  * より柔軟なJSON解析とフォールバック処理を提供
  */
 
+import { extractJson } from './jsonExtract';
+
 export interface ParsedResponse {
   success: boolean;
   data: unknown;
@@ -10,37 +12,6 @@ export interface ParsedResponse {
   error?: string;
   warnings?: string[];
 }
-
-/**
- * AI応答からJSONオブジェクト文字列を抽出する共通処理。
- * コードブロック・二重波括弧・前後の余白を除去し、最長の {...} 候補を返す。
- * 抽出できない場合はクリーニング済みの元文字列を返す（呼び出し側で startsWith('{') 判定を行う）。
- */
-export const extractJsonObjectString = (content: string): string => {
-  let jsonContent = content.trim();
-
-  // コードブロック除去
-  if (jsonContent.startsWith('```')) {
-    const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (jsonMatch && jsonMatch[1]) {
-      jsonContent = jsonMatch[1].trim();
-    } else {
-      jsonContent = jsonContent.replace(/```json\s*|\s*```/g, '').trim();
-    }
-  }
-
-  // 二重波括弧の除去
-  jsonContent = jsonContent.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
-
-  // 最長の {...} 候補を選択
-  const jsonMatches = jsonContent.match(/\{[\s\S]*\}/g);
-  let jsonString = jsonMatches && jsonMatches.length > 0
-    ? jsonMatches.reduce((a, b) => (a.length > b.length ? a : b))
-    : jsonContent;
-
-  jsonString = jsonString.trim().replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
-  return jsonString;
-};
 
 /**
  * AI応答を解析し、構造化されたデータを返す
@@ -120,98 +91,17 @@ const parseJsonResponse = (content: string): ParsedResponse => {
     };
   }
 
-  const trimmedContent = content.trim();
-
-  // 複数のパターンでJSONを抽出（優先順位順）
-  const extractionPatterns = [
-    // 1. コードブロック内のJSON（json指定あり）
-    {
-      pattern: /```json\s*([\s\S]*?)\s*```/,
-      description: 'jsonコードブロック'
-    },
-    // 2. コードブロック内のJSON（json指定なし）
-    {
-      pattern: /```\s*([\s\S]*?)\s*```/,
-      description: 'コードブロック'
-    },
-    // 3. 波括弧で囲まれたJSONオブジェクト（最も長いものを選択）
-    {
-      pattern: /\{[\s\S]*\}/,
-      description: 'JSONオブジェクト',
-      extractLongest: true
-    },
-    // 4. 角括弧で囲まれたJSON配列
-    {
-      pattern: /\[[\s\S]*\]/,
-      description: 'JSON配列',
-      extractLongest: true
-    }
-  ];
-
-  let jsonString = '';
-  let extractionMethod = '';
-
-  // パターンマッチングでJSONを抽出
-  for (const { pattern, description, extractLongest } of extractionPatterns) {
-    const matches = trimmedContent.match(pattern);
-    if (matches && matches.length > 0) {
-      if (extractLongest) {
-        // 最も長いマッチを選択
-        const longestMatch = matches.reduce((a, b) => a.length > b.length ? a : b);
-        jsonString = longestMatch.trim();
-      } else {
-        // 最初のマッチを使用
-        jsonString = matches[1] ? matches[1].trim() : matches[0].trim();
-      }
-      extractionMethod = description;
-      break;
-    }
-  }
-
-  // パターンマッチングで見つからない場合は、全体をJSONとして試行
-  if (!jsonString) {
-    jsonString = trimmedContent;
-    extractionMethod = '全体';
-  }
-
-  // JSON文字列のクリーニング
-  jsonString = jsonString
-    .replace(/```json\s*|\s*```/g, '') // コードブロックマーカーを除去
-    .replace(/^[\s\n\r]*/, '') // 先頭の空白・改行を除去
-    .replace(/[\s\n\r]*$/, ''); // 末尾の空白・改行を除去
-
-  // {{ と }} で囲まれたJSONを正しく処理するため、外側の波括弧を1つ削除
-  if (jsonString.startsWith('{{') && jsonString.endsWith('}}')) {
-    jsonString = jsonString.slice(1, -1);
-  }
-
-  // 空の場合は失敗
-  if (!jsonString) {
-    return {
-      success: false,
-      data: null,
-      rawContent: content,
-      error: 'JSON文字列が抽出できませんでした'
-    };
-  }
-
-  // JSON解析を試行
-  try {
-    const parsed: unknown = JSON.parse(jsonString);
-    return {
-      success: true,
-      data: parsed,
-      rawContent: content
-    };
-  } catch (error) {
-    // JSON解析に失敗した場合、より詳細なエラー情報を記録
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.warn(`JSON parsing failed (${extractionMethod}), falling back to text parsing:`, errorMessage);
-    console.debug('Attempted JSON string (first 200 chars):', jsonString.substring(0, 200));
-
-    // テキスト解析にフォールバック
+  const found = extractJson(content, 'any');
+  if (!found) {
+    console.warn('JSON parsing failed, falling back to text parsing');
     return parseTextResponse(content);
   }
+
+  return {
+    success: true,
+    data: found.value,
+    rawContent: content
+  };
 };
 
 /**

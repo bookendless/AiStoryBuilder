@@ -16,6 +16,7 @@ import { CHARACTER_GENERATION } from '../../constants/character';
 import { exportFile } from '../../utils/mobileExportUtils';
 import { SuggestedCharacter } from '../steps/character/SuggestionModal';
 import { generateUUID } from '../../utils/securityUtils';
+import { parseJsonObjectArray } from '../../utils/jsonExtract';
 
 export const CharacterAssistantPanel: React.FC = () => {
     const { currentProject, updateProject } = useProject();
@@ -137,22 +138,10 @@ export const CharacterAssistantPanel: React.FC = () => {
 
             // 1. JSON解析を試行
             try {
-                let jsonString = content.trim();
-                const codeBlockMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-                if (codeBlockMatch) {
-                    jsonString = codeBlockMatch[1].trim();
-                }
-                // 配列を探す
-                const arrayMatch = jsonString.match(/\[[\s\S]*\]/);
-                if (arrayMatch) {
-                    jsonString = arrayMatch[0];
-                }
-
-                const parsed: unknown = JSON.parse(jsonString);
-                if (Array.isArray(parsed)) {
+                const parsed = parseJsonObjectArray(content);
+                if (parsed) {
                     const str = (v: unknown): string => (typeof v === 'string' ? v : '');
                     parsedSuggestions = parsed
-                        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
                         .map((item) => ({
                             id: generateUUID(),
                             name: str(item.name) || str(item.名前),
