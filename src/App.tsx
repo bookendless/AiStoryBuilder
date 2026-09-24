@@ -27,8 +27,7 @@ import { ToastProvider } from './components/Toast';
 import { useToast } from './components/useToast';
 import { OfflineNotifier } from './components/OfflineNotifier';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { setSecurityHeaders, SessionManager } from './utils/securityUtils';
-import { PerformanceMonitor } from './utils/performanceUtils';
+import { setSecurityHeaders } from './utils/securityUtils';
 import { useGlobalShortcuts } from './hooks/useKeyboardNavigation';
 import { useErrorHandler } from './hooks/useErrorHandler';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
@@ -50,19 +49,11 @@ function App() {
 
   useEffect(() => {
     let cleanupInterval: ReturnType<typeof setInterval> | undefined;
-    let performanceMonitor: PerformanceMonitor | undefined;
 
     const initializeApp = async () => {
       try {
         // セキュリティヘッダーの設定
         setSecurityHeaders();
-
-        // セッション管理の初期化
-        const sessionManager = new SessionManager();
-        sessionManager.updateActivity();
-
-        // パフォーマンス監視の開始
-        performanceMonitor = new PerformanceMonitor();
 
         // データ移行（初回のみ）
         const migrationDone = localStorage.getItem('historyMigrationDone');
@@ -115,7 +106,6 @@ function App() {
 
     return () => {
       if (cleanupInterval !== undefined) clearInterval(cleanupInterval);
-      performanceMonitor?.disconnect();
     };
   }, []);
 

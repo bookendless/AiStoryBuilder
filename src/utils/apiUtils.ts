@@ -132,7 +132,7 @@ const isNetworkError = (error: unknown): boolean => {
 /**
  * APIエラーの種類を判定
  */
-export const getApiErrorType = (error: unknown): 'network' | 'auth' | 'rate_limit' | 'server' | 'client' | 'unknown' => {
+const getApiErrorType = (error: unknown): 'network' | 'auth' | 'rate_limit' | 'server' | 'client' | 'unknown' => {
   if (!error) return 'unknown';
   
   const errorMessage = (error as Error).message || String(error);

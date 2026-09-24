@@ -3,7 +3,7 @@
  * Phase 1: キーボードナビゲーション機能の実装
  */
 
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 
 export interface KeyboardNavigationOptions {
   enabled?: boolean;
@@ -127,101 +127,6 @@ export const useKeyboardNavigation = (options: KeyboardNavigationOptions = {}) =
 };
 
 /**
- * リスト項目のキーボードナビゲーション
- */
-export const useListNavigation = <T>(
-  items: T[],
-  options: {
-    enabled?: boolean;
-    onSelect?: (item: T, index: number) => void;
-    onActivate?: (item: T, index: number) => void;
-    initialIndex?: number;
-    loop?: boolean;
-  } = {}
-) => {
-  const {
-    enabled = true,
-    onSelect,
-    onActivate,
-    initialIndex = 0,
-    loop = true
-  } = options;
-
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const itemRefs = useRef<(HTMLElement | null)[]>([]);
-
-  const navigate = useCallback((direction: 'up' | 'down') => {
-    setCurrentIndex(prev => {
-      let newIndex = direction === 'up' ? prev - 1 : prev + 1;
-      
-      if (loop) {
-        if (newIndex < 0) newIndex = items.length - 1;
-        if (newIndex >= items.length) newIndex = 0;
-      } else {
-        newIndex = Math.max(0, Math.min(items.length - 1, newIndex));
-      }
-      
-      return newIndex;
-    });
-  }, [items.length, loop]);
-
-  const selectCurrent = useCallback(() => {
-    if (items[currentIndex]) {
-      onSelect?.(items[currentIndex], currentIndex);
-    }
-  }, [items, currentIndex, onSelect]);
-
-  const activateCurrent = useCallback(() => {
-    if (items[currentIndex]) {
-      onActivate?.(items[currentIndex], currentIndex);
-    }
-  }, [items, currentIndex, onActivate]);
-
-  const goToFirst = useCallback(() => {
-    setCurrentIndex(0);
-  }, []);
-
-  const goToLast = useCallback(() => {
-    setCurrentIndex(items.length - 1);
-  }, [items.length]);
-
-  const goToIndex = useCallback((index: number) => {
-    if (index >= 0 && index < items.length) {
-      setCurrentIndex(index);
-    }
-  }, [items.length]);
-
-  // フォーカス管理
-  useEffect(() => {
-    const currentElement = itemRefs.current[currentIndex];
-    if (currentElement) {
-      currentElement.focus();
-    }
-  }, [currentIndex]);
-
-  useKeyboardNavigation({
-    enabled,
-    onArrowUp: () => navigate('up'),
-    onArrowDown: () => navigate('down'),
-    onEnter: activateCurrent,
-    onSpace: selectCurrent,
-    onHome: goToFirst,
-    onEnd: goToLast
-  });
-
-  return {
-    currentIndex,
-    setCurrentIndex: goToIndex,
-    itemRefs,
-    navigate,
-    selectCurrent,
-    activateCurrent,
-    goToFirst,
-    goToLast
-  };
-};
-
-/**
  * モーダルのキーボードナビゲーション
  */
 export const useModalNavigation = (options: {
@@ -322,7 +227,7 @@ export const useModalNavigation = (options: {
 /**
  * ショートカットキーの組み合わせを正規化
  */
-export const normalizeShortcut = (event: KeyboardEvent): string => {
+const normalizeShortcut = (event: KeyboardEvent): string => {
   const parts: string[] = [];
   
   if (event.ctrlKey || event.metaKey) {
@@ -427,53 +332,4 @@ export const useGlobalShortcuts = (
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
-};
-
-/**
- * フォーカス管理
- */
-export const useFocusManagement = () => {
-  const focusableElements = useRef<HTMLElement[]>([]);
-
-  const registerFocusableElement = useCallback((element: HTMLElement | null) => {
-    if (element && !focusableElements.current.includes(element)) {
-      focusableElements.current.push(element);
-    }
-  }, []);
-
-  const unregisterFocusableElement = useCallback((element: HTMLElement | null) => {
-    if (element) {
-      focusableElements.current = focusableElements.current.filter(el => el !== element);
-    }
-  }, []);
-
-  const focusNext = useCallback(() => {
-    const currentIndex = focusableElements.current.indexOf(document.activeElement as HTMLElement);
-    const nextIndex = (currentIndex + 1) % focusableElements.current.length;
-    focusableElements.current[nextIndex]?.focus();
-  }, []);
-
-  const focusPrevious = useCallback(() => {
-    const currentIndex = focusableElements.current.indexOf(document.activeElement as HTMLElement);
-    const prevIndex = currentIndex <= 0 ? focusableElements.current.length - 1 : currentIndex - 1;
-    focusableElements.current[prevIndex]?.focus();
-  }, []);
-
-  const focusFirst = useCallback(() => {
-    focusableElements.current[0]?.focus();
-  }, []);
-
-  const focusLast = useCallback(() => {
-    focusableElements.current[focusableElements.current.length - 1]?.focus();
-  }, []);
-
-  return {
-    registerFocusableElement,
-    unregisterFocusableElement,
-    focusNext,
-    focusPrevious,
-    focusFirst,
-    focusLast,
-    focusableElements: focusableElements.current
-  };
 };

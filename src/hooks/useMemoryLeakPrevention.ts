@@ -3,7 +3,7 @@
  * Phase 1: メモリリークの修正とクリーンアップ強化
  */
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 /**
  * 安全なuseEffectフック
@@ -41,56 +41,3 @@ export const useSafeEffect = (
 
   return isMountedRef.current;
 };
-
-/**
- * タイマー管理用フック
- * setInterval/setTimeoutの適切なクリーンアップを保証
- */
-export const useTimer = () => {
-  const timersRef = useRef<Set<number>>(new Set());
-
-  const setTimer = useCallback((callback: () => void, delay: number): number => {
-    const timerId = window.setTimeout(() => {
-      timersRef.current.delete(timerId);
-      callback();
-    }, delay);
-
-    timersRef.current.add(timerId);
-    return timerId;
-  }, []);
-
-  const setInterval = useCallback((callback: () => void, delay: number): number => {
-    const timerId = window.setInterval(callback, delay);
-    timersRef.current.add(timerId);
-    return timerId;
-  }, []);
-
-  const clearTimer = useCallback((timerId: number) => {
-    window.clearTimeout(timerId);
-    window.clearInterval(timerId);
-    timersRef.current.delete(timerId);
-  }, []);
-
-  const clearAllTimers = useCallback(() => {
-    timersRef.current.forEach(timerId => {
-      window.clearTimeout(timerId);
-      window.clearInterval(timerId);
-    });
-    timersRef.current.clear();
-  }, []);
-
-  // コンポーネントのアンマウント時にすべてのタイマーをクリア
-  useEffect(() => {
-    return () => {
-      clearAllTimers();
-    };
-  }, [clearAllTimers]);
-
-  return {
-    setTimer,
-    setInterval,
-    clearTimer,
-    clearAllTimers
-  };
-};
-

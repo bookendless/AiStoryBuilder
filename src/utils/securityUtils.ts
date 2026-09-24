@@ -339,35 +339,6 @@ export const encryptApiKey = (key: string): string => {
 };
 
 /**
- * 同期版の復号化（後方互換性のため）
- * 新しいAES-GCM形式の復号化には対応していません
- * 可能な限りdecryptApiKeyAsyncを使用することを推奨
- */
-export const decryptApiKey = (encryptedKey: string): string => {
-  if (!encryptedKey) return '';
-
-  try {
-    const encryptionEnabled = isEncryptionEnabled();
-    if (!encryptionEnabled) {
-      return encryptedKey;
-    }
-
-    // 新しいAES-GCM形式の場合は警告
-    if (encryptedKey.startsWith(`${ENCRYPTION_VERSION}:`)) {
-      console.warn('AES-GCM encrypted key detected. Use decryptApiKeyAsync for proper decryption.');
-      return encryptedKey;
-    }
-
-    // レガシー形式の復号化
-    return decryptApiKeyLegacy(encryptedKey);
-  } catch (error) {
-    console.error('API key decryption error:', error);
-    return encryptedKey;
-  }
-};
-
-
-/**
  * sanitizeInputForPrompt の既定の長さ上限。
  * 呼び出し側が maxPromptLength を明示しない場合に適用される。
  */
@@ -496,32 +467,6 @@ export const sanitizeInputForPrompt = (input: string, maxLength: number = DEFAUL
 };
 
 /**
- * 入力値のサニタイゼーション（汎用版）
- * プロンプトに使用する場合はsanitizeInputForPromptを使用してください
- */
-export const sanitizeInput = (input: string): string => {
-  if (typeof input !== 'string') {
-    return '';
-  }
-
-  return input
-    .trim()
-    .replace(/[<>]/g, '') // HTMLタグの除去
-    .replace(/javascript:/gi, '') // JavaScriptの除去
-    .replace(/on\w+\s*=/gi, '') // イベントハンドラーの除去
-    .replace(/data:text\/html/gi, '') // data URIの除去
-    .replace(/vbscript:/gi, '') // VBScriptの除去
-    .replace(/<script[^>]*>.*?<\/script>/gi, '') // scriptタグの除去
-    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '') // iframeタグの除去
-    .replace(/<object[^>]*>.*?<\/object>/gi, '') // objectタグの除去
-    .replace(/<embed[^>]*>.*?<\/embed>/gi, '') // embedタグの除去
-    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '') // 制御文字の除去（改行とタブ以外）
-    .replace(/\n{3,}/g, '\n\n') // 連続する改行の制限
-    .replace(/ {5,}/g, ' ') // 連続する空白の制限
-    .slice(0, 10000); // 長さ制限
-};
-
-/**
  * HTMLエスケープ
  */
 export const escapeHtml = (text: string): string => {
@@ -542,24 +487,6 @@ export const escapeHtml = (text: string): string => {
 };
 
 /**
- * URLの検証
- */
-export const isValidUrl = (url: string): boolean => {
-  if (typeof url !== 'string') {
-    return false;
-  }
-
-  try {
-    const urlObj = new URL(url);
-    // 許可されたプロトコルのみ
-    const allowedProtocols = ['http:', 'https:'];
-    return allowedProtocols.includes(urlObj.protocol);
-  } catch {
-    return false;
-  }
-};
-
-/**
  * ファイル名のサニタイゼーション
  */
 export const sanitizeFileName = (fileName: string): string => {
@@ -577,7 +504,7 @@ export const sanitizeFileName = (fileName: string): string => {
 /**
  * セキュアなランダム文字列の生成
  */
-export const generateSecureRandomString = (length: number = 32): string => {
+const generateSecureRandomString = (length: number = 32): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   // 剰余バイアスを避けるため、文字数の整数倍（62 * 4 = 248）を超えたバイトは捨てて引き直す
   const limit = Math.floor(256 / chars.length) * chars.length;
@@ -593,13 +520,6 @@ export const generateSecureRandomString = (length: number = 32): string => {
   }
 
   return result;
-};
-
-/**
- * セッションIDの生成
- */
-export const generateSessionId = (): string => {
-  return generateSecureRandomString(64);
 };
 
 /**
@@ -764,39 +684,3 @@ export const generateUUID = (): string => {
     return v.toString(16);
   });
 };
-
-/**
- * セッション管理
- */
-export class SessionManager {
-  private sessionId: string;
-  private lastActivity: number;
-  private timeout: number;
-
-  constructor(timeout: number = 30 * 60 * 1000) { // 30分
-    this.sessionId = generateSessionId();
-    this.lastActivity = Date.now();
-    this.timeout = timeout;
-  }
-
-  getSessionId(): string {
-    return this.sessionId;
-  }
-
-  updateActivity(): void {
-    this.lastActivity = Date.now();
-  }
-
-  isExpired(): boolean {
-    return Date.now() - this.lastActivity > this.timeout;
-  }
-
-  reset(): void {
-    this.sessionId = generateSessionId();
-    this.lastActivity = Date.now();
-  }
-
-  getTimeUntilExpiry(): number {
-    return Math.max(0, this.timeout - (Date.now() - this.lastActivity));
-  }
-}
