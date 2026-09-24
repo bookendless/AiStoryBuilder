@@ -190,8 +190,9 @@ export const encryptApiKeyAsync = async (key: string): Promise<string> => {
 
     return `${ENCRYPTION_VERSION}:${arrayBufferToBase64(combined.buffer)}`;
   } catch (error) {
+    // 失敗時に平文を返すと「暗号化済み」として平文の鍵が保存されるため、必ず例外にする（fail-closed）
     console.error('API key encryption error:', error);
-    return key;
+    throw new Error('APIキーの暗号化に失敗しました');
   }
 };
 
@@ -286,8 +287,9 @@ const encryptApiKeyLegacy = (key: string): string => {
 
     return btoa(salt + encrypted);
   } catch (error) {
-    console.error('Legacy API key encryption error:', error);
-    return key;
+    // 平文を返さない（fail-closed）
+    console.error('API key encryption error:', error);
+    throw new Error('APIキーの暗号化に失敗しました');
   }
 };
 
@@ -322,23 +324,18 @@ const decryptApiKeyLegacy = (encryptedKey: string): string => {
  * 同期版の暗号化（後方互換性のため）
  * 内部でPromiseを使用するため、即座に暗号化が必要な場合はレガシー方式を使用
  * 可能な限りencryptApiKeyAsyncを使用することを推奨
+ * 暗号化に失敗した場合は平文を返さず例外を投げる
  */
 export const encryptApiKey = (key: string): string => {
   if (!key) return '';
 
-  try {
-    const encryptionEnabled = isEncryptionEnabled();
-    if (!encryptionEnabled) {
-      return key;
-    }
-
-    // 同期版ではレガシー暗号化を使用
-    // 非同期版（encryptApiKeyAsync）の使用を推奨
-    return encryptApiKeyLegacy(key);
-  } catch (error) {
-    console.error('API key encryption error:', error);
+  if (!isEncryptionEnabled()) {
     return key;
   }
+
+  // 同期版ではレガシー暗号化を使用
+  // 非同期版（encryptApiKeyAsync）の使用を推奨
+  return encryptApiKeyLegacy(key);
 };
 
 /**

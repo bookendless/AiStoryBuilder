@@ -172,7 +172,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     setApiKeyError(error);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (apiKeyError) {
       showError(apiKeyError, 7000, {
         title: 'APIキーエラー',
@@ -187,7 +187,17 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       saveData.localEndpoint = 'http://localhost:1234/v1/chat/completions';
     }
 
-    updateSettings(saveData);
+    try {
+      await updateSettings(saveData);
+    } catch (error) {
+      // 暗号化できない鍵は保存しない。入力を残したまま画面を閉じずに知らせる
+      console.error('AI設定の保存に失敗しました:', error);
+      showError('APIキーを安全に保存できなかったため、設定を保存しませんでした。', 7000, {
+        title: '保存エラー',
+        details: 'APIキーの暗号化に失敗しました。アプリを再起動してから、もう一度保存してください。',
+      });
+      return;
+    }
     onClose();
   };
 

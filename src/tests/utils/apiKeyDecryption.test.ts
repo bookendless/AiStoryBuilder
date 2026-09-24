@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+    encryptApiKey,
     encryptApiKeyAsync,
     decryptApiKeyAsync,
     isEncryptedApiKey,
@@ -79,5 +80,31 @@ describe('isEncryptedApiKey', () => {
         expect(isEncryptedApiKey('AIzaSyA1234567890abcdefghijklmnopqrs')).toBe(false);
         expect(isEncryptedApiKey('')).toBe(false);
         expect(isEncryptedApiKey(null as unknown as string)).toBe(false);
+    });
+});
+
+/**
+ * APIキー暗号化の fail-closed 検証。
+ * 以前は暗号化に失敗すると平文の鍵をそのまま返し、「暗号化済み」として平文が保存されていた。
+ */
+describe('encryptApiKeyAsync / encryptApiKey の fail-closed 挙動', () => {
+    beforeEach(() => {
+        vi.spyOn(console, 'error').mockImplementation(() => { });
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        localStorage.clear();
+    });
+
+    it('AES-GCM の暗号化に失敗したら平文を返さず例外にする', async () => {
+        vi.spyOn(crypto.subtle, 'encrypt').mockRejectedValue(new Error('OperationError'));
+
+        await expect(encryptApiKeyAsync('sk-test1234567890abcdefghij')).rejects.toThrow('APIキーの暗号化に失敗しました');
+    });
+
+    it('レガシー暗号化に失敗したら平文を返さず例外にする', () => {
+        // btoa は Latin-1 外の文字で失敗する
+        expect(() => encryptApiKey('鍵sk-test1234567890')).toThrow('APIキーの暗号化に失敗しました');
     });
 });

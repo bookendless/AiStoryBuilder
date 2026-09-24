@@ -13,6 +13,27 @@ const redactSettings = (s: Partial<AISettings>): Record<string, unknown> => {
   return { ...s, apiKey: s.apiKey ? '***' : s.apiKey, apiKeys };
 };
 
+// APIキーを暗号化する。AES-GCMに失敗したらレガシー方式、それも失敗したら例外を投げる。
+// 平文の鍵を「暗号化済み」として保存しないため、どちらも失敗した場合に元の鍵を返してはならない。
+const encryptApiKeyForStorage = async (key: string): Promise<string> => {
+  try {
+    return await encryptApiKeyAsync(key);
+  } catch {
+    console.error('Failed to encrypt API key with AES-GCM, falling back to legacy');
+    return encryptApiKey(key);
+  }
+};
+
+// 起動時の既定値用。暗号化できない環境変数の鍵は取り込まない
+const encryptEnvApiKey = (key: string): string | undefined => {
+  try {
+    return encryptApiKey(key);
+  } catch {
+    console.error('環境変数のAPIキーを暗号化できなかったため読み込みません');
+    return undefined;
+  }
+};
+
 // 環境変数からデフォルト設定を取得
 const getDefaultSettings = (): AISettings => {
   // 環境変数からAPIキーを取得
@@ -42,17 +63,17 @@ const getDefaultSettings = (): AISettings => {
 
   // apiKeysオブジェクトを構築（環境変数から）
   const apiKeys: Record<string, string> = {};
-  if (openaiKey) {
-    apiKeys['openai'] = encryptApiKey(openaiKey);
-  }
-  if (claudeKey) {
-    apiKeys['claude'] = encryptApiKey(claudeKey);
-  }
-  if (geminiKey) {
-    apiKeys['gemini'] = encryptApiKey(geminiKey);
-  }
-  if (grokKey) {
-    apiKeys['grok'] = encryptApiKey(grokKey);
+  const envKeys: Record<string, string | undefined> = {
+    openai: openaiKey,
+    claude: claudeKey,
+    gemini: geminiKey,
+    grok: grokKey,
+  };
+  for (const [provider, key] of Object.entries(envKeys)) {
+    const encrypted = key ? encryptEnvApiKey(key) : undefined;
+    if (encrypted) {
+      apiKeys[provider] = encrypted;
+    }
   }
 
   // localEndpointはユーザーが入力した値をそのまま保持
@@ -220,25 +241,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     if (newSettings.apiKey !== undefined) {
       const provider = updated.provider;
       if (provider && provider !== 'local') {
-        // APIキーをAES-GCM暗号化してapiKeysに保存（非同期）
-        try {
-          const encryptedKey = await encryptApiKeyAsync(newSettings.apiKey);
-          updated.apiKeys = {
-            ...updated.apiKeys,
-            [provider]: encryptedKey,
-          };
-          // 後方互換性のため、apiKeyフィールドにも現在のプロバイダーのAPIキーを設定
-          updated.apiKey = encryptedKey;
-        } catch (error) {
-          console.error('Failed to encrypt API key with AES-GCM, falling back to legacy:', error);
-          // フォールバック：レガシー暗号化を使用
-          const encryptedKey = encryptApiKey(newSettings.apiKey);
-          updated.apiKeys = {
-            ...updated.apiKeys,
-            [provider]: encryptedKey,
-          };
-          updated.apiKey = encryptedKey;
-        }
+        // APIキーを暗号化してapiKeysに保存。失敗時は状態を変えずに例外を呼び出し元へ送出する
+        const encryptedKey = await encryptApiKeyForStorage(newSettings.apiKey);
+        updated.apiKeys = {
+          ...updated.apiKeys,
+          [provider]: encryptedKey,
+        };
+        // 後方互換性のため、apiKeyフィールドにも現在のプロバイダーのAPIキーを設定
+        updated.apiKey = encryptedKey;
       }
     }
 
@@ -256,22 +266,12 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
                 newSettings.provider === 'grok' ? import.meta.env.VITE_GROK_API_KEY :
                   '';
         if (envKey) {
-          try {
-            const encryptedEnvKey = await encryptApiKeyAsync(envKey);
-            updated.apiKeys = {
-              ...updated.apiKeys,
-              [newSettings.provider]: encryptedEnvKey,
-            };
-            updated.apiKey = encryptedEnvKey;
-          } catch (error) {
-            console.error('Failed to encrypt env API key with AES-GCM, falling back to legacy:', error);
-            const encryptedEnvKey = encryptApiKey(envKey);
-            updated.apiKeys = {
-              ...updated.apiKeys,
-              [newSettings.provider]: encryptedEnvKey,
-            };
-            updated.apiKey = encryptedEnvKey;
-          }
+          const encryptedEnvKey = await encryptApiKeyForStorage(envKey);
+          updated.apiKeys = {
+            ...updated.apiKeys,
+            [newSettings.provider]: encryptedEnvKey,
+          };
+          updated.apiKey = encryptedEnvKey;
         } else {
           updated.apiKey = '';
         }

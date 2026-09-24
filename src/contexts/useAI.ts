@@ -13,7 +13,8 @@ import { AISettings } from '../types/ai';
 
 export interface AIContextType {
   settings: AISettings;
-  updateSettings: (settings: Partial<AISettings>) => void;
+  /** APIキーの暗号化に失敗した場合は設定を変更せずに reject する */
+  updateSettings: (settings: Partial<AISettings>) => Promise<void>;
   isConfigured: boolean;
   isStorageReady: boolean; // ストレージの準備状態
 }
