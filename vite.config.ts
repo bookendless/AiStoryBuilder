@@ -80,7 +80,8 @@ export default defineConfig({
     minify: 'terser', // より強力な圧縮
     terserOptions: {
       compress: {
-        drop_console: true, // console.logを削除
+        // drop_console は console.error / console.warn まで消し、本番のエラー記録が失われるため使わない。
+        // 開発用のログ出力だけを除去する。
         drop_debugger: true,
         pure_funcs: ['console.log', 'console.info', 'console.debug']
       }
