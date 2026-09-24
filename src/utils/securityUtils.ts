@@ -704,40 +704,41 @@ export const isAllowedLocalEndpoint = (endpoint: string): boolean => {
 };
 
 /**
+ * 本番の Content Security Policy。
+ *
+ * src-tauri/tauri.conf.json の app.security.csp と完全に一致させること（テストで検証している）。
+ * アプリ本体では tauri.conf の CSP とこの meta の CSP が両方適用され、厳しい方が勝つ。
+ * 食い違うと片方にだけ書いた許可は無効になり、どちらが実際に効いているか分からなくなる。
+ *
+ * - 外部フォント・外部画像・Worker は使わない（オフライン動作のため外部へ読み込みに行かない）
+ * - connect-src のホスト中間の '*'（例 192.168.*）は CSP では無効として無視される。
+ *   LAN 上のローカルLLMへの通信は Tauri の HTTP プラグイン（IPC 経由）で行うため CSP の対象外。
+ */
+export const PRODUCTION_CSP: Readonly<Record<string, string>> = {
+  'default-src': "'self'",
+  'connect-src': "'self' ipc://localhost http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* http://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.x.ai",
+  'script-src': "'self' 'unsafe-inline'",
+  'style-src': "'self' 'unsafe-inline'",
+  'img-src': "'self' data: blob:",
+  'font-src': "'self' data:",
+  'base-uri': "'self'",
+  'form-action': "'none'",
+};
+
+/**
  * セキュリティヘッダーの設定
  */
 export const setSecurityHeaders = (): void => {
   if (typeof document === 'undefined') return;
 
-  // 開発環境ではCSPを緩和
-  const isDevelopment = import.meta.env.DEV;
+  // 開発環境では開発ツール用に eval のみ追加で許可する
+  const directives: Record<string, string> = import.meta.env.DEV
+    ? { ...PRODUCTION_CSP, 'script-src': `${PRODUCTION_CSP['script-src']} 'unsafe-eval'` }
+    : { ...PRODUCTION_CSP };
 
-  // Content Security Policy
-  const csp = isDevelopment ? [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
-    "worker-src 'self' blob:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https:",
-    // CSP の connect-src はホスト中間の '*'（例 192.168.*）を許可しない（無効として無視される）。
-    // Tauri の IPC は scheme-source 'ipc:' と http(s)://ipc.localhost で許可する。
-    "connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* http://10.0.2.2:* ws://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.x.ai",
-    "base-uri 'self'",
-    "form-action 'self'"
-  ].join('; ') : [
-    "default-src 'self'",
-    // 本番ビルドでは eval を許可しない（Worker/WebAssembly を使っていないため不要）
-    "script-src 'self' 'unsafe-inline' blob:",
-    "worker-src 'self' blob:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https:",
-    // CSP の connect-src はホスト中間の '*' を許可しない。Tauri IPC は 'ipc:' と ipc.localhost で許可。
-    "connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* http://10.0.2.2:* ws://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.x.ai",
-    "base-uri 'self'",
-    "form-action 'self'"
-  ].join('; ');
+  const csp = Object.entries(directives)
+    .map(([directive, sources]) => `${directive} ${sources}`)
+    .join('; ');
 
   // メタタグでCSPを設定
   let cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');

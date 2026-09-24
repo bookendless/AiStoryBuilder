@@ -1,13 +1,12 @@
-/* ① フォント読み込み（外部 URL）を先頭へ */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@300;400;500;700&display=swap');
+/* 外部フォントは読み込まない（CSP で外部読み込みを禁止しているため。Noto 系は端末にあれば使われる） */
 
-/* ② Tailwind のディレクティブ（base, components, utilities) */
+/* Tailwind のディレクティブ（base, components, utilities) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ------------------------------------------------------------------ */
-/* ③ あとは自分の CSS */
+/* 以降は独自の CSS */
 
 /* ============================================================ */
 /* タイポグラフィ階層 - 情報の視覚的優先度を明確化 */

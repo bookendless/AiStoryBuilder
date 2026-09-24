@@ -44,6 +44,20 @@ AIプロバイダーへの送信のみに限られます。
   復号に失敗する主因は鍵導出の種の変化（localStorage の `_enc_seed_v1` の消失、v2はデバイス情報の変化）で、
   この場合ユーザーはAPIキーを再入力する必要があります。
 
+- **暗号化失敗時に平文を保存しない（fail-closed）** — `encryptApiKeyAsync()` / `encryptApiKey()` は
+  暗号化に失敗したら平文を返さず**例外を投げます**。かつては平文をそのまま返していたため、
+  暗号化できなかった鍵が「暗号化済み」として保存される経路がありました。
+  `AIContext.updateSettings()` は AES-GCM → レガシー方式の順に試し、両方失敗したら設定を変えずに reject し、
+  AI設定画面は保存せずにエラーを表示します（回帰テスト: `src/tests/utils/apiKeyDecryption.test.ts`）。
+
+- **CSP は1つのポリシーとして管理する** — アプリ本体では `tauri.conf.json` の `app.security.csp` と、
+  起動時に `setSecurityHeaders()` が注入する meta の CSP が両方適用され、厳しい方が勝ちます。
+  片方だけを変えるとその変更は効かないため、`securityUtils.ts` の `PRODUCTION_CSP` と
+  `tauri.conf.json` を完全に一致させています（検証: `src/tests/utils/cspConsistency.test.ts`）。
+  CSP を変えるときは両方を同時に変更してください。`http://192.168.*:*` のようなホスト中間の
+  ワイルドカードは CSP の文法上無効で黙って無視されるため書きません（同テストで検出）。
+  外部フォント・外部画像は読み込みません。
+
 - **テストの `crypto` を偽物にしない** — `src/tests/setup.ts` は Node の実 WebCrypto を使います。
   以前はダミー実装（`decrypt` が常にゼロ配列を返す）だったため、上記の復号失敗バグを
   テストで検出できませんでした。
