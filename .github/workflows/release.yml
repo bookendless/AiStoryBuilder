@@ -93,7 +93,7 @@ jobs:
           distribution: temurin
 
       - name: Android SDK セットアップ
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Rust ツールチェーン セットアップ
         uses: dtolnay/rust-toolchain@stable
