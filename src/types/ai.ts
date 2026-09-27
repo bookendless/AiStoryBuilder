@@ -185,9 +185,13 @@ export interface ClaudeRequestBody {
 }
 
 export interface ClaudeResponse {
+  // 思考が有効なモデル（Fable 5.1 / Opus 5.5 など）では先頭に thinking ブロックが来る。
+  // 本文は type === 'text' のブロックだけに入る
   content: Array<{
-    text: string;
+    type?: string;
+    text?: string;
   }>;
+  stop_reason?: string;
   usage?: {
     input_tokens: number;
     output_tokens: number;

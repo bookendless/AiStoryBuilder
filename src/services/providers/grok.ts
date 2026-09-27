@@ -1,31 +1,42 @@
 import { AIModel, AIProvider } from '../../types/ai';
 
 // xAI Grokモデル定義
-// 2026年8月17日時点の公式情報（https://docs.x.ai/developers/models）を反映
+// 2026年9月27日時点の公式情報（https://docs.x.ai/developers/models）を反映
 //
 // AIModel[] の注釈は、旧フィールド名 maxTokens の残存をコンパイルエラーにするため。
 //
 // maxOutputTokens は全モデル未確認。公式ドキュメントはコンテキスト長のみ公開しており、
-// 出力上限の記載を確認できなかった。高め（131,072）に倒してある。
+// 出力上限の記載を確認できなかった（grok-4.7 は「出力上限なし」とされる）。高め（131,072）に倒してある。
 // 理由: 低すぎる値は利用者の生成を黙って短くする回帰になるが、高すぎる値は
 // 従来どおりAPIエラーになるだけで現状維持。確認が取れ次第この値を下げること。
 const GROK_MODELS: AIModel[] = [
-    // Grok 4.6 - 最新・最高知能モデル
+    // Grok 4.7 - 最新・最高知能モデル
     {
-        id: 'grok-4.6',
-        name: 'Grok 4.6',
-        description: 'xAI最新・最高知能かつ最速のモデル。コーディング・チャット・汎用タスク向け。500kトークンコンテキスト。',
+        id: 'grok-4.7',
+        name: 'Grok 4.7',
+        description: '2026年9月21日リリースのxAI最新・最高知能モデル。コーディング・エージェント・知識作業向け。推論努力を設定可能。500kトークンコンテキスト。',
         contextWindow: 500000,
         maxOutputTokens: 131072,
         capabilities: ['テキスト', 'ビジョン', '高度推論', 'ツール使用', '構造化出力'],
         recommendedUse: '最高品質の執筆・分析、複雑なエージェントタスク',
+        latencyClass: 'standard',
+    },
+    // Grok 4.6 - 前世代フラッグシップ
+    {
+        id: 'grok-4.6',
+        name: 'Grok 4.6',
+        description: '前世代フラッグシップ（最新はgrok-4.7）。コーディング・チャット・汎用タスク向け。500kトークンコンテキスト。',
+        contextWindow: 500000,
+        maxOutputTokens: 131072,
+        capabilities: ['テキスト', 'ビジョン', '高度推論', 'ツール使用', '構造化出力'],
+        recommendedUse: '高品質の執筆・分析、複雑なエージェントタスク',
         latencyClass: 'fast',
     },
     // Grok 4.5 - 前世代フラッグシップ
     {
         id: 'grok-4.5',
         name: 'Grok 4.5',
-        description: '2026年7月登場。前世代フラッグシップモデル（最新はgrok-4.6）。コーディング・エージェント・知識作業向け。推論努力を設定可能。500kトークンコンテキスト。',
+        description: '2026年7月登場。旧世代フラッグシップモデル（最新はgrok-4.7）。コーディング・エージェント・知識作業向け。推論努力を設定可能。500kトークンコンテキスト。',
         contextWindow: 500000,
         maxOutputTokens: 131072,
         capabilities: ['テキスト', 'ビジョン', '高度推論', 'ツール使用', '構造化出力'],
@@ -70,10 +81,10 @@ export const grokProvider: AIProvider = {
     id: 'grok',
     name: 'xAI Grok',
     requiresApiKey: true,
-    description: 'xAIのGrokシリーズ。最新のGrok 4.6を筆頭に、テキスト・画像・動画・音声生成を網羅。',
+    description: 'xAIのGrokシリーズ。最新のGrok 4.7を筆頭に、テキスト・画像・動画・音声生成を網羅。',
     apiDocsUrl: 'https://docs.x.ai/developers/models',
     recommendedUses: [
-        'Grok 4.6による最高知能のチャット・コーディング',
+        'Grok 4.7による最高知能のチャット・コーディング',
         'Grok 4.3 / 4.20 Reasoningによる長文（1Mトークン）処理',
         'Grok 4.20 Non-Reasoningによる低遅延・低コスト処理',
     ],

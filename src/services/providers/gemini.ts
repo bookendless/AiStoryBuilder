@@ -3,6 +3,8 @@ import { AIModel, AIProvider } from '../../types/ai';
 // Geminiモデル定義
 // descriptionは利用者に見える文言なので、裏の取れない数値・時期は書かないこと。
 // 3.8 / 3.7 は公式モデル一覧で位置づけのみ確認済み。それ以外の世代の記述は未検証
+// 2026年9月27日時点の公式一覧で、テキスト生成モデルの新規追加はなし（3.8 Flash が最新）。
+// 2.5系は「過去に利用実績のあるユーザーのみ」に提供が絞られている。新規ユーザーの既定値に使わないこと
 //
 // 配列に AIModel[] を付けているのは、旧フィールド名 maxTokens が残っていたら
 // コンパイルエラーにするため。型注釈なしで models: GEMINI_MODELS と代入すると
@@ -109,7 +111,7 @@ const GEMINI_MODELS: AIModel[] = [
   {
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
-    description: '2025年6月GA。複雑なタスク向け最先端モデル。安定した2Mトークンコンテキスト。',
+    description: '【利用制限あり】過去に利用実績のあるユーザーのみ利用可能（新規はgemini-3.1-pro-previewを推奨）。2025年6月GA。安定した2Mトークンコンテキスト。',
     contextWindow: 2000000,
     maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', 'オーディオ', '思考モード', 'コード実行'],
@@ -119,7 +121,7 @@ const GEMINI_MODELS: AIModel[] = [
   {
     id: 'gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
-    description: '推論を必要とする低レイテンシで大容量のタスクに最適な価格とパフォーマンスのモデル。',
+    description: '【利用制限あり】過去に利用実績のあるユーザーのみ利用可能（新規はgemini-3.8-flashを推奨）。低レイテンシで大容量のタスク向け。',
     contextWindow: 1000000,
     maxOutputTokens: 65536,
     capabilities: ['テキスト', 'ビジョン', '思考モード'],
@@ -129,7 +131,7 @@ const GEMINI_MODELS: AIModel[] = [
   {
     id: 'gemini-2.5-flash-lite',
     name: 'Gemini 2.5 Flash Lite',
-    description: '2.5世代の最速・最安価モデル。API料金を抑えたい場合に最適',
+    description: '【利用制限あり】過去に利用実績のあるユーザーのみ利用可能（新規はgemini-3.5-flash-liteを推奨）。2.5世代の最速・最安価モデル。',
     contextWindow: 1000000,
     maxOutputTokens: 65536,
     capabilities: ['テキスト'],
@@ -146,6 +148,7 @@ export const geminiProvider: AIProvider = {
   description: 'Google AI Studio / Generative Language API。長大なコンテキストとマルチモーダルに対応。',
   apiDocsUrl: 'https://ai.google.dev/api',
   recommendedUses: [
+    '長編小説の執筆・推敲（創作用途の推奨プロバイダー）',
     '大規模な設定資料や資料集の処理',
     '画像・音声を併用したリサーチ',
     '長大な草案や要約の一括生成',

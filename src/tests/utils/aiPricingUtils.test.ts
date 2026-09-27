@@ -8,6 +8,21 @@ describe('getModelPrice', () => {
   it('Claude Fable 5はOpusより高単価', () => {
     expect(getModelPrice('claude', 'claude-fable-5')).toEqual({ input: 10, output: 50 });
   });
+  it('Claude Opus 5.5 / Sonnet 5 は旧世代より安い専用行を使う', () => {
+    expect(getModelPrice('claude', 'claude-opus-5-5')).toEqual({ input: 4, output: 20 });
+    expect(getModelPrice('claude', 'claude-sonnet-5')).toEqual({ input: 2, output: 10 });
+    // 旧世代は汎用行のまま
+    expect(getModelPrice('claude', 'claude-opus-5')).toEqual({ input: 5, output: 25 });
+    expect(getModelPrice('claude', 'claude-sonnet-4-6')).toEqual({ input: 3, output: 15 });
+  });
+  it('GPT-6系は公式の実額を使う', () => {
+    expect(getModelPrice('openai', 'gpt-6-astra')).toEqual({ input: 10, output: 50 });
+    expect(getModelPrice('openai', 'gpt-6-sol')).toEqual({ input: 2, output: 10 });
+    expect(getModelPrice('openai', 'gpt-6-luna')).toEqual({ input: 0.1, output: 0.5 });
+  });
+  it('Grok 4.7 は 4.6 と同じ単価', () => {
+    expect(getModelPrice('grok', 'grok-4.7')).toEqual({ input: 2, output: 6 });
+  });
   it('Claude Haikuは低単価', () => {
     expect(getModelPrice('claude', 'claude-haiku-4-5-20251001')).toEqual({ input: 1, output: 5 });
   });

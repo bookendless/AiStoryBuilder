@@ -7,7 +7,7 @@ import { modelSupportsTemperature, isOpenAIReasoningModel } from '../../utils/mo
  * 「テストは通るのに生成で400」が起きるため、判定は共通化してここで検証する。
  */
 describe('isOpenAIReasoningModel', () => {
-    it.each(['gpt-5', 'gpt-5.1', 'gpt-5.6-sol', 'o1-preview', 'o3-mini', 'o4-mini'])(
+    it.each(['gpt-5', 'gpt-5.1', 'gpt-5.6-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'o1-preview', 'o3-mini', 'o4-mini'])(
         '%s をリーズニングモデルと判定する',
         (model) => {
             expect(isOpenAIReasoningModel(model)).toBe(true);
@@ -28,14 +28,14 @@ describe('isOpenAIReasoningModel', () => {
 });
 
 describe('modelSupportsTemperature', () => {
-    it.each(['gpt-5.6-sol', 'gpt-5', 'o3-mini', 'o4-mini'])(
+    it.each(['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5', 'o3-mini', 'o4-mini'])(
         'OpenAIリーズニングモデル %s では temperature を送らない',
         (model) => {
             expect(modelSupportsTemperature(model)).toBe(false);
         }
     );
 
-    it.each(['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-fable-5-1', 'claude-mythos-5'])(
+    it.each(['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-fable-5-1', 'claude-mythos-5'])(
         'temperature 非対応のClaudeモデル %s では送らない',
         (model) => {
             expect(modelSupportsTemperature(model)).toBe(false);

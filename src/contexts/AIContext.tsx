@@ -55,7 +55,8 @@ const getDefaultSettings = (): AISettings => {
     defaultModel = 'claude-haiku-4-5-20251001';
   } else if (geminiKey) {
     defaultProvider = 'gemini';
-    defaultModel = 'gemini-2.5-flash';
+    // 2.5系は過去の利用者に提供が絞られたため、新規ユーザーでも呼べる最新Flashを既定にする
+    defaultModel = 'gemini-3.8-flash';
   } else if (localEndpoint) {
     defaultProvider = 'local';
     defaultModel = 'local-model';

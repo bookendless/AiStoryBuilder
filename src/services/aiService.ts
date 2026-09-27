@@ -618,17 +618,32 @@ class AIService {
         console.log('Claude API Response:', data);
       }
 
-      if (!data.content || !data.content[0] || !data.content[0].text) {
+      // 思考が常時有効なモデル（Fable 5.1 / Opus 5.5 など）は先頭に thinking ブロックを返すため、
+      // content[0] ではなく text ブロックだけを連結する
+      const text = Array.isArray(data.content)
+        ? data.content
+            .filter((block) => block.type === 'text' && typeof block.text === 'string')
+            .map((block) => block.text)
+            .join('')
+        : '';
+
+      if (!text) {
         if (import.meta.env.DEV) {
           console.error('Invalid Claude response structure:', data);
         } else {
           console.error('Invalid Claude response structure');
         }
+        if (data.stop_reason === 'refusal') {
+          throw new APIError('Claude が安全上の理由で応答を控えました。依頼内容を見直すか、別のモデルをお試しください', 'invalid_request', 'CLAUDE_REFUSAL');
+        }
+        if (data.stop_reason === 'max_tokens') {
+          throw new APIError('本文を出力する前に最大出力トークン数に達しました（思考で使い切った可能性があります）。AI設定で最大トークン数を増やしてください', 'invalid_request', 'CLAUDE_MAX_TOKENS');
+        }
         throw new APIError('Claude API からの応答が無効です', 'invalid_request', 'INVALID_RESPONSE');
       }
 
       return {
-        content: data.content[0].text,
+        content: text,
         usage: data.usage ? {
           promptTokens: data.usage.input_tokens,
           completionTokens: data.usage.output_tokens,

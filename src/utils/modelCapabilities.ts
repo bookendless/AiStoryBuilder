@@ -6,7 +6,7 @@
  */
 
 /**
- * OpenAI のリーズニング系モデル（GPT-5系 / o1・o3・o4系）か判定する。
+ * OpenAI のリーズニング系モデル（GPT-5系 / GPT-6系 / o1・o3・o4系）か判定する。
  *
  * これらのモデルは max_tokens ではなく max_completion_tokens を使う。
  * また temperature の変更を受け付けない（OpenAI公式ドキュメント:
@@ -14,7 +14,7 @@
  */
 export const isOpenAIReasoningModel = (model: string): boolean => {
   if (!model) return false;
-  if (model.startsWith('gpt-5')) return true;
+  if (model.startsWith('gpt-5') || model.startsWith('gpt-6')) return true;
   return model.startsWith('o1-') || model.startsWith('o3') || model.startsWith('o4');
 };
 
@@ -22,8 +22,8 @@ export const isOpenAIReasoningModel = (model: string): boolean => {
  * モデルが temperature パラメータを受け付けるか判定する。
  * 非対応モデルに temperature を送ると 400 になるため、リクエストボディから省略する。
  *
- * - Claude: opus 4.7 / 4.8 / 4.9 系、opus-5 / sonnet-5 / fable-5 / mythos-5 系
- * - OpenAI: GPT-5 系および o1 / o3 / o4 系（リーズニングモデル）
+ * - Claude: opus 4.7 / 4.8 / 4.9 系、opus-5（opus-5-5 を含む）/ sonnet-5 / fable-5 / mythos-5 系
+ * - OpenAI: GPT-5 系・GPT-6 系および o1 / o3 / o4 系（リーズニングモデル）
  */
 export const modelSupportsTemperature = (model: string): boolean => {
   if (!model) return true;

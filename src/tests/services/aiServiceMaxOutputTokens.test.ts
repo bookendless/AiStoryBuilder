@@ -42,7 +42,7 @@ describe('aiService が送る出力上限', () => {
   it('Claude: 設定値がモデルの出力上限を超えたらクランプして送る', async () => {
     vi.mocked(httpService.post).mockResolvedValue({
       status: 200,
-      data: { content: [{ text: 'ok' }] },
+      data: { content: [{ type: 'text', text: 'ok' }] },
     } as Awaited<ReturnType<typeof httpService.post>>);
 
     // 1,000,000 は claude-opus-5 のコンテキスト長。出力上限として送ると400になる値
@@ -58,7 +58,7 @@ describe('aiService が送る出力上限', () => {
   it('Claude: 設定値が上限以下ならそのまま送る', async () => {
     vi.mocked(httpService.post).mockResolvedValue({
       status: 200,
-      data: { content: [{ text: 'ok' }] },
+      data: { content: [{ type: 'text', text: 'ok' }] },
     } as Awaited<ReturnType<typeof httpService.post>>);
 
     await aiService.generateContent({
@@ -103,5 +103,89 @@ describe('aiService が送る出力上限', () => {
     const body = lastRequestBody();
     expect(body.max_completion_tokens).toBe(100000);
     expect(body.max_tokens).toBeUndefined();
+  });
+
+  it('OpenAI: GPT-6系はリーズニングモデルとして max_completion_tokens を使い temperature を送らない', async () => {
+    vi.mocked(httpService.post).mockResolvedValue({
+      status: 200,
+      data: { choices: [{ message: { content: 'ok' } }] },
+    } as Awaited<ReturnType<typeof httpService.post>>);
+
+    // gpt-6-sol のコンテキスト長は 1,050,000、出力上限は 128,000
+    await aiService.generateContent({
+      prompt: 'テスト',
+      type: 'draft',
+      settings: settingsFor('openai', 'gpt-6-sol', 1050000),
+    });
+
+    const body = lastRequestBody();
+    expect(body.max_completion_tokens).toBe(128000);
+    expect(body.max_tokens).toBeUndefined();
+    expect(body.temperature).toBeUndefined();
+  });
+});
+
+describe('aiService の Claude 応答解析', () => {
+  beforeEach(() => {
+    vi.mocked(httpService.post).mockReset();
+  });
+
+  const respond = (data: unknown) =>
+    vi.mocked(httpService.post).mockResolvedValue({
+      status: 200,
+      data,
+    } as Awaited<ReturnType<typeof httpService.post>>);
+
+  const generate = () =>
+    aiService.generateContent({
+      prompt: 'テスト',
+      type: 'draft',
+      settings: settingsFor('claude', 'claude-opus-5-5', 3000),
+    });
+
+  it('先頭が thinking ブロックでも本文の text ブロックを返す', async () => {
+    // 思考が常時有効なモデルは display 既定（omitted）で空の thinking ブロックを先頭に返す
+    respond({
+      content: [
+        { type: 'thinking', thinking: '', signature: 'sig' },
+        { type: 'text', text: '本文' },
+      ],
+      stop_reason: 'end_turn',
+    });
+
+    const result = await generate();
+    expect(result.error).toBeUndefined();
+    expect(result.content).toBe('本文');
+  });
+
+  it('複数の text ブロックは連結して返す', async () => {
+    respond({
+      content: [
+        { type: 'text', text: '前半' },
+        { type: 'text', text: '後半' },
+      ],
+    });
+
+    const result = await generate();
+    expect(result.content).toBe('前半後半');
+  });
+
+  it('本文なしで refusal なら専用のエラーを返す', async () => {
+    respond({ content: [], stop_reason: 'refusal' });
+
+    const result = await generate();
+    expect(result.content).toBe('');
+    expect(result.error).toContain('安全上の理由');
+  });
+
+  it('思考だけで出力上限に達したら最大トークン数の見直しを促す', async () => {
+    respond({
+      content: [{ type: 'thinking', thinking: '', signature: 'sig' }],
+      stop_reason: 'max_tokens',
+    });
+
+    const result = await generate();
+    expect(result.content).toBe('');
+    expect(result.error).toContain('最大出力トークン数');
   });
 });

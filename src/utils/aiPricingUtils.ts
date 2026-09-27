@@ -18,10 +18,14 @@ export type AIProvider = 'openai' | 'claude' | 'gemini' | 'grok' | 'local';
 /**
  * モデルIDのパターン（前方一致・部分一致）と概算単価の対応。
  * 上から順に最初にマッチしたものを採用するため、より限定的なパターンを先に置く。
- * 単価は目安（2026年9月4日時点。公式ドキュメントで確認できたものは実額、それ以外は想定値）。
+ * 単価は目安（2026年9月27日時点。公式ドキュメントで確認できたものは実額、それ以外は想定値）。
  */
 const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean; price: ModelPrice }>> = {
   openai: [
+    // gpt-6 系は公式ドキュメントの実額
+    { match: m => m.includes('gpt-6-astra'), price: { input: 10, output: 50 } },
+    { match: m => m.includes('gpt-6-sol'), price: { input: 2, output: 10 } },
+    { match: m => m.includes('gpt-6-luna'), price: { input: 0.1, output: 0.5 } },
     // gpt-5.4-mini / nano は公式ドキュメントの実額。汎用の mini / nano 行より先に置く
     { match: m => m.includes('gpt-5.4-nano'), price: { input: 0.2, output: 1.25 } },
     { match: m => m.includes('gpt-5.4-mini'), price: { input: 0.75, output: 4.5 } },
@@ -39,7 +43,10 @@ const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean;
   claude: [
     { match: m => m.includes('fable') || m.includes('mythos'), price: { input: 10, output: 50 } },
     { match: m => m.includes('haiku'), price: { input: 1, output: 5 } },
+    // sonnet-5 / opus-5-5 は旧世代より安い。汎用の sonnet / opus 行より先に置く
+    { match: m => m.includes('sonnet-5'), price: { input: 2, output: 10 } },
     { match: m => m.includes('sonnet'), price: { input: 3, output: 15 } },
+    { match: m => m.includes('opus-5-5'), price: { input: 4, output: 20 } },
     { match: m => m.includes('opus'), price: { input: 5, output: 25 } },
   ],
   gemini: [
@@ -48,7 +55,7 @@ const PRICE_TABLE: Record<AIProvider, Array<{ match: (model: string) => boolean;
     { match: m => m.includes('pro'), price: { input: 1.25, output: 10 } },
   ],
   grok: [
-    { match: m => m.includes('grok-4.6') || m.includes('grok-4.5'), price: { input: 2, output: 6 } },
+    { match: m => m.includes('grok-4.7') || m.includes('grok-4.6') || m.includes('grok-4.5'), price: { input: 2, output: 6 } },
     { match: () => true, price: { input: 1.25, output: 2.5 } },
   ],
   local: [
