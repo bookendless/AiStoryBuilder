@@ -1,6 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { useProject } from '../../../../contexts/useProject';
+import { generateNarrativeProse, generationSignature, NarrativeGenerationError } from '../../../../services/narrative/context';
+import { useDraftResult } from './useDraftResult';
 import { Project } from '../../../../contexts/ProjectContext';
-import { AISettings } from '../../../../types/ai';
+import { AISettings, AIResponse } from '../../../../types/ai';
+import { getAIResponseIssue } from '../../../../services/aiResponseMetadata';
 import { aiService } from '../../../../services/aiService';
 import { buildContinueEnhancedPrompt, DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
 import { useGeneration } from '../../../../contexts/useGeneration';
@@ -66,10 +70,10 @@ interface UseAIGenerationOptions {
   buildCustomPrompt: (args: PromptArgs) => string;
   setImprovementLogs: React.Dispatch<React.SetStateAction<Record<string, ImprovementLog[]>>>;
   /**
-   * AI提案を草案へ適用する前の確認ゲート（差分プレビュー用）。
-   * true を返すと適用、false を返すと破棄。未指定時は従来通り即適用。
+   * 既存本文の置換をグローバルな差分プレビューで確認する（既定 true）。
    */
-  confirmDraftReplace?: (params: { oldText: string; newText: string }) => Promise<boolean>;
+  reviewDraftResult?: boolean;
+  narrativeInstructions?: string;
 }
 
 interface UseAIGenerationReturn {
@@ -128,8 +132,6 @@ export const useAIGeneration = ({
   selectedChapter,
   settings,
   isConfigured,
-  onDraftUpdate,
-  onSaveChapterDraft,
   onError,
   onWarning,
   onCompletionToast,
@@ -138,8 +140,13 @@ export const useAIGeneration = ({
   getProjectContextInfo,
   buildCustomPrompt,
   setImprovementLogs,
-  confirmDraftReplace,
+  reviewDraftResult = true,
+  narrativeInstructions = '',
 }: UseAIGenerationOptions): UseAIGenerationReturn => {
+  const { commitProjectUpdate } = useProject();
+  const stageDraftResult = useDraftResult(currentProject, selectedChapter, draft);
+  const active = useRef({ projectId: currentProject?.id, chapterId: selectedChapter, settings, narrativeInstructions });
+  active.current = { projectId: currentProject?.id, chapterId: selectedChapter, settings, narrativeInstructions };
   const { startTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
   const [currentGenerationAction, setCurrentGenerationAction] = useState<GenerationAction | null>(null);
 
@@ -159,25 +166,54 @@ export const useAIGeneration = ({
 
   /**
    * AI提案を草案へ適用する共通処理。
-   * 確認ゲート（差分プレビュー）が設定されていて既存の草案がある場合は、
-   * ユーザーの承認を得てから適用・保存する。
-   * @returns 適用した場合 true、破棄した場合 false
+   * 既存草案は確認待ちへ登録し、承認後に保存する。
+   * @returns 即時適用した場合 true、確認待ちの場合 false
    */
-  const applyDraftResult = useCallback(async (newText: string, successMessage: string): Promise<boolean> => {
-    if (confirmDraftReplace && draft.trim() && newText !== draft) {
-      const approved = await confirmDraftReplace({ oldText: draft, newText });
-      if (!approved) {
-        onCompletionToast('AI提案を破棄しました');
-        return false;
+  const applyDraftResult = useCallback(async (newText: string, successMessage: string, onApplied?: () => void): Promise<boolean> => {
+    const applied = await stageDraftResult(newText, successMessage, { review: reviewDraftResult && !!draft.trim() && newText !== draft, onApplied });
+    if (applied) onCompletionToast(successMessage);
+    return applied;
+  }, [stageDraftResult, reviewDraftResult, draft, onCompletionToast]);
+
+  const validateDraftResponse = useCallback(async (response: AIResponse) => {
+    const issue = getAIResponseIssue(response);
+    if (!issue) return;
+    if (response.content?.trim()) await stageDraftResult(response.content, '', {
+      review: true, blockedReason: issue,
+      notice: '生成を完了扱いにできなかったため、受信した本文を確認用に保持しています。',
+    });
+    throw new Error(issue);
+  }, [stageDraftResult]);
+
+  const runWithNarrative = useCallback(async (mode: 'chapter' | 'continue' | 'revise', signal: AbortSignal, basePrompt: string) => {
+    if (!currentProject || !selectedChapter) return;
+    const expected = generationSignature(currentProject, selectedChapter);
+    const assertCurrent = (p: Project) => {
+      if (signal.aborted) throw new DOMException('中断しました', 'AbortError');
+      if (p.id !== currentProject.id || active.current.projectId !== p.id || active.current.chapterId !== selectedChapter || active.current.narrativeInstructions !== narrativeInstructions || JSON.stringify(active.current.settings) !== JSON.stringify(settings) || generationSignature(p, selectedChapter) !== expected) throw new Error('生成中に本文・設定・確定状態が変わりました。再生成してください');
+    };
+    const saved = await commitProjectUpdate(p => { assertCurrent(p); return {}; }, currentProject.id);
+    assertCurrent(saved.project);
+    // Chapter prompts already contain the author's custom instructions.
+    const prompt = mode !== 'chapter' && narrativeInstructions.trim() ? `${basePrompt}\n\n【作者の追加指示】\n${narrativeInstructions}` : basePrompt;
+    let generated: Awaited<ReturnType<typeof generateNarrativeProse>>;
+    try {
+      generated = await generateNarrativeProse(saved.project, selectedChapter, prompt, settings, signal);
+    } catch (error) {
+      if (error instanceof NarrativeGenerationError) {
+        addLog({ type: mode === 'continue' ? 'continue' : 'generateSingle', prompt: error.context.prompt, response: error.response.content, error: error.message, chapterId: selectedChapter });
+        if (error.response.content.trim()) await stageDraftResult(error.response.content, '', { review: true, blockedReason: error.message, notice: '生成を完了扱いにできなかったため、受信した本文を確認用に保持しています。' });
       }
+      throw error;
     }
-    onDraftUpdate(newText);
-    if (selectedChapter) {
-      await onSaveChapterDraft(selectedChapter, newText);
-    }
-    onCompletionToast(successMessage);
-    return true;
-  }, [confirmDraftReplace, draft, selectedChapter, onDraftUpdate, onSaveChapterDraft, onCompletionToast]);
+    const { response, context } = generated;
+    const newText = mode === 'continue' ? `${draft}\n\n${response.content}` : response.content;
+    addLog({ type: mode === 'continue' ? 'continue' : 'generateSingle', prompt: context.prompt, response: response.content, chapterId: selectedChapter });
+    const notice = response.finishReason !== 'stop' ? 'AIの終了理由を取得できませんでした。文章が途中で切れていないか、末尾まで確認してから適用してください。' : undefined;
+    // 過去の出来事は蓄積し続けるため、入力上限で省いた件数を作者に見えるようにする
+    const info = context.omittedIds.length ? `確定した過去の出来事 ${context.usedIds.length + context.omittedIds.length}件のうち ${context.omittedIds.length}件は、入力上限のため今回の生成に含めていません（この章との関連が低いものから省略）。` : undefined;
+    await stageDraftResult(newText, '確定状態を使った生成結果を保存しました。この章の物語状態を解析・確認してください', { review: true, notice, info, signature: expected });
+  }, [currentProject, selectedChapter, settings, commitProjectUpdate, draft, addLog, narrativeInstructions, stageDraftResult]);
 
   // 章全体生成
   const handleAIGenerate = useCallback(async () => {
@@ -266,6 +302,8 @@ export const useAIGeneration = ({
         contextInfo,
       });
 
+      if (currentProject.narrativeMemory?.enabled) { await runWithNarrative('chapter', signal, prompt); return; }
+
 const response = await aiService.generateContent({
         prompt,
         type: 'draft',
@@ -291,13 +329,15 @@ const response = await aiService.generateContent({
         chapterId: selectedChapter || undefined,
       });
 
-      if (response && response.content) {
+      await validateDraftResponse(response);
+      if (!response.content?.trim()) throw new Error('AIから草案の本文を受信できませんでした。AIログを確認してください');
+      if (response.content) {
         await applyDraftResult(response.content, '章全体の生成が完了しました');
       }
     } catch (error) {
       console.error('AI生成エラー:', error);
       if ((error as Error).name !== 'AbortError') {
-        onError('AI生成中にエラーが発生しました', 7000, {
+        onError(error instanceof Error ? error.message : 'AI生成中にエラーが発生しました', 7000, {
           title: 'AI生成エラー',
         });
       }
@@ -318,10 +358,12 @@ const response = await aiService.generateContent({
     completeTask,
     mainKey,
     applyDraftResult,
+    validateDraftResponse,
     onError,
     onWarning,
     addLog,
     usageProjectId,
+    runWithNarrative,
   ]);
 
   // 続き生成
@@ -426,6 +468,8 @@ const response = await aiService.generateContent({
       // 追加のコンテキスト情報・執筆指示をプロンプトに付加
       const enhancedPrompt = buildContinueEnhancedPrompt(prompt, { ...contextInfo, pastExcerpts: ragPastExcerpts });
 
+      if (currentProject.narrativeMemory?.enabled) { await runWithNarrative('continue', signal, enhancedPrompt); return; }
+
 const response = await aiService.generateContent({
         prompt: enhancedPrompt,
         type: 'draft',
@@ -451,14 +495,16 @@ const response = await aiService.generateContent({
         chapterId: selectedChapter || undefined,
       });
 
-      if (response && response.content) {
+      await validateDraftResponse(response);
+      if (!response.content?.trim()) throw new Error('AIから草案の本文を受信できませんでした。AIログを確認してください');
+      if (response.content) {
         const newContent = draft + '\n\n' + response.content;
         await applyDraftResult(newContent, '文章の続きを生成しました');
       }
     } catch (error) {
       console.error('続き生成エラー:', error);
       if ((error as Error).name !== 'AbortError') {
-        onError('続き生成中にエラーが発生しました', 7000, {
+        onError(error instanceof Error ? error.message : '続き生成中にエラーが発生しました', 7000, {
           title: '続き生成エラー',
         });
       }
@@ -478,9 +524,11 @@ const response = await aiService.generateContent({
     completeTask,
     mainKey,
     applyDraftResult,
+    validateDraftResponse,
     onError,
     addLog,
     usageProjectId,
+    runWithNarrative,
   ]);
 
   // 描写強化
@@ -511,7 +559,9 @@ const response = await aiService.generateContent({
         return;
       }
 
-      if (response && response.content) {
+      await validateDraftResponse(response);
+      if (!response.content?.trim()) throw new Error('AIから草案の本文を受信できませんでした。AIログを確認してください');
+      if (response.content) {
         await applyDraftResult(response.content, '描写を強化しました');
       }
     } catch (error) {
@@ -525,7 +575,7 @@ const response = await aiService.generateContent({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError, usageProjectId]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, validateDraftResponse, onError, usageProjectId]);
 
   // 文体調整
   const handleStyleAdjustment = useCallback(async () => {
@@ -556,7 +606,9 @@ const response = await aiService.generateContent({
         return;
       }
 
-      if (response && response.content) {
+      await validateDraftResponse(response);
+      if (!response.content?.trim()) throw new Error('AIから草案の本文を受信できませんでした。AIログを確認してください');
+      if (response.content) {
         await applyDraftResult(response.content, '文体を調整しました');
       }
     } catch (error) {
@@ -570,7 +622,7 @@ const response = await aiService.generateContent({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError, usageProjectId]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, validateDraftResponse, onError, usageProjectId]);
 
   // 文章短縮
   const handleShortenText = useCallback(async () => {
@@ -600,7 +652,9 @@ const response = await aiService.generateContent({
         return;
       }
 
-      if (response && response.content) {
+      await validateDraftResponse(response);
+      if (!response.content?.trim()) throw new Error('AIから草案の本文を受信できませんでした。AIログを確認してください');
+      if (response.content) {
         await applyDraftResult(response.content, '文章を短縮しました');
       }
     } catch (error) {
@@ -614,7 +668,7 @@ const response = await aiService.generateContent({
       completeTask(taskId);
       setCurrentGenerationAction(null);
     }
-  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, onError, usageProjectId]);
+  }, [selectedChapter, draft, settings, startTask, completeTask, mainKey, applyDraftResult, validateDraftResponse, onError, usageProjectId]);
 
   // 章全体改善（描写強化＋文体調整の組み合わせ）
   const handleChapterImprovement = useCallback(async () => {
@@ -638,6 +692,8 @@ const response = await aiService.generateContent({
         currentLength: draft.length.toString(),
       });
 
+      if (currentProject?.narrativeMemory?.enabled) { await runWithNarrative('revise', signal, prompt); return; }
+
 const response = await aiService.generateContent({
         prompt,
         type: 'draft',
@@ -654,13 +710,15 @@ const response = await aiService.generateContent({
         return;
       }
 
-      if (response && response.content) {
+      await validateDraftResponse(response);
+      if (!response.content?.trim()) throw new Error('AIから草案の本文を受信できませんでした。AIログを確認してください');
+      if (response.content) {
         await applyDraftResult(response.content, '章全体を改善しました');
       }
     } catch (error) {
       console.error('章全体改善エラー:', error);
       if ((error as Error).name !== 'AbortError') {
-        onError('章全体改善中にエラーが発生しました', 7000, {
+        onError(error instanceof Error ? error.message : '章全体改善中にエラーが発生しました', 7000, {
           title: '章全体改善エラー',
         });
       }
@@ -678,8 +736,11 @@ const response = await aiService.generateContent({
     completeTask,
     mainKey,
     applyDraftResult,
+    validateDraftResponse,
     onError,
     usageProjectId,
+    currentProject,
+    runWithNarrative,
   ]);
 
   // 弱点の特定（分析フェーズ）
@@ -729,6 +790,8 @@ const critiqueResponse = await aiService.generateContent({
         throw new Error('批評フェーズの応答が取得できませんでした');
       }
 
+      const critiqueIssue = getAIResponseIssue(critiqueResponse);
+      if (critiqueIssue) throw new Error(critiqueIssue);
       // JSON形式の応答を抽出・パース
       let critiqueSummary = '';
       let weaknesses: WeaknessItem[] = []; // 型適用
@@ -848,6 +911,7 @@ const revisionResponse = await aiService.generateContent({
       }
 
       // 修正結果の解析（handleSelfRefineImprovementと同様のロジック）
+      await validateDraftResponse(revisionResponse);
       let revisedText = '';
       let improvementSummary = '';
       let phase2Changes: string[] = [];
@@ -899,34 +963,33 @@ const revisionResponse = await aiService.generateContent({
       }
 
       if (revisedText.trim()) {
-        const applied = await applyDraftResult(
+        await applyDraftResult(
           revisedText,
           improvementSummary
             ? `選択した ${selectedWeaknesses.length} 件の弱点を修正しました`
-            : '修正が完了しました'
-        );
-
-        if (applied) {
-          const logId = `log-${Date.now()}`;
-          const improvementLog: ImprovementLog = {
-            id: logId,
-            timestamp: Date.now(),
-            chapterId: selectedChapter!,
-            phase1Critique: rawCritique,
-            phase2Summary: improvementSummary || '改善戦略の要約が取得できませんでした',
-            phase2Changes: phase2Changes,
-            originalLength: draft.length,
-            revisedLength: revisedText.length,
-          };
-
-          setImprovementLogs(prev => {
-            const chapterLogs = prev[selectedChapter!] || [];
-            return {
-              ...prev,
-              [selectedChapter!]: [improvementLog, ...chapterLogs].slice(0, 20),
+            : '修正が完了しました',
+          () => {
+            const logId = `log-${Date.now()}`;
+            const improvementLog: ImprovementLog = {
+              id: logId,
+              timestamp: Date.now(),
+              chapterId: selectedChapter!,
+              phase1Critique: rawCritique,
+              phase2Summary: improvementSummary || '改善戦略の要約が取得できませんでした',
+              phase2Changes: phase2Changes,
+              originalLength: draft.length,
+              revisedLength: revisedText.length,
             };
-          });
-        }
+
+            setImprovementLogs(prev => {
+              const chapterLogs = prev[selectedChapter!] || [];
+              return {
+                ...prev,
+                [selectedChapter!]: [improvementLog, ...chapterLogs].slice(0, 20),
+              };
+            });
+          }
+        );
       } else {
         throw new Error('改訂後の文章が空です');
       }
@@ -950,6 +1013,7 @@ const revisionResponse = await aiService.generateContent({
     completeTask,
     mainKey,
     applyDraftResult,
+    validateDraftResponse,
     onError,
     setImprovementLogs,
     usageProjectId,
@@ -1003,7 +1067,9 @@ const response = await aiService.generateContent({
         return;
       }
 
-      if (response && response.content) {
+      await validateDraftResponse(response);
+      if (!response.content?.trim()) throw new Error('AIから草案の本文を受信できませんでした。AIログを確認してください');
+      if (response.content) {
         await applyDraftResult(response.content, 'キャラクター情報のブレを修正しました');
       }
     } catch (error) {
@@ -1026,6 +1092,7 @@ const response = await aiService.generateContent({
     completeTask,
     mainKey,
     applyDraftResult,
+    validateDraftResponse,
     onError,
     usageProjectId,
   ]);

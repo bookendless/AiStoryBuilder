@@ -38,12 +38,14 @@ export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ child
   // 最新の保留結果を同期参照（applyResult で onApply を引くため）
   const resultsRef = useRef<PendingResult[]>([]);
   resultsRef.current = pendingResults;
+  const applyingRef = useRef(new Set<string>());
 
   const openResult = useCallback((id: string) => {
     setActiveId(id);
   }, []);
 
   const removeResult = useCallback((id: string) => {
+    resultsRef.current = resultsRef.current.filter(r => r.id !== id);
     setPendingResults((prev) => prev.filter((r) => r.id !== id));
     setActiveId((prev) => (prev === id ? null : prev));
   }, []);
@@ -55,6 +57,8 @@ export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ child
         id,
         label: input.label,
         preview: input.preview,
+        draftPreview: input.draftPreview,
+        applyBlockedReason: input.applyBlockedReason,
         projectId: input.projectId,
         onApply: input.onApply,
         applyLabel: input.applyLabel,
@@ -62,7 +66,8 @@ export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ child
         creativePoints: input.creativePoints,
         onRegenerateWithSelections: input.onRegenerateWithSelections,
       };
-      setPendingResults((prev) => [...prev, result]);
+      resultsRef.current = [...resultsRef.current, result];
+      setPendingResults(resultsRef.current);
       // どのステップにいても表示されるグローバルトースト＋「確認する」アクション。
       // トーストは一時的な通知（自動で消える）。消しても結果は保留に残り、
       // 左下インジケータの「確認待ち」からいつでも反映/破棄できる。
@@ -82,18 +87,22 @@ export const PendingResultProvider: React.FC<{ children: ReactNode }> = ({ child
   const applyResult = useCallback(
     async (id: string) => {
       const target = resultsRef.current.find((r) => r.id === id);
-      if (!target) return;
+      if (!target || applyingRef.current.has(id)) return;
+      if (target.applyBlockedReason) { showError(target.applyBlockedReason); return; }
       if (target.projectId && currentProject?.id !== target.projectId) {
         showError('生成元のプロジェクトを開いてから反映してください。');
         return;
       }
+      applyingRef.current.add(id);
       try {
         await target.onApply();
         removeResult(id);
         showSuccess(target.applySuccessMessage ?? `${target.label}を反映しました`);
       } catch (error) {
         console.error('保留結果の反映に失敗しました:', error);
-        showError(`${target.label}の反映に失敗しました`);
+        showError(`${target.label}の反映に失敗しました。${error instanceof Error ? error.message : '確認待ちの結果から再試行してください。'}`);
+      } finally {
+        applyingRef.current.delete(id);
       }
     },
     [currentProject?.id, removeResult, showSuccess, showError]

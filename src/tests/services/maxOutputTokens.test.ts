@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_OUTPUT_TOKENS,
   findModel,
   getMaxOutputTokens,
+  getDefaultModelId,
   resolveMaxOutputTokens,
 } from '../../services/providers';
 import { AISettings } from '../../types/ai';
@@ -69,6 +70,22 @@ describe('getMaxOutputTokens', () => {
 });
 
 describe('resolveMaxOutputTokens', () => {
+  it('sends positive integers and recognizes registered OpenAI dated snapshots', () => {
+    expect(resolveMaxOutputTokens(settingsFor('openai', 'gpt-6-sol', 0.5))).toBe(1);
+    expect(resolveMaxOutputTokens(settingsFor('openai', 'gpt-6-sol', 4096.9))).toBe(4096);
+    expect(getMaxOutputTokens('openai', 'gpt-6-sol-2026-09-27')).toBe(getMaxOutputTokens('openai', 'gpt-6-sol'));
+    expect(getMaxOutputTokens('local', 'gpt-6-sol-2026-09-27')).toBe(8192);
+    expect(getMaxOutputTokens('openai', 'gpt-6-sol-unregistered')).toBe(8192);
+  });
+  it('keeps selection defaults independent of display order', () => {
+    for (const provider of AI_PROVIDERS) {
+      const expected = getDefaultModelId(provider.id);
+      expect(provider.models.some(m => m.id === expected)).toBe(true);
+      const original = provider.models;
+      try { provider.models = [...original].reverse(); expect(getDefaultModelId(provider.id)).toBe(expected); }
+      finally { provider.models = original; }
+    }
+  });
   it('設定値が上限以下ならそのまま使う', () => {
     expect(resolveMaxOutputTokens(settingsFor('claude', 'claude-opus-5', 3000))).toBe(3000);
   });

@@ -28,6 +28,8 @@ export interface PreemptiveDraftResult {
   chapterId: string;
   chapterTitle: string;
   draft: string;
+  narrativeSignature?: string;
+  completionUnknown?: boolean;
 }
 
 export type PreemptiveResult =

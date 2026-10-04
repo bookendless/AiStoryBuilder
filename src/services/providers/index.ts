@@ -25,7 +25,15 @@ export const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 
 /** プロバイダーIDとモデルIDからモデル定義を引く。未登録なら undefined。 */
 export const findModel = (providerId?: string, modelId?: string): AIModel | undefined =>
-  AI_PROVIDERS.find((p) => p.id === providerId)?.models.find((m) => m.id === modelId);
+  AI_PROVIDERS.find((p) => p.id === providerId)?.models.find((m) => m.id === modelId)
+  ?? (providerId === 'openai' ? AI_PROVIDERS.find(p => p.id === providerId)?.models.find(m =>
+    modelId?.startsWith(`${m.id}-`) && /^\d{4}-\d{2}-\d{2}$/.test(modelId.slice(m.id.length + 1))) : undefined);
+
+/** Explicit selection default; changing the display order must not change it. */
+export const getDefaultModelId = (providerId: string): string => {
+  const provider = AI_PROVIDERS.find(p => p.id === providerId);
+  return provider?.defaultModelId ?? provider?.models[0]?.id ?? '';
+};
 
 /**
  * そのモデルが1リクエストで生成できる出力トークンの上限。
@@ -51,7 +59,7 @@ export const resolveMaxOutputTokens = (
   if (!Number.isFinite(requested) || requested <= 0) {
     return Math.min(DEFAULT_MAX_OUTPUT_TOKENS, cap);
   }
-  return Math.min(requested, cap);
+  return Math.max(1, Math.min(Math.floor(requested), cap));
 };
 
 // Android環境チェック: ローカルLLMはAndroidでは使用不可

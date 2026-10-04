@@ -19,6 +19,8 @@ const projectContext: ProjectContextType = {
   projects: [],
   setProjects: vi.fn(),
   updateProject: vi.fn(async () => {}),
+  commitProjectUpdate: vi.fn(),
+  getCurrentProject: vi.fn(() => null),
   createNewProject: vi.fn(),
   createSequelProject: vi.fn(),
   createImportedProject: vi.fn(),
@@ -135,6 +137,37 @@ describe('PendingResultContext', () => {
     });
     expect(result.current.activeResult).toBeNull();
     // 閉じても保留は残る
+    expect(result.current.pendingResults).toHaveLength(1);
+  });
+  it('保存失敗では本文と理由を保持し、再試行が成功した後だけ除去する', async () => {
+    const onApply = vi.fn().mockRejectedValueOnce(new Error('保存先に書き込めません')).mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => usePendingResult(), { wrapper });
+    let id = '';
+    act(() => { id = result.current.proposeResult({ label: '草案', preview: '全文', draftPreview: { oldText: '元', newText: '全文' }, onApply }); });
+    await act(async () => { await result.current.applyResult(id); });
+    expect(result.current.pendingResults[0].draftPreview?.newText).toBe('全文');
+    expect(showError).toHaveBeenCalledWith(expect.stringContaining('保存先に書き込めません'));
+    await act(async () => { await result.current.applyResult(id); });
+    expect(result.current.pendingResults).toHaveLength(0);
+  });
+  it('同時の適用操作でも保存処理を重複実行しない', async () => {
+    let finish!: () => void;
+    const onApply = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+    const { result } = renderHook(() => usePendingResult(), { wrapper });
+    let id = '';
+    act(() => { id = result.current.proposeResult({ label: '草案', preview: '全文', onApply }); });
+    let saving!: Promise<void>;
+    await act(async () => { saving = result.current.applyResult(id); await result.current.applyResult(id); });
+    expect(onApply).toHaveBeenCalledOnce();
+    await act(async () => { finish(); await saving; });
+  });
+  it('送信制限で適用できない受信本文も確認用に保持する', async () => {
+    const onApply = vi.fn();
+    const { result } = renderHook(() => usePendingResult(), { wrapper });
+    let id = '';
+    act(() => { id = result.current.proposeResult({ label: '草案', preview: '受信本文', applyBlockedReason: '受信が未完了です', onApply }); });
+    await act(async () => { await result.current.applyResult(id); });
+    expect(onApply).not.toHaveBeenCalled();
     expect(result.current.pendingResults).toHaveLength(1);
   });
 });

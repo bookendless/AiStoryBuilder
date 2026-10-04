@@ -4,6 +4,8 @@ import { AISettings } from '../../../../types/ai';
 import { aiService } from '../../../../services/aiService';
 import { DRAFT_PROMPT_CAP } from '../../../../services/prompts/draft';
 import { useGeneration } from '../../../../contexts/useGeneration';
+import { usePendingResult } from '../../../../contexts/usePendingResult';
+import { getAIResponseIssue } from '../../../../services/aiResponseMetadata';
 
 /**
  * この章数を超える一括生成では、後半の章ほど品質が落ちやすいことを実行前に伝える。
@@ -70,6 +72,7 @@ export const useAllChaptersGeneration = ({
   addLog,
 }: UseAllChaptersGenerationOptions): UseAllChaptersGenerationReturn => {
   const { startTask, updateTask, completeTask, cancelByKey, isKeyActive } = useGeneration();
+  const { proposeResult } = usePendingResult();
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [generationStatus, setGenerationStatus] = useState<string>('');
   const [chapterProgressList, setChapterProgressList] = useState<ChapterProgress[]>([]);
@@ -101,6 +104,10 @@ export const useAllChaptersGeneration = ({
 
   // 全章生成
   const handleGenerateAllChapters = useCallback(async () => {
+    if (currentProject?.narrativeMemory?.enabled) {
+      onWarning('物語状態を使用中は、章ごとに生成・状態確認を進めてください。全章の逐次生成は今後の対応範囲です。', 7000);
+      return;
+    }
     if (!isConfigured) {
       onError('AI設定が必要です。ヘッダーのAI設定ボタンから設定してください。', 7000, {
         title: 'AI設定が必要',
@@ -248,6 +255,17 @@ export const useAllChaptersGeneration = ({
       // キャンセルされた場合は処理をスキップ
       if (abortController.signal.aborted) {
         return;
+      }
+
+      const issue = getAIResponseIssue(response);
+      if (issue) {
+        if (response.content?.trim()) proposeResult({
+          projectId: currentProject.id, label: '全章生成（未完了）', preview: response.content,
+          draftPreview: { oldText: currentProject.draft ?? '', newText: response.content, notice: issue },
+          applyBlockedReason: issue,
+          onApply: () => { throw new Error(issue); },
+        });
+        throw new Error(issue);
       }
 
       if (response && response.content) {
@@ -435,6 +453,7 @@ export const useAllChaptersGeneration = ({
     updateTask,
     completeTask,
     allChaptersKey,
+    proposeResult,
   ]);
 
   return {

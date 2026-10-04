@@ -2,6 +2,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HttpService } from '../../services/httpService';
 
 describe('HttpService', () => {
+  it('propagates caller cancellation during body reading and removes its listener', async () => {
+    const controller = new AbortController();
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    let started = false;
+    vi.spyOn(window, 'fetch').mockImplementation(async (_url, options) => ({
+      status: 200, statusText: 'OK', headers: new Headers(),
+      text: () => new Promise<string>((_resolve, reject) => {
+        started = true;
+        options?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+      }),
+    } as Response));
+    const request = new HttpService().post('/cancel-body', {}, { signal: controller.signal });
+    const assertion = expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(started).toBe(true));
+    controller.abort(); await assertion;
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();

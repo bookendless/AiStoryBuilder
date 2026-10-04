@@ -143,6 +143,7 @@ const GEMINI_MODELS: AIModel[] = [
 // Geminiプロバイダー定義
 export const geminiProvider: AIProvider = {
   id: 'gemini',
+  defaultModelId: 'gemini-3.8-flash',
   name: 'Google Gemini',
   requiresApiKey: true,
   description: 'Google AI Studio / Generative Language API。長大なコンテキストとマルチモーダルに対応。',
@@ -156,3 +157,4 @@ export const geminiProvider: AIProvider = {
   regions: ['Global', 'Japan'],
   models: GEMINI_MODELS,
 };
+

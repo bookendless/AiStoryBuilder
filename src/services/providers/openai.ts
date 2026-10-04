@@ -185,9 +185,10 @@ const OPENAI_MODELS: AIModel[] = [
 // OpenAIプロバイダー定義
 export const openaiProvider: AIProvider = {
   id: 'openai',
+  defaultModelId: 'gpt-6-sol',
   name: 'OpenAI GPT',
   requiresApiKey: true,
-  description: 'OpenAI Responses / Chat Completions API。gpt-6系（Astra/Sol/Luna）・gpt-5.6系（Sol/Terra/Luna）・gpt-5.4系・o3系・o4-miniを利用できます。',
+  description: 'OpenAI Chat Completions API（このアプリでの送信経路）。gpt-6系（Astra/Sol/Luna）・gpt-5.6系（Sol/Terra/Luna）・gpt-5.4系・o3系・o4-miniを利用できます。',
   apiDocsUrl: 'https://platform.openai.com/docs/api-reference/responses',
   recommendedUses: [
     '高品質な文章生成と草案執筆',
@@ -197,3 +198,4 @@ export const openaiProvider: AIProvider = {
   regions: ['Global', 'US', 'EU'],
   models: OPENAI_MODELS,
 };
+

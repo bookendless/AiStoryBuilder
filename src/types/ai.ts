@@ -1,5 +1,6 @@
 export interface AIProvider {
   id: string;
+  defaultModelId?: string;
   name: string;
   models: AIModel[];
   requiresApiKey: boolean;
@@ -83,6 +84,7 @@ export type AIUsagePurpose =
   | 'chat';      // 相談・チャット
 
 export interface AIRequest {
+  retryLimit?: number;
   prompt: string;
   context?: string;
   type: 'character' | 'plot' | 'synopsis' | 'chapter' | 'draft' | 'world' | 'foreshadowing' | 'evaluation' | 'imageToStory' | 'audioToStory' | 'audioImageToStory';
@@ -103,6 +105,8 @@ export interface AIRequest {
 }
 
 export interface AIResponse {
+  finishReason?: 'stop' | 'length' | 'blocked' | 'unknown';
+  rawFinishReason?: string;
   content: string;
   usage?: {
     promptTokens: number;
@@ -124,6 +128,7 @@ export interface ImageItem {
 
 // OpenAI API レスポンス型
 export interface OpenAIRequestBody {
+  stream_options?: { include_usage: boolean };
   model: string;
   messages: Array<{
     role: 'system' | 'user' | 'assistant';

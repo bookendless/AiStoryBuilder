@@ -14,8 +14,7 @@
  */
 export const isOpenAIReasoningModel = (model: string): boolean => {
   if (!model) return false;
-  if (model.startsWith('gpt-5') || model.startsWith('gpt-6')) return true;
-  return model.startsWith('o1-') || model.startsWith('o3') || model.startsWith('o4');
+  return /^gpt-[56](?:[.-]|$)/.test(model) || /^o[134](?:-|$)/.test(model);
 };
 
 /**
@@ -25,9 +24,9 @@ export const isOpenAIReasoningModel = (model: string): boolean => {
  * - Claude: opus 4.7 / 4.8 / 4.9 系、opus-5（opus-5-5 を含む）/ sonnet-5 / fable-5 / mythos-5 系
  * - OpenAI: GPT-5 系・GPT-6 系および o1 / o3 / o4 系（リーズニングモデル）
  */
-export const modelSupportsTemperature = (model: string): boolean => {
+export const modelSupportsTemperature = (model: string, provider?: string): boolean => {
   if (!model) return true;
-  if (/opus-4-[789]|opus-5|sonnet-5|fable-5|mythos-5/.test(model)) return false;
-  if (isOpenAIReasoningModel(model)) return false;
+  if ((!provider || provider === 'claude') && /^claude-(?:opus-4-[789](?:-|$)|(?:opus|sonnet|fable|mythos)-5(?:-|$))/.test(model)) return false;
+  if ((!provider || provider === 'openai') && isOpenAIReasoningModel(model)) return false;
   return true;
 };

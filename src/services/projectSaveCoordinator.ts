@@ -2,6 +2,7 @@ import type { Project } from '../types/project';
 
 type SaveState = {
   generation: number;
+  persistedGeneration: number;
   pending?: Project;
   timer?: ReturnType<typeof setTimeout>;
   tail: Promise<void>;
@@ -49,7 +50,7 @@ export class ProjectSaveCoordinator {
     }
 
     if (immediate) {
-      return this.flush(project.id);
+      return this.flushThrough(project.id, state.generation).then(() => undefined);
     }
 
     state.timer = setTimeout(() => {
@@ -74,11 +75,12 @@ export class ProjectSaveCoordinator {
     const generation = state.generation;
     state.tail = state.tail.catch(() => undefined).then(async () => {
       // 待機中に新しい世代が予約済みなら、古いスナップショットは保存しない。
-      if (this.deletedIds.has(projectId) || state.generation !== generation) return;
+      if (this.deletedIds.has(projectId) || state.generation !== generation || state.persistedGeneration >= generation) return;
 
       this.options.onSaveStart?.(projectId);
       try {
         await this.options.save(project);
+        state.persistedGeneration = generation;
         if (state.generation === generation) {
           state.pending = undefined;
           this.options.onSaveSuccess?.(projectId);
@@ -90,6 +92,23 @@ export class ProjectSaveCoordinator {
     });
 
     return state.tail;
+  }
+
+  getGeneration(projectId: string): number {
+    return this.states.get(projectId)?.generation ?? 0;
+  }
+
+  /** Superseded checkpoints wait until the replacing snapshot is durable. */
+  async flushThrough(projectId: string, generation: number): Promise<number> {
+    const state = this.states.get(projectId);
+    if (!state || generation > state.generation) throw new Error('保存対象がありません');
+    while (state.persistedGeneration < generation) {
+      if (this.deletedIds.has(projectId)) throw new Error('プロジェクトは削除されています');
+      if (!state.pending) throw new Error('保存対象が失われました');
+      await this.flush(projectId);
+    }
+    if (this.deletedIds.has(projectId)) throw new Error('プロジェクトは削除されています');
+    return state.persistedGeneration;
   }
 
   async delete(projectId: string, remove: (id: string) => Promise<void>): Promise<void> {
@@ -110,7 +129,7 @@ export class ProjectSaveCoordinator {
   private getState(projectId: string): SaveState {
     let state = this.states.get(projectId);
     if (!state) {
-      state = { generation: 0, tail: Promise.resolve() };
+      state = { generation: 0, persistedGeneration: 0, tail: Promise.resolve() };
       this.states.set(projectId, state);
     }
     return state;

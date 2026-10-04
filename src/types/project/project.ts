@@ -11,12 +11,15 @@ import { SavedEvaluation } from '../evaluation';
 import { EmotionMap } from '../emotion';
 import { ConsistencyReport } from '../consistency';
 import { WhatIfScenario } from '../whatIf';
+import type { NarrativeMemory } from '../narrative';
 
 /**
  * プロジェクト情報
  * アプリケーションの中核となるデータ構造
  */
 export interface Project {
+    narrativeMemory?: NarrativeMemory;
+    narrativeMemoryQuarantine?: { data: unknown; message: string };
     id: string;
     title: string;
     description: string;

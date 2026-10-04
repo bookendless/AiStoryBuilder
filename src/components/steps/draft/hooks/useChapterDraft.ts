@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Project } from '../../../../contexts/ProjectContext';
+import { updateDraft } from '../../../../services/draftSession';
 
 interface UseChapterDraftOptions {
   currentProject: Project | null;
@@ -23,7 +24,7 @@ export const useChapterDraft = ({
   onSaveError,
   onToastMessage,
 }: UseChapterDraftOptions) => {
-  const [draft, setDraft] = useState('');
+  const [draft, setLocalDraft] = useState('');
   const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>({});
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   
@@ -34,6 +35,15 @@ export const useChapterDraft = ({
   const updateProjectRef = useRef(updateProject);
   currentProjectRef.current = currentProject;
   updateProjectRef.current = updateProject;
+
+  // Publish edits immediately to the shared buffer; the coordinator debounces disk writes.
+  const setDraft = useCallback((text: string) => {
+    setLocalDraft(text);
+    currentDraftRef.current = text;
+    if (!currentProject || !selectedChapter) return;
+    void updateProject(latest => updateDraft(latest, selectedChapter, text), false, currentProject.id)
+      .catch(error => onSaveError?.(error instanceof Error ? error : new Error(String(error))));
+  }, [currentProject, selectedChapter, updateProject, onSaveError]);
 
   // refを更新
   useEffect(() => {
@@ -89,10 +99,10 @@ export const useChapterDraft = ({
     if (selectedChapter) {
       // 選択された章に既存の草案があるかチェック
       if (chapterDrafts[selectedChapter]) {
-        setDraft(chapterDrafts[selectedChapter]);
+        setLocalDraft(chapterDrafts[selectedChapter]);
       } else {
         // 新規章の場合は空の草案を設定
-        setDraft('');
+        setLocalDraft('');
       }
     }
   }, [selectedChapter, chapterDrafts]);
@@ -103,24 +113,8 @@ export const useChapterDraft = ({
       if (!currentProject) return;
 
       try {
-        const contentToSave = content ?? draft;
-
-        // chapterDraftsを更新（空の草案も含む）
-        const updatedChapterDrafts = { ...chapterDrafts, [chapterId]: contentToSave };
-        setChapterDrafts(updatedChapterDrafts);
-
         // プロジェクトの章に草案を保存
-        const updatedChapters = currentProject.chapters.map(chapter => {
-          if (chapter.id === chapterId) {
-            return { ...chapter, draft: contentToSave };
-          }
-          return chapter;
-        });
-
-        await updateProject({
-          chapters: updatedChapters,
-          draft: contentToSave,
-        }, true, currentProject.id);
+        await updateProject(latest => updateDraft(latest, chapterId, content ?? latest.chapters.find(c => c.id === chapterId)?.draft ?? ''), true, currentProject.id);
 
         // 保存成功時の処理
         const now = new Date();
@@ -138,24 +132,17 @@ export const useChapterDraft = ({
         console.error('章草案保存エラー:', error);
         const err = error instanceof Error ? error : new Error(String(error));
         onSaveError?.(err);
+        throw err;
       }
     },
-    [currentProject, draft, chapterDrafts, updateProject, onSaveSuccess, onSaveError, onToastMessage]
+    [currentProject, updateProject, onSaveSuccess, onSaveError, onToastMessage]
   );
 
   useEffect(() => {
     return () => {
       const project = currentProjectRef.current;
-      const chapterId = currentSelectedChapterRef.current;
-      const latestDraft = currentDraftRef.current;
-      if (!project || !chapterId) return;
-
-      void updateProjectRef.current((latest) => {
-        const chapters = latest.chapters.map(chapter =>
-          chapter.id === chapterId ? { ...chapter, draft: latestDraft } : chapter
-        );
-        return { chapters, draft: latestDraft };
-      }, true, project.id).catch(error => {
+      if (!project) return;
+      void updateProjectRef.current(() => ({}), true, project.id).catch(error => {
         console.error('Draft cleanup save error:', error);
       });
     };

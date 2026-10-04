@@ -103,6 +103,7 @@ export interface HttpRequestOptions {
   headers?: Record<string, string>;
   body?: string;
   timeout?: number;
+  signal?: AbortSignal;
 }
 
 export interface HttpResponse<T = unknown> {
@@ -125,12 +126,17 @@ export class HttpService {
     // connectTimeoutは接続確立のみを制御し、ボディ読み取りには適用されないため、
     // 応答が滞留した場合に永久ハングするのを防ぐ目的で別途AbortControllerを併用する。
     let tauriTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    const abortFromCaller = () => controller.abort();
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    if (options.signal?.aborted) controller.abort();
 
     try {
       // Tauri環境かブラウザ環境かで適切なfetchを使用
       const tauriFetch = await getTauriFetch();
       const fetchToUse = tauriFetch || window.fetch.bind(window);
       const isUsingTauri = tauriFetch !== null;
+      if (controller.signal.aborted) throw new DOMException('中断しました', 'AbortError');
       
       
       // Tauri環境用のオプション
@@ -144,12 +150,10 @@ export class HttpService {
       if (isUsingTauri) {
         fetchOptions.connectTimeout = timeout;
         // connectTimeoutは応答ボディ読み取りには効かないため、全体タイムアウトをAbortControllerで担保する
-        const controller = new AbortController();
         tauriTimeoutId = setTimeout(() => controller.abort(), timeout);
         fetchOptions.signal = controller.signal;
       } else {
         // ブラウザ環境ではAbortControllerでタイムアウトを実装
-        const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         fetchOptions.signal = controller.signal;
 
@@ -251,6 +255,7 @@ export class HttpService {
     } catch (error) {
       // 全体タイムアウトタイマーを解除（Tauri経路で残存している場合）
       if (tauriTimeoutId) clearTimeout(tauriTimeoutId);
+      if (options.signal?.aborted) throw new DOMException('中断しました', 'AbortError');
       // 既にAPIErrorの場合はそのまま再スロー
       if (error instanceof APIError) {
         throw error;
@@ -303,6 +308,8 @@ export class HttpService {
           error
         );
       }
+    } finally {
+      options.signal?.removeEventListener('abort', abortFromCaller);
     }
   }
 
@@ -316,6 +323,7 @@ export class HttpService {
     options?: {
       headers?: Record<string, string>;
       timeout?: number;
+      signal?: AbortSignal;
     }
   ): Promise<HttpResponse<T>> {
     const body = data ? JSON.stringify(data) : undefined;
@@ -328,6 +336,7 @@ export class HttpService {
       headers: defaultHeaders,
       body,
       timeout: options?.timeout,
+      signal: options?.signal,
     });
   }
 
@@ -569,7 +578,22 @@ export class HttpService {
       ...(options?.headers || {}),
     };
 
+    const controller = new AbortController();
+    let timedOut = false;
+    const abortFromCaller = () => controller.abort(options?.signal?.reason);
+    if (options?.signal?.aborted) abortFromCaller();
+    else options?.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    const timeoutId = setTimeout(() => { timedOut = true; controller.abort(); }, options?.timeout ?? 45000);
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let completed = false;
+    const cancelReader = () => { if (reader) void reader.cancel().catch(() => undefined); };
+    controller.signal.addEventListener('abort', cancelReader, { once: true });
+    const assertActive = () => {
+      if (controller.signal.aborted) throw new DOMException('ストリーミングが中断されました', 'AbortError');
+    };
+
     try {
+      assertActive();
       const tauriFetch = await getTauriFetch();
       const fetchToUse = tauriFetch || window.fetch.bind(window);
       const isUsingTauri = tauriFetch !== null;
@@ -579,7 +603,7 @@ export class HttpService {
         method: 'POST',
         headers: defaultHeaders,
         body,
-        signal: options?.signal
+        signal: controller.signal
       };
 
       if (isUsingTauri) {
@@ -587,6 +611,7 @@ export class HttpService {
       }
 
       const response = await fetchToUse(url, fetchOptions);
+      assertActive();
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -599,11 +624,12 @@ export class HttpService {
       }
 
       // ReadableStreamの処理
-      const reader = response.body.getReader();
+      reader = response.body.getReader();
       const decoder = new TextDecoder();
 
       while (true) {
         const { done, value } = await reader.read();
+        assertActive();
         
         if (done) {
           break;
@@ -613,7 +639,13 @@ export class HttpService {
         onChunk(chunk);
       }
 
+      const tail = decoder.decode();
+      if (tail) onChunk(tail);
+      completed = true;
+
     } catch (error) {
+      if (options?.signal?.aborted) throw new DOMException('中断しました', 'AbortError');
+      if (timedOut) throw new APIError('ストリーミング本文の受信がタイムアウトしました', 'timeout', 'TIMEOUT', error);
       // 既にAPIErrorの場合はそのまま再スロー
       if (error instanceof APIError) {
         throw error;
@@ -655,6 +687,12 @@ export class HttpService {
         'STREAM_ERROR',
         error
       );
+    } finally {
+      clearTimeout(timeoutId);
+      options?.signal?.removeEventListener('abort', abortFromCaller);
+      controller.signal.removeEventListener('abort', cancelReader);
+      if (!completed) cancelReader();
+      reader?.releaseLock();
     }
   }
 }

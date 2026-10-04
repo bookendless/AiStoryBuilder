@@ -12,6 +12,7 @@ import { useAILog } from '../common/hooks/useAILog';
 import { AILogPanel } from '../common/AILogPanel';
 import { AILoadingIndicator } from '../common/AILoadingIndicator';
 import { useAIGeneration } from '../steps/draft/hooks/useAIGeneration';
+import { updateDraft } from '../../services/draftSession';
 import { useAllChaptersGeneration } from '../steps/draft/hooks/useAllChaptersGeneration';
 // テキスト選択機能は削除
 import { CustomPromptModal } from '../steps/draft/CustomPromptModal';
@@ -36,13 +37,18 @@ import { Save, RotateCcw, Trash2, Eye } from 'lucide-react';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { exportFile } from '../../utils/mobileExportUtils';
 import { HistoryViewerModal } from '../steps/draft/HistoryViewerModal';
-import { DiffPreviewModal } from '../steps/draft/DiffPreviewModal';
 import { WritingStyleSettings } from '../steps/draft/WritingStyleSettings';
 import { ContextSettingsModal } from '../steps/draft/ContextSettingsModal';
+import { NarrativeStatusSection } from './narrative/NarrativeStatusSection';
 
 const DEFAULT_CONTEXT_SETTINGS: ContextSettings = { glossary: true, relationships: true, worldSettings: true, timeline: false };
 
-export const DraftAssistantPanel: React.FC = () => {
+interface DraftAssistantPanelProps {
+    /** 物語状態モーダルを指定の章で開く（モーダル本体は解析継続のため ToolsSidebar に常駐） */
+    onOpenNarrativeState?: (chapterId: string) => void;
+}
+
+export const DraftAssistantPanel: React.FC<DraftAssistantPanelProps> = ({ onOpenNarrativeState }) => {
     const { currentProject, updateProject } = useProject();
     const { settings, isConfigured, updateSettings } = useAI();
     const { showSuccess, showWarning, showError } = useToast();
@@ -66,7 +72,7 @@ export const DraftAssistantPanel: React.FC = () => {
     });
 
     // 折りたたみ状態
-    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['generate', 'improve']));
+    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['generate', 'narrative', 'improve']));
 
     // カスタムプロンプト状態
     const [customPrompt, setCustomPrompt] = useState('');
@@ -99,51 +105,17 @@ export const DraftAssistantPanel: React.FC = () => {
     // テキスト選択機能は削除
 
     // 章草案の状態管理（簡易版）- draftのuseMemoより前に宣言する必要がある
-    const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>({});
+    const chapterDrafts = useMemo(() => Object.fromEntries((currentProject?.chapters ?? []).map(c => [c.id, c.draft ?? ''])), [currentProject]);
+    const setChapterDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>> = useCallback(action => {
+        if (!currentProject) return;
+        void updateProject(latest => {
+            const previous = Object.fromEntries(latest.chapters.map(c => [c.id, c.draft ?? '']));
+            const next = typeof action === 'function' ? action(previous) : action;
+            return { chapters: latest.chapters.map(c => ({ ...c, draft: next[c.id] ?? c.draft })) };
+        }, false, currentProject.id).catch(error => console.error('草案の更新に失敗しました', error));
+    }, [currentProject, updateProject]);
     const [deletingHistoryEntryId, setDeletingHistoryEntryId] = useState<string | null>(null);
     const [showGenerateAllChaptersConfirm, setShowGenerateAllChaptersConfirm] = useState(false);
-
-    // AI提案の差分プレビュー状態（Promiseベースの確認ゲート）
-    // resolve は ref で保持し、アンマウントや上書きでも確実に解決してリークを防ぐ
-    const [diffPreview, setDiffPreview] = useState<{
-        oldText: string;
-        newText: string;
-    } | null>(null);
-    const pendingDiffResolveRef = useRef<((approved: boolean) => void) | null>(null);
-
-    // 未解決の確認Promiseを指定値で解決してクリアする（多重解決は起きない）
-    const settlePendingDiff = useCallback((approved: boolean) => {
-        const resolve = pendingDiffResolveRef.current;
-        if (resolve) {
-            pendingDiffResolveRef.current = null;
-            resolve(approved);
-        }
-    }, []);
-
-    const confirmDraftReplace = useCallback(
-        ({ oldText, newText }: { oldText: string; newText: string }) => {
-            return new Promise<boolean>(resolve => {
-                // 直前の未解決確認が残っていれば破棄扱いで解決し、resolve の取りこぼしを防ぐ
-                settlePendingDiff(false);
-                pendingDiffResolveRef.current = resolve;
-                setDiffPreview({ oldText, newText });
-            });
-        },
-        [settlePendingDiff]
-    );
-
-    const resolveDiffPreview = useCallback((approved: boolean) => {
-        settlePendingDiff(approved);
-        setDiffPreview(null);
-    }, [settlePendingDiff]);
-
-    // アンマウント時に未解決の確認Promiseを破棄(false)で解決する。
-    // 放置すると applyDraftResult の await が永久にハングし、生成タスクがリークする。
-    useEffect(() => {
-        return () => {
-            settlePendingDiff(false);
-        };
-    }, [settlePendingDiff]);
 
     // 現在の章と草案を取得
     const currentChapter = useMemo(() => {
@@ -368,29 +340,22 @@ export const DraftAssistantPanel: React.FC = () => {
     const handleSaveChapterDraft = useCallback(async (chapterId: string, content: string) => {
         if (!currentProject) return;
 
-        const updatedChapters = currentProject.chapters.map(chapter => {
-            if (chapter.id === chapterId) {
-                return { ...chapter, draft: content };
-            }
-            return chapter;
-        });
-
-        updateProject({ chapters: updatedChapters });
-        setChapterDrafts(prev => ({ ...prev, [chapterId]: content }));
+        await updateProject(latest => updateDraft(latest, chapterId, content), true, currentProject.id);
     }, [currentProject, updateProject]);
 
     // 草案の更新
     const handleDraftUpdate = useCallback((content: string) => {
-        if (!selectedChapterId) return;
-        setChapterDrafts(prev => ({ ...prev, [selectedChapterId]: content }));
-        handleSaveChapterDraft(selectedChapterId, content);
-    }, [selectedChapterId, handleSaveChapterDraft]);
+        if (!selectedChapterId || !currentProject) return;
+        void updateProject(latest => updateDraft(latest, selectedChapterId, content), false, currentProject.id)
+            .catch(error => console.error('草案の更新に失敗しました', error));
+    }, [selectedChapterId, currentProject, updateProject]);
 
     // 章変更ハンドラー（現在の章の草案を保存してから新しい章に切り替え）
     const handleChapterChange = useCallback(async (newChapterId: string | null) => {
         // 現在の章の草案を保存
-        if (selectedChapterId && draft) {
-            await handleSaveChapterDraft(selectedChapterId, draft);
+        if (selectedChapterId && currentProject) {
+            try { await updateProject(() => ({}), true, currentProject.id); }
+            catch (error) { showError(error instanceof Error ? error.message : '保存に失敗しました'); return; }
         }
         // 新しい章を設定
         setSelectedChapterId(newChapterId);
@@ -405,7 +370,7 @@ export const DraftAssistantPanel: React.FC = () => {
                 sessionStorage.removeItem(`draftSelectedChapter_${currentProject.id}`);
             }
         }
-    }, [selectedChapterId, draft, handleSaveChapterDraft, currentProject]);
+    }, [selectedChapterId, currentProject, updateProject, showError]);
 
     // AIログ管理
     const { aiLogs, addLog } = useAILog({
@@ -447,7 +412,8 @@ export const DraftAssistantPanel: React.FC = () => {
         getProjectContextInfo,
         buildCustomPrompt,
         setImprovementLogs,
-        confirmDraftReplace,
+        reviewDraftResult: true,
+        narrativeInstructions: useCustomPrompt ? customPrompt : '',
     });
 
     // 弱点特定ハンドラ
@@ -584,16 +550,6 @@ export const DraftAssistantPanel: React.FC = () => {
             localStorage.setItem(`useCustomPrompt_${currentProject.id}`, useCustomPrompt.toString());
         }
     }, [customPrompt, useCustomPrompt, currentProject]);
-
-    // 章が変更されたときに草案を読み込む
-    useEffect(() => {
-        if (selectedChapterId && currentProject) {
-            const chapter = currentProject.chapters.find(c => c.id === selectedChapterId);
-            if (chapter && chapter.draft) {
-                setChapterDrafts(prev => ({ ...prev, [selectedChapterId]: chapter.draft || '' }));
-            }
-        }
-    }, [selectedChapterId, currentProject]);
 
     // DraftStepからの章選択変更を監視して同期
     useEffect(() => {
@@ -1057,6 +1013,16 @@ export const DraftAssistantPanel: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* 物語状態セクション（前章までの確定状態をこの章の生成に引き継ぐ） */}
+                    {onOpenNarrativeState && (
+                        <NarrativeStatusSection
+                            chapterId={selectedChapterId}
+                            expanded={expandedSections.has('narrative')}
+                            onToggle={() => toggleSection('narrative')}
+                            onOpen={onOpenNarrativeState}
+                        />
+                    )}
 
                     {/* 章全体の改善セクション */}
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
@@ -1727,13 +1693,7 @@ ${'='.repeat(80)}`;
                 isFixing={isFixingWeaknesses}
             />
             {/* AI提案の差分プレビュー */}
-            <DiffPreviewModal
-                isOpen={diffPreview !== null}
-                oldText={diffPreview?.oldText ?? ''}
-                newText={diffPreview?.newText ?? ''}
-                onApply={() => resolveDiffPreview(true)}
-                onDiscard={() => resolveDiffPreview(false)}
-            />
+
         </div>
     );
 };

@@ -5,6 +5,9 @@ import { useAllChaptersGeneration } from '../../components/steps/draft/hooks/use
 import { GenerationProvider } from '../../contexts/GenerationContext';
 import { Project } from '../../types/project';
 import { AISettings } from '../../types/ai';
+import type { ProposeResultInput } from '../../contexts/usePendingResult';
+const { proposeResult } = vi.hoisted(() => ({ proposeResult: vi.fn<(input: ProposeResultInput) => string>(() => 'pending') }));
+vi.mock('../../contexts/usePendingResult', async original => ({ ...await original<typeof import('../../contexts/usePendingResult')>(), usePendingResult: () => ({ proposeResult }) }));
 
 // フックは GenerationProvider 配下で動作するため、テスト用ラッパーを用意
 const wrapper = ({ children }: { children: React.ReactNode }) =>
@@ -61,6 +64,18 @@ describe('useAllChaptersGeneration', () => {
     getChapterDetails.mockReturnValue({ characters: '', setting: '', mood: '', keyEvents: '' });
     const { aiService } = await import('../../services/aiService');
     (aiService.buildPrompt as ReturnType<typeof vi.fn>).mockReturnValue('全章生成プロンプト');
+  });
+
+  it.each(['length', 'blocked'] as const)('does not save an incomplete %s result and retains it for inspection', async finishReason => {
+    const { aiService } = await import('../../services/aiService');
+    vi.mocked(aiService.generateContent).mockResolvedValue({ content: '=== 第1章: 第1章 ===\n未完了の本文', finishReason });
+    const { result } = renderHook(() => useAllChaptersGeneration({ currentProject: makeProject(), settings: defaultSettings, isConfigured: true, getChapterDetails, onError, onWarning, updateProject, setChapterDrafts, setShowCompletionToast }), { wrapper });
+    await act(async () => result.current.handleGenerateAllChapters());
+    expect(updateProject).not.toHaveBeenCalled(); expect(setChapterDrafts).not.toHaveBeenCalled(); expect(setShowCompletionToast).not.toHaveBeenCalled();
+    expect(proposeResult.mock.calls[0][0].projectId).toBe('proj-1');
+    expect(proposeResult.mock.calls[0][0].preview).toContain('未完了の本文');
+    expect(typeof proposeResult.mock.calls[0][0].applyBlockedReason).toBe('string');
+    expect(onError).toHaveBeenCalled();
   });
 
   it('handleCancelAllChaptersGeneration で isGeneratingAllChapters が false になる', async () => {

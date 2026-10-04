@@ -32,6 +32,7 @@ import { EmotionMapVisualizer } from './tools/EmotionMapVisualizer';
 import { ConsistencyGuardPanel } from './tools/ConsistencyGuardPanel';
 import { WhatIfLabPanel } from './tools/WhatIfLabPanel';
 import { QualityMetricsPanel } from './tools/QualityMetricsPanel';
+import { NarrativeStatePanel } from './tools/NarrativeStatePanel';
 import { CharacterAssistantPanel } from './tools/CharacterAssistantPanel';
 import { SynopsisAssistantPanel } from './tools/SynopsisAssistantPanel';
 import { PlotStep1AssistantPanel } from './tools/PlotStep1AssistantPanel';
@@ -120,6 +121,8 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
   const [showForeshadowings, setShowForeshadowings] = useState(false);
   const [showEmotionMap, setShowEmotionMap] = useState(false);
   const [showConsistencyGuard, setShowConsistencyGuard] = useState(false);
+  // 物語状態は草案ステップの支援タブから開く。null は閉じた状態
+  const [narrativeChapterId, setNarrativeChapterId] = useState<string | null>(null);
   const [showWhatIfLab, setShowWhatIfLab] = useState(false);
   const [showQualityMetrics, setShowQualityMetrics] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -290,7 +293,7 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       case 'chapter':
         return <ChapterAssistantPanel />;
       case 'draft':
-        return <DraftAssistantPanel />;
+        return <DraftAssistantPanel onOpenNarrativeState={setNarrativeChapterId} />;
       case 'home':
         return (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
@@ -529,6 +532,12 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({ className = '', isCo
       </aside>
 
       {/* モーダル群 */}
+      {/* 常時マウント: 草案サイドバーが外れても（折りたたみ・ステップ移動）解析と確認画面を保持するため */}
+      <NarrativeStatePanel
+        isOpen={narrativeChapterId !== null}
+        initialChapterId={narrativeChapterId ?? undefined}
+        onClose={() => setNarrativeChapterId(null)}
+      />
       <ImageBoard
         isOpen={showImageBoard}
         onClose={() => setShowImageBoard(false)}

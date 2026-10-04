@@ -9,6 +9,7 @@
 import { Project } from '../../types/project';
 import { PreemptiveTargetStep } from '../../types/preemptive';
 import { findFirstUndraftedChapter } from './generatePreemptiveDraft';
+import { generationSignature } from '../narrative/context';
 
 export function computePreemptiveSignature(project: Project, targetStep: PreemptiveTargetStep): string {
   const charsDigest = project.characters.map(
@@ -31,6 +32,7 @@ export function computePreemptiveSignature(project: Project, targetStep: Preempt
   const target = findFirstUndraftedChapter(project);
   return JSON.stringify({
     chapterId: target?.id ?? null,
+    narrative: project.narrativeMemory?.enabled && target ? generationSignature(project, target.id) : null,
     chapter: target
       ? { title: target.title, summary: target.summary, setting: target.setting, mood: target.mood, keyEvents: target.keyEvents, characters: target.characters }
       : null,

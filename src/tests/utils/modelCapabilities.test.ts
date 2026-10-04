@@ -28,6 +28,15 @@ describe('isOpenAIReasoningModel', () => {
 });
 
 describe('modelSupportsTemperature', () => {
+    it('scopes restrictions to the provider and avoids lookalike model names', () => {
+        expect(isOpenAIReasoningModel('o1')).toBe(true);
+        expect(isOpenAIReasoningModel('o3fiction')).toBe(false);
+        expect(isOpenAIReasoningModel('gpt-60')).toBe(false);
+        expect(modelSupportsTemperature('gpt-6-sol', 'local')).toBe(true);
+        expect(modelSupportsTemperature('claude-opus-5-5', 'local')).toBe(true);
+        expect(modelSupportsTemperature('claude-opus-50', 'claude')).toBe(true);
+        expect(modelSupportsTemperature('gpt-6-sol', 'openai')).toBe(false);
+    });
     it.each(['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5', 'o3-mini', 'o4-mini'])(
         'OpenAIリーズニングモデル %s では temperature を送らない',
         (model) => {

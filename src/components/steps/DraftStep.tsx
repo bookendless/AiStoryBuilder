@@ -272,7 +272,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
       if (customEvent.detail.projectId === currentProject.id && customEvent.detail.chapterId !== selectedChapter) {
         // 現在の章の内容を保存
         if (selectedChapter) {
-          await handleSaveChapterDraftFromHook(selectedChapter, draft);
+          try { await handleSaveChapterDraftFromHook(selectedChapter); } catch { return; }
         }
         // 新しい章を設定
         setSelectedChapter(customEvent.detail.chapterId);
@@ -293,7 +293,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
 
     // 現在の草案状態を保存してからバックアップを作成
     if (selectedChapter) {
-      await handleSaveChapterDraft(selectedChapter, draft);
+      try { await handleSaveChapterDraft(selectedChapter); } catch { return; }
     }
 
     // バックアップモーダルを表示
@@ -439,7 +439,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
   const handleChapterSelect = useCallback(async (chapterId: string) => {
     // 現在の章の内容を保存（章が選択されている場合）
     if (selectedChapter) {
-      await handleSaveChapterDraftFromHook(selectedChapter, draft);
+      try { await handleSaveChapterDraftFromHook(selectedChapter); } catch { return; }
     }
 
     // 選択された章を設定（草案はuseEffectで適切に初期化される）
@@ -451,7 +451,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
       // CustomEventを発火してDraftAssistantPanelに通知
       window.dispatchEvent(new CustomEvent('draftChapterSelected', { detail: { chapterId, projectId: currentProject.id, source: 'draftStep' } }));
     }
-  }, [selectedChapter, draft, currentProject, handleSaveChapterDraftFromHook]);
+  }, [selectedChapter, currentProject, handleSaveChapterDraftFromHook]);
 
   const handleNavigateChapter = useCallback(
     async (direction: 'prev' | 'next') => {
@@ -909,8 +909,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
                   }
 
                   autoSaveTimeoutRef.current = window.setTimeout(() => {
-                    if (selectedChapter && newContent.trim()) {
-                      handleSaveChapterDraft(selectedChapter, newContent, true);
+                    if (selectedChapter) {
+                      void handleSaveChapterDraft(selectedChapter, undefined, true).catch(() => { /* hook reports save errors */ });
                     }
                   }, 2000);
                 }
@@ -923,7 +923,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
               selectedChapter={selectedChapter}
               onSave={async () => {
                 if (selectedChapter) {
-                  await handleSaveChapterDraft(selectedChapter, undefined, false);
+                  try { await handleSaveChapterDraft(selectedChapter, undefined, false); } catch { return; }
                   setToastMessage('保存しました');
                   setTimeout(() => {
                     setToastMessage(null);
@@ -967,7 +967,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({ onNavigateToStep }) => {
               ...prev,
               [selectedChapter]: newText,
             }));
-            handleSaveChapterDraft(selectedChapter, newText, false);
+            void handleSaveChapterDraft(selectedChapter, newText, false).catch(() => { /* hook reports save errors */ });
           }
         }}
       />

@@ -23,6 +23,7 @@ const LOCAL_MODELS: AIModel[] = [
 // ローカルLLMプロバイダー定義
 export const localProvider: AIProvider = {
   id: 'local',
+  defaultModelId: 'local-model',
   name: 'ローカルLLM',
   requiresApiKey: false,
   isLocal: true,
@@ -54,6 +55,7 @@ export async function checkLocalLLMConnectivity(endpoint: string): Promise<boole
     clearTimeout(timeoutId);
   }
 }
+
 
 
 

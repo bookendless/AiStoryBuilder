@@ -17,6 +17,8 @@ export interface PendingResult {
   /** 生成元の作品。別作品を開いている間は反映しない。 */
   projectId?: string;
   preview: ReactNode; // 確認モーダルに表示する要約・プレビュー
+  draftPreview?: { oldText: string; newText: string; notice?: string; info?: string };
+  applyBlockedReason?: string;
   onApply: () => void | Promise<void>; // 反映処理（パネル側クロージャ。updateProject 等を捕捉）
   applyLabel?: string; // 反映ボタンの表示（既定: 「反映する」）
   applySuccessMessage?: string; // 反映完了トースト文言（既定: 「○○を反映しました」）
@@ -29,6 +31,8 @@ export interface PendingResult {
 export interface ProposeResultInput {
   label: string;
   preview: ReactNode;
+  draftPreview?: PendingResult['draftPreview'];
+  applyBlockedReason?: string;
   projectId?: string;
   onApply: () => void | Promise<void>;
   applyLabel?: string;

@@ -8,6 +8,8 @@ import {
 } from '../services/crashRecoveryService';
 import { getUserFriendlyError } from '../utils/errorHandler';
 import { ProjectSaveCoordinator } from '../services/projectSaveCoordinator';
+import { normalizeNarrativeProject } from '../services/narrative/codec';
+import { copyNarrativeMemory } from '../services/narrative/state';
 
 // 型定義をtypes/からインポート
 import { Step } from '../types/common';
@@ -120,6 +122,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
   // DBへの即時保存はプロジェクト切替時のみ行う。同一プロジェクトの内容更新は
   // updateProjectのデバウンス保存が担当するため、ここで保存すると二重書込みになる
   const setCurrentProject = useCallback((project: Project | null) => {
+    if (project) project = normalizeNarrativeProject(project);
     if (!project) {
       commitCurrentProject(null);
       return;
@@ -248,7 +251,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     targetProjectId?: string,
   ) => {
     const base = currentProjectRef.current;
-    if (!base) return;
+    if (!base) throw new Error('プロジェクトが開かれていません');
     if (targetProjectId && base.id !== targetProjectId) {
       throw new Error('The source project is no longer active');
     }
@@ -505,6 +508,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
       plot: structuredClone(source.plot),
       synopsis: source.synopsis ?? '',
       chapters: structuredClone(chapters),
+      narrativeMemory: copyNarrativeMemory(source, chapters.map(c => c.id)),
       draft: '', // 分岐点より後の内容が混入しないよう全体草案は引き継がない（章ごとの草案は複製済み）
       createdAt: now,
       updatedAt: now,
@@ -801,6 +805,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     []
   );
 
+  const getCurrentProject = useCallback(() => currentProjectRef.current, []);
+  const commitProjectUpdate = useCallback(async (
+    updates: (project: Project) => Partial<Project>, targetProjectId: string,
+  ) => {
+    await updateProject(updates, true, targetProjectId);
+    for (;;) {
+      const targetGeneration = saveCoordinator.getGeneration(targetProjectId);
+      const generation = await saveCoordinator.flushThrough(targetProjectId, targetGeneration);
+      const project = currentProjectRef.current;
+      if (!project || project.id !== targetProjectId) throw new Error('生成元の作品を開いてから再試行してください');
+      if (generation === saveCoordinator.getGeneration(targetProjectId)) return { generation, project };
+    }
+  }, [updateProject, saveCoordinator]);
+
   // コンテキストの値をメモ化（不要な再レンダリングを防止）
   // setProjectsはReactのstate setterなので既に安定した参照を持っている
   const contextValue = useMemo(() => ({
@@ -809,6 +827,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     projects,
     setProjects,
     updateProject,
+    commitProjectUpdate,
+    getCurrentProject,
     createNewProject,
     createSequelProject,
     createImportedProject,
@@ -828,6 +848,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode; errorNotifier?: Pr
     projects,
     setCurrentProject,
     updateProject,
+    commitProjectUpdate,
+    getCurrentProject,
     createNewProject,
     createSequelProject,
     createImportedProject,

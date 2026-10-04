@@ -1,4 +1,5 @@
 import { AIRequest, AIResponse, AISettings, OpenAIRequestBody, OpenAIResponse, OpenAIErrorResponse, ClaudeRequestBody, ClaudeResponse, ClaudeErrorResponse, GeminiRequestBody, GeminiResponse, GeminiErrorResponse, GeminiPromptFeedback, GeminiSafetyRating, LocalLLMRequestBody, LocalLLMResponse, LocalLLMErrorResponse } from '../types/ai';
+import { AIStreamDecoder, responseMetadata, getAIResponseIssue } from './aiResponseMetadata';
 import { EvaluationRequest, EvaluationResult } from '../types/evaluation';
 import { retryApiCall, getUserFriendlyErrorMessage } from '../utils/apiUtils';
 import { parseAIResponse, validateResponse } from '../utils/aiResponseParser';
@@ -263,10 +264,11 @@ class AIService {
         ],
         // リーズニング系モデル（GPT-5系 / o1・o3・o4系）は temperature の変更を受け付けず、
         // 指定すると 400 になるため省略する
-        ...(modelSupportsTemperature(request.settings.model)
+        ...(modelSupportsTemperature(request.settings.model, request.settings.provider)
           ? { temperature: request.settings.temperature }
           : {}),
         stream: !!request.onStream, // ストリーミング有効化
+        ...(request.onStream ? { stream_options: { include_usage: true } } : {}),
       };
 
       // GPT-5.1系やo系モデルはmax_completion_tokens、それ以外はmax_tokensを使用
@@ -284,31 +286,14 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
+        const decoder = new AIStreamDecoder();
 
         try {
           await httpService.postStream(
             apiUrl,
             requestBody,
             (chunk) => {
-              // SSEの解析
-              const lines = chunk.split('\n');
-              for (const line of lines) {
-                if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
-                if (line.startsWith('data: ')) {
-                  try {
-                    const data = JSON.parse(line.slice(6)) as {
-                      choices?: { delta?: { content?: string } }[];
-                    };
-                    const content = data.choices?.[0]?.delta?.content || '';
-                    if (content) {
-                      fullContent += content;
-                      request.onStream!(content);
-                    }
-                  } catch (e) {
-                    console.warn('SSE parse error:', e);
-                  }
-                }
-              }
+              decoder.push(chunk, (content) => { fullContent += content; request.onStream!(content); });
             },
             {
               headers: {
@@ -319,9 +304,7 @@ class AIService {
             }
           );
 
-          return {
-            content: fullContent,
-          };
+          return { content: fullContent, ...decoder.finish() };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
           console.error('OpenAI streaming error:', streamError);
@@ -346,6 +329,7 @@ class AIService {
 
           return {
             content: fullContent, // 既に受信したコンテンツは返す
+            ...decoder.snapshot(),
             error: errorMessage,
           };
         }
@@ -357,6 +341,7 @@ class AIService {
           'Authorization': `Bearer ${apiKey}`,
         },
         timeout, // request.timeoutが指定されている場合はそれを使用
+        signal: request.signal,
       });
 
       if (response.status >= 400) {
@@ -382,12 +367,14 @@ class AIService {
 
       const data = response.data as OpenAIResponse;
 
+
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new APIError('OpenAI API からの応答が無効です', 'invalid_request', 'INVALID_RESPONSE');
       }
 
       return {
         content: data.choices[0].message.content,
+        ...responseMetadata(data),
         usage: data.usage ? {
           promptTokens: data.usage.prompt_tokens,
           completionTokens: data.usage.completion_tokens,
@@ -492,7 +479,7 @@ class AIService {
         model: request.settings.model,
         max_tokens: maxOutputTokens,
         // temperature 非対応モデル（opus 4.7/4.8 など）では省略する
-        ...(modelSupportsTemperature(request.settings.model)
+        ...(modelSupportsTemperature(request.settings.model, request.settings.provider)
           ? { temperature: request.settings.temperature }
           : {}),
         system: request.systemPrompt || SYSTEM_PROMPT,
@@ -515,37 +502,17 @@ class AIService {
         'anthropic-dangerous-direct-browser-access': 'true',
       };
 
-      // ストリーミング処理
+      // Claude SSE can split a JSON event across network chunks.
       if (request.onStream) {
         let fullContent = '';
+        const decoder = new AIStreamDecoder();
 
         try {
           await httpService.postStream(
             apiUrl,
             requestBody,
             (chunk) => {
-              // SSEの解析
-              const lines = chunk.split('\n');
-              for (const line of lines) {
-                if (!line.startsWith('data: ')) continue;
-
-                const dataStr = line.slice(6).trim();
-                if (dataStr === '[DONE]') continue;
-
-                try {
-                  const data = JSON.parse(dataStr) as {
-                    type?: string;
-                    delta?: { text?: string };
-                  };
-                  if (data.type === 'content_block_delta' && data.delta?.text) {
-                    const content = data.delta.text;
-                    fullContent += content;
-                    request.onStream!(content);
-                  }
-                } catch (e) {
-                  console.warn('SSE parse error:', e);
-                }
-              }
+              decoder.push(chunk, (content) => { fullContent += content; request.onStream!(content); });
             },
             {
               headers,
@@ -556,6 +523,7 @@ class AIService {
 
           return {
             content: fullContent,
+            ...decoder.finish(),
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
@@ -581,6 +549,7 @@ class AIService {
 
           return {
             content: fullContent, // 既に受信したコンテンツは返す
+            ...decoder.snapshot(),
             error: errorMessage,
           };
         }
@@ -589,6 +558,7 @@ class AIService {
       const response = await httpService.post(apiUrl, requestBody, {
         headers,
         timeout, // request.timeoutが指定されている場合はそれを使用
+        signal: request.signal,
       });
 
       if (response.status >= 400) {
@@ -622,7 +592,7 @@ class AIService {
       // content[0] ではなく text ブロックだけを連結する
       const text = Array.isArray(data.content)
         ? data.content
-            .filter((block) => block.type === 'text' && typeof block.text === 'string')
+            .filter((block) => block && block.type === 'text' && typeof block.text === 'string')
             .map((block) => block.text)
             .join('')
         : '';
@@ -634,16 +604,17 @@ class AIService {
           console.error('Invalid Claude response structure');
         }
         if (data.stop_reason === 'refusal') {
-          throw new APIError('Claude が安全上の理由で応答を控えました。依頼内容を見直すか、別のモデルをお試しください', 'invalid_request', 'CLAUDE_REFUSAL');
+          return { content: '', ...responseMetadata(data), error: 'Claude が安全上の理由で応答を控えました。依頼内容を見直すか、別のモデルをお試しください' };
         }
         if (data.stop_reason === 'max_tokens') {
-          throw new APIError('本文を出力する前に最大出力トークン数に達しました（思考で使い切った可能性があります）。AI設定で最大トークン数を増やしてください', 'invalid_request', 'CLAUDE_MAX_TOKENS');
+          return { content: '', ...responseMetadata(data), error: '本文を出力する前に最大出力トークン数に達しました（思考で使い切った可能性があります）。AI設定で最大トークン数を増やしてください' };
         }
         throw new APIError('Claude API からの応答が無効です', 'invalid_request', 'INVALID_RESPONSE');
       }
 
       return {
         content: text,
+        ...responseMetadata(data),
         usage: data.usage ? {
           promptTokens: data.usage.input_tokens,
           completionTokens: data.usage.output_tokens,
@@ -778,60 +749,14 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
-        let buffer = ''; // 不完全なチャンクを保持するバッファ
+        const decoder = new AIStreamDecoder();
 
         try {
-          // GeminiのストリーミングはJSONの配列が送られてくる特殊な形式
-          // 通常のSSEとは異なり、]で終わるJSON配列のストリーム
-          // ここでは簡易的にパースする
-
           await httpService.postStream(
             apiUrl,
             requestBody,
             (chunk) => {
-              // バッファに追加
-              buffer += chunk;
-
-              // 行ごとに処理（改行で分割）
-              const lines = buffer.split('\n');
-              // 最後の行は不完全な可能性があるため、バッファに残す
-              buffer = lines.pop() || '';
-
-              for (const line of lines) {
-                if (line.trim() === '' || line.trim() === '[DONE]') continue;
-
-                // JSONオブジェクトの開始を検出
-                if (line.includes('"text"')) {
-                  try {
-                    // 行からJSONオブジェクトを抽出（簡易実装）
-                    const jsonMatch = line.match(/\{[^}]*"text"[^}]*\}/);
-                    if (jsonMatch) {
-                      const data = JSON.parse(jsonMatch[0]) as { text?: string };
-                      const text = data.text || '';
-                      if (text) {
-                        fullContent += text;
-                        request.onStream!(text);
-                      }
-                    } else {
-                      // 正規表現でマッチしない場合、元の方法を試す
-                      const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
-                      let match;
-                      while ((match = regex.exec(line)) !== null) {
-                        try {
-                          // JSON文字列のエスケープを解除
-                          const text = JSON.parse(`"${match[1]}"`) as string;
-                          fullContent += text;
-                          request.onStream!(text);
-                        } catch (e) {
-                          console.warn('Gemini stream parse error:', e);
-                        }
-                      }
-                    }
-                  } catch (e) {
-                    console.warn('Gemini stream parse error:', e);
-                  }
-                }
-              }
+              decoder.push(chunk, (content) => { fullContent += content; request.onStream!(content); });
             },
             {
               headers: geminiHeaders,
@@ -840,39 +765,9 @@ class AIService {
             }
           );
 
-          // 残ったバッファを処理
-          if (buffer.trim()) {
-            try {
-              const jsonMatch = buffer.match(/\{[^}]*"text"[^}]*\}/);
-              if (jsonMatch) {
-                const data = JSON.parse(jsonMatch[0]) as { text?: string };
-                const text = data.text || '';
-                if (text) {
-                  fullContent += text;
-                  request.onStream!(text);
-                }
-              } else {
-                // 正規表現でマッチしない場合、元の方法を試す
-                const regex = /"text":\s*"((?:[^"\\]|\\.)*)"/g;
-                let match;
-                while ((match = regex.exec(buffer)) !== null) {
-                  try {
-                    // JSON文字列のエスケープを解除
-                    const text = JSON.parse(`"${match[1]}"`) as string;
-                    fullContent += text;
-                    request.onStream!(text);
-                  } catch (e) {
-                    console.warn('Gemini final buffer parse error:', e);
-                  }
-                }
-              }
-            } catch (e) {
-              console.warn('Gemini final buffer parse error:', e);
-            }
-          }
-
           return {
             content: fullContent,
+            ...decoder.finish(),
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
@@ -898,6 +793,7 @@ class AIService {
 
           return {
             content: fullContent, // 既に受信したコンテンツは返す
+            ...decoder.snapshot(),
             error: errorMessage,
           };
         }
@@ -907,6 +803,7 @@ class AIService {
       const response = await httpService.post(apiUrl, requestBody, {
         headers: geminiHeaders,
         timeout, // request.timeoutが指定されている場合はそれを使用
+        signal: request.signal,
       });
 
       if (response.status >= 400) {
@@ -927,10 +824,10 @@ class AIService {
             detailedMessage += '1. リージョンのリソース制限: 特定のリージョンでリソースが一時的に枯渇している可能性があります\n';
             detailedMessage += '2. プロビジョニングされたスループット未購入: 従量課金制の場合、リソースの優先度が低い可能性があります\n';
             detailedMessage += '3. 一時的なリソース不足: Googleのインフラストラクチャが一時的に高負荷状態にある可能性があります\n';
-            detailedMessage += '4. Proモデルの制限: Gemini 2.5 ProはFlashモデルよりも厳しいリソース制限があります\n\n';
+            detailedMessage += '4. モデルごとの制限: 利用中モデルのレート制限・割り当てをご確認ください\n\n';
             detailedMessage += '【対処法】\n';
             detailedMessage += '- しばらく待ってから再試行してください\n';
-            detailedMessage += '- Gemini 2.5 Flashなどの軽量モデルを試してください\n';
+            detailedMessage += '- Gemini 3.8 Flashなどの軽量モデルを試してください\n';
             detailedMessage += '- Google Cloud Consoleでクォータとレート制限を確認してください\n';
             detailedMessage += '- プロビジョニングされたスループットの購入を検討してください';
           } else {
@@ -948,6 +845,8 @@ class AIService {
       }
 
       const data = response.data as GeminiResponse;
+      if (responseMetadata(data).finishReason === 'blocked' && !data.candidates?.[0]?.content?.parts?.length) return { content: '', ...responseMetadata(data), error: 'Geminiの応答が安全フィルターによってブロックされました' };
+      if (responseMetadata(data).finishReason === 'length' && !data.candidates?.[0]?.content?.parts?.length) return { content: '', ...responseMetadata(data), error: '最大出力トークン数に達しました' };
 
       if (import.meta.env.DEV) {
         console.log('Gemini API Response:', JSON.stringify(data, null, 2));
@@ -1025,14 +924,15 @@ class AIService {
         throw new APIError('Gemini API からの応答にpartsが含まれていません', 'invalid_request', 'NO_PARTS');
       }
 
-      const firstPart = candidate.content.parts[0];
+      const textParts = candidate.content.parts.filter(part => part && typeof part.text === 'string' && !('thought' in part && part.thought === true));
+      const firstPart = textParts[0];
       if (!firstPart) {
         if (import.meta.env.DEV) {
           console.error('Invalid Gemini response structure - empty parts array:', candidate.content.parts);
         } else {
           console.error('Invalid Gemini response structure - empty parts array');
         }
-        throw new APIError('Gemini API からの応答のpartsが空です', 'invalid_request', 'EMPTY_PARTS');
+        return { content: '', ...responseMetadata(data), error: 'Gemini API からの応答に本文がありません' };
       }
 
       if (typeof firstPart.text !== 'string') {
@@ -1045,7 +945,8 @@ class AIService {
       }
 
       return {
-        content: firstPart.text,
+        content: textParts.map(part => part.text).join(''),
+        ...responseMetadata(data),
       };
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -1243,31 +1144,14 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
+        const decoder = new AIStreamDecoder();
 
         try {
           await httpService.postStream(
             apiEndpoint,
             requestBody,
             (chunk) => {
-              // OpenAI互換のSSE解析
-              const lines = chunk.split('\n');
-              for (const line of lines) {
-                if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
-                if (line.startsWith('data: ')) {
-                  try {
-                    const data = JSON.parse(line.slice(6)) as {
-                      choices?: { delta?: { content?: string } }[];
-                    };
-                    const content = data.choices?.[0]?.delta?.content || '';
-                    if (content) {
-                      fullContent += content;
-                      request.onStream!(content);
-                    }
-                  } catch (_e) {
-                    // JSONパースエラーは無視（不完全なチャンクの可能性）
-                  }
-                }
-              }
+              decoder.push(chunk, (content) => { fullContent += content; request.onStream!(content); });
             },
             {
               timeout, // request.timeoutが指定されている場合はそれを使用
@@ -1277,6 +1161,7 @@ class AIService {
 
           return {
             content: fullContent,
+            ...decoder.finish(),
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
@@ -1302,6 +1187,7 @@ class AIService {
 
           return {
             content: fullContent, // 既に受信したコンテンツは返す
+            ...decoder.snapshot(),
             error: errorMessage,
           };
         }
@@ -1309,6 +1195,7 @@ class AIService {
 
       const response = await httpService.post(apiEndpoint, requestBody, {
         timeout, // request.timeoutが指定されている場合はそれを使用
+        signal: request.signal,
       });
 
       if (response.status >= 400) {
@@ -1366,16 +1253,19 @@ class AIService {
       if (data.choices && data.choices[0] && data.choices[0].message) {
         return {
           content: data.choices[0].message.content,
+          ...responseMetadata(data),
         };
       } else if (data.content) {
         // 一部のローカルLLMは直接contentを返す
         return {
           content: data.content,
+          ...responseMetadata(data),
         };
       } else if (data.response) {
         // 別の形式
         return {
           content: data.response,
+          ...responseMetadata(data),
         };
       } else {
         console.error('Unexpected response format:', data);
@@ -1503,31 +1393,14 @@ class AIService {
       // ストリーミング処理
       if (request.onStream) {
         let fullContent = '';
+        const decoder = new AIStreamDecoder();
 
         try {
           await httpService.postStream(
             apiUrl,
             requestBody,
             (chunk) => {
-              // SSEの解析
-              const lines = chunk.split('\n');
-              for (const line of lines) {
-                if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
-                if (line.startsWith('data: ')) {
-                  try {
-                    const data = JSON.parse(line.slice(6)) as {
-                      choices?: { delta?: { content?: string } }[];
-                    };
-                    const content = data.choices?.[0]?.delta?.content || '';
-                    if (content) {
-                      fullContent += content;
-                      request.onStream!(content);
-                    }
-                  } catch (e) {
-                    console.warn('SSE parse error:', e);
-                  }
-                }
-              }
+              decoder.push(chunk, (content) => { fullContent += content; request.onStream!(content); });
             },
             {
               headers: {
@@ -1540,6 +1413,7 @@ class AIService {
 
           return {
             content: fullContent,
+            ...decoder.finish(),
           };
         } catch (streamError) {
           // ストリーミング中のエラーを適切に処理
@@ -1563,6 +1437,7 @@ class AIService {
 
           return {
             content: fullContent, // 既に受信したコンテンツは返す
+            ...decoder.snapshot(),
             error: errorMessage,
           };
         }
@@ -1574,6 +1449,7 @@ class AIService {
           'Authorization': `Bearer ${apiKey}`,
         },
         timeout,
+        signal: request.signal,
       });
 
       if (response.status >= 400) {
@@ -1605,6 +1481,7 @@ class AIService {
 
       return {
         content: data.choices[0].message.content,
+        ...responseMetadata(data),
         usage: data.usage ? {
           promptTokens: data.usage.prompt_tokens,
           completionTokens: data.usage.completion_tokens,
@@ -1706,12 +1583,7 @@ class AIService {
       // 再試行機能付きでAPI呼び出しを実行
       const isLocalProvider = settings.provider === 'local';
 
-      // タイムアウト設定: request.timeoutが指定されている場合はそれを使用、
-      // そうでない場合は180秒（全プロバイダー共通、高度なモデルの思考時間を考慮）
-      const defaultTimeout = 180000;
-      const timeout = request.timeout ?? defaultTimeout;
-
-      const response = await retryApiCall(
+      const receivedResponse = await retryApiCall(
         async () => {
           switch (settings.provider) {
             case 'openai':
@@ -1729,11 +1601,11 @@ class AIService {
           }
         },
         {
-          // タイムアウト設定: 全プロバイダー共通で180秒（高度なモデルの思考時間を考慮）
-          // 全章生成など長時間かかる処理の場合は、request.timeoutで延長可能
-          timeout,
+          // HTTPが本文受信までタイムアウトを管理し、途中の本文を保持する。
+          // 外側のPromise.raceで打ち切ると、受信済みの本文が失われる。
+          timeout: 0, // HTTP aborts the response on timeout; partial text remains available.
           retryConfig: {
-            maxRetries: isLocalProvider ? 2 : 3, // ローカルLLMは再試行回数を減らす
+            maxRetries: request.retryLimit ?? (isLocalProvider ? 2 : 3),
             baseDelay: isLocalProvider ? 2000 : 1000, // ローカルLLMは待機時間を長く
             maxDelay: isLocalProvider ? 15000 : 10000,
             backoffMultiplier: 2
@@ -1758,6 +1630,8 @@ class AIService {
           }
         }
       );
+
+      const response: AIResponse = { ...receivedResponse, content: receivedResponse.content ?? '', error: getAIResponseIssue(receivedResponse) };
 
       // 利用トークン量を記録（fire-and-forget・コスト可視化用）
       // 型別の早期returnより前に記録することで、draftを含む全タイプで計上される
@@ -1796,6 +1670,7 @@ class AIService {
       if (response.content) {
         if (request.type === 'draft') {
           return {
+            ...response,
             content: response.content,
             error: response.error
           };
@@ -1806,6 +1681,7 @@ class AIService {
           if (parsedResponse.success && validateResponse(parsedResponse)) {
             const data = parsedResponse.data as Record<string, unknown>;
             return {
+              ...response,
               content: data.type === 'text' ? (data.content as string) : response.content,
               error: response.error
             };
@@ -1816,6 +1692,7 @@ class AIService {
       }
 
       return {
+        ...response,
         content: response.content || '',
         error: response.error
       };

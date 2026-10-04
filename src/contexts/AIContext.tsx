@@ -57,6 +57,9 @@ const getDefaultSettings = (): AISettings => {
     defaultProvider = 'gemini';
     // 2.5系は過去の利用者に提供が絞られたため、新規ユーザーでも呼べる最新Flashを既定にする
     defaultModel = 'gemini-3.8-flash';
+  } else if (grokKey) {
+    defaultProvider = 'grok';
+    defaultModel = 'grok-4.7';
   } else if (localEndpoint) {
     defaultProvider = 'local';
     defaultModel = 'local-model';
@@ -84,7 +87,7 @@ const getDefaultSettings = (): AISettings => {
     model: defaultModel,
     temperature: 0.7,
     maxTokens: 3000,
-    apiKey: openaiKey || claudeKey || geminiKey || '', // 後方互換性のため、現在のプロバイダーのAPIキー
+    apiKey: openaiKey || claudeKey || geminiKey || grokKey || '', // 後方互換性のため、現在のプロバイダーのAPIキー
     apiKeys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined, // プロバイダーごとのAPIキー
     localEndpoint: localEndpoint,
   };
@@ -113,7 +116,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           // APIキーは後で非同期で読み込まれるため、ここでは空にする
           apiKeys: undefined,
           apiKey: '',
-          temperature: Math.max(0, Math.min(1, parsed.temperature || envSettings.temperature)),
+          temperature: Number.isFinite(parsed.temperature) ? Math.max(0, Math.min(1, parsed.temperature!)) : envSettings.temperature,
           maxTokens: Math.max(100, Math.min(modelMaxOutputTokens, parsed.maxTokens || envSettings.maxTokens)),
         };
       }

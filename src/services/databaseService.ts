@@ -1,4 +1,6 @@
 import Dexie, { Table } from 'dexie';
+import { normalizeNarrativeProject } from './narrative/codec';
+import { copyNarrativeMemory } from './narrative/state';
 import { Project } from '../contexts/ProjectContext';
 import { DataCache } from '../utils/performanceUtils';
 import { ChapterHistoryEntry } from '../components/steps/draft/types';
@@ -340,7 +342,7 @@ class DatabaseService {
         this.migrateProjectImages(project).catch(err =>
           console.warn('画像マイグレーションエラー（無視）:', err)
         );
-        return project;
+        return normalizeNarrativeProject(project);
       }
 
       // データベースから取得
@@ -360,7 +362,7 @@ class DatabaseService {
         console.warn('画像マイグレーションエラー（無視）:', err)
       );
 
-      return project;
+      return normalizeNarrativeProject(project);
     } catch (error) {
       // 既にカスタムエラーの場合はそのまま再スロー
       if (error instanceof DatabaseError) {
@@ -532,6 +534,7 @@ class DatabaseService {
       ...original,
       id: Date.now().toString(),
       title: `${original.title} のコピー`,
+      narrativeMemory: copyNarrativeMemory(original),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -730,13 +733,13 @@ class DatabaseService {
     // 圧縮されている場合は展開
     if (backup.compressed && typeof backup.data === 'string') {
       const decompressed = await this.decompressData(backup.data);
-      return JSON.parse(decompressed) as Project;
+      return normalizeNarrativeProject(JSON.parse(decompressed) as Project);
     } else if (typeof backup.data === 'string') {
       // 非圧縮の文字列データ
-      return JSON.parse(backup.data) as Project;
+      return normalizeNarrativeProject(JSON.parse(backup.data) as Project);
     }
     // 古い形式（オブジェクト）の場合はそのまま使用
-    return backup.data as Project;
+    return normalizeNarrativeProject(backup.data as Project);
   }
 
   // バックアップから復元（圧縮対応）

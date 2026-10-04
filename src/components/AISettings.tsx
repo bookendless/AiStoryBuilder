@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Settings, Key, Server, Zap, Lightbulb, BookOpen, Search, RefreshCw, ClipboardList } from 'lucide-react';
 import { useAI } from '../contexts/useAI';
 import { useProject } from '../contexts/useProject';
 import { ragStore, reindexProject } from '../services/rag';
-import { AI_PROVIDERS, AVAILABLE_PROVIDERS, getMaxOutputTokens } from '../services/providers';
+import { AI_PROVIDERS, AVAILABLE_PROVIDERS, findModel, getMaxOutputTokens, getDefaultModelId, resolveMaxOutputTokens } from '../services/providers';
 import { useToast } from './useToast';
 import { useModalNavigation } from '../hooks/useKeyboardNavigation';
 import { Modal } from './common/Modal';
 import { useOverlayBackHandler } from '../contexts/useOverlayBackHandler';
 import { decryptApiKeyAsync, isEncryptedApiKey } from '../utils/securityUtils';
-import { modelSupportsTemperature, isOpenAIReasoningModel } from '../utils/modelCapabilities';
-import { OpenAIRequestBody } from '../types/ai';
+import { modelSupportsTemperature } from '../utils/modelCapabilities';
+import { aiService } from '../services/aiService';
 
 // 保存済みの鍵が復号できないとき（鍵導出の種が変わった場合など）に表示する。
 // このとき入力欄は空のままにする。暗号文を入れると外部APIへそのまま送信されてしまう。
@@ -83,6 +83,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
   // 非同期でAPIキーを復号化して設定
   const decryptAndSetApiKey = useCallback(async () => {
+    const version = ++keyLoadVersion.current;
     if (settings.provider && settings.provider !== 'local') {
       const storedKey = settings.apiKeys?.[settings.provider] || settings.apiKey || '';
       let decryptedKey = '';
@@ -93,13 +94,16 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       } catch (error) {
         console.error('Failed to decrypt API key:', error);
       }
+      if (version !== keyLoadVersion.current) return;
       if (storedKey && !decryptedKey && isEncryptedApiKey(storedKey)) {
         setApiKeyError(API_KEY_DECRYPT_FAILED_MESSAGE);
       }
-      setFormData(prev => ({ ...prev, apiKey: decryptedKey }));
+      if (version === keyLoadVersion.current) setFormData(prev => ({ ...prev, apiKey: decryptedKey }));
     }
   }, [settings]);
   const [isTesting, setIsTesting] = useState(false);
+  const connectionTestRef = useRef<AbortController | null>(null);
+  const keyLoadVersion = useRef(0);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string>('');
   const { modalRef } = useModalNavigation({
@@ -126,6 +130,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       setActiveTab('model');
     }
   }, [isOpen, buildInitialFormData, decryptAndSetApiKey]);
+
+  useEffect(() => () => { connectionTestRef.current?.abort(); keyLoadVersion.current++; }, [isOpen]);
+  useEffect(() => {
+    connectionTestRef.current?.abort();
+    connectionTestRef.current = null;
+    setIsTesting(false);
+    setTestResult(null);
+  }, [formData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -167,6 +179,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   };
 
   const handleApiKeyChange = (value: string) => {
+    keyLoadVersion.current++;
     setFormData({ ...formData, apiKey: value });
     const error = validateApiKey(formData.provider, value);
     setApiKeyError(error);
@@ -214,268 +227,45 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
       }
     }
 
+    const controller = new AbortController();
+    connectionTestRef.current?.abort();
+    connectionTestRef.current = controller;
     setIsTesting(true);
     setTestResult(null);
 
     try {
-      // テスト用の簡単なプロンプト
-      const testPrompt = "こんにちは。これは接続テストです。";
-
-      // httpServiceを使用してテストを実行
-      const { httpService } = await import('../services/httpService');
-
-      // Tauri環境チェック（Tauri 2対応）
-      const isTauriEnv = typeof window !== 'undefined' &&
-        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-
-      if (formData.provider === 'openai') {
-        // モデル名に基づいて適切なパラメータを選択（生成時と同じ判定を使う）
-        const isNewModel = isOpenAIReasoningModel(formData.model);
-        const requestBody: OpenAIRequestBody = {
-          model: formData.model,
-          messages: [
-            {
-              role: 'user',
-              content: testPrompt,
-            },
-          ],
-          // リーズニング系モデルは temperature の変更を受け付けない（指定すると400）
-          ...(modelSupportsTemperature(formData.model)
-            ? { temperature: formData.temperature }
-            : {}),
-        };
-
-        // GPT-5.1系やo系モデルはmax_completion_tokens、それ以外はmax_tokensを使用
-        if (isNewModel) {
-          requestBody.max_completion_tokens = 50;
-        } else {
-          requestBody.max_tokens = 50;
-        }
-
-        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
-        const apiUrl = (!isTauriEnv && import.meta.env.DEV)
-          ? '/api/openai/v1/chat/completions'
-          : 'https://api.openai.com/v1/chat/completions';
-
-        const response = await httpService.post(apiUrl, requestBody, {
-          headers: {
-            'Authorization': `Bearer ${formData.apiKey}`,
-          },
-        });
-
-        if (response.status >= 400) {
-          const errorData = response.data as { error?: { message?: string } };
-          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
-        }
-      } else if (formData.provider === 'claude') {
-        if (!formData.apiKey) {
-          throw new Error('Claude APIキーが設定されていません');
-        }
-
-        // APIキーの検証（基本的な形式チェック）
-        if (!formData.apiKey.startsWith('sk-ant-')) {
-          throw new Error('Claude APIキーの形式が正しくありません（sk-ant-で始まる必要があります）');
-        }
-
-        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
-        const apiUrl = (!isTauriEnv && import.meta.env.DEV)
-          ? '/api/anthropic/v1/messages'
-          : 'https://api.anthropic.com/v1/messages';
-
-
-        // Claude APIはWebView/Tauri環境でもこのヘッダーが必要になるケースがあるため常時付与
-        const headers: Record<string, string> = {
-          'x-api-key': formData.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        };
-
-        const response = await httpService.post(apiUrl, {
-          model: formData.model,
-          max_tokens: 50,
-          messages: [
-            {
-              role: 'user',
-              content: testPrompt,
-            },
-          ],
-        }, {
-          headers,
-        });
-
-        if (response.status >= 400) {
-          const errorData = response.data as { error?: { message?: string; type?: string } };
-          const errorMessage = errorData.error?.message || response.statusText;
-          const errorType = errorData.error?.type || 'unknown';
-
-
-          // 401エラーの場合、より詳細なメッセージを提供
-          if (response.status === 401) {
-            throw new Error(`認証エラー (401): APIキーが無効です。\nエラー詳細: ${errorMessage}\n\nAPIキーが正しく設定されているか確認してください。`);
-          }
-
-          // 404エラーの場合、モデルが見つからないが接続自体は成功している
-          if (response.status === 404 && errorType === 'not_found_error') {
-            throw new Error(`モデルが見つかりません (404): 指定されたモデル「${formData.model}」は存在しないか、利用できません。\nエラー詳細: ${errorMessage}\n\n利用可能なモデルを選択してください。`);
-          }
-
-          throw new Error(`API エラー (${response.status}): ${errorMessage}`);
-        }
-      } else if (formData.provider === 'gemini') {
-        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
-        const baseUrl = (!isTauriEnv && import.meta.env.DEV)
-          ? '/api/gemini'
-          : 'https://generativelanguage.googleapis.com';
-
-        // APIキーはクエリ文字列に載せない（URLはエラーログ等に残るため）。
-        // 認証は下の x-goog-api-key ヘッダーのみで行う。
-        const apiUrl = `${baseUrl}/v1beta/models/${formData.model}:generateContent`;
-
-        const response = await httpService.post(apiUrl, {
-          contents: [{
-            parts: [{
-              text: testPrompt,
-            }],
-          }],
-          generationConfig: {
-            maxOutputTokens: 50,
-          },
-        }, {
-          headers: formData.apiKey ? { 'x-goog-api-key': formData.apiKey } : undefined,
-        });
-
-        if (response.status >= 400) {
-          const errorData = response.data as { error?: { message?: string; code?: number } };
-          const errorMessage = errorData.error?.message || response.statusText;
-
-          // 429エラーの場合、より詳細なメッセージを提供
-          if (response.status === 429) {
-            let detailedMessage = `API エラー (429): ${errorMessage}`;
-
-            if (errorMessage.includes('Resource has been exhausted') || errorMessage.includes('quota')) {
-              detailedMessage += '\n\n【考えられる原因】\n';
-              detailedMessage += '1. リージョンのリソース制限: 特定のリージョンでリソースが一時的に枯渇している可能性があります\n';
-              detailedMessage += '2. プロビジョニングされたスループット未購入: 従量課金制の場合、リソースの優先度が低い可能性があります\n';
-              detailedMessage += '3. 一時的なリソース不足: Googleのインフラストラクチャが一時的に高負荷状態にある可能性があります\n';
-              detailedMessage += '4. Proモデルの制限: Gemini 2.5 ProはFlashモデルよりも厳しいリソース制限があります\n\n';
-              detailedMessage += '【対処法】\n';
-              detailedMessage += '- しばらく待ってから再試行してください\n';
-              detailedMessage += '- Gemini 2.5 Flashなどの軽量モデルを試してください\n';
-              detailedMessage += '- Google Cloud Consoleでクォータとレート制限を確認してください\n';
-              detailedMessage += '- プロビジョニングされたスループットの購入を検討してください';
-            }
-
-            throw new Error(detailedMessage);
-          }
-
-          throw new Error(`API エラー (${response.status}): ${errorMessage}`);
-        }
-      } else if (formData.provider === 'local') {
-        let endpoint = formData.localEndpoint || 'http://localhost:1234/v1/chat/completions';
-
-        // エンドポイントにパスが含まれていない場合は追加
-        if (!endpoint.includes('/v1/chat/completions') && !endpoint.includes('/api/') && !endpoint.includes('/chat')) {
-          if (endpoint.endsWith('/')) {
-            endpoint = endpoint + 'v1/chat/completions';
-          } else {
-            endpoint = endpoint + '/v1/chat/completions';
-          }
-        }
-
-        // Tauri環境チェック（Tauri 2対応）
-        const isTauriEnv = typeof window !== 'undefined' &&
-          ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-
-        // 開発環境でブラウザの場合のみプロキシ経由（CORS回避）
-        let apiEndpoint = endpoint;
-        if (!isTauriEnv && import.meta.env.DEV) {
-          // ブラウザ開発環境ではViteのプロキシを使用
-          if (endpoint.includes('localhost:1234')) {
-            apiEndpoint = '/api/local';
-          } else if (endpoint.includes('localhost:11434')) {
-            apiEndpoint = '/api/ollama';
-          }
-        }
-        // Tauri環境では常に元のエンドポイントを使用（HTTPプラグインがlocalhostにアクセス可能）
-
-        const response = await httpService.post(apiEndpoint, {
-          model: formData.model || 'local-model',
-          messages: [
-            {
-              role: 'user',
-              content: testPrompt,
-            },
-          ],
-          max_tokens: 50,
-        }, {
-          timeout: 60000,
-        });
-
-        if (response.status >= 400) {
-          const errorData = response.data as { error?: { message?: string } };
-          throw new Error(`API エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
-        }
-      } else if (formData.provider === 'grok') {
-        // xAI Grokの接続テスト
-        if (!formData.apiKey) {
-          throw new Error('xAI Grok APIキーが設定されていません');
-        }
-
-        // APIキーの検証（基本的な形式チェック）
-        if (!formData.apiKey.startsWith('xai-')) {
-          throw new Error('xAI Grok APIキーの形式が正しくありません（xai-で始まる必要があります）');
-        }
-
-        // ブラウザ環境ではプロキシ経由、Tauri環境では直接APIにアクセス
-        const apiUrl = (!isTauriEnv && import.meta.env.DEV)
-          ? '/api/xai/v1/chat/completions'
-          : 'https://api.x.ai/v1/chat/completions';
-
-        const response = await httpService.post(apiUrl, {
-          model: formData.model,
-          max_tokens: 50,
-          messages: [
-            {
-              role: 'user',
-              content: testPrompt,
-            },
-          ],
-        }, {
-          headers: {
-            'Authorization': `Bearer ${formData.apiKey}`,
-          },
-        });
-
-        if (response.status >= 400) {
-          const errorData = response.data as { error?: { message?: string } };
-          const errorMessage = errorData.error?.message || response.statusText;
-
-          if (response.status === 401) {
-            throw new Error(`認証エラー (401): APIキーが無効です。\nエラー詳細: ${errorMessage}\n\nAPIキーが正しく設定されているか確認してください。`);
-          }
-
-          throw new Error(`API エラー (${response.status}): ${errorMessage}`);
-        }
-      } else {
-        throw new Error('サポートされていないプロバイダーです');
-      }
-
+      const testSettings = {
+        ...formData,
+        apiKeys: { ...formData.apiKeys, [formData.provider]: formData.apiKey ?? '' },
+        maxTokens: Math.min(resolveMaxOutputTokens(formData), 4096),
+        recordAIUsageTally: false,
+      };
+      const response = await aiService.generateContent({
+        prompt: 'こんにちは。接続テストとして、短い挨拶を一文だけ返してください。',
+        type: 'draft', settings: testSettings, signal: controller.signal, timeout: 180000,
+      });
+      if (controller.signal.aborted) return;
+      if (response.error) throw new Error(response.error);
+      if (!response.content?.trim()) throw new Error('接続しましたが本文を受信できませんでした。出力予算を見直してください。');
       setTestResult({
         success: true,
-        message: '接続テストが成功しました！AI機能が正常に動作します。'
+        message: response.finishReason === 'stop'
+          ? '接続と本文の生成を確認しました。'
+          : '本文を受信しました。生成の完了状態は取得できませんでした。',
       });
     } catch (error) {
+      if (controller.signal.aborted) return;
       setTestResult({
         success: false,
         message: `接続テストが失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`
       });
     } finally {
-      setIsTesting(false);
+      if (connectionTestRef.current === controller) { connectionTestRef.current = null; setIsTesting(false); }
     }
   };
 
   const selectedProvider = AI_PROVIDERS.find(p => p.id === formData.provider);
-  const selectedModel = selectedProvider?.models.find(m => m.id === formData.model);
+  const selectedModel = findModel(formData.provider, formData.model);
 
   return (
     <Modal
@@ -529,12 +319,18 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               <button
                 key={provider.id}
                 onClick={async () => {
-                  const newModel = provider.models[0].id;
+                  const version = ++keyLoadVersion.current;
+                  if (formData.provider === provider.id) return;
+                  connectionTestRef.current?.abort();
+                  connectionTestRef.current = null;
+                  setIsTesting(false);
+                  setTestResult(null);
+                  const newModel = getDefaultModelId(provider.id);
 
                   // プロバイダーに応じてapiKeysからAPIキーを取得（非同期復号化）
                   // 後方互換性のため、apiKeysに無い場合はapiKeyからも取得を試みる
                   const storedKey = provider.id !== 'local'
-                    ? (settings.apiKeys?.[provider.id] || settings.apiKey || '')
+                    ? (settings.apiKeys?.[provider.id] || (settings.provider === provider.id ? settings.apiKey : '') || '')
                     : '';
                   let apiKeyForProvider = '';
                   try {
@@ -544,6 +340,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   } catch (error) {
                     console.error('Failed to decrypt API key:', error);
                   }
+                  if (version !== keyLoadVersion.current) return;
                   setApiKeyError(
                     storedKey && !apiKeyForProvider && isEncryptedApiKey(storedKey)
                       ? API_KEY_DECRYPT_FAILED_MESSAGE
@@ -648,6 +445,9 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               }}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
             >
+              {!selectedProvider.models.some(m => m.id === formData.model) && (
+                <option value={formData.model}>{formData.model}（保存済みのモデル）</option>
+              )}
               {selectedProvider.models.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name} - {model.description}
@@ -810,7 +610,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               step="0.1"
               value={formData.temperature}
               onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-              disabled={!modelSupportsTemperature(formData.model)}
+              disabled={!modelSupportsTemperature(formData.model, formData.provider)}
               className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
@@ -818,7 +618,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               <span className="font-semibold">{formData.temperature}</span>
               <span>創造的 (1.0)</span>
             </div>
-            {!modelSupportsTemperature(formData.model) && (
+            {!modelSupportsTemperature(formData.model, formData.provider) && (
               <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
                 このモデルはTemperatureの変更に対応していないため、設定は送信されません。
               </p>
@@ -838,7 +638,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-['Noto_Sans_JP']"
             />
             <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-['Noto_Sans_JP']">
-              1回の生成で書かせる長さの上限です。モデルの上限（{getMaxOutputTokens(formData.provider, formData.model).toLocaleString()} トークン）を超える値は、保存時に上限まで下げられます。
+              本文と、モデルによっては思考に使う出力予算です。アプリで使う上限（{getMaxOutputTokens(formData.provider, formData.model).toLocaleString()} トークン）を超える値は、保存時に上限まで下げられます。
             </p>
           </div>
         </div>
@@ -996,7 +796,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             接続テスト
           </h4>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-['Noto_Sans_JP']">
-            設定が正しく動作するかテストできます
+            短い本文を生成して設定を確認します。最大4,096トークンの範囲で通常のAPI利用料金がかかります。
           </p>
 
           <button

@@ -7,6 +7,8 @@
  */
 
 import { aiService } from '../aiService';
+import type { AISettings } from '../../types/ai';
+import { generateNarrativeProse, generationSignature } from '../narrative/context';
 import { DRAFT_PROMPT_CAP } from '../prompts/draft';
 import { AIRunner } from '../../types/sequel';
 import { Project } from '../../types/project';
@@ -25,6 +27,7 @@ import {
 interface Options {
   run: AIRunner;
   signal?: AbortSignal;
+  settings?: AISettings;
 }
 
 const UNSET = '未設定';
@@ -150,6 +153,12 @@ export async function generatePreemptiveDraft(
     styleDetails: buildStyleDetails(project),
     customPrompt: '',
   });
+
+  if (project.narrativeMemory?.enabled) {
+    if (!options.settings) throw new Error('状態付き生成にはAI設定が必要です');
+    const { response } = await generateNarrativeProse(project, target.id, prompt, options.settings, signal);
+    return { kind: 'draft', chapterId: target.id, chapterTitle: target.title, draft: response.content, narrativeSignature: generationSignature(project, target.id), completionUnknown: response.finishReason !== 'stop' };
+  }
 
   const content = await run(prompt, {
     signal,

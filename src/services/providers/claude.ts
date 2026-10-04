@@ -141,6 +141,7 @@ const CLAUDE_MODELS: AIModel[] = [
 // Claudeプロバイダー定義
 export const claudeProvider: AIProvider = {
   id: 'claude',
+  defaultModelId: 'claude-opus-5-5',
   name: 'Anthropic Claude',
   requiresApiKey: true,
   description: 'Claude 5系（Fable 5.1 / Opus 5.5 / Sonnet 5）と Haiku 4.5、および Fable 5 / Opus 5 / 4.8 / 4.7 / 4.6 / 4.5 のレガシー各種。長文要約や整合性チェックに強みがあります。',
@@ -153,3 +154,4 @@ export const claudeProvider: AIProvider = {
   regions: ['US', 'EU', 'JP (Preview)'],
   models: CLAUDE_MODELS,
 };
+

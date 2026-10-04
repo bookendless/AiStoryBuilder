@@ -24,6 +24,8 @@ import { generatePreemptiveSynopsis } from '../../services/preemptive/generatePr
 import { generatePreemptiveChapters } from '../../services/preemptive/generatePreemptiveChapters';
 import { generatePreemptiveDraft } from '../../services/preemptive/generatePreemptiveDraft';
 import { buildPreemptivePreview } from './preemptivePreview';
+import { generationSignature, NarrativeGenerationError } from '../../services/narrative/context';
+import { updateDraft } from '../../services/draftSession';
 
 const STEP_META: Record<PreemptiveTargetStep, { label: string; type: AIRequest['type'] }> = {
   synopsis: { label: 'あらすじ', type: 'synopsis' },
@@ -33,7 +35,7 @@ const STEP_META: Record<PreemptiveTargetStep, { label: string; type: AIRequest['
 
 export function usePreemptiveGenerator() {
   const { settings, isConfigured } = useAI();
-  const { updateProject, currentProject } = useProject();
+  const { updateProject, currentProject, commitProjectUpdate, getCurrentProject } = useProject();
   const { startTask, completeTask } = useGeneration();
   const { proposeResult, removeResult } = usePendingResult();
   const { showWarning } = useToast();
@@ -53,20 +55,28 @@ export function usePreemptiveGenerator() {
       const proj = currentProjectRef.current;
       if (proj?.id !== targetProjectId) {
         showWarning('別のプロジェクトを開いているため、先回り生成は反映されませんでした。対象のプロジェクトを開いてから反映してください。', 6000);
-        return;
+        throw new Error('生成元のプロジェクトを開いてから反映してください');
       }
       if (result.kind === 'synopsis') {
         await updateProjectRef.current({ synopsis: result.synopsis }, true, targetProjectId);
       } else if (result.kind === 'chapter') {
         await updateProjectRef.current({ chapters: [...proj.chapters, ...result.chapters] }, true, targetProjectId);
       } else {
+        if (proj.narrativeMemory?.enabled && !result.narrativeSignature) throw new Error('状態管理を有効にする前の提案です。再生成してください');
+        if (result.narrativeSignature) {
+          await commitProjectUpdate(latest => {
+            if (generationSignature(latest, result.chapterId) !== result.narrativeSignature || latest.chapters.find(c => c.id === result.chapterId)?.draft?.trim()) throw new Error('本文または確定状態が変わりました。再生成してください');
+            return updateDraft(latest, result.chapterId, result.draft);
+          }, targetProjectId);
+          return;
+        }
         const updatedChapters = proj.chapters.map(c =>
           c.id === result.chapterId ? { ...c, draft: result.draft } : c
         );
         await updateProjectRef.current({ chapters: updatedChapters }, true, targetProjectId);
       }
     },
-    [showWarning]
+    [showWarning, commitProjectUpdate]
   );
 
   /**
@@ -103,6 +113,7 @@ export function usePreemptiveGenerator() {
       const run = createPreemptiveRunner(settings, signal, meta.type);
 
       void (async () => {
+        let receivedDraft: string | undefined;
         try {
           let result: PreemptiveResult | null;
           if (targetStep === 'synopsis') {
@@ -110,14 +121,25 @@ export function usePreemptiveGenerator() {
           } else if (targetStep === 'chapter') {
             result = await generatePreemptiveChapters(proj, { run, signal });
           } else {
-            result = await generatePreemptiveDraft(proj, { run, signal });
+            let source = proj;
+            if (proj.narrativeMemory?.enabled) {
+              source = (await commitProjectUpdate(() => ({}), targetProjectId)).project;
+              if (computePreemptiveSignature(source, targetStep) !== signature) throw new Error('保存中に生成の前提が変わりました');
+            }
+            result = await generatePreemptiveDraft(source, { run, signal, settings });
           }
           if (signal.aborted || !result) return;
+          if (result.kind === 'draft') receivedDraft = result.draft;
+          if (result.kind === 'draft' && result.narrativeSignature) {
+            const latest = getCurrentProject();
+            if (!latest || latest.id !== targetProjectId || generationSignature(latest, result.chapterId) !== result.narrativeSignature) throw new Error('生成中に前提が変わりました');
+          }
 
           const finalResult = result;
           const pendingId = proposeResult({
             label: `先回り: ${meta.label}`,
-            preview: buildPreemptivePreview(finalResult),
+            preview: (finalResult.kind === 'draft' && finalResult.completionUnknown ? 'AIの終了理由が不明です。末尾まで完成していることを確認してから反映してください。\n\n' : '') + buildPreemptivePreview(finalResult),
+            applyLabel: finalResult.kind === 'draft' && finalResult.completionUnknown ? '末尾まで確認して反映' : undefined,
             projectId: targetProjectId,
             onApply: () => applyResult(finalResult, targetProjectId),
             applySuccessMessage: `${meta.label}を反映しました`,
@@ -126,6 +148,15 @@ export function usePreemptiveGenerator() {
         } catch (err) {
           if (err instanceof DOMException && err.name === 'AbortError') return;
           if (err instanceof Error && err.name === 'AbortError') return;
+          // Keep the existing completion/apply guards. Failed validation leaves
+          // a read-only copy instead of discarding an already received draft.
+          const received = err instanceof NarrativeGenerationError ? err.response.content : receivedDraft;
+          if (received?.trim()) {
+            const reason = err instanceof Error ? err.message : '生成結果を適用できませんでした';
+            proposeResult({ label: '先回り: 草案（受信内容の確認）', projectId: targetProjectId,
+              preview: received, draftPreview: { oldText: '', newText: received, notice: reason },
+              applyBlockedReason: reason, onApply: () => { throw new Error(reason); } });
+          }
           // 先回りは裏処理のため、失敗は静かにログのみ（ユーザーを煩わせない）
           console.error('先回り生成エラー:', err);
         } finally {
@@ -133,7 +164,7 @@ export function usePreemptiveGenerator() {
         }
       })();
     },
-    [isConfigured, settings, startTask, completeTask, proposeResult, removeResult, applyResult]
+    [isConfigured, settings, startTask, completeTask, proposeResult, removeResult, applyResult, commitProjectUpdate, getCurrentProject]
   );
 
   return { startPreempt };

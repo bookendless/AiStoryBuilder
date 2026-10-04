@@ -14,6 +14,7 @@ import type {
   StoredImage,
 } from '../databaseService';
 import { base64ToBlob } from '../../utils/base64';
+import { normalizeNarrativeProject } from '../narrative/codec';
 
 /** 型安全な日付変換 */
 export function safeDateConversion(value: unknown): Date {
@@ -84,7 +85,7 @@ export function normalizeProjectRecord(raw: unknown): StoredProject | null {
     lastSaved: raw.lastSaved ? safeDateConversion(raw.lastSaved) : updatedAt,
   };
 
-  return normalized as unknown as StoredProject;
+  return normalizeNarrativeProject(normalized as unknown as StoredProject);
 }
 
 /** バックアップレコードの正規化（圧縮済みは文字列のまま、旧形式のオブジェクトはJSON文字列化） */

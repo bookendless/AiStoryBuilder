@@ -143,12 +143,15 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(({
             />
 
             {/* モーダルコンテンツ: 強化されたGlassmorphism */}
+            {/* !overflow-clip: glass-shimmer の overflow:hidden だとスクロール可能な箱として扱われる。
+                sr-only 等の絶対配置要素はこの箱を基準にするため見かけの溢れを作り、scrollIntoView/focus で
+                箱ごとスクロールしてヘッダーが隠れたまま戻せなくなる。clip なら切り抜きは同じでスクロールしない */}
             <div
                 ref={modalRef}
                 tabIndex={-1}
                 className={`
           relative w-full ${sizeClasses[size]} 
-          glass-strong glass-shimmer
+          glass-strong glass-shimmer !overflow-clip
           rounded-t-2xl sm:rounded-2xl
           transform transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95
           flex flex-col max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[90vh]

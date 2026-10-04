@@ -48,17 +48,19 @@ export const retryApiCall = async <T>(
   let lastError: unknown;
   
   for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // タイムアウト付きでAPI呼び出しを実行
-      const result = await Promise.race([
-        apiCall(),
+      const call = apiCall();
+      const result = timeout > 0 ? await Promise.race([
+        call,
         new Promise<never>((_, reject) => 
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             const timeoutSeconds = Math.round(timeout / 1000);
             reject(new Error(`API呼び出しがタイムアウトしました（${timeoutSeconds}秒以内に完了しませんでした）`));
           }, timeout)
         )
-      ]);
+      ]) : await call;
 
       // 成功時のコールバック
       if (onSuccess) {
@@ -67,6 +69,7 @@ export const retryApiCall = async <T>(
 
       return result;
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error;
       
       // shouldRetryが指定されている場合、再試行可能かチェック
@@ -100,6 +103,8 @@ export const retryApiCall = async <T>(
       console.log(`${delay}ms後に再試行します...`);
       
       await new Promise(resolve => setTimeout(resolve, delay));
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

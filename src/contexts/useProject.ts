@@ -21,6 +21,8 @@ export interface ProjectContextType {
     immediate?: boolean,
     targetProjectId?: string,
   ) => Promise<void>;
+  commitProjectUpdate: (updates: (project: Project) => Partial<Project>, targetProjectId: string) => Promise<{ generation: number; project: Project }>;
+  getCurrentProject: () => Project | null;
   createNewProject: (title: string, description: string, mainGenre?: string, subGenre?: string, coverImage?: string, targetReader?: string, projectTheme?: string, writingStyle?: Project['writingStyle'], synopsis?: string) => Project;
   createSequelProject: (parent: Project, overrides: Partial<Project>) => Project;
   createImportedProject: (title: string, overrides: Partial<Project>) => Project;

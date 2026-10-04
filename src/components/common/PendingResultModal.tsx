@@ -4,6 +4,7 @@ import { Modal } from './Modal';
 import { usePendingResult } from '../../contexts/usePendingResult';
 import { CreativePointCards } from './CreativePointCards';
 import { CreativePointSelection } from '../../types/creativePoint';
+import { DiffPreviewModal } from '../steps/draft/DiffPreviewModal';
 
 /**
  * PendingResultModal - 重いAI生成の結果を「反映する / 破棄する」で確認するグローバルモーダル。
@@ -38,6 +39,13 @@ export const PendingResultModal: React.FC = () => {
     removeResult(current.id);
     void current.onRegenerateWithSelections?.(selections);
   };
+
+  if (activeResult.draftPreview) return (
+    <DiffPreviewModal isOpen {...activeResult.draftPreview}
+      title={`${activeResult.label}の差分プレビュー`}
+      isApplying={isApplying} applyBlockedReason={activeResult.applyBlockedReason}
+      onApply={() => { void handleApply(); }} onDiscard={handleDiscard} onClose={closeActive} />
+  );
 
   return (
     <Modal

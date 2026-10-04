@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { useCallback, useRef, useState } from 'react';
 import { useChapterDraft } from '../../components/steps/draft/hooks/useChapterDraft';
 
 const makeProject = () => ({
@@ -22,7 +23,28 @@ const makeProject = () => ({
 } as Parameters<typeof useChapterDraft>[0]['currentProject'] & object);
 
 describe('useChapterDraft', () => {
-  const updateProject = vi.fn(async () => {});
+  it('shares unsaved edits between views and an old autosave callback flushes the latest text', async () => {
+    const { result } = renderHook(() => {
+      const [project, setProject] = useState(makeProject);
+      const latest = useRef(project); latest.current = project;
+      const update = useCallback<Parameters<typeof useChapterDraft>[0]['updateProject']>(async patch => {
+        latest.current = { ...latest.current, ...(typeof patch === 'function' ? patch(latest.current) : patch) };
+        setProject(latest.current);
+      }, []);
+      const editor = useChapterDraft({ currentProject: project, updateProject: update, selectedChapter: 'ch-1' });
+      const assistant = useChapterDraft({ currentProject: project, updateProject: update, selectedChapter: 'ch-1' });
+      return { editor, assistant };
+    });
+    const oldAutosave = result.current.editor.handleSaveChapterDraft;
+    await act(async () => result.current.editor.setDraft('未保存の編集'));
+    expect(result.current.assistant.draft).toBe('未保存の編集');
+    await act(async () => result.current.assistant.setDraft('AIからの新しい本文'));
+    await act(async () => oldAutosave('ch-1'));
+    expect(result.current.editor.draft).toBe('AIからの新しい本文');
+    await act(async () => result.current.editor.setDraft(''));
+    expect(result.current.assistant.draft).toBe('');
+  });
+  const updateProject = vi.fn<Parameters<typeof useChapterDraft>[0]['updateProject']>(async () => {});
   const onSaveSuccess = vi.fn();
   const onSaveError = vi.fn();
   const onToastMessage = vi.fn();
@@ -60,10 +82,12 @@ describe('useChapterDraft', () => {
       await result.current.handleSaveChapterDraft('ch-1', '新しい内容');
     });
     expect(updateProject).toHaveBeenCalledWith(
-      expect.objectContaining({ draft: '新しい内容' }),
+      expect.any(Function),
       true,
       'proj-1'
     );
+    const update = updateProject.mock.calls[0][0];
+    expect(typeof update === 'function' ? update(makeProject()) : update).toMatchObject({ draft: '新しい内容' });
   });
 
   it('isAutoSave=false 時に onToastMessage が呼ばれない', async () => {
@@ -114,10 +138,12 @@ describe('useChapterDraft', () => {
       await result.current.handleSaveChapterDraft('ch-1', '');
     });
     expect(updateProject).toHaveBeenCalledWith(
-      expect.objectContaining({ draft: '' }),
+      expect.any(Function),
       true,
       'proj-1'
     );
+    const update = updateProject.mock.calls[0][0];
+    expect(typeof update === 'function' ? update(makeProject()) : update).toMatchObject({ draft: '' });
   });
 
   it('複数章切り替え時に draft が正しく切り替わる', async () => {

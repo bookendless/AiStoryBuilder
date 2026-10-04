@@ -14,7 +14,7 @@ const GROK_MODELS: AIModel[] = [
     {
         id: 'grok-4.7',
         name: 'Grok 4.7',
-        description: '2026年9月21日リリースのxAI最新・最高知能モデル。コーディング・エージェント・知識作業向け。推論努力を設定可能。500kトークンコンテキスト。',
+        description: '2026年9月21日リリースのxAI最新・最高知能モデル。コーディング・エージェント・知識作業向け。モデルは推論努力の調整に対応（アプリ内での調整は未対応）。500kトークンコンテキスト。',
         contextWindow: 500000,
         maxOutputTokens: 131072,
         capabilities: ['テキスト', 'ビジョン', '高度推論', 'ツール使用', '構造化出力'],
@@ -36,7 +36,7 @@ const GROK_MODELS: AIModel[] = [
     {
         id: 'grok-4.5',
         name: 'Grok 4.5',
-        description: '2026年7月登場。旧世代フラッグシップモデル（最新はgrok-4.7）。コーディング・エージェント・知識作業向け。推論努力を設定可能。500kトークンコンテキスト。',
+        description: '2026年7月登場。旧世代フラッグシップモデル（最新はgrok-4.7）。コーディング・エージェント・知識作業向け。モデルは推論努力の調整に対応（アプリ内での調整は未対応）。500kトークンコンテキスト。',
         contextWindow: 500000,
         maxOutputTokens: 131072,
         capabilities: ['テキスト', 'ビジョン', '高度推論', 'ツール使用', '構造化出力'],
@@ -79,9 +79,10 @@ const GROK_MODELS: AIModel[] = [
 
 export const grokProvider: AIProvider = {
     id: 'grok',
+    defaultModelId: 'grok-4.7',
     name: 'xAI Grok',
     requiresApiKey: true,
-    description: 'xAIのGrokシリーズ。最新のGrok 4.7を筆頭に、テキスト・画像・動画・音声生成を網羅。',
+    description: 'xAIのGrokシリーズ。最新のGrok 4.7を筆頭に、このアプリではテキスト生成と画像入力に対応。',
     apiDocsUrl: 'https://docs.x.ai/developers/models',
     recommendedUses: [
         'Grok 4.7による最高知能のチャット・コーディング',
@@ -91,3 +92,4 @@ export const grokProvider: AIProvider = {
     regions: ['Global'],
     models: GROK_MODELS,
 };
+

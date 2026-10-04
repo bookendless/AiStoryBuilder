@@ -7,8 +7,15 @@ interface DiffPreviewModalProps {
   isOpen: boolean;
   oldText: string;
   newText: string;
+  notice?: string;
+  /** 適用ボタンの扱いを変えない補足情報 */
+  info?: string;
   onApply: () => void;
   onDiscard: () => void;
+  onClose?: () => void;
+  isApplying?: boolean;
+  applyBlockedReason?: string;
+  title?: string;
 }
 
 /**
@@ -20,8 +27,14 @@ export const DiffPreviewModal: React.FC<DiffPreviewModalProps> = ({
   isOpen,
   oldText,
   newText,
+  notice,
+  info,
   onApply,
   onDiscard,
+  onClose,
+  isApplying = false,
+  applyBlockedReason,
+  title,
 }) => {
   const segments = useMemo<Change[]>(() => {
     if (!isOpen) return [];
@@ -41,16 +54,19 @@ export const DiffPreviewModal: React.FC<DiffPreviewModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onDiscard}
+      onClose={onClose ?? onDiscard}
       title={
         <span className="flex items-center gap-2">
           <GitCompareArrows className="h-5 w-5 text-ai-600 dark:text-ai-400" />
-          AI提案の差分プレビュー
+          {title ?? 'AI提案の差分プレビュー'}
         </span>
       }
       size="lg"
     >
       <div className="space-y-4">
+        {notice && <p role="alert" className="rounded bg-amber-50 p-3 text-amber-900 dark:bg-amber-900 dark:text-amber-100">{notice}</p>}
+        {info && <p role="status" className="rounded bg-indigo-50 p-3 text-sm text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-100 font-['Noto_Sans_JP']">{info}</p>}
+        {applyBlockedReason && <p role="alert">{applyBlockedReason} 受信した本文はこの画面からコピーできます。</p>}
         <div className="flex items-center gap-4 text-sm font-['Noto_Sans_JP']">
           <span className="text-gray-600 dark:text-gray-400">
             {oldText.length.toLocaleString()}文字 → {newText.length.toLocaleString()}文字
@@ -81,6 +97,7 @@ export const DiffPreviewModal: React.FC<DiffPreviewModalProps> = ({
 
         <p className="text-xs text-gray-500 dark:text-gray-400 font-['Noto_Sans_JP']">
           「適用」すると草案がこの内容に置き換わり保存されます。「破棄」するとAI提案は捨てられ、現在の草案が維持されます。
+          {onClose && ' 閉じても提案は「確認待ち」に残ります。'}
         </p>
 
         {/* フッター */}
@@ -88,6 +105,7 @@ export const DiffPreviewModal: React.FC<DiffPreviewModalProps> = ({
           <button
             type="button"
             onClick={onDiscard}
+            disabled={isApplying}
             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-['Noto_Sans_JP']"
           >
             <X className="h-4 w-4" />
@@ -96,10 +114,11 @@ export const DiffPreviewModal: React.FC<DiffPreviewModalProps> = ({
           <button
             type="button"
             onClick={onApply}
+            disabled={isApplying || !!applyBlockedReason}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors text-sm font-['Noto_Sans_JP']"
           >
             <Check className="h-4 w-4" />
-            適用
+            {isApplying ? '保存中...' : notice ? '末尾まで確認して適用' : '適用'}
           </button>
         </div>
       </div>

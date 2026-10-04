@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { AISettings } from '../../types/ai';
 import { Chapter } from '../../types/project/chapter';
+import { narrativeProject } from '../services/narrativeFixtures';
+import { generatePreemptiveDraft } from '../../services/preemptive/generatePreemptiveDraft';
+import { generationSignature } from '../../services/narrative/context';
+import type { ProposeResultInput } from '../../contexts/usePendingResult';
 
 type MockChar = { id: string; name: string; role: string; appearance: string; personality: string; background: string };
 type MockProject = {
@@ -55,7 +59,7 @@ vi.mock('../../contexts/useAI', () => ({
   useAI: () => ({ settings: settingsRef.current, isConfigured: isConfiguredRef.current }),
 }));
 vi.mock('../../contexts/useProject', () => ({
-  useProject: () => ({ updateProject, currentProject: currentProjectRef.current }),
+  useProject: () => ({ updateProject, currentProject: currentProjectRef.current, getCurrentProject: () => currentProjectRef.current, commitProjectUpdate: async () => ({ project: currentProjectRef.current, generation: 1 }) }),
 }));
 vi.mock('../../contexts/useGeneration', () => ({
   useGeneration: () => ({ startTask, completeTask, updateTask: vi.fn() }),
@@ -76,8 +80,9 @@ vi.mock('../../services/preemptive/generatePreemptiveSynopsis', () => ({
 vi.mock('../../services/preemptive/generatePreemptiveChapters', () => ({
   generatePreemptiveChapters: async () => ({ kind: 'chapter', chapters: [{ id: 'x', title: 't', summary: 's' }] }),
 }));
-vi.mock('../../services/preemptive/generatePreemptiveDraft', () => ({
-  generatePreemptiveDraft: async () => ({ kind: 'draft', chapterId: 'ch1', chapterTitle: '第1章', draft: '本文' }),
+vi.mock('../../services/preemptive/generatePreemptiveDraft', async original => ({
+  ...await original<typeof import('../../services/preemptive/generatePreemptiveDraft')>(),
+  generatePreemptiveDraft: vi.fn(async () => ({ kind: 'draft', chapterId: 'ch1', chapterTitle: '第1章', draft: '本文' })),
 }));
 
 import { usePreemptiveGenerator } from '../../components/preemptive/usePreemptiveGenerator';
@@ -160,7 +165,7 @@ describe('usePreemptiveGenerator', () => {
     currentProjectRef.current = makeMockProject({ id: 'p2' });
     rerender();
 
-    await act(async () => { await onApply(); });
+    await act(async () => { await expect(onApply()).rejects.toThrow('生成元のプロジェクト'); });
     expect(updateProject).not.toHaveBeenCalled();
     expect(showWarning).toHaveBeenCalledTimes(1);
   });
@@ -174,5 +179,23 @@ describe('usePreemptiveGenerator', () => {
 
     await act(async () => { await onApply(); });
     expect(updateProject).toHaveBeenCalledWith({ synopsis: '先回りあらすじ' }, true, 'p1');
+  });
+  it('完了時の状態検証に失敗しても、受信本文を適用不可の確認待ちとして残す', async () => {
+    const p = narrativeProject();
+    p.chapters[0].draft = '';
+    currentProjectRef.current = p;
+    const signature = generationSignature(p, 'c1');
+    vi.mocked(generatePreemptiveDraft).mockImplementationOnce(async () => {
+      currentProjectRef.current = { ...p, chapters: p.chapters.map(c => c.id === 'c1' ? { ...c, draft: '作者の編集' } : c) };
+      return { kind: 'draft', chapterId: 'c1', chapterTitle: '第一章', draft: '生成された本文', narrativeSignature: signature };
+    });
+    const { result } = renderHook(() => usePreemptiveGenerator());
+    act(() => result.current.startPreempt('draft', p.id));
+    await flush();
+    const pending = lastProposed.input as ProposeResultInput;
+    expect(pending.draftPreview?.newText).toBe('生成された本文');
+    expect(pending.applyBlockedReason).toContain('前提が変わりました');
+    expect(() => pending.onApply()).toThrow('前提が変わりました');
+    expect(currentProjectRef.current.chapters[0].draft).toBe('作者の編集');
   });
 });
